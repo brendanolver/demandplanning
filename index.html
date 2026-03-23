@@ -138,7 +138,7 @@ input[type="file"]{display:none;}
 .main{overflow-y:auto;padding:20px;background:var(--bg);}
 
 /* KPI GRID */
-.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px;}
+.kpi-row{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:20px;}
 .kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 18px;box-shadow:var(--shadow-xs);transition:box-shadow 0.15s;}
 .kpi-card:hover{box-shadow:var(--shadow-sm);}
 .kpi-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
@@ -148,7 +148,7 @@ input[type="file"]{display:none;}
 .kpi-sub{font-size:11px;color:var(--text-muted);}
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
 .kpi-card{animation:fadeUp 0.35s ease both;}
-.kpi-card:nth-child(1){animation-delay:0.04s}.kpi-card:nth-child(2){animation-delay:0.08s}.kpi-card:nth-child(3){animation-delay:0.12s}.kpi-card:nth-child(4){animation-delay:0.16s}.kpi-card:nth-child(5){animation-delay:0.20s}
+.kpi-card:nth-child(1){animation-delay:0.04s}.kpi-card:nth-child(2){animation-delay:0.08s}.kpi-card:nth-child(3){animation-delay:0.12s}.kpi-card:nth-child(4){animation-delay:0.16s}.kpi-card:nth-child(5){animation-delay:0.20s}.kpi-card:nth-child(6){animation-delay:0.24s}
 
 /* TOOLBAR */
 .toolbar{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:14px;box-shadow:var(--shadow-xs);}
@@ -208,14 +208,14 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .cell-muted{color:var(--text-muted);}
 
 /* Status pill */
-.status-pill{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:var(--r-pill);font-size:11px;font-weight:600;white-space:nowrap;}
+.status-pill{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:var(--r-pill);font-size:11px;font-weight:700;white-space:nowrap;letter-spacing:0.3px;}
 .status-pill::before{content:'';width:5px;height:5px;border-radius:50%;flex-shrink:0;}
 .sp-oos{background:#fee2e2;color:#b91c1c;}.sp-oos::before{background:#ef4444;}
-.sp-critical{background:#fef3c7;color:#92400e;}.sp-critical::before{background:#f59e0b;}
-.sp-low{background:#fff7ed;color:#c2410c;}.sp-low::before{background:#fb923c;}
+.sp-reorder{background:#fef9c3;color:#854d0e;}.sp-reorder::before{background:#eab308;}
 .sp-ok{background:#dcfce7;color:#15803d;}.sp-ok::before{background:#22c55e;}
-.sp-healthy{background:#dbeafe;color:#1e40af;}.sp-healthy::before{background:#3b82f6;}
+.sp-reduce{background:#fee2e2;color:#b91c1c;}.sp-reduce::before{background:#ef4444;}
 .sp-on-order{background:var(--purple-light);color:var(--purple);}.sp-on-order::before{background:var(--purple);}
+.sp-clearance{background:#fff0e8;color:#c2410c;}.sp-clearance::before{background:#f97316;}
 
 /* Status badge (vendor/range) */
 .range-pill{display:inline-flex;padding:3px 8px;border-radius:var(--r-sm);font-size:11px;font-weight:600;}
@@ -225,7 +225,27 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .rp-bundle{background:var(--purple-light);color:var(--purple);}
 .rp-other{background:var(--surface2);color:var(--text-secondary);}
 
-/* Days bar */
+/* Column filters */
+.th-wrap{display:flex;align-items:center;justify-content:space-between;gap:4px;min-width:0;}
+.th-label{flex:1;overflow:hidden;text-overflow:ellipsis;}
+.th-filter-btn{flex-shrink:0;background:none;border:none;cursor:pointer;padding:1px 3px;border-radius:3px;font-size:10px;color:var(--text-muted);line-height:1;opacity:0.5;transition:all 0.12s;}
+.th-filter-btn:hover{opacity:1;color:var(--teal);}
+.th-filter-btn.active{opacity:1;color:var(--teal);background:var(--teal-light);}
+.col-filter-popup{display:none;position:absolute;top:100%;left:0;z-index:300;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);padding:12px;min-width:220px;}
+.col-filter-popup.open{display:block;}
+.cf-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-secondary);margin-bottom:8px;}
+.cf-row{display:flex;gap:6px;margin-bottom:6px;align-items:center;}
+.cf-select{flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;color:var(--text);background:var(--surface2);outline:none;appearance:none;cursor:pointer;}
+.cf-select:focus{border-color:var(--teal);}
+.cf-input{flex:1.2;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;color:var(--text);background:var(--surface2);outline:none;}
+.cf-input:focus{border-color:var(--teal);box-shadow:0 0 0 2px rgba(14,165,160,0.1);}
+.cf-and{font-size:10px;font-weight:600;color:var(--text-muted);text-align:center;padding:2px 0;}
+.cf-actions{display:flex;gap:6px;margin-top:10px;}
+.cf-apply{flex:1;background:var(--teal);color:white;border:none;padding:7px;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;}
+.cf-apply:hover{background:var(--teal-dark);}
+.cf-clear{flex:1;background:var(--surface);color:var(--text-secondary);border:1px solid var(--border);padding:7px;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:500;cursor:pointer;}
+.cf-clear:hover{border-color:var(--red);color:var(--red);}
+th{position:relative;}
 .days-wrap{display:flex;align-items:center;gap:8px;min-width:100px;}
 .days-track{flex:1;height:4px;background:var(--border);border-radius:2px;overflow:hidden;max-width:52px;}
 .days-fill{height:100%;border-radius:2px;}
@@ -278,7 +298,7 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .pw-title{font-size:20px;font-weight:700;color:var(--text);margin-bottom:6px;letter-spacing:-0.3px;}
 .pw-sub{font-size:13px;color:var(--text-secondary);margin-bottom:28px;}
 .pw-input-wrap{position:relative;margin-bottom:12px;}
-.pw-input{width:100%;padding:12px 44px 12px 14px;border:1.5px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:14px;color:var(--text);background:var(--surface2);outline:none;transition:all 0.15s;letter-spacing:0.5px;}
+.pw-input{width:100%;padding:12px 44px 12px 14px;border:1.5px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:14px;color:var(--text);background:var(--surface2);outline:none;transition:all 0.15s;}
 .pw-input:focus{border-color:var(--teal);background:var(--surface);box-shadow:0 0 0 3px rgba(14,165,160,0.12);}
 .pw-toggle{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:15px;padding:4px;line-height:1;}
 .pw-toggle:hover{color:var(--text-secondary);}
@@ -304,7 +324,7 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
     <div class="pw-sub">Enter your password to access the dashboard</div>
     <div class="pw-input-wrap">
       <input class="pw-input" type="password" id="pw-input" placeholder="Password" onkeydown="if(event.key==='Enter')checkPassword()">
-      <button class="pw-toggle" onclick="togglePwVisibility()" id="pw-toggle-btn">👁</button>
+      <button type="button" class="pw-toggle" id="pw-toggle-btn" onclick="togglePwVisibility(event)">👁</button>
     </div>
     <button class="pw-submit" onclick="checkPassword()">Access Dashboard →</button>
     <div class="pw-error" id="pw-error">Incorrect password. Please try again.</div>
@@ -453,12 +473,15 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
         <div class="sb-icon">🚫</div>Out of Stock
         <span class="sb-badge" id="sb-oos-count">—</span>
       </div>
-      <div class="sb-item" onclick="quickFlag('critical')">
-        <div class="sb-icon">⚠️</div>Critical (&lt;2w)
+      <div class="sb-item" onclick="quickFlag('reorder')">
+        <div class="sb-icon">⚠️</div>Re-Order
         <span class="sb-badge warn" id="sb-crit-count">—</span>
       </div>
-      <div class="sb-item" onclick="quickFlag('low')">
-        <div class="sb-icon">📉</div>Low (2–4w)
+      <div class="sb-item" onclick="quickFlag('reduce')">
+        <div class="sb-icon">📦</div>Reduce
+      </div>
+      <div class="sb-item" onclick="quickFlag('clearance')">
+        <div class="sb-icon">🏷️</div>Clearance
       </div>
       <div class="sb-item" onclick="quickFlag('')">
         <div class="sb-icon">🔄</div>All Products
@@ -517,10 +540,10 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
               <div id="ms-flag-options">
                 <label class="ms-item"><input type="checkbox" value="on-order" onchange="applyFilters()"> On Order (AM)</label>
                 <label class="ms-item"><input type="checkbox" value="oos" onchange="applyFilters()"> Out of Stock</label>
-                <label class="ms-item"><input type="checkbox" value="critical" onchange="applyFilters()"> Critical (&lt;2w)</label>
-                <label class="ms-item"><input type="checkbox" value="low" onchange="applyFilters()"> Low (2–4w)</label>
-                <label class="ms-item"><input type="checkbox" value="ok" onchange="applyFilters()"> OK (4–8w)</label>
-                <label class="ms-item"><input type="checkbox" value="healthy" onchange="applyFilters()"> Healthy (8w+)</label>
+                <label class="ms-item"><input type="checkbox" value="reorder" onchange="applyFilters()"> Re-Order (≤14w)</label>
+                <label class="ms-item"><input type="checkbox" value="ok" onchange="applyFilters()"> OK (14–26w)</label>
+                <label class="ms-item"><input type="checkbox" value="reduce" onchange="applyFilters()"> Reduce (26w+, no order)</label>
+                <label class="ms-item"><input type="checkbox" value="clearance" onchange="applyFilters()"> Clearance</label>
               </div>
             </div>
           </div>
@@ -541,7 +564,7 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 <script>
 /* ── PASSWORD ── */
 function checkPassword(){
-  const input=document.getElementById('pw-input').value;
+  const input=document.getElementById('pw-input').value.trim();
   const error=document.getElementById('pw-error');
   if(input==='Magpies90!'){
     document.getElementById('password-screen').style.display='none';
@@ -554,11 +577,18 @@ function checkPassword(){
   }
 }
 
-function togglePwVisibility(){
+function togglePwVisibility(e){
+  if(e)e.preventDefault();
   const input=document.getElementById('pw-input');
   const btn=document.getElementById('pw-toggle-btn');
-  if(input.type==='password'){input.type='text';btn.textContent='🙈';}
-  else{input.type='password';btn.textContent='👁';}
+  if(input.type==='password'){
+    input.type='text';
+    btn.textContent='🙈';
+  } else {
+    input.type='password';
+    btn.textContent='👁';
+  }
+  input.focus();
 }
 
 /* ── STATE ── */
@@ -626,27 +656,48 @@ function parseCSVLine(line){
 
 /* ── AM DATA ── */
 function buildAMData(){
-  const map={};const products={};
-  if(!amData)return{map,products};
+  // Three maps:
+  // variantMap: desc||colour||size → {qtyOpen, monthDue, category}  (per size)
+  // productMap: desc||colour       → {qtyOpen, monthDue, category}  (colour total, for AM-only products)
+  // products:   desc               → {colours, category}             (for AM-only product discovery)
+  const variantMap={};
+  const productMap={};
+  const products={};
+  if(!amData)return{variantMap,productMap,products};
+
   for(const row of amData){
     const desc=(row['Description']||'').trim().toUpperCase();
     const colour=(row['COLOUR']||'').trim().toUpperCase();
+    const size=(row['SIZE']||'').trim().toUpperCase();
     const monthDue=(row['Month Due']||'').trim();
     const category=(row['Category']||'').trim().toUpperCase();
     const qtyOpen=parseInt((row['Qty Open']||'0').replace(/[^0-9]/g,''))||0;
-    // Skip blank descriptions, grand total row, and any row without a colour (subtotals)
-    if(!desc||desc==='TOTAL'||!colour)continue;
-    const key=desc+'||'+colour;
-    // Only take the first occurrence per desc+colour to avoid double-counting
-    if(!map[key]){
-      map[key]={qtyOpen,monthDue:monthDue||'',category:category||''};
-      if(!products[desc])products[desc]={colours:new Set(),category:category||''};
-      products[desc].colours.add(colour);
-      // Update category on parent product if this row has one
-      if(category)products[desc].category=category;
+
+    // Skip blank descriptions and grand total rows
+    if(!desc||desc==='TOTAL')continue;
+    // Skip rows without colour (product-level subtotals)
+    if(!colour)continue;
+
+    // Track all colours seen per product for AM-only product discovery
+    if(!products[desc])products[desc]={colours:new Set(),category:category||''};
+    products[desc].colours.add(colour);
+    if(category)products[desc].category=category;
+
+    if(size){
+      // Variant-level row (has size) — this is the detail we want
+      const vKey=desc+'||'+colour+'||'+size;
+      if(!variantMap[vKey]){
+        variantMap[vKey]={qtyOpen,monthDue:monthDue||'',category:category||''};
+      }
+    } else if(monthDue){
+      // Colour-level subtotal with Month Due — use for product-level rollup
+      const pKey=desc+'||'+colour;
+      if(!productMap[pKey]){
+        productMap[pKey]={qtyOpen,monthDue:monthDue||'',category:category||''};
+      }
     }
   }
-  return{map,products};
+  return{variantMap,productMap,products};
 }
 
 /* ── HELPERS ── */
@@ -674,41 +725,43 @@ function monthDueToDays(monthDue){
   const year=parseInt(parts[0]);
   const mon=months[(parts[1]||'').toLowerCase().trim()];
   if(isNaN(year)||mon===undefined)return null;
-  const dueDate=new Date(year,mon,15); // mid-month estimate
+  const dueDate=new Date(year,mon,15);
   const today=new Date();
   today.setHours(0,0,0,0);
   return Math.round((dueDate-today)/(1000*60*60*24));
 }
 
-// Shorten "2026 - June" → "Jun 26"
+// Shorten "2026 - June" → "JUN26"
 function shortMonth(monthDue){
   if(!monthDue)return'—';
   const parts=monthDue.split(' - ');
   const year=parts[0]?parts[0].slice(2):'';
-  const mon=parts[1]?parts[1].slice(0,3):'';
-  return mon&&year?`${mon} '${year}`:monthDue;
+  const mon=parts[1]?parts[1].slice(0,3).toUpperCase():'';
+  return mon&&year?`${mon}${year}`:monthDue;
 }
 
-function getFlag(days,stock,onOrder){
+function getFlag(days,stock,onOrder,vendor){
+  if((vendor||'').toUpperCase()==='CLEARANCE')return'clearance'; // always clearance regardless of weeks
   if(stock===0&&onOrder>0)return'on-order';
   if(stock===0)return'oos';
   if(days===null||days===undefined)return'oos';
   const d=parseFloat(days);
   if(isNaN(d)||d===0)return'oos';
   const weeks=d/7;
-  if(weeks<2)return'critical';
-  if(weeks<4)return'low';
-  if(weeks<8)return'ok';
-  return'healthy';
+  if(weeks<=14)return'reorder';
+  if(weeks<=26)return'ok';
+  if(onOrder>0)return'ok';
+  return'reduce';
 }
 
 /* ── PROCESS ── */
-function processRows(amMap,amProducts){
+function processRows(amVariantMap,amProductMap,amProducts){
   const rows=[];
 
-  // Build a velocity lookup map from all uploaded periods
-  // Structure: {SKU: {7: velocity, 14: velocity, 30: velocity}}
+  // Build velocity lookup: {SKU: {7: vel, 30: vel}}
   const velMap={};
+  // Build sold lookup per period: {SKU: {7: sold, 30: sold}}
+  const soldMap={};
   const uploadedPeriods=Object.keys(shopifyPeriods).map(Number).sort((a,b)=>a-b);
   for(const days of uploadedPeriods){
     for(const row of shopifyPeriods[days]){
@@ -717,20 +770,19 @@ function processRows(amMap,amProducts){
       const vel=days>0?sold/days:0;
       if(!velMap[sku])velMap[sku]={};
       velMap[sku][days]=vel;
+      if(!soldMap[sku])soldMap[sku]={};
+      soldMap[sku][days]=sold;
     }
   }
 
-  // Use the longest uploaded period as the primary source for stock/product data
   const primaryDays=uploadedPeriods[uploadedPeriods.length-1]||30;
   const primaryData=shopifyPeriods[primaryDays]||[];
 
-  // Best period for days-remaining: prefer 30, then 14, then 7
   const preferredOrder=[30,14,7];
   function bestVelocity(skuVels){
     for(const d of preferredOrder){
       if(skuVels&&skuVels[d]!==undefined)return{vel:skuVels[d],days:d};
     }
-    // fallback: use whatever is available
     const available=Object.entries(skuVels||{});
     if(available.length)return{vel:available[0][1],days:parseInt(available[0][0])};
     return{vel:0,days:null};
@@ -746,75 +798,116 @@ function processRows(amMap,amProducts){
       const stock=parseInt(row['Ending inventory units'])||0;
       const sold=parseInt(row['Inventory units sold'])||0;
       const{name:productName,colour}=extractName(fullTitle);
-      const amEntry=amMap[productName+'||'+colour];
-      // onOrder & monthDue are at product+colour level only — not known per size
-      const productOnOrder=amEntry?amEntry.qtyOpen:0;
-      const monthDue=amEntry?amEntry.monthDue:'';
-      const sizeParts=variant.split('/');
-      const size=sizeParts.length>1?sizeParts[sizeParts.length-1].trim():variant.trim();
 
-      // Build per-period velocities for this SKU
+      // Extract size from variant title (e.g. "BLACK / XL" → "XL")
+      const sizeParts=variant.split('/');
+      let size=sizeParts.length>1?sizeParts[sizeParts.length-1].trim():variant.trim();
+      // If there's no size separator and the extracted "size" matches the colour,
+      // the product is one-size — treat as OS (e.g. "CHALLENGER SOCKS 3 PK - BLACK" with variant "BLACK")
+      if(size.toUpperCase()===colour.toUpperCase())size='OS';
+
+      // Look up on-order at variant level — also try OS fallback for one-size products
+      const vKey=productName+'||'+colour+'||'+size;
+      const vKeyOS=productName+'||'+colour+'||OS';
+      const pKey=productName+'||'+colour;
+      const variantEntry=amVariantMap[vKey]||amVariantMap[vKeyOS];
+      const productEntry=amProductMap[pKey];
+      const onOrder=variantEntry?variantEntry.qtyOpen:0;
+      const monthDue=variantEntry?variantEntry.monthDue:productEntry?productEntry.monthDue:'';
+      // productOnOrder is the total colour-level qty (for product/category rollups)
+      const productOnOrder=productEntry?productEntry.qtyOpen:0;
+
       const skuVels=velMap[sku]||{};
       const{vel:primaryVel}=bestVelocity(skuVels);
 
-      // Days remaining at variant level — stock on hand only (no on-order since we
-      // don't know the size breakdown of the incoming order yet)
-      const recalcDays=primaryVel>0?Math.round(stock/primaryVel):null;
+      // Days remaining — now includes variant-level on-order
+      let recalcDays=primaryVel>0?Math.round(stock/primaryVel):null;
+      if(primaryVel>0&&onOrder>0&&monthDue){
+        const daysUntilOrder=monthDueToDays(monthDue);
+        if(daysUntilOrder!==null&&(recalcDays===null||daysUntilOrder<=recalcDays+30)){
+          recalcDays=Math.round((stock+onOrder)/primaryVel);
+        }
+      }
       const recalcWeeks=recalcDays!==null?+(recalcDays/7).toFixed(1):null;
-      const flag=getFlag(recalcDays,stock,0); // pass 0 for onOrder at variant level
+      const flag=getFlag(recalcDays,stock,onOrder,vendor);
+
+      const s7=soldMap[sku]?.[7]??null;
+      const sellThru7=(s7!==null&&stock>0)?+(s7/stock*100).toFixed(2):null;
 
       rows.push({
         fullTitle,productName,colour,size,variant,sku,category,vendor,stock,
         velocity:primaryVel,
-        vel7:skuVels[7]!==undefined?skuVels[7]:null,
-        vel30:skuVels[30]!==undefined?skuVels[30]:null,
+        vel7:skuVels[7]!==undefined?skuVels[7]*7:null,
+        vel30:skuVels[30]!==undefined?skuVels[30]*7:null,
         days:recalcDays===null?9999:recalcDays,
         daysDisplay:recalcWeeks===null?'—':recalcWeeks===0?'0':recalcWeeks,
-        sold,
-        onOrder:null,        // unknown at size level
-        productOnOrder,      // known at product+colour level
+        sold:soldMap[sku]?.[primaryDays]||sold,
+        sold7:s7,
+        sold30:soldMap[sku]?.[30]??null,
+        sellThru7,
+        onOrder,
+        productOnOrder,
         monthDue,flag,amOnly:false
       });
     }
   }
 
-  // Build a category lookup from Shopify data keyed by product name
-  // so AM-only products can inherit the correct category
+  // Build category lookup from Shopify for AM-only products
   const shopifyCategoryMap={};
   for(const period of Object.values(shopifyPeriods)){
     for(const row of period){
       const fullTitle=(row['Product title']||'').trim().toUpperCase();
       const category=(row['Product type']||'').trim().toUpperCase();
       const{name:productName}=extractName(fullTitle);
-      if(productName&&category&&!shopifyCategoryMap[productName]){
+      if(productName&&category&&!shopifyCategoryMap[productName])
         shopifyCategoryMap[productName]=category;
-      }
     }
   }
 
-  // Add AM-only products
+  // Add AM-only products (not yet in Shopify) — one row per size from variantMap
   const shopKeys=new Set(rows.map(r=>r.productName+'||'+r.colour));
   if(amData){
     for(const[desc,info]of Object.entries(amProducts)){
       for(const colour of info.colours){
-        const sk=desc+'||'+colour;
-        if(shopKeys.has(sk))continue;
-        const amEntry=amMap[sk];
-        const onOrder=amEntry?amEntry.qtyOpen:0;
-        const monthDue=amEntry?amEntry.monthDue:'';
-        if(onOrder===0)continue;
-        // Look up category from Shopify first (most reliable),
-        // fall back to AM entry category if available
-        const category=shopifyCategoryMap[desc]||amEntry?.category||info.category||'';
-        rows.push({
-          fullTitle:desc+' - '+colour,productName:desc,colour,size:'—',variant:'—',sku:'—',
-          category,vendor:'INDENT',
-          stock:0,velocity:0,vel7:null,vel30:null,
-          days:9999,daysDisplay:'—',sold:0,
-          onOrder:null,
-          productOnOrder:onOrder,
-          monthDue,flag:'on-order',amOnly:true
-        });
+        const pKey=desc+'||'+colour;
+        if(shopKeys.has(pKey))continue;
+        const productEntry=amProductMap[pKey];
+        const totalOnOrder=productEntry?productEntry.qtyOpen:0;
+        const monthDue=productEntry?productEntry.monthDue:'';
+        if(totalOnOrder===0)continue;
+        const category=shopifyCategoryMap[desc]||productEntry?.category||info.category||'';
+
+        // Find all sizes for this product+colour from variantMap
+        const sizeEntries=Object.entries(amVariantMap)
+          .filter(([k])=>k.startsWith(pKey+'||'))
+          .map(([k,v])=>({size:k.split('||')[2],qtyOpen:v.qtyOpen,monthDue:v.monthDue||monthDue}));
+
+        if(sizeEntries.length>0){
+          // Add one row per size
+          for(const se of sizeEntries){
+            rows.push({
+              fullTitle:desc+' - '+colour,productName:desc,colour,
+              size:se.size,variant:se.size,sku:'—',
+              category,vendor:'INDENT',
+              stock:0,velocity:0,vel7:null,vel30:null,
+              days:9999,daysDisplay:'—',sold:0,
+              onOrder:se.qtyOpen,
+              productOnOrder:totalOnOrder,
+              monthDue:se.monthDue,flag:'on-order',amOnly:true
+            });
+          }
+        } else {
+          // No size breakdown available — add single row
+          rows.push({
+            fullTitle:desc+' - '+colour,productName:desc,colour,size:'—',variant:'—',sku:'—',
+            category,vendor:'INDENT',
+            stock:0,velocity:0,vel7:null,vel30:null,
+            days:9999,daysDisplay:'—',sold:0,
+            onOrder:null,
+            productOnOrder:totalOnOrder,
+            monthDue,flag:'on-order',amOnly:true
+          });
+        }
       }
     }
   }
@@ -825,8 +918,8 @@ function processRows(amMap,amProducts){
 function buildDashboard(){
   document.getElementById('upload-screen').style.display='none';
   document.getElementById('app').style.display='block';
-  const{map:amMap,products:amProducts}=buildAMData();
-  allVariantRows=processRows(amMap,amProducts);
+  const{variantMap:amVariantMap,productMap:amProductMap,products:amProducts}=buildAMData();
+  allVariantRows=processRows(amVariantMap,amProductMap,amProducts);
   document.getElementById('nav-count').textContent=allVariantRows.length.toLocaleString()+' SKUs';
   const periods=Object.keys(shopifyPeriods).sort((a,b)=>a-b).map(d=>d+'d').join(', ');
   document.getElementById('nav-days-range').textContent=`📅 ${periods||'—'} velocity`;
@@ -837,10 +930,10 @@ function buildDashboard(){
   populateMultiSelect('vendor',vendors);
 
   const oos=allVariantRows.filter(r=>r.flag==='oos').length;
-  const crit=allVariantRows.filter(r=>r.flag==='critical').length;
+  const reorder=allVariantRows.filter(r=>r.flag==='reorder').length;
   const onOrd=allVariantRows.filter(r=>r.flag==='on-order').length;
   document.getElementById('sb-oos-count').textContent=oos;
-  document.getElementById('sb-crit-count').textContent=crit;
+  document.getElementById('sb-crit-count').textContent=reorder;
   document.getElementById('sb-onorder-count').textContent=onOrd;
 
   renderKPIs();setView('category');
@@ -850,10 +943,11 @@ function renderKPIs(){
   const rows=allVariantRows;
   const kpis=[
     {name:'Total SKUs',val:rows.length.toLocaleString(),sub:'All variants',ico:'📊',bg:'#eef1fe',ic:'#4f6ef7'},
-    {name:'Stock on Hand',val:rows.reduce((s,r)=>s+r.stock,0).toLocaleString(),sub:'Units total',ico:'📦',bg:'#e6f7f7',ic:'var(--teal)'},
-    {name:'Units Sold',val:rows.reduce((s,r)=>s+r.sold,0).toLocaleString(),sub:'In period',ico:'🛍️',bg:'#dcfce7',ic:'var(--green)'},
-    {name:'Out of Stock',val:rows.filter(r=>r.flag==='oos').length.toLocaleString(),sub:'SKUs at zero',ico:'🚫',bg:'#fee2e2',ic:'var(--red)'},
-    {name:'On Order (AM)',val:rows.filter(r=>r.flag==='on-order').length.toLocaleString(),sub:'New products incoming',ico:'🚚',bg:'#ede9fe',ic:'var(--purple)'},
+    {name:'SOH',val:rows.reduce((s,r)=>s+r.stock,0).toLocaleString(),sub:'Units on hand',ico:'📦',bg:'#e6f7f7',ic:'var(--teal)'},
+    {name:'Units Sold (30d)',val:rows.reduce((s,r)=>s+(r.sold30||r.sold||0),0).toLocaleString(),sub:'Last 30 days',ico:'🛍️',bg:'#dcfce7',ic:'var(--green)'},
+    {name:'Out of Stock',val:rows.filter(r=>r.flag==='oos').length.toLocaleString(),sub:'Zero stock, no order',ico:'🚫',bg:'#fee2e2',ic:'var(--red)'},
+    {name:'Re-Order',val:rows.filter(r=>r.flag==='reorder').length.toLocaleString(),sub:'≤14 weeks cover',ico:'⚠️',bg:'#fef9c3',ic:'#854d0e'},
+    {name:'Reduce',val:rows.filter(r=>r.flag==='reduce').length.toLocaleString(),sub:'26w+ cover, no order',ico:'📦',bg:'#fee2e2',ic:'var(--red)'},
   ];
   document.getElementById('kpi-row').innerHTML=kpis.map(k=>`
     <div class="kpi-card">
@@ -867,8 +961,8 @@ function renderKPIs(){
 }
 
 /* ── VIEW STATE ── */
-const SL={oos:'Out of Stock',critical:'Critical',low:'Low',ok:'OK',healthy:'Healthy','on-order':'On Order'};
-const FC={oos:'#ef4444',critical:'#f59e0b',low:'#f97316',ok:'#16a34a',healthy:'#2563eb','on-order':'#7c3aed'};
+const SL={oos:'Out of Stock','on-order':'On Order',reorder:'Re-Order',ok:'OK',reduce:'Reduce',clearance:'Clearance'};
+const FC={oos:'#ef4444','on-order':'#7c3aed',reorder:'#eab308',ok:'#22c55e',reduce:'#ef4444',clearance:'#f97316'};
 
 /* ── FILTERS ── */
 function setSB(id){
@@ -972,8 +1066,20 @@ function clearFilters(){
   const labels={cat:'All Categories',vendor:'All Statuses',flag:'All Stock Status'};
   Object.entries(labels).forEach(([t,l])=>{const el=document.getElementById('ms-'+t+'-label');if(el)el.textContent=l;});
   document.getElementById('search-input').value='';
+  // Also clear all column filters
+  Object.keys(colFilters).forEach(k=>delete colFilters[k]);
   currentPage=1;
   renderTable();
+}
+
+const SIZE_ORDER=['XXS','XS','S','M','L','XL','XXL','XXXL','OS'];
+function sizeSort(a,b){
+  const ai=SIZE_ORDER.indexOf((a||'').toUpperCase());
+  const bi=SIZE_ORDER.indexOf((b||'').toUpperCase());
+  if(ai>=0&&bi>=0)return ai-bi;
+  if(ai>=0)return-1;
+  if(bi>=0)return 1;
+  return(a||'').localeCompare(b||'');
 }
 
 function setView(v){
@@ -990,15 +1096,17 @@ function toProduct(vr){
   for(const r of vr){
     const key=r.productName+'||'+r.colour;
     if(!map[key]){
-      map[key]={...r,velSum:r.velocity,stock:r.stock,sold:r.sold,count:1,
+      map[key]={...r,velSum:r.velocity,stock:r.stock,sold:r.sold,sold7:r.sold7||0,sold30:r.sold30||0,count:1,
+        onOrder:r.onOrder!==null?(r.onOrder||0):(r.productOnOrder||0),
         sizes:r.size&&r.size!=='—'?[r.size]:[],
-        earliestDue:r.monthDue,earliestKey:monthDueSortKey(r.monthDue),
-        onOrder:r.productOnOrder||0
+        earliestDue:r.monthDue,earliestKey:monthDueSortKey(r.monthDue)
       };
     } else {
       const p=map[key];
       p.stock+=r.stock;p.sold+=r.sold;
+      p.sold7+=(r.sold7||0);p.sold30+=(r.sold30||0);
       p.velSum+=r.velocity;p.count++;
+      p.onOrder+=(r.onOrder!==null?(r.onOrder||0):(r.productOnOrder||0));
       if(r.size&&r.size!=='—')p.sizes.push(r.size);
       if(!r.amOnly)p.amOnly=false;
       const sk=monthDueSortKey(r.monthDue);
@@ -1009,9 +1117,7 @@ function toProduct(vr){
     const velocity=p.velSum;
     const onOrder=p.onOrder||0;
     const monthDue=p.earliestDue;
-    // Base days: total stock on hand ÷ total velocity
     let days=velocity>0?Math.round(p.stock/velocity):null;
-    // Extend with on-order if the order arrives before or soon after we run out
     if(velocity>0&&onOrder>0&&monthDue){
       const daysUntilOrder=monthDueToDays(monthDue);
       if(daysUntilOrder!==null&&(days===null||daysUntilOrder<=days+30)){
@@ -1019,9 +1125,10 @@ function toProduct(vr){
       }
     }
     return{...p,velocity,onOrder,monthDue,
+      sellThru7:(p.sold7>0&&p.stock>0)?+(p.sold7/p.stock*100).toFixed(2):null,
       days:days===null?9999:days,
       daysDisplay:days===null?'—':+(days/7).toFixed(1),
-      flag:getFlag(days,p.stock,onOrder),
+      flag:getFlag(days,p.stock,onOrder,p.vendor),
       sizes:[...new Set(p.sizes)].join(', ')};
   });
 }
@@ -1030,20 +1137,19 @@ function toCategory(vr){
   const map={};
   for(const r of vr){
     const key=r.category||'UNCATEGORISED';
-    if(!map[key])map[key]={category:key,stock:0,sold:0,onOrder:0,velSum:0,
-      productSet:new Set(),seenOnOrder:new Set(),
+    if(!map[key])map[key]={category:key,stock:0,sold:0,sold7:0,sold30:0,onOrder:0,velSum:0,vel7Sum:0,vel30Sum:0,
+      productSet:new Set(),
       oosCount:0,critCount:0,earliestDue:'',earliestKey:999999};
     const c=map[key];
     c.stock+=r.stock;c.sold+=r.sold;c.velSum+=r.velocity;
-    // Count onOrder once per product+colour (not per size)
-    const prodColKey=r.productName+'||'+r.colour;
-    if((r.productOnOrder||0)>0&&!c.seenOnOrder.has(prodColKey)){
-      c.onOrder+=r.productOnOrder;
-      c.seenOnOrder.add(prodColKey);
-    }
-    c.productSet.add(prodColKey);
+    c.sold7+=(r.sold7||0);c.sold30+=(r.sold30||0);
+    c.vel7Sum+=(r.vel7||0);
+    c.vel30Sum+=(r.vel30||0);
+    // For Shopify variants use variant-level onOrder; for AM-only use productOnOrder
+    c.onOrder+=(r.onOrder!==null?(r.onOrder||0):(r.productOnOrder||0));
+    c.productSet.add(r.productName+'||'+r.colour);
     if(r.flag==='oos')c.oosCount++;
-    if(r.flag==='critical')c.critCount++;
+    if(r.flag==='reorder')c.critCount++;
     const sk=monthDueSortKey(r.monthDue);
     if(r.monthDue&&sk<c.earliestKey){c.earliestKey=sk;c.earliestDue=r.monthDue;}
   }
@@ -1051,9 +1157,7 @@ function toCategory(vr){
     const velocity=c.velSum;
     const onOrder=c.onOrder||0;
     const monthDue=c.earliestDue;
-    // Base days: total stock on hand ÷ total velocity
     let days=velocity>0?Math.round(c.stock/velocity):null;
-    // Extend with on-order if arriving within the planning window
     if(velocity>0&&onOrder>0&&monthDue){
       const daysUntilOrder=monthDueToDays(monthDue);
       if(daysUntilOrder!==null&&(days===null||daysUntilOrder<=days+30)){
@@ -1061,10 +1165,123 @@ function toCategory(vr){
       }
     }
     return{...c,products:c.productSet.size,monthDue,
+      sellThru7:(c.sold7>0&&c.stock>0)?+(c.sold7/c.stock*100).toFixed(2):null,
+      vel7:c.vel7Sum||null,vel30:c.vel30Sum||null,
       days:days===null?9999:days,
       daysDisplay:days===null?'—':+(days/7).toFixed(1),
       flag:getFlag(days,c.stock,onOrder)};
   });
+}
+
+/* ── COLUMN FILTERS ── */
+const colFilters={};  // {colKey: {op1, v1, op2, v2}}
+
+// Numeric columns use number operators; text/flag columns use text operators
+const NUM_COLS=new Set(['stock','sold7','sold30','onOrder','vel7','vel30','days','products','oosCount','critCount','sellThru7']);
+const TEXT_COLS=new Set(['productName','category','vendor','size','sku','flag','monthDue']);
+
+function getCondOpts(colKey){
+  if(NUM_COLS.has(colKey)){
+    return['','=','≠','>','≥','<','≤'].map((o,i)=>
+      `<option value="${o}"${colFilters[colKey]?.op1===o||(!colFilters[colKey]&&i===0)?'':''} >${o||'— condition —'}</option>`
+    ).join('');
+  }
+  return['','contains','not contains','=','≠','starts with'].map(o=>
+    `<option value="${o}">${o||'— condition —'}</option>`
+  ).join('');
+}
+
+function toggleColFilter(e,colKey){
+  e.stopPropagation();
+  const popup=document.getElementById('cfp-'+colKey);
+  const isOpen=popup.classList.contains('open');
+  // Close all open popups
+  document.querySelectorAll('.col-filter-popup.open').forEach(p=>p.classList.remove('open'));
+  if(!isOpen){
+    popup.classList.add('open');
+    // Restore saved operator values
+    const f=colFilters[colKey]||{};
+    const s1=document.getElementById('cfo1-'+colKey);
+    const s2=document.getElementById('cfo2-'+colKey);
+    if(s1&&f.op1)s1.value=f.op1;
+    if(s2&&f.op2)s2.value=f.op2;
+  }
+}
+
+// Close column filter popups when clicking outside
+document.addEventListener('click',e=>{
+  if(!e.target.closest('th'))
+    document.querySelectorAll('.col-filter-popup.open').forEach(p=>p.classList.remove('open'));
+},{capture:true});
+
+function applyColFilter(colKey){
+  const op1=document.getElementById('cfo1-'+colKey)?.value||'';
+  const v1=document.getElementById('cfv1-'+colKey)?.value.trim()||'';
+  const op2=document.getElementById('cfo2-'+colKey)?.value||'';
+  const v2=document.getElementById('cfv2-'+colKey)?.value.trim()||'';
+  if(op1&&v1){
+    colFilters[colKey]={op1,v1,op2:op2&&v2?op2:'',v2:op2&&v2?v2:''};
+  } else {
+    delete colFilters[colKey];
+  }
+  document.querySelectorAll('.col-filter-popup.open').forEach(p=>p.classList.remove('open'));
+  currentPage=1;renderTable();
+}
+
+function clearColFilter(colKey){
+  delete colFilters[colKey];
+  const els=['cfo1-','cfv1-','cfo2-','cfv2-'];
+  els.forEach(id=>{
+    const el=document.getElementById(id+colKey);
+    if(el)el.value='';
+  });
+  document.querySelectorAll('.col-filter-popup.open').forEach(p=>p.classList.remove('open'));
+  currentPage=1;renderTable();
+}
+
+function clearAllColFilters(){
+  Object.keys(colFilters).forEach(k=>delete colFilters[k]);
+  currentPage=1;renderTable();
+}
+
+function applyColFilterToRows(rows){
+  if(Object.keys(colFilters).length===0)return rows;
+  return rows.filter(row=>{
+    for(const[colKey,f]of Object.entries(colFilters)){
+      if(!f.op1||!f.v1)continue;
+      // For the 'days' column, filter against the weeks display value not raw days
+      const rawVal=colKey==='days'?row['daysDisplay']:row[colKey];
+      if(!testCondition(rawVal,f.op1,f.v1,NUM_COLS.has(colKey)))return false;
+      if(f.op2&&f.v2){
+        if(!testCondition(rawVal,f.op2,f.v2,NUM_COLS.has(colKey)))return false;
+      }
+    }
+    return true;
+  });
+}
+
+function testCondition(rawVal,op,filterVal,isNum){
+  if(rawVal===null||rawVal===undefined)return false;
+  if(isNum){
+    const val=parseFloat(rawVal);
+    const fv=parseFloat(filterVal);
+    if(isNaN(val))return false;
+    if(op==='=')return val===fv;
+    if(op==='≠')return val!==fv;
+    if(op==='>')return val>fv;
+    if(op==='≥')return val>=fv;
+    if(op==='<')return val<fv;
+    if(op==='≤')return val<=fv;
+  } else {
+    const val=String(rawVal).toLowerCase();
+    const fv=filterVal.toLowerCase();
+    if(op==='contains')return val.includes(fv);
+    if(op==='not contains')return!val.includes(fv);
+    if(op==='=')return val===fv;
+    if(op==='≠')return val!==fv;
+    if(op==='starts with')return val.startsWith(fv);
+  }
+  return true;
 }
 
 /* ── FILTER & SORT ── */
@@ -1074,25 +1291,45 @@ function getFilteredRows(){
   const flags=getSelected('flag');
   const search=document.getElementById('search-input').value.trim().toUpperCase();
 
-  let rows;
-  if(currentView==='category') rows=[...toCategory(allVariantRows)];
-  else if(currentView==='product') rows=[...toProduct(allVariantRows)];
-  else rows=[...allVariantRows].sort((a,b)=>a.productName.localeCompare(b.productName));
-
-  if(cats.length) rows=rows.filter(r=>cats.includes(r.category||''));
-  if(vendors.length&&currentView!=='category') rows=rows.filter(r=>vendors.includes(r.vendor||''));
-  if(flags.length) rows=rows.filter(r=>flags.includes(r.flag));
-  if(search) rows=rows.filter(r=>{
-    const n=(r.fullTitle||r.productName||r.category||'').toUpperCase();
-    return n.includes(search)||(r.sku||'').toUpperCase().includes(search);
+  // Filter at the variant level first so search + aggregation both work correctly
+  let baseRows=[...allVariantRows];
+  if(cats.length) baseRows=baseRows.filter(r=>cats.includes(r.category||''));
+  if(vendors.length) baseRows=baseRows.filter(r=>vendors.includes(r.vendor||''));
+  if(search) baseRows=baseRows.filter(r=>{
+    const name=(r.productName||'').toUpperCase();
+    const colour=(r.colour||'').toUpperCase();
+    const sku=(r.sku||'').toUpperCase();
+    return (name+' '+colour).includes(search)||name.includes(search)||colour.includes(search)||sku.includes(search);
   });
 
+  // Now aggregate the filtered variants into the requested view
+  let rows;
+  if(currentView==='category') rows=[...toCategory(baseRows)];
+  else if(currentView==='product') rows=[...toProduct(baseRows)];
+  else rows=baseRows.sort((a,b)=>{
+    const nameComp=a.productName.localeCompare(b.productName);
+    if(nameComp!==0)return nameComp;
+    const colourComp=(a.colour||'').localeCompare(b.colour||'');
+    if(colourComp!==0)return colourComp;
+    return sizeSort(a.size,b.size);
+  });
+
+  // Flag filter applied after aggregation (flags are recalculated on aggregated rows)
+  if(flags.length) rows=rows.filter(r=>flags.includes(r.flag));
+
+  // Apply column-level filters
+  rows=applyColFilterToRows(rows);
+
   rows.sort((a,b)=>{
+    // When sorting by size column use size order, not alphabetical
+    if(sortCol==='size') return sortDir==='asc'?sizeSort(a.size,b.size):sizeSort(b.size,a.size);
     let av=a[sortCol],bv=b[sortCol];
     if(typeof av==='string')av=av.toLowerCase();
     if(typeof bv==='string')bv=bv.toLowerCase();
     if(av<bv)return sortDir==='asc'?-1:1;
     if(av>bv)return sortDir==='asc'?1:-1;
+    // Tiebreak by size order for variant view
+    if(currentView==='variant')return sizeSort(a.size,b.size);
     return 0;
   });
   return rows;
@@ -1112,29 +1349,53 @@ function renderTable(){
 
   const catHeaders=[
     {k:'category',l:'Category'},{k:'products',l:'Products'},
-    {k:'stock',l:'Stock'},{k:'sold',l:'Sold'},{k:'onOrder',l:'On Order'},
-    {k:'monthDue',l:'Month Due'},{k:'days',l:'Weeks Cover'},
-    {k:'oosCount',l:'OOS'},{k:'critCount',l:'Critical'},{k:'flag',l:'Stock Status'}
+    {k:'stock',l:'SOH'},{k:'sellThru7',l:'ST% (7d)'},{k:'sold7',l:'Sold (7d)'},{k:'sold30',l:'Sold (30d)'},
+    {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},{k:'vel7',l:'7d Wkly'},{k:'vel30',l:'30d Wkly'},
+    {k:'days',l:'Weeks Cover'},
+    {k:'oosCount',l:'OOS'},{k:'critCount',l:'Re-Order'},{k:'flag',l:'Stock Status'}
   ];
   const prodHeaders=[
     {k:'productName',l:'Product'},{k:'category',l:'Category'},{k:'vendor',l:'Status'},
-    {k:'stock',l:'Stock'},{k:'sold',l:'Sold'},{k:'onOrder',l:'On Order'},
-    {k:'monthDue',l:'Month Due'},{k:'vel7',l:'7d Vel'},{k:'vel30',l:'30d Vel'},
+    {k:'stock',l:'SOH'},{k:'sellThru7',l:'ST% (7d)'},{k:'sold7',l:'Sold (7d)'},{k:'sold30',l:'Sold (30d)'},
+    {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},{k:'vel7',l:'7d Wkly'},{k:'vel30',l:'30d Wkly'},
     {k:'days',l:'Weeks Cover'},{k:'flag',l:'Stock Status'}
   ];
   const varHeaders=[
     {k:'productName',l:'Product'},{k:'size',l:'Size'},{k:'sku',l:'SKU'},
     {k:'category',l:'Category'},{k:'vendor',l:'Status'},
-    {k:'stock',l:'Stock'},{k:'sold',l:'Sold'},{k:'onOrder',l:'On Order'},
-    {k:'monthDue',l:'Month Due'},{k:'vel7',l:'7d Vel'},{k:'vel30',l:'30d Vel'},
+    {k:'stock',l:'SOH'},{k:'sellThru7',l:'ST% (7d)'},{k:'sold7',l:'Sold (7d)'},{k:'sold30',l:'Sold (30d)'},
+    {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},{k:'vel7',l:'7d Wkly'},{k:'vel30',l:'30d Wkly'},
     {k:'days',l:'Weeks Cover'},{k:'flag',l:'Stock Status'}
   ];
 
   const headers=currentView==='category'?catHeaders:currentView==='product'?prodHeaders:varHeaders;
 
-  document.getElementById('tbl-head').innerHTML='<tr>'+headers.map(h=>
-    `<th onclick="sortBy('${h.k}')" class="${sortCol===h.k?'sort-'+sortDir:''}">${h.l}</th>`
-  ).join('')+'</tr>';
+  document.getElementById('tbl-head').innerHTML='<tr>'+headers.map(h=>{
+    const hasFilter=colFilters[h.k]&&(colFilters[h.k].v1!=='');
+    const sortClass=sortCol===h.k?'sort-'+sortDir:'';
+    return`<th class="${sortClass}">
+      <div class="th-wrap">
+        <span class="th-label" onclick="sortBy('${h.k}')">${h.l}</span>
+        <button class="th-filter-btn${hasFilter?' active':''}" onclick="toggleColFilter(event,'${h.k}')" title="Filter">▼</button>
+      </div>
+      <div class="col-filter-popup" id="cfp-${h.k}">
+        <div class="cf-label">${h.l}</div>
+        <div class="cf-row">
+          <select class="cf-select" id="cfo1-${h.k}">${getCondOpts(h.k)}</select>
+          <input class="cf-input" id="cfv1-${h.k}" placeholder="Value" value="${colFilters[h.k]?.v1||''}">
+        </div>
+        <div class="cf-and">AND</div>
+        <div class="cf-row">
+          <select class="cf-select" id="cfo2-${h.k}">${getCondOpts(h.k)}</select>
+          <input class="cf-input" id="cfv2-${h.k}" placeholder="Value" value="${colFilters[h.k]?.v2||''}">
+        </div>
+        <div class="cf-actions">
+          <button class="cf-apply" onclick="applyColFilter('${h.k}')">Apply</button>
+          <button class="cf-clear" onclick="clearColFilter('${h.k}')">Clear</button>
+        </div>
+      </div>
+    </th>`;
+  }).join('')+'</tr>';
 
   if(pageRows.length===0){
     document.getElementById('tbl-body').innerHTML=`<tr><td colspan="${headers.length}"><div class="empty-cell"><div class="empty-ico">🔍</div><div class="empty-msg">No results found</div><div class="empty-sub">Try adjusting your filters</div></div></td></tr>`;
@@ -1157,7 +1418,10 @@ function renderRow(row,headers){
       const cls=v==='core'?'rp-core':v==='indent'?'rp-indent':v==='clearance'?'rp-clearance':v==='bundle'?'rp-bundle':'rp-other';
       return`<td><span class="range-pill ${cls}">${val||'—'}</span></td>`;
     }
-    if(h.k==='monthDue') return`<td>${renderMonthDue(val)}</td>`;
+    if(h.k==='sellThru7'){
+      if(val===null||val===undefined)return`<td class="cell-muted">—</td>`;
+      return`<td class="cell-num">${val.toFixed(2)}%</td>`;
+    }
     if(h.k==='days'){
       if(row.flag==='on-order')return`<td><span class="dn-on-order">Not live yet</span></td>`;
       const d=row.daysDisplay;
@@ -1167,9 +1431,10 @@ function renderRow(row,headers){
       return`<td><div class="days-wrap"><div class="days-track"><div class="days-fill" style="width:${pct}%;background:${color}"></div></div><span class="days-num dn-${row.flag}">${label}</span></div></td>`;
     }
     if(h.k==='flag') return`<td><span class="status-pill sp-${row.flag}">${SL[row.flag]||val}</span></td>`;
-    if(h.k==='onOrder') return`<td><span class="${val>0?'on-order-num':'cell-muted'}">${val>0?val.toLocaleString():'—'}</span></td>`;
+    if(h.k==='monthDue') return`<td>${renderMonthDue(val)}</td>`;
+    if(h.k==='onOrder') return`<td><span class="${(val||0)>0?'on-order-num':'cell-muted'}">${(val||0)>0?(val).toLocaleString():'—'}</span></td>`;
     if(h.k==='vel7'||h.k==='vel30') return`<td>${renderVel(val)}</td>`;
-    if(h.k==='stock'||h.k==='sold'||h.k==='products') return`<td class="cell-num">${typeof val==='number'?val.toLocaleString():val??'—'}</td>`;
+    if(h.k==='stock'||h.k==='sold7'||h.k==='sold30'||h.k==='products') return`<td class="cell-num">${typeof val==='number'?val.toLocaleString():val??'—'}</td>`;
     if(h.k==='oosCount') return`<td class="cell-num" style="${val>0?'color:var(--red);font-weight:600':''}">${val??0}</td>`;
     if(h.k==='critCount') return`<td class="cell-num" style="${val>0?'color:var(--amber);font-weight:600':''}">${val??0}</td>`;
     if(h.k==='size'||h.k==='sku') return`<td class="cell-muted">${val||'—'}</td>`;
@@ -1217,27 +1482,30 @@ function renderMonthDue(monthDue){
 
 function renderVel(val){
   if(val===null||val===undefined)return'<span class="cell-muted">—</span>';
-  if(val===0)return'<span class="cell-muted">0.00</span>';
-  return`<span style="font-variant-numeric:tabular-nums">${val.toFixed(2)}</span>`;
+  if(val===0)return'<span class="cell-muted">0</span>';
+  return`<span style="font-variant-numeric:tabular-nums">${Math.round(val)}</span>`;
 }
 
 /* ── EXPORT ── */
 function exportCSV(){
   const rows=getFilteredRows();
   const h=currentView==='category'
-    ?['Category','Products','Stock','Sold','On Order','Month Due','Weeks Cover','OOS','Critical','Stock Status']
+    ?['Category','Products','SOH','ST% (7d)','Sold (7d)','Sold (30d)','On Order','Month Due','7d Wkly','30d Wkly','Weeks Cover','OOS','Re-Order','Stock Status']
     :currentView==='product'
-    ?['Product','Colour','Category','Status','Stock','Sold','On Order','Month Due','7d Vel','30d Vel','Weeks Cover','Stock Status']
-    :['Product','Colour','Size','SKU','Category','Status','Stock','Sold','On Order','Month Due','7d Vel','30d Vel','Weeks Cover','Stock Status'];
+    ?['Product','Colour','Category','Status','SOH','ST% (7d)','Sold (7d)','Sold (30d)','On Order','Month Due','7d Wkly','30d Wkly','Weeks Cover','Stock Status']
+    :['Product','Colour','Size','SKU','Category','Status','SOH','ST% (7d)','Sold (7d)','Sold (30d)','On Order','Month Due','7d Wkly','30d Wkly','Weeks Cover','Stock Status'];
   const lines=[h.join(',')];
   for(const r of rows){
     let v;
+    const st7=r.sellThru7!=null?r.sellThru7.toFixed(2)+'%':'';
+    const onOrderVal=r.onOrder!=null?r.onOrder:(r.productOnOrder||0);
+    const monthDueAbbr=shortMonth(r.monthDue);
     if(currentView==='category')
-      v=[r.category,r.products,r.stock,r.sold,r.onOrder,r.monthDue,r.daysDisplay,r.oosCount,r.critCount,SL[r.flag]||r.flag];
+      v=[r.category,r.products,r.stock,st7,r.sold7??'',r.sold30??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.vel7!=null?Math.round(r.vel7):'',r.vel30!=null?Math.round(r.vel30):'',r.daysDisplay,r.oosCount,r.critCount,SL[r.flag]||r.flag];
     else if(currentView==='product')
-      v=[r.productName,r.colour,r.category,r.vendor,r.stock,r.sold,r.onOrder,r.monthDue,r.vel7!=null?r.vel7.toFixed(2):'',r.vel30!=null?r.vel30.toFixed(2):'',r.daysDisplay,SL[r.flag]||r.flag];
+      v=[r.productName,r.colour,r.category,r.vendor,r.stock,st7,r.sold7??'',r.sold30??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.vel7!=null?Math.round(r.vel7):'',r.vel30!=null?Math.round(r.vel30):'',r.daysDisplay,SL[r.flag]||r.flag];
     else
-      v=[r.productName,r.colour,r.size,r.sku,r.category,r.vendor,r.stock,r.sold,r.onOrder,r.monthDue,r.vel7!=null?r.vel7.toFixed(2):'',r.vel30!=null?r.vel30.toFixed(2):'',r.daysDisplay,SL[r.flag]||r.flag];
+      v=[r.productName,r.colour,r.size,r.sku,r.category,r.vendor,r.stock,st7,r.sold7??'',r.sold30??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.vel7!=null?Math.round(r.vel7):'',r.vel30!=null?Math.round(r.vel30):'',r.daysDisplay,SL[r.flag]||r.flag];
     lines.push(v.map(x=>`"${x??''}"`).join(','));
   }
   const a=document.createElement('a');
