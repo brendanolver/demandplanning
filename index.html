@@ -225,6 +225,26 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .rp-bundle{background:var(--purple-light);color:var(--purple);}
 .rp-other{background:var(--surface2);color:var(--text-secondary);}
 
+/* Cadence */
+.cadence-toggle{display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:2px;gap:2px;}
+.cadence-btn{padding:6px 16px;border:none;background:transparent;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;color:var(--text-secondary);cursor:pointer;border-radius:var(--r-sm);transition:all 0.12s;white-space:nowrap;}
+.cadence-btn:hover{color:var(--teal);}
+.cadence-btn.active{background:var(--teal);color:white;font-weight:600;}
+.cadence-table-wrap{overflow-x:auto;margin-bottom:28px;}
+.cadence-table{width:100%;border-collapse:collapse;font-size:12px;}
+.cadence-table th{background:var(--surface2);padding:8px 12px;text-align:right;font-weight:600;color:var(--text-secondary);border-bottom:2px solid var(--border);white-space:nowrap;font-size:11px;}
+.cadence-table th:first-child{text-align:left;position:sticky;left:0;background:var(--surface2);z-index:2;}
+.cadence-table td{padding:8px 12px;text-align:right;border-bottom:1px solid var(--border-light);color:var(--text);white-space:nowrap;}
+.cadence-table td:first-child{text-align:left;font-weight:600;color:var(--text);position:sticky;left:0;background:var(--surface);z-index:1;}
+.cadence-table tr:hover td{background:var(--surface2);}
+.cadence-table tr:hover td:first-child{background:var(--surface2);}
+.cadence-table tr.cadence-total td{background:var(--surface2);font-weight:700;border-top:2px solid var(--border);}
+.cadence-table tr.cadence-total td:first-child{background:var(--surface2);}
+.cadence-cell-val{font-weight:500;}
+.cadence-cell-zero{color:var(--text-muted);}
+.cadence-chart-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:24px;box-shadow:var(--shadow-xs);}
+.cadence-chart-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:16px;}
+
 /* Screen nav */
 .screen-nav{display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:2px;gap:2px;}
 .screen-btn{padding:5px 14px;border:none;background:transparent;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;color:var(--text-secondary);cursor:pointer;border-radius:var(--r-sm);transition:all 0.12s;white-space:nowrap;}
@@ -541,6 +561,7 @@ th{position:relative;}
       <div class="screen-nav">
         <button class="screen-btn active" id="btn-dashboard" onclick="showScreen('dashboard')">📊 Dashboard</button>
         <button class="screen-btn" id="btn-insights" onclick="showScreen('insights')">💡 Insights</button>
+        <button class="screen-btn" id="btn-cadence" onclick="showScreen('cadence')">📈 Sales Cadence</button>
       </div>
       <div class="period-selector" id="period-selector">
         <span class="period-label">Period:</span>
@@ -650,10 +671,12 @@ th{position:relative;}
               <label class="ms-item ms-all"><input type="checkbox" checked onchange="toggleAll('disc',this)"> All</label>
               <div id="ms-disc-options">
                 <label class="ms-item"><input type="checkbox" value="none" checked onchange="applyFilters()"> No Discount</label>
-                <label class="ms-item"><input type="checkbox" value="0-10" checked onchange="applyFilters()"> 1–10% off</label>
-                <label class="ms-item"><input type="checkbox" value="10-25" checked onchange="applyFilters()"> 10–25% off</label>
-                <label class="ms-item"><input type="checkbox" value="25-50" checked onchange="applyFilters()"> 25–50% off</label>
-                <label class="ms-item"><input type="checkbox" value="50+" checked onchange="applyFilters()"> 50%+ off</label>
+                <label class="ms-item"><input type="checkbox" value="20" checked onchange="applyFilters()"> 20% off</label>
+                <label class="ms-item"><input type="checkbox" value="30" checked onchange="applyFilters()"> 30% off</label>
+                <label class="ms-item"><input type="checkbox" value="40" checked onchange="applyFilters()"> 40% off</label>
+                <label class="ms-item"><input type="checkbox" value="50" checked onchange="applyFilters()"> 50% off</label>
+                <label class="ms-item"><input type="checkbox" value="60" checked onchange="applyFilters()"> 60% off</label>
+                <label class="ms-item"><input type="checkbox" value="70" checked onchange="applyFilters()"> 70% off</label>
               </div>
             </div>
           </div>
@@ -694,6 +717,30 @@ th{position:relative;}
     </div>
   </div>
 
+  <!-- CADENCE SCREEN -->
+  <div id="cadence-screen" style="display:none;padding:28px;overflow-y:auto;height:calc(100vh - 56px);">
+    <div style="max-width:1200px;margin:0 auto;">
+      <div class="insights-header">
+        <div>
+          <div class="insights-title">Sales Cadence</div>
+          <div class="insights-sub">Units sold by category across time — all data from your 365-day sales history</div>
+        </div>
+        <div class="cadence-toggle">
+          <button class="cadence-btn active" id="cad-12m" onclick="setCadence('12m')">12 Months</button>
+          <button class="cadence-btn" id="cad-12w" onclick="setCadence('12w')">12 Weeks</button>
+          <button class="cadence-btn" id="cad-5w" onclick="setCadence('5w')">5 Weeks</button>
+        </div>
+      </div>
+      <div id="cadence-body">
+        <div class="insights-empty">
+          <div class="insights-empty-ico">📈</div>
+          <div class="insights-empty-title">Ready to analyse</div>
+          <div class="insights-empty-sub">Sales cadence data will appear here once data is loaded.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -704,26 +751,183 @@ function showScreen(screen){
   currentScreen=screen;
   document.getElementById('btn-dashboard').classList.toggle('active',screen==='dashboard');
   document.getElementById('btn-insights').classList.toggle('active',screen==='insights');
+  document.getElementById('btn-cadence').classList.toggle('active',screen==='cadence');
   const layout=document.getElementById('dashboard-layout');
   const insightsScreen=document.getElementById('insights-screen');
+  const cadenceScreen=document.getElementById('cadence-screen');
   const periodSelector=document.getElementById('period-selector');
   const exportBtn=document.getElementById('export-btn');
-  if(screen==='dashboard'){
-    layout.style.display='';
-    insightsScreen.style.display='none';
-    periodSelector.style.display='';
-    exportBtn.style.display='';
-  } else {
-    layout.style.display='none';
-    insightsScreen.style.display='block';
-    periodSelector.style.display='none';
-    exportBtn.style.display='none';
+  layout.style.display=screen==='dashboard'?'':'none';
+  insightsScreen.style.display=screen==='insights'?'block':'none';
+  cadenceScreen.style.display=screen==='cadence'?'block':'none';
+  periodSelector.style.display=screen==='dashboard'?'':'none';
+  exportBtn.style.display=screen==='dashboard'?'':'none';
+  if(screen==='insights'){
     document.getElementById('insights-period-label').textContent=selectedPeriod+'d';
     document.getElementById('insights-sku-count').textContent=allVariantRows.length.toLocaleString();
   }
+  if(screen==='cadence') renderCadence();
 }
 
-/* ── INSIGHTS ── */
+/* ── SALES CADENCE ── */
+let cadenceMode='12m';
+
+function setCadence(mode){
+  cadenceMode=mode;
+  ['12m','12w','5w'].forEach(m=>{
+    document.getElementById('cad-'+m).classList.toggle('active',m===mode);
+  });
+  renderCadence();
+}
+
+function renderCadence(){
+  if(!allVariantRows||allVariantRows.length===0){
+    document.getElementById('cadence-body').innerHTML=`<div class="insights-error">⚠️ No data loaded yet. Please upload your files and analyse first.</div>`;
+    return;
+  }
+
+  const today=new Date();today.setHours(0,0,0,0);
+  const periods=buildCadencePeriods(today);
+  const cats=[...new Set(allVariantRows.map(r=>r.category||'UNCATEGORISED'))].sort();
+
+  // Build data: {cat: {periodLabel: qty}}
+  const data={};
+  const totals={};
+  for(const cat of cats){data[cat]={};}
+  for(const p of periods){data['TOTAL UNITS']=data['TOTAL UNITS']||{};totals[p.label]=0;}
+
+  // Sum sales per category per period
+  for(const row of allVariantRows){
+    if(row.amOnly)continue;
+    const cat=row.category||'UNCATEGORISED';
+    const skuDays=getSoldInPeriodBreakdown(row.sku,periods);
+    for(const p of periods){
+      data[cat][p.label]=(data[cat][p.label]||0)+skuDays[p.label];
+      totals[p.label]=(totals[p.label]||0)+skuDays[p.label];
+    }
+  }
+
+  // Render table
+  const headers=periods.map(p=>`<th>${p.label}</th>`).join('');
+  const catRows=cats.map(cat=>{
+    const cells=periods.map(p=>{
+      const v=Math.round(data[cat][p.label]||0);
+      return`<td>${v>0?`<span class="cadence-cell-val">${v.toLocaleString()}</span>`:`<span class="cadence-cell-zero">—</span>`}</td>`;
+    }).join('');
+    return`<tr><td>${cat}</td>${cells}</tr>`;
+  }).join('');
+  const totalCells=periods.map(p=>`<td>${Math.round(totals[p.label]||0).toLocaleString()}</td>`).join('');
+
+  // Build chart
+  const chartHtml=buildCadenceChart(periods,cats,data,totals);
+
+  document.getElementById('cadence-body').innerHTML=`
+    <div class="cadence-table-wrap">
+      <table class="cadence-table">
+        <thead><tr><th>Category</th>${headers}</tr></thead>
+        <tbody>
+          ${catRows}
+          <tr class="cadence-total"><td>TOTAL</td>${totalCells}</tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="cadence-chart-wrap">
+      <div class="cadence-chart-title">Total Units Sold — ${cadenceMode==='12m'?'Last 12 Months':cadenceMode==='12w'?'Last 12 Weeks':'Last 5 Weeks'}</div>
+      ${chartHtml}
+    </div>`;
+}
+
+function buildCadencePeriods(today){
+  const periods=[];
+  if(cadenceMode==='12m'){
+    for(let i=11;i>=0;i--){
+      const d=new Date(today.getFullYear(),today.getMonth()-i,1);
+      const end=new Date(d.getFullYear(),d.getMonth()+1,0);
+      const label=d.toLocaleString('en-AU',{month:'short',year:'2-digit'});
+      periods.push({label,start:new Date(d),end});
+    }
+  } else {
+    const n=cadenceMode==='12w'?12:5;
+    for(let i=n-1;i>=0;i--){
+      const start=new Date(today);
+      start.setDate(today.getDate()-i*7-6);
+      const end=new Date(today);
+      end.setDate(today.getDate()-i*7);
+      const label=`W${String(start.getDate()).padStart(2,'0')}/${String(start.getMonth()+1).padStart(2,'0')}`;
+      periods.push({label,start,end});
+    }
+  }
+  return periods;
+}
+
+function getSoldInPeriodBreakdown(sku,periods){
+  // Returns {label: qty} for each period
+  const result={};
+  for(const p of periods)result[p.label]=0;
+  if(!allVariantRows)return result;
+  // Access salesBySkuDay via a module-level cache — rebuild from allVariantRows
+  // We store it globally after buildVariantRows
+  if(!window._salesBySkuDay)return result;
+  const dayData=window._salesBySkuDay[sku]||{};
+  for(const[day,d] of Object.entries(dayData)){
+    const dt=new Date(day);dt.setHours(0,0,0,0);
+    for(const p of periods){
+      if(dt>=p.start&&dt<=p.end)result[p.label]+=d.qty;
+    }
+  }
+  return result;
+}
+
+function buildCadenceChart(periods,cats,data,totals){
+  const maxVal=Math.max(...Object.values(totals).map(v=>Math.round(v)||0),1);
+  const chartH=220;
+  const barW=Math.max(24,Math.floor(700/periods.length)-6);
+  const totalW=periods.length*(barW+6)+60;
+
+  // Category colours
+  const palette=['#2dd4bf','#4f6ef7','#f59e0b','#ef4444','#8b5cf6','#10b981','#f97316','#06b6d4','#ec4899','#84cc16'];
+  const catColours={};
+  cats.forEach((c,i)=>catColours[c]=palette[i%palette.length]);
+
+  // Build stacked bars
+  const bars=periods.map((p,pi)=>{
+    let y=chartH;
+    const stacks=cats.map(cat=>{
+      const v=Math.round(data[cat][p.label]||0);
+      if(!v)return'';
+      const h=Math.max(2,(v/maxVal)*chartH);
+      y-=h;
+      return`<rect x="${pi*(barW+6)+40}" y="${y.toFixed(1)}" width="${barW}" height="${h.toFixed(1)}" fill="${catColours[cat]}" rx="1">
+        <title>${cat}: ${v.toLocaleString()} units</title></rect>`;
+    }).join('');
+    const total=Math.round(totals[p.label]||0);
+    const labelY=chartH+16;
+    return`${stacks}
+      <text x="${pi*(barW+6)+40+barW/2}" y="${labelY}" text-anchor="middle" font-size="9" fill="var(--text-muted)">${p.label}</text>
+      ${total>0?`<text x="${pi*(barW+6)+40+barW/2}" y="${Math.max(10,(chartH-(total/maxVal)*chartH)-4).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="600" fill="var(--text)">${total.toLocaleString()}</text>`:''}`;
+  }).join('');
+
+  // Y-axis
+  const yLines=[0,0.25,0.5,0.75,1].map(pct=>{
+    const y=(chartH*(1-pct)).toFixed(1);
+    const val=Math.round(maxVal*pct);
+    return`<line x1="38" y1="${y}" x2="${totalW}" y2="${y}" stroke="var(--border)" stroke-width="1"/>
+      <text x="34" y="${parseFloat(y)+4}" text-anchor="end" font-size="9" fill="var(--text-muted)">${val.toLocaleString()}</text>`;
+  }).join('');
+
+  // Legend
+  const legend=cats.map(cat=>`
+    <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary);">
+      <div style="width:10px;height:10px;border-radius:2px;background:${catColours[cat]};flex-shrink:0;"></div>${cat}
+    </div>`).join('');
+
+  return`<svg viewBox="0 0 ${totalW+20} ${chartH+40}" style="width:100%;max-height:280px;overflow:visible;">
+    ${yLines}${bars}
+  </svg>
+  <div style="display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:12px;">${legend}</div>`;
+}
+
+
 async function generateInsights(){
   const btn=document.querySelector('.insights-refresh-btn');
 
@@ -1406,6 +1610,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
 function buildVariantRows(){
   const{variantMap:amVariantMap,productMap:amProductMap,products:amProducts}=buildAMData();
   const{salesBySkuDay,priceMap}=buildSalesMaps();
+  window._salesBySkuDay=salesBySkuDay; // cache for cadence screen
   const{soMap,plMap}=buildSoldOutMap();
   allVariantRows=processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap);
   document.getElementById('nav-count').textContent=allVariantRows.length.toLocaleString()+' SKUs';
@@ -1805,12 +2010,9 @@ function getFilteredRows(){
   if(discs.length) baseRows=baseRows.filter(r=>{
     const d=r.discountPct||0;
     return discs.some(band=>{
-      if(band==='none') return d===0||d===null;
-      if(band==='0-10') return d>0&&d<=10;
-      if(band==='10-25') return d>10&&d<=25;
-      if(band==='25-50') return d>25&&d<=50;
-      if(band==='50+') return d>50;
-      return false;
+      if(band==='none') return !d||d===0;
+      const pct=parseFloat(band);
+      return Math.round(d)===pct;
     });
   });
   if(search) baseRows=baseRows.filter(r=>{
