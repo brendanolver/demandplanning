@@ -103,11 +103,11 @@ input[type="file"]{display:none;}
 .pb-teal{background:rgba(14,165,160,0.15);color:#2dd4d0;}
 
 /* ── APP ──────────────────────────────────────── */
-#app{display:none;height:100vh;overflow:hidden;}
-.layout{display:grid;grid-template-columns:240px 1fr;grid-template-rows:54px 1fr;height:100vh;}
+#app{display:none;flex-direction:column;height:100vh;overflow:hidden;}
+.topbar{flex-shrink:0;height:54px;background:var(--navy);display:flex;align-items:center;justify-content:space-between;padding:0 20px 0 0;border-bottom:1px solid var(--navy-border);}
+.layout{display:grid;grid-template-columns:240px 1fr;flex:1;min-height:0;overflow:hidden;}
 
 /* TOPBAR */
-.topbar{grid-column:1/-1;background:var(--navy);display:flex;align-items:center;justify-content:space-between;padding:0 20px 0 0;border-bottom:1px solid var(--navy-border);}
 .topbar-left{width:240px;flex-shrink:0;padding:0 20px;display:flex;align-items:center;gap:10px;}
 .topbar-logo-mark{width:28px;height:28px;background:var(--teal);border-radius:6px;display:flex;align-items:center;justify-content:center;}
 .topbar-logo-mark svg{width:14px;height:14px;fill:none;stroke:white;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;}
@@ -122,7 +122,7 @@ input[type="file"]{display:none;}
 .tb-btn.accent:hover{background:var(--teal-dark);}
 
 /* SIDEBAR */
-.sidebar{background:var(--navy);border-right:1px solid var(--navy-border);padding:16px 12px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;}
+.sidebar{background:var(--navy);border-right:1px solid var(--navy-border);padding:16px 12px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;min-height:0;}
 .sb-section{font-size:10px;text-transform:uppercase;letter-spacing:1.2px;color:var(--navy-text);font-weight:700;padding:12px 8px 5px;margin-top:4px;}
 .sb-section:first-child{margin-top:0;}
 .sb-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:var(--r);cursor:pointer;font-size:12.5px;font-weight:500;color:var(--navy-text);transition:all 0.12s;border:1px solid transparent;}
@@ -135,7 +135,7 @@ input[type="file"]{display:none;}
 .sb-divider{height:1px;background:var(--navy-border);margin:6px 0;}
 
 /* MAIN */
-.main{overflow-y:auto;padding:20px;background:var(--bg);}
+.main{overflow-y:auto;padding:20px;background:var(--bg);min-height:0;}
 
 /* KPI GRID */
 .kpi-row{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:20px;}
@@ -287,13 +287,13 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .th-filter-btn{flex-shrink:0;background:none;border:none;cursor:pointer;padding:1px 3px;border-radius:3px;font-size:10px;color:var(--text-muted);line-height:1;opacity:0.5;transition:all 0.12s;}
 .th-filter-btn:hover{opacity:1;color:var(--teal);}
 .th-filter-btn.active{opacity:1;color:var(--teal);background:var(--teal-light);}
-.col-filter-popup{display:none;position:absolute;top:100%;left:0;z-index:300;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);padding:12px;min-width:220px;}
+.col-filter-popup{display:none;position:absolute;top:100%;left:0;z-index:300;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);padding:12px;min-width:280px;}
 .col-filter-popup.open{display:block;}
 .cf-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-secondary);margin-bottom:8px;}
 .cf-row{display:flex;gap:6px;margin-bottom:6px;align-items:center;}
-.cf-select{flex:1;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;color:var(--text);background:var(--surface2);outline:none;appearance:none;cursor:pointer;}
+.cf-select{flex:1.5;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;color:var(--text);background:var(--surface2);outline:none;appearance:none;cursor:pointer;}
 .cf-select:focus{border-color:var(--teal);}
-.cf-input{flex:1.2;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;color:var(--text);background:var(--surface2);outline:none;}
+.cf-input{flex:0.8;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;color:var(--text);background:var(--surface2);outline:none;}
 .cf-input:focus{border-color:var(--teal);box-shadow:0 0 0 2px rgba(14,165,160,0.1);}
 .cf-and{font-size:10px;font-weight:600;color:var(--text-muted);text-align:center;padding:2px 0;}
 .cf-actions{display:flex;gap:6px;margin-top:10px;}
@@ -432,12 +432,28 @@ th{position:relative;}
       </div>
     </div>
 
-    <!-- Source 03 — Apparel Magic -->
-    <div class="upload-card" id="am-card">
+    <!-- Source 03 — Price List -->
+    <div class="upload-card" id="price-card">
       <div class="upload-step">
         <div class="step-num">3</div>
         <div class="step-body">
-          <div class="step-label">Source 03 · Apparel Magic</div>
+          <div class="step-label">Source 03 · Better Reports</div>
+          <div class="step-title">All Products from Better Reports <span style="font-size:11px;color:var(--teal);font-weight:500;">Optional</span></div>
+          <div class="step-desc">Export the "All Products List" report from Better Reports — provides accurate current Price and RRP (Compare At Price) per product.</div>
+          <label class="upload-btn" for="price-file">
+            <span>↑</span> Upload All Products CSV
+          </label>
+          <div class="file-ok" id="price-ok"><span>✓</span><span id="price-fname"></span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Source 04 — Apparel Magic -->
+    <div class="upload-card" id="am-card">
+      <div class="upload-step">
+        <div class="step-num">4</div>
+        <div class="step-body">
+          <div class="step-label">Source 04 · Apparel Magic</div>
           <div class="step-title">Order Item Analysis</div>
           <div class="step-desc">Export the "Order Item Analysis" report from Apparel Magic — includes on order units by variant and delivery month.</div>
           <label class="upload-btn" for="am-file">
@@ -455,6 +471,7 @@ th{position:relative;}
     <input type="file" id="sf-inv-file" accept=".csv" onchange="loadShopifyInventory(this)">
     <input type="file" id="sf-sales-file" accept=".csv" onchange="loadShopifySales(this)">
     <input type="file" id="am-file" accept=".csv" onchange="loadAM(this)">
+    <input type="file" id="price-file" accept=".csv" onchange="loadPriceList(this)">
   </div>
 
   <!-- Right preview panel -->
@@ -619,6 +636,21 @@ th{position:relative;}
                 <label class="ms-item"><input type="checkbox" value="ok" onchange="applyFilters()"> OK (14–26w)</label>
                 <label class="ms-item"><input type="checkbox" value="reduce" onchange="applyFilters()"> Reduce (26w+, no order)</label>
                 <label class="ms-item"><input type="checkbox" value="clearance" onchange="applyFilters()"> Clearance</label>
+              </div>
+            </div>
+          </div>
+          <div class="ms-wrap" id="ms-disc">
+            <button class="ms-btn" onclick="toggleDropdown('ms-disc')">
+              <span id="ms-disc-label">Discount %</span><span class="ms-arrow">▾</span>
+            </button>
+            <div class="ms-dropdown" id="ms-disc-dropdown">
+              <label class="ms-item ms-all"><input type="checkbox" checked onchange="toggleAll('disc',this)"> All</label>
+              <div id="ms-disc-options">
+                <label class="ms-item"><input type="checkbox" value="none" checked onchange="applyFilters()"> No Discount</label>
+                <label class="ms-item"><input type="checkbox" value="0-10" checked onchange="applyFilters()"> 1–10% off</label>
+                <label class="ms-item"><input type="checkbox" value="10-25" checked onchange="applyFilters()"> 10–25% off</label>
+                <label class="ms-item"><input type="checkbox" value="25-50" checked onchange="applyFilters()"> 25–50% off</label>
+                <label class="ms-item"><input type="checkbox" value="50+" checked onchange="applyFilters()"> 50%+ off</label>
               </div>
             </div>
           </div>
@@ -931,7 +963,7 @@ function togglePwVisibility(e){
 }
 
 /* ── STATE ── */
-let shopifyInvData=null, shopifySalesData=null, amData=null;
+let shopifyInvData=null, shopifySalesData=null, amData=null, priceListData=null;
 let currentView='category', sortCol='days', sortDir='asc', currentPage=1;
 let selectedPeriod=7;
 const PAGE_SIZE=50;
@@ -964,6 +996,18 @@ function loadShopifySales(input){
     shopifySalesData=parseCSV(e.target.result);
     document.getElementById('sales-card').classList.add('loaded');
     document.getElementById('sf-sales-fname').textContent=file.name;
+    checkReady();
+  };
+  rd.readAsText(file);
+}
+
+function loadPriceList(input){
+  const file=input.files[0];if(!file)return;
+  const rd=new FileReader();
+  rd.onload=e=>{
+    priceListData=parseCSV(e.target.result);
+    document.getElementById('price-card').classList.add('loaded');
+    document.getElementById('price-fname').textContent=file.name;
     checkReady();
   };
   rd.readAsText(file);
@@ -1008,6 +1052,22 @@ function parseCSVLine(line){
     c+=line[i];
   }
   r.push(c);return r;
+}
+
+/* ── PRICE LIST MAP ── */
+function buildPriceListMap(){
+  // Returns {productTitleUpper: {price, compareAt}}
+  const map={};
+  if(!priceListData)return map;
+  for(const row of priceListData){
+    const title=(row['Product Title']||'').trim().toUpperCase();
+    const price=parseFloat(row['Price']||0)||0;
+    const compareAt=parseFloat(row['Compare at price']||0)||0;
+    if(title&&price>0){
+      map[title]={price,compareAt:compareAt||price};
+    }
+  }
+  return map;
 }
 
 /* ── BUILD SALES MAPS FROM 365-DAY FILE ── */
@@ -1176,7 +1236,7 @@ function getFlag(days,stock,onOrder,vendor){
 }
 
 /* ── PROCESS ── */
-function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap){
+function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap){
   const rows=[];
 
   // Build SOH lookup from inventory file: {sku: stock}
@@ -1201,7 +1261,13 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     if(!pm)continue; // need at minimum a sales record for meta info
 
     const stock=sohMap[sku]||0;
-    const{productName,colour,size,vendor,category,price,compareAt}=pm;
+    const{productName,colour,size,vendor,category}=pm;
+
+    // Use price list if uploaded (matched by product title), fall back to sales file prices
+    const plKey=(productName+' - '+colour).toUpperCase();
+    const plEntry=plKey in plMap?plMap[plKey]:plMap[productName.toUpperCase()];
+    const price=plEntry?plEntry.price:(pm.price||0);
+    const compareAt=plEntry?plEntry.compareAt:(pm.compareAt||pm.price||0);
 
     // Sold in each standard period
     const s7=getSoldInPeriod(salesBySkuDay,sku,7);
@@ -1315,7 +1381,8 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
 function buildVariantRows(){
   const{variantMap:amVariantMap,productMap:amProductMap,products:amProducts}=buildAMData();
   const{salesBySkuDay,priceMap}=buildSalesMaps();
-  allVariantRows=processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap);
+  const plMap=buildPriceListMap();
+  allVariantRows=processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap);
   document.getElementById('nav-count').textContent=allVariantRows.length.toLocaleString()+' SKUs';
   renderKPIs();
   setView(currentView);
@@ -1324,7 +1391,7 @@ function buildVariantRows(){
 /* ── DASHBOARD ── */
 function buildDashboard(){
   document.getElementById('upload-screen').style.display='none';
-  document.getElementById('app').style.display='block';
+  document.getElementById('app').style.display='flex';
   buildVariantRows();
 
   const cats=[...new Set(allVariantRows.map(r=>r.category).filter(Boolean))].sort();
@@ -1452,12 +1519,13 @@ function applyFilters(){
   updateLabel('cat','All Categories');
   updateLabel('vendor','All Statuses');
   updateLabel('flag','All Stock Status');
+  updateLabel('disc','Discount %');
   currentPage=1;
   renderTable();
 }
 
 function clearFilters(){
-  ['cat','vendor','flag'].forEach(type=>{
+  ['cat','vendor','flag','disc'].forEach(type=>{
     const boxes=document.querySelectorAll('#ms-'+type+'-options input[type="checkbox"]');
     boxes.forEach(b=>b.checked=true);
     const allBox=document.querySelector('#ms-'+type+' .ms-all input');
@@ -1466,7 +1534,7 @@ function clearFilters(){
     const btnEl=document.querySelector('#ms-'+type+' .ms-btn');
     if(btnEl)btnEl.classList.remove('filtered');
   });
-  const labels={cat:'All Categories',vendor:'All Statuses',flag:'All Stock Status'};
+  const labels={cat:'All Categories',vendor:'All Statuses',flag:'All Stock Status',disc:'Discount %'};
   Object.entries(labels).forEach(([t,l])=>{const el=document.getElementById('ms-'+t+'-label');if(el)el.textContent=l;});
   document.getElementById('search-input').value='';
   // Also clear all column filters
@@ -1590,11 +1658,11 @@ const TEXT_COLS=new Set(['productName','category','vendor','size','sku','flag','
 
 function getCondOpts(colKey){
   if(NUM_COLS.has(colKey)){
-    return['','=','≠','>','≥','<','≤'].map((o,i)=>
-      `<option value="${o}"${colFilters[colKey]?.op1===o||(!colFilters[colKey]&&i===0)?'':''} >${o||'— condition —'}</option>`
+    return['','equals','not equals','greater than','greater than or equal','less than','less than or equal'].map(o=>
+      `<option value="${o}">${o||'— condition —'}</option>`
     ).join('');
   }
-  return['','contains','not contains','=','≠','starts with'].map(o=>
+  return['','contains','not contains','equals','not equals','starts with'].map(o=>
     `<option value="${o}">${o||'— condition —'}</option>`
   ).join('');
 }
@@ -1674,19 +1742,19 @@ function testCondition(rawVal,op,filterVal,isNum){
     const val=parseFloat(rawVal);
     const fv=parseFloat(filterVal);
     if(isNaN(val))return false;
-    if(op==='=')return val===fv;
-    if(op==='≠')return val!==fv;
-    if(op==='>')return val>fv;
-    if(op==='≥')return val>=fv;
-    if(op==='<')return val<fv;
-    if(op==='≤')return val<=fv;
+    if(op==='equals')return val===fv;
+    if(op==='not equals')return val!==fv;
+    if(op==='greater than')return val>fv;
+    if(op==='greater than or equal')return val>=fv;
+    if(op==='less than')return val<fv;
+    if(op==='less than or equal')return val<=fv;
   } else {
     const val=String(rawVal).toLowerCase();
     const fv=filterVal.toLowerCase();
     if(op==='contains')return val.includes(fv);
     if(op==='not contains')return!val.includes(fv);
-    if(op==='=')return val===fv;
-    if(op==='≠')return val!==fv;
+    if(op==='equals')return val===fv;
+    if(op==='not equals')return val!==fv;
     if(op==='starts with')return val.startsWith(fv);
   }
   return true;
@@ -1697,12 +1765,24 @@ function getFilteredRows(){
   const cats=getSelected('cat');
   const vendors=getSelected('vendor');
   const flags=getSelected('flag');
+  const discs=getSelected('disc');
   const search=document.getElementById('search-input').value.trim().toUpperCase();
 
   // Filter at the variant level first so search + aggregation both work correctly
   let baseRows=[...allVariantRows];
   if(cats.length) baseRows=baseRows.filter(r=>cats.includes(r.category||''));
   if(vendors.length) baseRows=baseRows.filter(r=>vendors.includes(r.vendor||''));
+  if(discs.length) baseRows=baseRows.filter(r=>{
+    const d=r.discountPct||0;
+    return discs.some(band=>{
+      if(band==='none') return d===0||d===null;
+      if(band==='0-10') return d>0&&d<=10;
+      if(band==='10-25') return d>10&&d<=25;
+      if(band==='25-50') return d>25&&d<=50;
+      if(band==='50+') return d>50;
+      return false;
+    });
+  });
   if(search) baseRows=baseRows.filter(r=>{
     const name=(r.productName||'').toUpperCase();
     const colour=(r.colour||'').toUpperCase();
@@ -1951,11 +2031,11 @@ function exportCSV(){
 
 /* ── RESET ── */
 function resetApp(){
-  shopifyInvData=null;shopifySalesData=null;amData=null;
+  shopifyInvData=null;shopifySalesData=null;amData=null;priceListData=null;
   allVariantRows=[];
   document.getElementById('upload-screen').style.display='flex';
   document.getElementById('app').style.display='none';
-  ['shopify-card','sales-card','am-card'].forEach(id=>document.getElementById(id).classList.remove('loaded'));
+  ['shopify-card','sales-card','am-card','price-card'].forEach(id=>document.getElementById(id).classList.remove('loaded'));
   document.getElementById('analyse-btn').classList.remove('ready');
   ['sf-inv-file','sf-sales-file','am-file'].forEach(id=>document.getElementById(id).value='');
   ['sf-inv-fname','sf-sales-fname','am-fname'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent='';});
