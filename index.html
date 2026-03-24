@@ -506,36 +506,36 @@ th{position:relative;}
 
 <!-- ══ APP ═══════════════════════════════════════════════ -->
 <div id="app">
-  <div class="layout">
+  <!-- TOPBAR — always visible -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <div class="topbar-logo-mark">
+        <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      </div>
+      <div class="topbar-brand">WNDRR <span>/ Demand Planning</span></div>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-pill"><span class="live-dot"></span>Shopify</div>
+      <div class="topbar-pill"><span class="live-dot"></span>Apparel Magic</div>
+      <div class="topbar-pill" id="nav-count">— SKUs</div>
+      <div class="screen-nav">
+        <button class="screen-btn active" id="btn-dashboard" onclick="showScreen('dashboard')">📊 Dashboard</button>
+        <button class="screen-btn" id="btn-insights" onclick="showScreen('insights')">💡 Insights</button>
+      </div>
+      <div class="period-selector" id="period-selector">
+        <span class="period-label">Period:</span>
+        <button class="period-btn active" data-days="7" onclick="setPeriod(7)">7d</button>
+        <button class="period-btn" data-days="14" onclick="setPeriod(14)">14d</button>
+        <button class="period-btn" data-days="30" onclick="setPeriod(30)">30d</button>
+        <button class="period-btn" data-days="90" onclick="setPeriod(90)">90d</button>
+        <button class="period-btn" data-days="365" onclick="setPeriod(365)">365d</button>
+      </div>
+      <button class="tb-btn accent" id="export-btn" onclick="exportCSV()">↓ Export</button>
+      <button class="tb-btn" onclick="resetApp()">← Upload</button>
+    </div>
+  </header>
 
-    <!-- TOPBAR -->
-    <header class="topbar">
-      <div class="topbar-left">
-        <div class="topbar-logo-mark">
-          <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-        </div>
-        <div class="topbar-brand">WNDRR <span>/ Demand Planning</span></div>
-      </div>
-      <div class="topbar-right">
-        <div class="topbar-pill"><span class="live-dot"></span>Shopify</div>
-        <div class="topbar-pill"><span class="live-dot"></span>Apparel Magic</div>
-        <div class="topbar-pill" id="nav-count">— SKUs</div>
-        <div class="screen-nav">
-          <button class="screen-btn active" id="btn-dashboard" onclick="showScreen('dashboard')">📊 Dashboard</button>
-          <button class="screen-btn" id="btn-insights" onclick="showScreen('insights')">💡 Insights</button>
-        </div>
-        <div class="period-selector" id="period-selector">
-          <span class="period-label">Period:</span>
-          <button class="period-btn active" data-days="7" onclick="setPeriod(7)">7d</button>
-          <button class="period-btn" data-days="14" onclick="setPeriod(14)">14d</button>
-          <button class="period-btn" data-days="30" onclick="setPeriod(30)">30d</button>
-          <button class="period-btn" data-days="90" onclick="setPeriod(90)">90d</button>
-          <button class="period-btn" data-days="365" onclick="setPeriod(365)">365d</button>
-        </div>
-        <button class="tb-btn accent" id="export-btn" onclick="exportCSV()">↓ Export</button>
-        <button class="tb-btn" onclick="resetApp()">← Upload</button>
-      </div>
-    </header>
+  <div class="layout" id="dashboard-layout">
 
     <!-- SIDEBAR -->
     <aside class="sidebar">
@@ -688,7 +688,7 @@ function showScreen(screen){
   currentScreen=screen;
   document.getElementById('btn-dashboard').classList.toggle('active',screen==='dashboard');
   document.getElementById('btn-insights').classList.toggle('active',screen==='insights');
-  const layout=document.querySelector('#app .layout');
+  const layout=document.getElementById('dashboard-layout');
   const insightsScreen=document.getElementById('insights-screen');
   const periodSelector=document.getElementById('period-selector');
   const exportBtn=document.getElementById('export-btn');
@@ -986,8 +986,13 @@ function renderStoreInsights(products){
   // ── TAGS / DESIGN THEMES ──
   const tagCounts={};
   for(const p of products){
-    const tags=(p.tags||'').split(',').map(t=>t.trim().toLowerCase()).filter(t=>t&&t.length>2);
-    for(const t of tags)tagCounts[t]=(tagCounts[t]||0)+1;
+    const tags=Array.isArray(p.tags)
+      ?p.tags
+      :(p.tags||'').split(',').map(t=>t.trim());
+    for(const t of tags){
+      const tag=t.trim().toLowerCase();
+      if(tag&&tag.length>2)tagCounts[tag]=(tagCounts[tag]||0)+1;
+    }
   }
   const topTags=Object.entries(tagCounts).sort((a,b)=>b[1]-a[1]).slice(0,10);
 
