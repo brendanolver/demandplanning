@@ -432,18 +432,18 @@ th{position:relative;}
       </div>
     </div>
 
-    <!-- Source 03 — Price List -->
-    <div class="upload-card" id="price-card">
+    <!-- Source 03 — Sizes Sold Out (replaces separate price list & soldout uploads) -->
+    <div class="upload-card" id="soldout-card">
       <div class="upload-step">
         <div class="step-num">3</div>
         <div class="step-body">
           <div class="step-label">Source 03 · Better Reports</div>
           <div class="step-title">All Products from Better Reports <span style="font-size:11px;color:var(--teal);font-weight:500;">Optional</span></div>
-          <div class="step-desc">Export the "All Products List" report from Better Reports — provides accurate current Price and RRP (Compare At Price) per product.</div>
-          <label class="upload-btn" for="price-file">
+          <div class="step-desc">Export the "All Products Sizes Sold Out" report from Better Reports — provides Price, RRP and count of sold-out variants per product.</div>
+          <label class="upload-btn" for="soldout-file">
             <span>↑</span> Upload All Products CSV
           </label>
-          <div class="file-ok" id="price-ok"><span>✓</span><span id="price-fname"></span></div>
+          <div class="file-ok" id="soldout-ok"><span>✓</span><span id="soldout-fname"></span></div>
         </div>
       </div>
     </div>
@@ -471,7 +471,7 @@ th{position:relative;}
     <input type="file" id="sf-inv-file" accept=".csv" onchange="loadShopifyInventory(this)">
     <input type="file" id="sf-sales-file" accept=".csv" onchange="loadShopifySales(this)">
     <input type="file" id="am-file" accept=".csv" onchange="loadAM(this)">
-    <input type="file" id="price-file" accept=".csv" onchange="loadPriceList(this)">
+    <input type="file" id="soldout-file" accept=".csv" onchange="loadSoldOut(this)">
   </div>
 
   <!-- Right preview panel -->
@@ -963,7 +963,7 @@ function togglePwVisibility(e){
 }
 
 /* ── STATE ── */
-let shopifyInvData=null, shopifySalesData=null, amData=null, priceListData=null;
+let shopifyInvData=null, shopifySalesData=null, amData=null, soldOutData=null;
 let currentView='category', sortCol='days', sortDir='asc', currentPage=1;
 let selectedPeriod=7;
 const PAGE_SIZE=50;
@@ -1001,13 +1001,13 @@ function loadShopifySales(input){
   rd.readAsText(file);
 }
 
-function loadPriceList(input){
+function loadSoldOut(input){
   const file=input.files[0];if(!file)return;
   const rd=new FileReader();
   rd.onload=e=>{
-    priceListData=parseCSV(e.target.result);
-    document.getElementById('price-card').classList.add('loaded');
-    document.getElementById('price-fname').textContent=file.name;
+    soldOutData=parseCSV(e.target.result);
+    document.getElementById('soldout-card').classList.add('loaded');
+    document.getElementById('soldout-fname').textContent=file.name;
     checkReady();
   };
   rd.readAsText(file);
@@ -1054,20 +1054,27 @@ function parseCSVLine(line){
   r.push(c);return r;
 }
 
-/* ── PRICE LIST MAP ── */
-function buildPriceListMap(){
-  // Returns {productTitleUpper: {price, compareAt}}
-  const map={};
-  if(!priceListData)return map;
-  for(const row of priceListData){
-    const title=(row['Product Title']||'').trim().toUpperCase();
+/* ── SOLD OUT + PRICE MAP ── */
+function buildSoldOutMap(){
+  // Returns {soMap: {productName||colour: count}, plMap: {titleUpper: {price,compareAt}}}
+  const soMap={};
+  const plMap={};
+  if(!soldOutData)return{soMap,plMap};
+  for(const row of soldOutData){
+    const title=(row['Product title']||'').trim().toUpperCase();
+    if(!title||title.startsWith('TOTAL '))continue;
     const price=parseFloat(row['Price']||0)||0;
     const compareAt=parseFloat(row['Compare at price']||0)||0;
-    if(title&&price>0){
-      map[title]={price,compareAt:compareAt||price};
-    }
+    const variants=parseInt(row['Total variants']||0)||0;
+    const deliveryMonth=(row["Product Metafield 'custom.delivery_month'"]||'').trim();
+    const dashIdx=title.lastIndexOf(' - ');
+    const productName=dashIdx>=0?title.slice(0,dashIdx):title;
+    const colour=dashIdx>=0?title.slice(dashIdx+3):'';
+    const soKey=productName+'||'+colour;
+    if(variants>0)soMap[soKey]=variants;
+    if(price>0)plMap[title]={price,compareAt:compareAt||price,deliveryMonth};
   }
-  return map;
+  return{soMap,plMap};
 }
 
 /* ── BUILD SALES MAPS FROM 365-DAY FILE ── */
@@ -1236,7 +1243,7 @@ function getFlag(days,stock,onOrder,vendor){
 }
 
 /* ── PROCESS ── */
-function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap){
+function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap){
   const rows=[];
 
   // Build SOH lookup from inventory file: {sku: stock}
@@ -1268,6 +1275,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const plEntry=plKey in plMap?plMap[plKey]:plMap[productName.toUpperCase()];
     const price=plEntry?plEntry.price:(pm.price||0);
     const compareAt=plEntry?plEntry.compareAt:(pm.compareAt||pm.price||0);
+    const deliveryMonth=plEntry?plEntry.deliveryMonth||'':'';
 
     // Sold in each standard period
     const s7=getSoldInPeriod(salesBySkuDay,sku,7);
@@ -1327,7 +1335,9 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
       sold,sellThru7:sellThru,
       days:recalcDays===null?9999:recalcDays,
       daysDisplay:recalcWeeks===null?'—':recalcWeeks===0?'0':recalcWeeks,
-      onOrder,productOnOrder,monthDue,flag,amOnly:false
+      onOrder,productOnOrder,monthDue,flag,amOnly:false,
+      soldOutSizes:soMap[productName+'||'+colour]||null,
+      deliveryMonth
     });
   }
 
@@ -1381,8 +1391,8 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
 function buildVariantRows(){
   const{variantMap:amVariantMap,productMap:amProductMap,products:amProducts}=buildAMData();
   const{salesBySkuDay,priceMap}=buildSalesMaps();
-  const plMap=buildPriceListMap();
-  allVariantRows=processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap);
+  const{soMap,plMap}=buildSoldOutMap();
+  allVariantRows=processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap);
   document.getElementById('nav-count').textContent=allVariantRows.length.toLocaleString()+' SKUs';
   renderKPIs();
   setView(currentView);
@@ -1604,7 +1614,9 @@ function toProduct(vr){
       days:days===null?9999:days,
       daysDisplay:days===null?'—':+(days/7).toFixed(1),
       flag:getFlag(days,p.stock,onOrder,p.vendor),
-      sizes:[...new Set(p.sizes)].join(', ')};
+      sizes:[...new Set(p.sizes)].join(', '),
+      soldOutSizes:p.soldOutSizes||null,
+      deliveryMonth:p.deliveryMonth||''};
   });
 }
 
@@ -1653,7 +1665,7 @@ function toCategory(vr){
 const colFilters={};  // {colKey: {op1, v1, op2, v2}}
 
 // Numeric columns use number operators; text/flag columns use text operators
-const NUM_COLS=new Set(['stock','sold7','sold30','sold90','sold365','onOrder','vel7','vel30','days','products','oosCount','critCount','sellThru7','price','compareAt','discountPct','margin']);
+const NUM_COLS=new Set(['stock','sold7','sold30','sold90','sold365','onOrder','vel7','vel30','days','products','oosCount','critCount','sellThru7','price','compareAt','discountPct','margin','soldOutSizes']);
 const TEXT_COLS=new Set(['productName','category','vendor','size','sku','flag','monthDue']);
 
 function getCondOpts(colKey){
@@ -1852,14 +1864,17 @@ function renderTable(){
   ];
   const prodHeaders=[
     {k:'productName',l:'Product'},{k:'category',l:'Category'},{k:'vendor',l:'Status'},
+    {k:'deliveryMonth',l:'Month Del'},
     {k:'sellThru7',l:stLabel},{k:'stock',l:'SOH'},{k:'sold',l:soldLabel},
     {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},
+    {k:'soldOutSizes',l:'Sizes Sold Out'},
     {k:'price',l:'Price'},{k:'compareAt',l:'RRP'},{k:'discountPct',l:'Disc%'},{k:'margin',l:'Margin%'},
     {k:'days',l:'Weeks Cover'},{k:'flag',l:'Stock Status'}
   ];
   const varHeaders=[
     {k:'productName',l:'Product'},{k:'size',l:'Size'},{k:'sku',l:'SKU'},
     {k:'category',l:'Category'},{k:'vendor',l:'Status'},
+    {k:'deliveryMonth',l:'Month Del'},
     {k:'sellThru7',l:stLabel},{k:'stock',l:'SOH'},{k:'sold',l:soldLabel},
     {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},
     {k:'price',l:'Price'},{k:'compareAt',l:'RRP'},{k:'discountPct',l:'Disc%'},{k:'margin',l:'Margin%'},
@@ -1915,6 +1930,14 @@ function renderRow(row,headers){
       const v=(val||'').toLowerCase();
       const cls=v==='core'?'rp-core':v==='indent'?'rp-indent':v==='clearance'?'rp-clearance':v==='bundle'?'rp-bundle':'rp-other';
       return`<td><span class="range-pill ${cls}">${val||'—'}</span></td>`;
+    }
+    if(h.k==='deliveryMonth'){
+      if(!val)return`<td class="cell-muted">—</td>`;
+      return`<td><span style="font-size:12px;font-weight:500;color:var(--text-secondary);">${val}</span></td>`;
+    }
+    if(h.k==='soldOutSizes'){
+      if(!val||val===0)return`<td class="cell-muted">—</td>`;
+      return`<td><span style="font-size:12px;color:var(--red);font-weight:600;">${val}</span></td>`;
     }
     if(h.k==='sellThru7'){
       if(val===null||val===undefined)return`<td class="cell-muted">—</td>`;
@@ -2005,8 +2028,8 @@ function exportCSV(){
   const h=currentView==='category'
     ?['Category','Products','SOH',stLabel,soldLabel,'On Order','Month Due','Weeks Cover','OOS','Re-Order','Stock Status']
     :currentView==='product'
-    ?['Product','Colour','Category','Status','SOH',stLabel,soldLabel,'On Order','Month Due','Price','RRP','Disc%','Margin%','Weeks Cover','Stock Status']
-    :['Product','Colour','Size','SKU','Category','Status','SOH',stLabel,soldLabel,'On Order','Month Due','Price','RRP','Disc%','Margin%','Weeks Cover','Stock Status'];
+    ?['Product','Colour','Category','Status','Month Del',stLabel,'SOH',soldLabel,'On Order','Month Due','Sizes Sold Out','Price','RRP','Disc%','Margin%','Weeks Cover','Stock Status']
+    :['Product','Colour','Size','SKU','Category','Status','Month Del',stLabel,'SOH',soldLabel,'On Order','Month Due','Price','RRP','Disc%','Margin%','Weeks Cover','Stock Status'];
   const lines=[h.join(',')];
   for(const r of rows){
     let v;
@@ -2018,9 +2041,9 @@ function exportCSV(){
     if(currentView==='category')
       v=[r.category,r.products,r.stock,st7,r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.daysDisplay,r.oosCount,r.critCount,SL[r.flag]||r.flag];
     else if(currentView==='product')
-      v=[r.productName,r.colour,r.category,r.vendor,r.stock,st7,r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.price??'',r.compareAt??'',disc,mg,r.daysDisplay,SL[r.flag]||r.flag];
+      v=[r.productName,r.colour,r.category,r.vendor,r.deliveryMonth||'',r.stock,st7,r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.soldOutSizes||'',r.price??'',r.compareAt??'',disc,mg,r.daysDisplay,SL[r.flag]||r.flag];
     else
-      v=[r.productName,r.colour,r.size,r.sku,r.category,r.vendor,r.stock,st7,r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.price??'',r.compareAt??'',disc,mg,r.daysDisplay,SL[r.flag]||r.flag];
+      v=[r.productName,r.colour,r.size,r.sku,r.category,r.vendor,r.deliveryMonth||'',r.stock,st7,r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.price??'',r.compareAt??'',disc,mg,r.daysDisplay,SL[r.flag]||r.flag];
     lines.push(v.map(x=>`"${x??''}"`).join(','));
   }
   const a=document.createElement('a');
@@ -2031,11 +2054,11 @@ function exportCSV(){
 
 /* ── RESET ── */
 function resetApp(){
-  shopifyInvData=null;shopifySalesData=null;amData=null;priceListData=null;
+  shopifyInvData=null;shopifySalesData=null;amData=null;soldOutData=null;
   allVariantRows=[];
   document.getElementById('upload-screen').style.display='flex';
   document.getElementById('app').style.display='none';
-  ['shopify-card','sales-card','am-card','price-card'].forEach(id=>document.getElementById(id).classList.remove('loaded'));
+  ['shopify-card','sales-card','am-card','soldout-card'].forEach(id=>document.getElementById(id).classList.remove('loaded'));
   document.getElementById('analyse-btn').classList.remove('ready');
   ['sf-inv-file','sf-sales-file','am-file'].forEach(id=>document.getElementById(id).value='');
   ['sf-inv-fname','sf-sales-fname','am-fname'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent='';});
