@@ -720,15 +720,27 @@ th{position:relative;}
   <!-- CADENCE SCREEN -->
   <div id="cadence-screen" style="display:none;padding:28px;overflow-y:auto;height:calc(100vh - 56px);">
     <div style="max-width:1200px;margin:0 auto;">
-      <div class="insights-header">
+      <div class="insights-header" style="flex-wrap:wrap;gap:12px;">
         <div>
           <div class="insights-title">Sales Cadence</div>
-          <div class="insights-sub">Units sold by category across time — all data from your 365-day sales history</div>
+          <div class="insights-sub">Units sold across time — all data from your 365-day sales history</div>
         </div>
-        <div class="cadence-toggle">
-          <button class="cadence-btn active" id="cad-12m" onclick="setCadence('12m')">12 Months</button>
-          <button class="cadence-btn" id="cad-12w" onclick="setCadence('12w')">12 Weeks</button>
-          <button class="cadence-btn" id="cad-5w" onclick="setCadence('5w')">5 Weeks</button>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <div class="cadence-toggle">
+            <button class="cadence-btn active" id="cad-cat" onclick="setCadenceView('cat')">Category</button>
+            <button class="cadence-btn" id="cad-prod" onclick="setCadenceView('prod')">Product</button>
+          </div>
+          <div class="cadence-toggle">
+            <button class="cadence-btn active" id="cad-12m" onclick="setCadence('12m')">12 Months</button>
+            <button class="cadence-btn" id="cad-12w" onclick="setCadence('12w')">12 Weeks</button>
+            <button class="cadence-btn" id="cad-5w" onclick="setCadence('5w')">5 Weeks</button>
+          </div>
+          <div id="cadence-search-wrap" style="display:none;">
+            <div class="search-wrap" style="min-width:220px;">
+              <span class="search-ico">🔍</span>
+              <input type="text" id="cadence-search" placeholder="Search product..." oninput="renderCadence()">
+            </div>
+          </div>
         </div>
       </div>
       <div id="cadence-body">
@@ -771,12 +783,20 @@ function showScreen(screen){
 
 /* ── SALES CADENCE ── */
 let cadenceMode='12m';
+let cadenceView='cat'; // 'cat' or 'prod'
 
 function setCadence(mode){
   cadenceMode=mode;
-  ['12m','12w','5w'].forEach(m=>{
-    document.getElementById('cad-'+m).classList.toggle('active',m===mode);
-  });
+  ['12m','12w','5w'].forEach(m=>document.getElementById('cad-'+m).classList.toggle('active',m===mode));
+  renderCadence();
+}
+
+function setCadenceView(view){
+  cadenceView=view;
+  document.getElementById('cad-cat').classList.toggle('active',view==='cat');
+  document.getElementById('cad-prod').classList.toggle('active',view==='prod');
+  document.getElementById('cadence-search-wrap').style.display=view==='prod'?'':'none';
+  if(view==='cat')document.getElementById('cadence-search').value='';
   renderCadence();
 }
 
@@ -787,54 +807,91 @@ function renderCadence(){
   }
 
   const today=new Date();today.setHours(0,0,0,0);
-  const periods=buildCadencePeriods(today);
-  const cats=[...new Set(allVariantRows.map(r=>r.category||'UNCATEGORISED'))].sort();
+  // Build periods newest → oldest (reversed)
+  const periods=buildCadencePeriods(today).reverse();
 
-  // Build data: {cat: {periodLabel: qty}}
+  const search=(document.getElementById('cadence-search')?.value||'').trim().toUpperCase();
+
+  let rowKeys, rowLabel, getKey;
+  if(cadenceView==='cat'){
+    // Group by category
+    rowKeys=[...new Set(allVariantRows.filter(r=>!r.amOnly).map(r=>r.category||'UNCATEGORISED'))].sort();
+    rowLabel='Category';
+    getKey=r=>r.category||'UNCATEGORISED';
+  } else {
+    // Group by product+colour, filter by search
+    const prodSet=new Map();
+    for(const r of allVariantRows){
+      if(r.amOnly)continue;
+      const k=r.productName+'||'+r.colour;
+      if(!prodSet.has(k))prodSet.set(k,r.productName+(r.colour?' — '+r.colour:''));
+    }
+    rowKeys=[...prodSet.keys()].filter(k=>{
+      if(!search)return true;
+      return k.toUpperCase().includes(search);
+    }).sort();
+    // Limit to 50 results when no search to avoid overload
+    if(!search)rowKeys=rowKeys.slice(0,50);
+    rowLabel='Product';
+    getKey=r=>r.productName+'||'+r.colour;
+  }
+
+  // Build data map
   const data={};
   const totals={};
-  for(const cat of cats){data[cat]={};}
-  for(const p of periods){data['TOTAL UNITS']=data['TOTAL UNITS']||{};totals[p.label]=0;}
+  for(const k of rowKeys)data[k]={};
+  for(const p of periods)totals[p.label]=0;
 
-  // Sum sales per category per period
   for(const row of allVariantRows){
     if(row.amOnly)continue;
-    const cat=row.category||'UNCATEGORISED';
+    const k=getKey(row);
+    if(!data[k])continue;
     const skuDays=getSoldInPeriodBreakdown(row.sku,periods);
     for(const p of periods){
-      data[cat][p.label]=(data[cat][p.label]||0)+skuDays[p.label];
+      data[k][p.label]=(data[k][p.label]||0)+skuDays[p.label];
       totals[p.label]=(totals[p.label]||0)+skuDays[p.label];
     }
   }
 
-  // Render table
+  // Display labels for product view
+  const displayLabel=k=>{
+    if(cadenceView==='cat')return k;
+    const parts=k.split('||');
+    return parts[0]+(parts[1]?' <span style="color:var(--text-muted);font-weight:400">'+parts[1]+'</span>':'');
+  };
+
+  // Table
   const headers=periods.map(p=>`<th>${p.label}</th>`).join('');
-  const catRows=cats.map(cat=>{
+  const tableRows=rowKeys.map(k=>{
     const cells=periods.map(p=>{
-      const v=Math.round(data[cat][p.label]||0);
+      const v=Math.round(data[k][p.label]||0);
       return`<td>${v>0?`<span class="cadence-cell-val">${v.toLocaleString()}</span>`:`<span class="cadence-cell-zero">—</span>`}</td>`;
     }).join('');
-    return`<tr><td>${cat}</td>${cells}</tr>`;
+    return`<tr><td>${displayLabel(k)}</td>${cells}</tr>`;
   }).join('');
   const totalCells=periods.map(p=>`<td>${Math.round(totals[p.label]||0).toLocaleString()}</td>`).join('');
 
-  // Build chart
-  const chartHtml=buildCadenceChart(periods,cats,data,totals);
+  const limitNote=cadenceView==='prod'&&!search?`<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">Showing top 50 products — use the search to find specific products.</div>`:'';
+  const noResults=rowKeys.length===0?`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No products found</div><div class="insights-empty-sub">Try a different search term.</div></div>`:'';
+
+  // Chart (category view only)
+  const chartHtml=cadenceView==='cat'?buildCadenceChart(periods,rowKeys,data,totals):'';
 
   document.getElementById('cadence-body').innerHTML=`
-    <div class="cadence-table-wrap">
+    ${limitNote}
+    ${noResults||`<div class="cadence-table-wrap">
       <table class="cadence-table">
-        <thead><tr><th>Category</th>${headers}</tr></thead>
+        <thead><tr><th>${rowLabel}</th>${headers}</tr></thead>
         <tbody>
-          ${catRows}
+          ${tableRows}
           <tr class="cadence-total"><td>TOTAL</td>${totalCells}</tr>
         </tbody>
       </table>
     </div>
-    <div class="cadence-chart-wrap">
+    ${chartHtml?`<div class="cadence-chart-wrap">
       <div class="cadence-chart-title">Total Units Sold — ${cadenceMode==='12m'?'Last 12 Months':cadenceMode==='12w'?'Last 12 Weeks':'Last 5 Weeks'}</div>
       ${chartHtml}
-    </div>`;
+    </div>`:''}`}`;
 }
 
 function buildCadencePeriods(today){
@@ -861,12 +918,8 @@ function buildCadencePeriods(today){
 }
 
 function getSoldInPeriodBreakdown(sku,periods){
-  // Returns {label: qty} for each period
   const result={};
   for(const p of periods)result[p.label]=0;
-  if(!allVariantRows)return result;
-  // Access salesBySkuDay via a module-level cache — rebuild from allVariantRows
-  // We store it globally after buildVariantRows
   if(!window._salesBySkuDay)return result;
   const dayData=window._salesBySkuDay[sku]||{};
   for(const[day,d] of Object.entries(dayData)){
@@ -883,13 +936,10 @@ function buildCadenceChart(periods,cats,data,totals){
   const chartH=220;
   const barW=Math.max(24,Math.floor(700/periods.length)-6);
   const totalW=periods.length*(barW+6)+60;
-
-  // Category colours
   const palette=['#2dd4bf','#4f6ef7','#f59e0b','#ef4444','#8b5cf6','#10b981','#f97316','#06b6d4','#ec4899','#84cc16'];
   const catColours={};
   cats.forEach((c,i)=>catColours[c]=palette[i%palette.length]);
 
-  // Build stacked bars
   const bars=periods.map((p,pi)=>{
     let y=chartH;
     const stacks=cats.map(cat=>{
@@ -897,34 +947,27 @@ function buildCadenceChart(periods,cats,data,totals){
       if(!v)return'';
       const h=Math.max(2,(v/maxVal)*chartH);
       y-=h;
-      return`<rect x="${pi*(barW+6)+40}" y="${y.toFixed(1)}" width="${barW}" height="${h.toFixed(1)}" fill="${catColours[cat]}" rx="1">
-        <title>${cat}: ${v.toLocaleString()} units</title></rect>`;
+      return`<rect x="${pi*(barW+6)+40}" y="${y.toFixed(1)}" width="${barW}" height="${h.toFixed(1)}" fill="${catColours[cat]}" rx="1"><title>${cat}: ${v.toLocaleString()} units</title></rect>`;
     }).join('');
     const total=Math.round(totals[p.label]||0);
-    const labelY=chartH+16;
     return`${stacks}
-      <text x="${pi*(barW+6)+40+barW/2}" y="${labelY}" text-anchor="middle" font-size="9" fill="var(--text-muted)">${p.label}</text>
+      <text x="${pi*(barW+6)+40+barW/2}" y="${chartH+16}" text-anchor="middle" font-size="9" fill="var(--text-muted)">${p.label}</text>
       ${total>0?`<text x="${pi*(barW+6)+40+barW/2}" y="${Math.max(10,(chartH-(total/maxVal)*chartH)-4).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="600" fill="var(--text)">${total.toLocaleString()}</text>`:''}`;
   }).join('');
 
-  // Y-axis
   const yLines=[0,0.25,0.5,0.75,1].map(pct=>{
     const y=(chartH*(1-pct)).toFixed(1);
-    const val=Math.round(maxVal*pct);
     return`<line x1="38" y1="${y}" x2="${totalW}" y2="${y}" stroke="var(--border)" stroke-width="1"/>
-      <text x="34" y="${parseFloat(y)+4}" text-anchor="end" font-size="9" fill="var(--text-muted)">${val.toLocaleString()}</text>`;
+      <text x="34" y="${parseFloat(y)+4}" text-anchor="end" font-size="9" fill="var(--text-muted)">${Math.round(maxVal*pct).toLocaleString()}</text>`;
   }).join('');
 
-  // Legend
   const legend=cats.map(cat=>`
     <div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary);">
       <div style="width:10px;height:10px;border-radius:2px;background:${catColours[cat]};flex-shrink:0;"></div>${cat}
     </div>`).join('');
 
-  return`<svg viewBox="0 0 ${totalW+20} ${chartH+40}" style="width:100%;max-height:280px;overflow:visible;">
-    ${yLines}${bars}
-  </svg>
-  <div style="display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:12px;">${legend}</div>`;
+  return`<svg viewBox="0 0 ${totalW+20} ${chartH+40}" style="width:100%;max-height:280px;overflow:visible;">${yLines}${bars}</svg>
+    <div style="display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:12px;">${legend}</div>`;
 }
 
 
