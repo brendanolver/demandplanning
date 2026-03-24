@@ -656,25 +656,6 @@ th{position:relative;}
         </div>
       </div>
 
-      <!-- Store Insights -->
-      <div style="margin-top:40px;">
-        <div class="insights-header">
-          <div>
-            <div class="insights-title">Store Insights <span style="font-size:13px;font-weight:500;color:var(--text-muted);margin-left:8px;">wndrr.com</span></div>
-            <div class="insights-sub">Live analysis of your online store — styles, categories, colours & availability</div>
-          </div>
-          <button class="insights-refresh-btn" onclick="scanStore()" id="scan-store-btn">🔍 Scan Store</button>
-        </div>
-        <div id="store-insights-body">
-          <div class="insights-empty">
-            <div class="insights-empty-ico">🛍️</div>
-            <div class="insights-empty-title">Ready to scan</div>
-            <div class="insights-empty-sub">Click "Scan Store" to analyse your live product range on wndrr.com.</div>
-            <button class="insights-generate-btn" onclick="scanStore()">Scan Store →</button>
-          </div>
-        </div>
-      </div>
-
     </div>
   </div>
 
@@ -892,179 +873,7 @@ function toTitleCase(str){
   return str.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
 }
 
-/* ── STORE SCAN ── */
-async function scanStore(){
-  const btn=document.getElementById('scan-store-btn');
-  btn.disabled=true;btn.textContent='Scanning...';
-  document.getElementById('store-insights-body').innerHTML=`
-    <div class="insights-loading">
-      <div class="insights-spinner"></div>
-      <div class="insights-loading-text">Scanning wndrr.com...</div>
-      <div class="insights-loading-sub">Fetching live product data from your store</div>
-    </div>`;
-
-  try{
-    const allProducts=[];
-    let page=1;
-
-    while(true){
-      const shopifyUrl=`https://www.wndrr.com/products.json?limit=250&page=${page}`;
-
-      // Try multiple proxies in order
-      let data=null;
-      const proxies=[
-        u=>`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
-        u=>`https://corsproxy.io/?${encodeURIComponent(u)}`,
-        u=>`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
-      ];
-
-      for(const makeUrl of proxies){
-        try{
-          const res=await fetch(makeUrl(shopifyUrl),{signal:AbortSignal.timeout(8000)});
-          if(!res.ok)continue;
-          const json=await res.json();
-          // allorigins wraps in {contents:...}, others return directly
-          const raw=json.contents?JSON.parse(json.contents):json;
-          if(raw.products){data=raw;break;}
-        } catch(e){continue;}
-      }
-
-      if(!data||!data.products||data.products.length===0)break;
-      allProducts.push(...data.products);
-      if(data.products.length<250)break;
-      page++;
-    }
-
-    if(allProducts.length===0){
-      document.getElementById('store-insights-body').innerHTML=`
-        <div class="insights-error">⚠️ Could not connect to wndrr.com. This may be due to browser security restrictions blocking external requests from local files. Try hosting the app on your Netlify URL and scanning from there.</div>`;
-      btn.disabled=false;btn.textContent='🔍 Scan Store';
-      return;
-    }
-
-    renderStoreInsights(allProducts);
-
-  } catch(err){
-    document.getElementById('store-insights-body').innerHTML=`
-      <div class="insights-error">⚠️ Store scan failed: ${err.message}</div>`;
-  }
-  btn.disabled=false;btn.textContent='🔍 Scan Store';
-}
-
-function renderStoreInsights(products){
-  const total=products.length;
-
-  // ── CATEGORY / PRODUCT TYPE ──
-  const typeCounts={};
-  for(const p of products){
-    const t=p.product_type||'Uncategorised';
-    typeCounts[t]=(typeCounts[t]||0)+1;
-  }
-  const topTypes=Object.entries(typeCounts).sort((a,b)=>b[1]-a[1]);
-
-  // ── COLOUR ANALYSIS from titles ──
-  const colourCounts={};
-  const knownColours=['BLACK','WHITE','GREY','NAVY','BLUE','RED','GREEN','BROWN','TAN','CREAM','PINK','PURPLE','YELLOW','ORANGE','OLIVE','KHAKI','DUSK','WASHED','FADED','STONE','SAND','RUST'];
-  for(const p of products){
-    const title=(p.title||'').toUpperCase();
-    for(const c of knownColours){
-      if(title.includes(c)){
-        colourCounts[c]=(colourCounts[c]||0)+1;
-      }
-    }
-  }
-  const topColours=Object.entries(colourCounts).sort((a,b)=>b[1]-a[1]).slice(0,8);
-
-  // ── AVAILABILITY ──
-  let available=0,soldOut=0;
-  for(const p of products){
-    const hasStock=p.variants.some(v=>v.available);
-    if(hasStock)available++;else soldOut++;
-  }
-  const soldOutPct=(soldOut/total*100).toFixed(1);
-
-  // ── TAGS / DESIGN THEMES ──
-  const tagCounts={};
-  for(const p of products){
-    const tags=Array.isArray(p.tags)
-      ?p.tags
-      :(p.tags||'').split(',').map(t=>t.trim());
-    for(const t of tags){
-      const tag=t.trim().toLowerCase();
-      if(tag&&tag.length>2)tagCounts[tag]=(tagCounts[tag]||0)+1;
-    }
-  }
-  const topTags=Object.entries(tagCounts).sort((a,b)=>b[1]-a[1]).slice(0,10);
-
-  // ── VARIANT DEPTH (size range) ──
-  const variantCounts=products.map(p=>p.variants.length);
-  const avgVariants=(variantCounts.reduce((a,b)=>a+b,0)/total).toFixed(1);
-  const maxVariants=Math.max(...variantCounts);
-  const maxProduct=products.find(p=>p.variants.length===maxVariants);
-
-  // ── SOLD OUT BY CATEGORY ──
-  const soldOutByType={};
-  for(const p of products){
-    const t=p.product_type||'Uncategorised';
-    if(!soldOutByType[t])soldOutByType[t]={total:0,soldOut:0};
-    soldOutByType[t].total++;
-    if(!p.variants.some(v=>v.available))soldOutByType[t].soldOut++;
-  }
-  const worstSoldOut=Object.entries(soldOutByType)
-    .filter(([,d])=>d.total>=3)
-    .map(([t,d])=>({type:t,...d,pct:d.soldOut/d.total*100}))
-    .sort((a,b)=>b.pct-a.pct).slice(0,3);
-
-  // ── RENDER ──
-  const sections=[
-    {
-      ico:'👕',title:'Range Overview',dotClass:'insight-dot-teal',
-      items:[
-        {text:`Your live store has <strong>${total}</strong> active products across <strong>${topTypes.length}</strong> categories, with an average of <strong>${avgVariants}</strong> variants per product.`},
-        {text:`<strong>${available}</strong> products have stock available (${(available/total*100).toFixed(1)}%), while <strong>${soldOut}</strong> are fully sold out (${soldOutPct}%).`},
-        ...topTypes.slice(0,5).map(([t,c])=>({text:`<strong>${toTitleCase(t)}</strong> — ${c} product${c!==1?'s':''} (${(c/total*100).toFixed(1)}% of range).`}))
-      ]
-    },
-    {
-      ico:'🎨',title:'Colour Distribution',dotClass:'insight-dot-purple',
-      items:[
-        {text:`The most dominant colour in your range is <strong>${toTitleCase(topColours[0]?.[0]||'')}</strong>, appearing in <strong>${topColours[0]?.[1]||0}</strong> product titles.`},
-        ...topColours.slice(1,5).map(([c,n])=>({text:`<strong>${toTitleCase(c)}</strong> features in <strong>${n}</strong> products across the range.`}))
-      ]
-    },
-    {
-      ico:'🚫',title:'Sold Out Alerts',dotClass:'insight-dot-red',
-      items:[
-        {text:`<strong>${soldOut}</strong> products are fully sold out online — that's <strong>${soldOutPct}%</strong> of your active range.`},
-        ...worstSoldOut.map(d=>({text:`<strong>${toTitleCase(d.type)}</strong> has the highest sell-out rate with <strong>${d.soldOut}/${d.total}</strong> products (${d.pct.toFixed(0)}%) fully sold out.`}))
-      ]
-    },
-    {
-      ico:'🏷️',title:'Design Themes & Tags',dotClass:'insight-dot-blue',
-      items:topTags.length>0
-        ?[{text:`Top product tags reveal your key design themes and collections:`},
-          ...topTags.slice(0,6).map(([t,n])=>({text:`<strong>${toTitleCase(t)}</strong> — tagged on <strong>${n}</strong> product${n!==1?'s':''}.`}))]
-        :[{text:'No tags found on store products.'}]
-    }
-  ];
-
-  const lastUpdated=new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'});
-  document.getElementById('store-insights-body').innerHTML=
-    `<div style="font-size:11px;color:var(--text-muted);margin-bottom:16px;">Last scanned at ${lastUpdated} · ${total} products fetched from wndrr.com</div>`+
-    sections.map(s=>`
-      <div class="insight-section">
-        <div class="insight-section-header">
-          <span class="insight-ico">${s.ico}</span>
-          <span class="insight-section-title">${s.title}</span>
-          <span class="insight-section-count">${s.items.length} insight${s.items.length!==1?'s':''}</span>
-        </div>
-        ${s.items.map(item=>`
-          <div class="insight-item">
-            <div class="insight-dot ${s.dotClass}"></div>
-            <div class="insight-text">${item.text}</div>
-          </div>`).join('')}
-      </div>`).join('');
-}
+/* ── PASSWORD ── */
 
 function renderInsights(data){
   const sections=[
@@ -1235,13 +1044,32 @@ function buildSalesMaps(){
       salesBySkuDay[sku][day].cogs+=cogs;
     }
 
-    // Store price/meta info — use most recent row (overwrite)
-    if(!priceMap[sku]||day>priceMap[sku].day){
-      const{name:productName,colour}=extractName(fullTitle);
-      const sizeParts=variantTitle.split('/');
-      let size=sizeParts.length>1?sizeParts[sizeParts.length-1].trim():variantTitle.trim();
-      if(size.toUpperCase()===colour.toUpperCase())size='OS';
-      priceMap[sku]={price,compareAt,vendor,category,productName,colour,size,day};
+    // Store price/meta info
+    // RRP = highest compareAt seen (true full price)
+    // Price = most recent transaction price (current sell price)
+    const{name:productName,colour}=extractName(fullTitle);
+    const sizeParts=variantTitle.split('/');
+    let size=sizeParts.length>1?sizeParts[sizeParts.length-1].trim():variantTitle.trim();
+    if(size.toUpperCase()===colour.toUpperCase())size='OS';
+
+    if(!priceMap[sku]){
+      priceMap[sku]={
+        price:price||compareAt,
+        compareAt:compareAt||price,
+        vendor,category,productName,colour,size,day
+      };
+    } else {
+      // Most recent row = current sell price
+      if(day>priceMap[sku].day){
+        priceMap[sku].price=price||compareAt;
+        priceMap[sku].vendor=vendor;
+        priceMap[sku].category=category;
+        priceMap[sku].day=day;
+      }
+      // Highest compareAt ever seen = true RRP
+      if(compareAt>priceMap[sku].compareAt){
+        priceMap[sku].compareAt=compareAt;
+      }
     }
   }
   return{salesBySkuDay,priceMap};
@@ -1393,15 +1221,15 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const vel7=s7.qty>0?s7.qty/7*7:null;   // weekly rate from 7d
     const vel30=s30.qty>0?s30.qty/30*7:null; // weekly rate from 30d
 
-    // Margin
-    const margin=(price>0&&cogs>0)?+((price-cogs/Math.max(sold,1))/price*100).toFixed(2):null;
+    // Margin — (price - avg cost per unit) ÷ price
+    const avgCostPerUnit=sold>0?cogs/sold:0;
+    const margin=(price>0&&avgCostPerUnit>0)?+((price-avgCostPerUnit)/price*100).toFixed(2):null;
 
-    // Sell through % — sold / (soh + sold)
-    const stDenom=stock+sold;
-    const sellThru7=s7.qty>0&&(stock+s7.qty)>0?+(s7.qty/(stock+s7.qty)*100).toFixed(2):null;
+    // Sell through % — sold in period / (soh + sold in period)
+    const sellThru=sPrimary.qty>0&&(stock+sPrimary.qty)>0?+(sPrimary.qty/(stock+sPrimary.qty)*100).toFixed(2):null;
 
-    // Discount %
-    const discountPct=(compareAt>0&&price<compareAt)?+((1-price/compareAt)*100).toFixed(1):null;
+    // Discount % — current price vs RRP
+    const discountPct=(compareAt>0&&price>0&&price<compareAt)?+((1-price/compareAt)*100).toFixed(1):null;
 
     // AM lookup
     const vKey=productName+'||'+colour+'||'+size;
@@ -1430,7 +1258,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
       price,compareAt,discountPct,margin,
       velocity,vel7,vel30,
       sold7:s7.qty,sold30:s30.qty,sold90:s90.qty,sold365:s365.qty,
-      sold,sellThru7,
+      sold,sellThru7:sellThru,
       days:recalcDays===null?9999:recalcDays,
       daysDisplay:recalcWeeks===null?'—':recalcWeeks===0?'0':recalcWeeks,
       onOrder,productOnOrder,monthDue,flag,amOnly:false
@@ -1704,7 +1532,7 @@ function toProduct(vr){
       }
     }
     return{...p,velocity,onOrder,monthDue,
-      sellThru7:(p.sold7>0&&(p.stock+p.sold7)>0)?+(p.sold7/(p.stock+p.sold7)*100).toFixed(2):null,
+      sellThru7:(p.sold>0&&(p.stock+p.sold)>0)?+(p.sold/(p.stock+p.sold)*100).toFixed(2):null,
       days:days===null?9999:days,
       daysDisplay:days===null?'—':+(days/7).toFixed(1),
       flag:getFlag(days,p.stock,onOrder,p.vendor),
@@ -1745,7 +1573,7 @@ function toCategory(vr){
       }
     }
     return{...c,products:c.productSet.size,monthDue,
-      sellThru7:(c.sold7>0&&(c.stock+c.sold7)>0)?+(c.sold7/(c.stock+c.sold7)*100).toFixed(2):null,
+      sellThru7:(c.sold>0&&(c.stock+c.sold)>0)?+(c.sold/(c.stock+c.sold)*100).toFixed(2):null,
       vel7:c.vel7Sum||null,vel30:c.vel30Sum||null,
       days:days===null?9999:days,
       daysDisplay:days===null?'—':+(days/7).toFixed(1),
@@ -1934,16 +1762,17 @@ function renderTable(){
   const pageRows=filteredRows.slice(start,start+PAGE_SIZE);
 
   const soldLabel=`Sold (${selectedPeriod}d)`;
+  const stLabel=`ST% (${selectedPeriod}d)`;
   const catHeaders=[
     {k:'category',l:'Category'},{k:'products',l:'Products'},
-    {k:'sellThru7',l:'ST% (7d)'},{k:'stock',l:'SOH'},{k:'sold',l:soldLabel},
+    {k:'sellThru7',l:stLabel},{k:'stock',l:'SOH'},{k:'sold',l:soldLabel},
     {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},
     {k:'days',l:'Weeks Cover'},
     {k:'oosCount',l:'OOS'},{k:'critCount',l:'Re-Order'},{k:'flag',l:'Stock Status'}
   ];
   const prodHeaders=[
     {k:'productName',l:'Product'},{k:'category',l:'Category'},{k:'vendor',l:'Status'},
-    {k:'sellThru7',l:'ST% (7d)'},{k:'stock',l:'SOH'},{k:'sold',l:soldLabel},
+    {k:'sellThru7',l:stLabel},{k:'stock',l:'SOH'},{k:'sold',l:soldLabel},
     {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},
     {k:'price',l:'Price'},{k:'compareAt',l:'RRP'},{k:'discountPct',l:'Disc%'},{k:'margin',l:'Margin%'},
     {k:'days',l:'Weeks Cover'},{k:'flag',l:'Stock Status'}
@@ -1951,7 +1780,7 @@ function renderTable(){
   const varHeaders=[
     {k:'productName',l:'Product'},{k:'size',l:'Size'},{k:'sku',l:'SKU'},
     {k:'category',l:'Category'},{k:'vendor',l:'Status'},
-    {k:'sellThru7',l:'ST% (7d)'},{k:'stock',l:'SOH'},{k:'sold',l:soldLabel},
+    {k:'sellThru7',l:stLabel},{k:'stock',l:'SOH'},{k:'sold',l:soldLabel},
     {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},
     {k:'price',l:'Price'},{k:'compareAt',l:'RRP'},{k:'discountPct',l:'Disc%'},{k:'margin',l:'Margin%'},
     {k:'days',l:'Weeks Cover'},{k:'flag',l:'Stock Status'}
@@ -2092,11 +1921,12 @@ function renderVel(val){
 function exportCSV(){
   const rows=getFilteredRows();
   const soldLabel=`Sold (${selectedPeriod}d)`;
+  const stLabel=`ST% (${selectedPeriod}d)`;
   const h=currentView==='category'
-    ?['Category','Products','SOH','ST% (7d)',soldLabel,'On Order','Month Due','Weeks Cover','OOS','Re-Order','Stock Status']
+    ?['Category','Products','SOH',stLabel,soldLabel,'On Order','Month Due','Weeks Cover','OOS','Re-Order','Stock Status']
     :currentView==='product'
-    ?['Product','Colour','Category','Status','SOH','ST% (7d)',soldLabel,'On Order','Month Due','Price','RRP','Disc%','Margin%','Weeks Cover','Stock Status']
-    :['Product','Colour','Size','SKU','Category','Status','SOH','ST% (7d)',soldLabel,'On Order','Month Due','Price','RRP','Disc%','Margin%','Weeks Cover','Stock Status'];
+    ?['Product','Colour','Category','Status','SOH',stLabel,soldLabel,'On Order','Month Due','Price','RRP','Disc%','Margin%','Weeks Cover','Stock Status']
+    :['Product','Colour','Size','SKU','Category','Status','SOH',stLabel,soldLabel,'On Order','Month Due','Price','RRP','Disc%','Margin%','Weeks Cover','Stock Status'];
   const lines=[h.join(',')];
   for(const r of rows){
     let v;
