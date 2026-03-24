@@ -225,6 +225,62 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .rp-bundle{background:var(--purple-light);color:var(--purple);}
 .rp-other{background:var(--surface2);color:var(--text-secondary);}
 
+/* Screen nav */
+.screen-nav{display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:2px;gap:2px;}
+.screen-btn{padding:5px 14px;border:none;background:transparent;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;color:var(--text-secondary);cursor:pointer;border-radius:var(--r-sm);transition:all 0.12s;white-space:nowrap;}
+.screen-btn:hover{color:var(--teal);}
+.screen-btn.active{background:var(--teal);color:white;font-weight:600;}
+
+/* Insights screen */
+#insights-screen{flex:1;overflow-y:auto;padding:24px;}
+.insights-wrap{max-width:900px;margin:0 auto;}
+.insights-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:28px;gap:16px;}
+.insights-title{font-size:22px;font-weight:700;color:var(--text);letter-spacing:-0.3px;margin-bottom:4px;}
+.insights-sub{font-size:13px;color:var(--text-secondary);}
+.insights-refresh-btn{flex-shrink:0;padding:9px 18px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all 0.15s;white-space:nowrap;}
+.insights-refresh-btn:hover{background:var(--teal-dark);}
+.insights-refresh-btn:disabled{opacity:0.6;cursor:not-allowed;}
+.insights-empty{text-align:center;padding:80px 20px;}
+.insights-empty-ico{font-size:48px;margin-bottom:16px;}
+.insights-empty-title{font-size:18px;font-weight:700;color:var(--text);margin-bottom:8px;}
+.insights-empty-sub{font-size:13px;color:var(--text-secondary);margin-bottom:24px;}
+.insights-generate-btn{padding:12px 28px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.15s;}
+.insights-generate-btn:hover{background:var(--teal-dark);}
+.insights-loading{text-align:center;padding:60px 20px;}
+.insights-spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--teal);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 16px;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.insights-loading-text{font-size:14px;color:var(--text-secondary);font-weight:500;}
+.insights-loading-sub{font-size:12px;color:var(--text-muted);margin-top:6px;}
+.insight-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:24px;margin-bottom:16px;box-shadow:var(--shadow-xs);}
+.insight-section-header{display:flex;align-items:center;gap:10px;margin-bottom:16px;}
+.insight-ico{font-size:22px;}
+.insight-section-title{font-size:15px;font-weight:700;color:var(--text);}
+.insight-section-count{font-size:11px;font-weight:600;background:var(--surface2);color:var(--text-secondary);padding:2px 8px;border-radius:var(--r-pill);}
+.insight-item{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border-light);}
+.insight-item:last-child{border-bottom:none;padding-bottom:0;}
+.insight-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:6px;}
+.insight-dot-red{background:var(--red);}
+.insight-dot-amber{background:var(--amber);}
+.insight-dot-teal{background:var(--teal);}
+.insight-dot-green{background:var(--green);}
+.insight-dot-blue{background:var(--blue);}
+.insight-dot-purple{background:var(--purple);}
+.insight-text{font-size:13px;color:var(--text);line-height:1.5;}
+.insight-text strong{font-weight:600;color:var(--text);}
+.insight-text .tag{display:inline-block;padding:1px 7px;border-radius:var(--r-pill);font-size:11px;font-weight:600;margin-left:4px;}
+.tag-red{background:var(--red-light);color:var(--red);}
+.tag-amber{background:var(--amber-light);color:var(--amber);}
+.tag-green{background:var(--green-light);color:var(--green);}
+.tag-teal{background:var(--teal-light);color:var(--teal);}
+.insights-error{background:var(--red-light);border:1px solid var(--red);border-radius:var(--r);padding:16px 20px;color:var(--red);font-size:13px;}
+
+/* Period selector */
+.period-selector{display:flex;align-items:center;gap:3px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:2px;}
+.period-label{font-size:11px;font-weight:600;color:var(--text-muted);padding:0 6px;text-transform:uppercase;letter-spacing:0.5px;}
+.period-btn{padding:4px 10px;border:none;background:transparent;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;color:var(--text-secondary);cursor:pointer;border-radius:var(--r-sm);transition:all 0.12s;}
+.period-btn:hover{color:var(--teal);}
+.period-btn.active{background:var(--teal);color:white;font-weight:600;}
+
 /* Column filters */
 .th-wrap{display:flex;align-items:center;justify-content:space-between;gap:4px;min-width:0;}
 .th-label{flex:1;overflow:hidden;text-overflow:ellipsis;}
@@ -342,40 +398,48 @@ th{position:relative;}
     </div>
 
     <div class="upload-headline">Upload your data<br>to get started</div>
-    <div class="upload-subhead">Connect your Shopify inventory and Apparel Magic order data to analyse stock health, sales velocity and demand planning in one view.</div>
+    <div class="upload-subhead">Connect your Shopify inventory, sales history and Apparel Magic order data to analyse stock health, velocity, margin and demand planning in one view.</div>
 
-    <!-- Shopify card -->
+    <!-- Source 01 — Shopify Inventory -->
     <div class="upload-card" id="shopify-card">
       <div class="upload-step">
         <div class="step-num">1</div>
         <div class="step-body">
           <div class="step-label">Source 01 · Shopify</div>
-          <div class="step-title">Inventory Reports</div>
-          <div class="step-desc">Upload two Shopify "Products by days of inventory remaining" exports — one for 7 days and one for 30 days. The tool will show both velocities side by side and use the 30-day figure for days remaining (falling back to 7-day if only that is uploaded).</div>
-          <div class="shopify-uploads">
-            <div class="shopify-upload-row" id="sf-row-7">
-              <div class="sf-period-label">7-day export</div>
-              <label class="sf-upload-btn" for="sf-file-7">↑ Upload</label>
-              <div class="sf-ok" id="sf-ok-7">✓ <span id="sf-name-7"></span></div>
-            </div>
-            <div class="shopify-upload-row" id="sf-row-30">
-              <div class="sf-period-label">30-day export</div>
-              <label class="sf-upload-btn" for="sf-file-30">↑ Upload</label>
-              <div class="sf-ok" id="sf-ok-30">✓ <span id="sf-name-30"></span></div>
-            </div>
-          </div>
+          <div class="step-title">Inventory Snapshot</div>
+          <div class="step-desc">Export "Products by days of inventory remaining" from Shopify for any recent period. Used for stock on hand (SOH) per variant.</div>
+          <label class="upload-btn" for="sf-inv-file">
+            <span>↑</span> Upload Shopify Inventory CSV
+          </label>
+          <div class="file-ok" id="sf-inv-ok"><span>✓</span><span id="sf-inv-fname"></span></div>
         </div>
       </div>
     </div>
 
-    <!-- AM card -->
-    <div class="upload-card" id="am-card">
+    <!-- Source 02 — Shopify Sales History -->
+    <div class="upload-card" id="sales-card">
       <div class="upload-step">
         <div class="step-num">2</div>
         <div class="step-body">
-          <div class="step-label">Source 02 · Apparel Magic</div>
+          <div class="step-label">Source 02 · Shopify</div>
+          <div class="step-title">365-Day Sales History</div>
+          <div class="step-desc">Export "Items ordered over time" from Shopify for the last 365 days at daily level. Provides velocity, sell-through, prices and margin for all date ranges.</div>
+          <label class="upload-btn" for="sf-sales-file">
+            <span>↑</span> Upload Sales History CSV
+          </label>
+          <div class="file-ok" id="sf-sales-ok"><span>✓</span><span id="sf-sales-fname"></span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Source 03 — Apparel Magic -->
+    <div class="upload-card" id="am-card">
+      <div class="upload-step">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <div class="step-label">Source 03 · Apparel Magic</div>
           <div class="step-title">Order Item Analysis</div>
-          <div class="step-desc">Export the "Order Item Analysis" report from Apparel Magic — includes Qty Open by product and colour.</div>
+          <div class="step-desc">Export the "Order Item Analysis" report from Apparel Magic — includes on order units by variant and delivery month.</div>
           <label class="upload-btn" for="am-file">
             <span>↑</span> Upload Apparel Magic CSV
           </label>
@@ -388,8 +452,8 @@ th{position:relative;}
       Analyse Stock →
     </button>
 
-    <input type="file" id="sf-file-7" accept=".csv" onchange="loadShopifyPeriod(this,7)">
-    <input type="file" id="sf-file-30" accept=".csv" onchange="loadShopifyPeriod(this,30)">
+    <input type="file" id="sf-inv-file" accept=".csv" onchange="loadShopifyInventory(this)">
+    <input type="file" id="sf-sales-file" accept=".csv" onchange="loadShopifySales(this)">
     <input type="file" id="am-file" accept=".csv" onchange="loadAM(this)">
   </div>
 
@@ -456,8 +520,19 @@ th{position:relative;}
         <div class="topbar-pill"><span class="live-dot"></span>Shopify</div>
         <div class="topbar-pill"><span class="live-dot"></span>Apparel Magic</div>
         <div class="topbar-pill" id="nav-count">— SKUs</div>
-        <div class="topbar-pill" id="nav-days-range">📅 30-day velocity</div>
-        <button class="tb-btn accent" onclick="exportCSV()">↓ Export</button>
+        <div class="screen-nav">
+          <button class="screen-btn active" id="btn-dashboard" onclick="showScreen('dashboard')">📊 Dashboard</button>
+          <button class="screen-btn" id="btn-insights" onclick="showScreen('insights')">💡 Insights</button>
+        </div>
+        <div class="period-selector" id="period-selector">
+          <span class="period-label">Period:</span>
+          <button class="period-btn active" data-days="7" onclick="setPeriod(7)">7d</button>
+          <button class="period-btn" data-days="14" onclick="setPeriod(14)">14d</button>
+          <button class="period-btn" data-days="30" onclick="setPeriod(30)">30d</button>
+          <button class="period-btn" data-days="90" onclick="setPeriod(90)">90d</button>
+          <button class="period-btn" data-days="365" onclick="setPeriod(365)">365d</button>
+        </div>
+        <button class="tb-btn accent" id="export-btn" onclick="exportCSV()">↓ Export</button>
         <button class="tb-btn" onclick="resetApp()">← Upload</button>
       </div>
     </header>
@@ -559,9 +634,459 @@ th{position:relative;}
       </div>
     </main>
   </div>
+
+  <!-- INSIGHTS SCREEN — outside layout grid -->
+  <div id="insights-screen" style="display:none;padding:28px;overflow-y:auto;height:calc(100vh - 56px);">
+    <div style="max-width:900px;margin:0 auto;">
+
+      <!-- Stock Insights -->
+      <div class="insights-header">
+        <div>
+          <div class="insights-title">Stock Insights</div>
+          <div class="insights-sub">Analysing your <span id="insights-period-label">—</span> data across <span id="insights-sku-count">—</span> SKUs</div>
+        </div>
+        <button class="insights-refresh-btn" onclick="generateInsights()">↻ Refresh Analysis</button>
+      </div>
+      <div id="insights-body">
+        <div class="insights-empty">
+          <div class="insights-empty-ico">💡</div>
+          <div class="insights-empty-title">Ready to analyse</div>
+          <div class="insights-empty-sub">Click "Generate Insights" to surface key findings from your stock data.</div>
+          <button class="insights-generate-btn" onclick="generateInsights()">Generate Insights →</button>
+        </div>
+      </div>
+
+      <!-- Store Insights -->
+      <div style="margin-top:40px;">
+        <div class="insights-header">
+          <div>
+            <div class="insights-title">Store Insights <span style="font-size:13px;font-weight:500;color:var(--text-muted);margin-left:8px;">wndrr.com</span></div>
+            <div class="insights-sub">Live analysis of your online store — styles, categories, colours & availability</div>
+          </div>
+          <button class="insights-refresh-btn" onclick="scanStore()" id="scan-store-btn">🔍 Scan Store</button>
+        </div>
+        <div id="store-insights-body">
+          <div class="insights-empty">
+            <div class="insights-empty-ico">🛍️</div>
+            <div class="insights-empty-title">Ready to scan</div>
+            <div class="insights-empty-sub">Click "Scan Store" to analyse your live product range on wndrr.com.</div>
+            <button class="insights-generate-btn" onclick="scanStore()">Scan Store →</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
 </div>
 
 <script>
+/* ── SCREEN NAV ── */
+let currentScreen='dashboard';
+
+function showScreen(screen){
+  currentScreen=screen;
+  document.getElementById('btn-dashboard').classList.toggle('active',screen==='dashboard');
+  document.getElementById('btn-insights').classList.toggle('active',screen==='insights');
+  const layout=document.querySelector('#app .layout');
+  const insightsScreen=document.getElementById('insights-screen');
+  const periodSelector=document.getElementById('period-selector');
+  const exportBtn=document.getElementById('export-btn');
+  if(screen==='dashboard'){
+    layout.style.display='';
+    insightsScreen.style.display='none';
+    periodSelector.style.display='';
+    exportBtn.style.display='';
+  } else {
+    layout.style.display='none';
+    insightsScreen.style.display='block';
+    periodSelector.style.display='none';
+    exportBtn.style.display='none';
+    document.getElementById('insights-period-label').textContent=selectedPeriod+'d';
+    document.getElementById('insights-sku-count').textContent=allVariantRows.length.toLocaleString();
+  }
+}
+
+/* ── INSIGHTS ── */
+async function generateInsights(){
+  const btn=document.querySelector('.insights-refresh-btn');
+
+  if(!allVariantRows||allVariantRows.length===0){
+    document.getElementById('insights-body').innerHTML=`
+      <div class="insights-error">⚠️ No data loaded yet. Please upload your files and analyse first.</div>`;
+    return;
+  }
+
+  btn.disabled=true;btn.textContent='Analysing...';
+  document.getElementById('insights-body').innerHTML=`
+    <div class="insights-loading">
+      <div class="insights-spinner"></div>
+      <div class="insights-loading-text">Analysing your stock data...</div>
+      <div class="insights-loading-sub">Crunching the numbers...</div>
+    </div>`;
+
+  await new Promise(r=>setTimeout(r,400));
+
+  try{
+    const insights=analyseStockData();
+    renderInsights(insights);
+  } catch(err){
+    document.getElementById('insights-body').innerHTML=`
+      <div class="insights-error">⚠️ Error generating insights: ${err.message}<br>
+      <small style="opacity:0.7;margin-top:4px;display:block">${err.stack||''}</small></div>`;
+  }
+  btn.disabled=false;btn.textContent='↻ Refresh Analysis';
+}
+
+function analyseStockData(){
+  const rows=allVariantRows.filter(r=>!r.amOnly);
+  const allRows=allVariantRows;
+  const pd=selectedPeriod;
+
+  // ── RE-ORDER ALERTS ──
+  const reorder=[];
+  const criticals=rows.filter(r=>r.flag==='reorder'&&r.stock>0)
+    .sort((a,b)=>a.days-b.days);
+  // Group by product+colour for cleaner insights
+  const critMap={};
+  for(const r of criticals){
+    const k=r.productName+'||'+r.colour;
+    if(!critMap[k])critMap[k]={...r,sizes:[]};
+    critMap[k].sizes.push(r.size);
+  }
+  Object.values(critMap).slice(0,5).forEach(r=>{
+    const sizes=r.sizes.filter(s=>s&&s!=='—').join(', ')||'all sizes';
+    reorder.push({text:`<strong>${toTitleCase(r.productName)} — ${toTitleCase(r.colour)}</strong> has only <strong>${r.daysDisplay}w</strong> cover remaining (${r.stock} SOH). Affected sizes: ${sizes}.`});
+  });
+  const oosWithOrder=allRows.filter(r=>r.flag==='on-order');
+  if(oosWithOrder.length>0){
+    const names=[...new Set(oosWithOrder.map(r=>toTitleCase(r.productName)))].slice(0,3).join(', ');
+    reorder.push({text:`<strong>${oosWithOrder.length} new product${oosWithOrder.length!==1?'s':''}</strong> are on order but not yet live in Shopify, including ${names}.`});
+  }
+  const oosNoOrder=rows.filter(r=>r.flag==='oos');
+  if(oosNoOrder.length>0){
+    reorder.push({text:`<strong>${oosNoOrder.length} SKU${oosNoOrder.length!==1?'s':''}</strong> are completely out of stock with no units on order — consider reviewing for restock or delisting.`});
+  }
+
+  // ── OVERSTOCK / REDUCE ──
+  const overstock=[];
+  const reduceRows=rows.filter(r=>r.flag==='reduce').sort((a,b)=>b.stock-a.stock);
+  const reduceMap={};
+  for(const r of reduceRows){
+    const k=r.productName+'||'+r.colour;
+    if(!reduceMap[k])reduceMap[k]={...r,totalStock:0};
+    reduceMap[k].totalStock+=r.stock;
+  }
+  Object.values(reduceMap).slice(0,4).forEach(r=>{
+    overstock.push({text:`<strong>${toTitleCase(r.productName)} — ${toTitleCase(r.colour)}</strong> has <strong>${r.daysDisplay}w</strong> cover with <strong>${r.totalStock}</strong> units on hand and no orders incoming. Consider a markdown or promotion.`});
+  });
+  const reduceBycat={};
+  for(const r of reduceRows){
+    reduceBycat[r.category]=(reduceBycat[r.category]||0)+1;
+  }
+  const topReduceCat=Object.entries(reduceBycat).sort((a,b)=>b[1]-a[1])[0];
+  if(topReduceCat){
+    overstock.push({text:`<strong>${toTitleCase(topReduceCat[0])}</strong> has the most overstock situations with <strong>${topReduceCat[1]}</strong> products flagged for reduction.`});
+  }
+
+  // ── TOP PERFORMERS ──
+  const topPerformers=[];
+  // Best sell-through by product (aggregate)
+  const stByProduct={};
+  for(const r of rows){
+    if(r.sellThru7===null)continue;
+    const k=r.productName+'||'+r.colour;
+    if(!stByProduct[k])stByProduct[k]={name:r.productName,colour:r.colour,category:r.category,stSum:0,count:0,soldSum:0};
+    stByProduct[k].stSum+=r.sellThru7;stByProduct[k].count++;stByProduct[k].soldSum+=(r.sold||0);
+  }
+  const topST=Object.values(stByProduct)
+    .map(p=>({...p,avgST:p.stSum/p.count}))
+    .sort((a,b)=>b.avgST-a.avgST).slice(0,4);
+  topST.forEach(p=>{
+    topPerformers.push({text:`<strong>${toTitleCase(p.name)} — ${toTitleCase(p.colour)}</strong> is a standout performer with <strong>${p.avgST.toFixed(1)}%</strong> sell-through and <strong>${p.soldSum}</strong> units sold in the last ${pd} days.`});
+  });
+  // Best category
+  const catPerf={};
+  for(const r of rows){
+    if(!catPerf[r.category])catPerf[r.category]={sold:0,soh:0};
+    catPerf[r.category].sold+=(r.sold||0);catPerf[r.category].soh+=r.stock;
+  }
+  const topCat=Object.entries(catPerf).filter(([,d])=>d.soh>0)
+    .map(([c,d])=>({cat:c,st:d.sold/(d.sold+d.soh)*100}))
+    .sort((a,b)=>b.st-a.st)[0];
+  if(topCat){
+    topPerformers.push({text:`<strong>${toTitleCase(topCat.cat)}</strong> is the best-performing category overall with a <strong>${topCat.st.toFixed(1)}%</strong> sell-through rate in the last ${pd} days.`});
+  }
+
+  // ── SLOW MOVERS ──
+  const slowMovers=[];
+  const slow=rows.filter(r=>r.sold===0&&r.stock>0&&r.flag!=='clearance')
+    .sort((a,b)=>b.stock-a.stock);
+  const slowMap={};
+  for(const r of slow){
+    const k=r.productName+'||'+r.colour;
+    if(!slowMap[k])slowMap[k]={...r,totalStock:0};
+    slowMap[k].totalStock+=r.stock;
+  }
+  Object.values(slowMap).slice(0,4).forEach(r=>{
+    slowMovers.push({text:`<strong>${toTitleCase(r.productName)} — ${toTitleCase(r.colour)}</strong> has <strong>${r.totalStock}</strong> units on hand with <strong>zero sales</strong> in the last ${pd} days — review for markdown or promotion.`});
+  });
+  const slowByCat={};
+  for(const r of slow){slowByCat[r.category]=(slowByCat[r.category]||0)+1;}
+  const topSlowCat=Object.entries(slowByCat).sort((a,b)=>b[1]-a[1])[0];
+  if(topSlowCat){
+    slowMovers.push({text:`<strong>${toTitleCase(topSlowCat[0])}</strong> has the most slow movers with <strong>${topSlowCat[1]}</strong> SKUs recording zero sales over the last ${pd} days.`});
+  }
+
+  // ── INCOMING ORDERS ──
+  const incomingOrders=[];
+  const incoming=allRows.filter(r=>(r.onOrder||0)>0&&r.monthDue);
+  // Group by month using raw monthDue as sort key, display as abbreviated
+  const byMonth={};
+  for(const r of incoming){
+    const rawM=r.monthDue; // e.g. "2026 - June"
+    const displayM=shortMonth(rawM); // e.g. "JUN26"
+    if(!byMonth[rawM])byMonth[rawM]={display:displayM,units:0,products:new Set()};
+    byMonth[rawM].units+=(r.onOrder||0);
+    byMonth[rawM].products.add(r.productName);
+  }
+  Object.entries(byMonth).sort((a,b)=>monthDueSortKey(a[0])-monthDueSortKey(b[0])).forEach(([,d])=>{
+    incomingOrders.push({text:`<strong>${d.display}</strong> — <strong>${d.units.toLocaleString()}</strong> units arriving across <strong>${d.products.size}</strong> product${d.products.size!==1?'s':''}.`});
+  });
+  // Check if any critical items have orders arriving in time
+  const savedByCritical=criticals.filter(r=>r.onOrder>0&&r.monthDue);
+  if(savedByCritical.length>0){
+    incomingOrders.push({text:`<strong>${savedByCritical.length}</strong> re-order alert product${savedByCritical.length!==1?'s':''} have units on order arriving — weeks cover figures already include these incoming units.`});
+  }
+
+  // ── MARGIN WATCH ──
+  const margin=[];
+  const withMargin=rows.filter(r=>r.margin!==null&&r.stock>0);
+  const avgMargin=withMargin.reduce((s,r)=>s+r.margin,0)/Math.max(withMargin.length,1);
+  margin.push({text:`Overall average margin across stocked SKUs is <strong>${avgMargin.toFixed(1)}%</strong> based on current sell prices and cost of goods.`});
+  const lowM=withMargin.filter(r=>r.margin<25).sort((a,b)=>a.margin-b.margin);
+  const lowMMap={};
+  for(const r of lowM){
+    const k=r.productName+'||'+r.colour;
+    if(!lowMMap[k])lowMMap[k]={...r};
+  }
+  Object.values(lowMMap).slice(0,3).forEach(r=>{
+    margin.push({text:`<strong>${toTitleCase(r.productName)} — ${toTitleCase(r.colour)}</strong> has a low margin of <strong>${r.margin.toFixed(1)}%</strong> at $${r.price} sell price — review pricing or cost.`});
+  });
+  const highM=withMargin.filter(r=>r.margin>=60).length;
+  if(highM>0){
+    margin.push({text:`<strong>${highM}</strong> SKU${highM!==1?'s':''} achieve a margin of 60% or above — these are your highest-value products to prioritise for restock.`});
+  }
+  // Discounted items
+  const discounted=rows.filter(r=>r.discountPct>0&&r.stock>0);
+  if(discounted.length>0){
+    const avgDisc=discounted.reduce((s,r)=>s+r.discountPct,0)/discounted.length;
+    margin.push({text:`<strong>${discounted.length}</strong> SKUs are currently selling below RRP at an average discount of <strong>${avgDisc.toFixed(1)}%</strong>.`});
+  }
+
+  return{reorder,overstock,topPerformers,slowMovers,incomingOrders,margin};
+}
+
+function toTitleCase(str){
+  if(!str)return'';
+  return str.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
+}
+
+/* ── STORE SCAN ── */
+async function scanStore(){
+  const btn=document.getElementById('scan-store-btn');
+  btn.disabled=true;btn.textContent='Scanning...';
+  document.getElementById('store-insights-body').innerHTML=`
+    <div class="insights-loading">
+      <div class="insights-spinner"></div>
+      <div class="insights-loading-text">Scanning wndrr.com...</div>
+      <div class="insights-loading-sub">Fetching live product data from your store</div>
+    </div>`;
+
+  try{
+    const allProducts=[];
+    let page=1;
+
+    while(true){
+      const shopifyUrl=`https://www.wndrr.com/products.json?limit=250&page=${page}`;
+
+      // Try multiple proxies in order
+      let data=null;
+      const proxies=[
+        u=>`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
+        u=>`https://corsproxy.io/?${encodeURIComponent(u)}`,
+        u=>`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+      ];
+
+      for(const makeUrl of proxies){
+        try{
+          const res=await fetch(makeUrl(shopifyUrl),{signal:AbortSignal.timeout(8000)});
+          if(!res.ok)continue;
+          const json=await res.json();
+          // allorigins wraps in {contents:...}, others return directly
+          const raw=json.contents?JSON.parse(json.contents):json;
+          if(raw.products){data=raw;break;}
+        } catch(e){continue;}
+      }
+
+      if(!data||!data.products||data.products.length===0)break;
+      allProducts.push(...data.products);
+      if(data.products.length<250)break;
+      page++;
+    }
+
+    if(allProducts.length===0){
+      document.getElementById('store-insights-body').innerHTML=`
+        <div class="insights-error">⚠️ Could not connect to wndrr.com. This may be due to browser security restrictions blocking external requests from local files. Try hosting the app on your Netlify URL and scanning from there.</div>`;
+      btn.disabled=false;btn.textContent='🔍 Scan Store';
+      return;
+    }
+
+    renderStoreInsights(allProducts);
+
+  } catch(err){
+    document.getElementById('store-insights-body').innerHTML=`
+      <div class="insights-error">⚠️ Store scan failed: ${err.message}</div>`;
+  }
+  btn.disabled=false;btn.textContent='🔍 Scan Store';
+}
+
+function renderStoreInsights(products){
+  const total=products.length;
+
+  // ── CATEGORY / PRODUCT TYPE ──
+  const typeCounts={};
+  for(const p of products){
+    const t=p.product_type||'Uncategorised';
+    typeCounts[t]=(typeCounts[t]||0)+1;
+  }
+  const topTypes=Object.entries(typeCounts).sort((a,b)=>b[1]-a[1]);
+
+  // ── COLOUR ANALYSIS from titles ──
+  const colourCounts={};
+  const knownColours=['BLACK','WHITE','GREY','NAVY','BLUE','RED','GREEN','BROWN','TAN','CREAM','PINK','PURPLE','YELLOW','ORANGE','OLIVE','KHAKI','DUSK','WASHED','FADED','STONE','SAND','RUST'];
+  for(const p of products){
+    const title=(p.title||'').toUpperCase();
+    for(const c of knownColours){
+      if(title.includes(c)){
+        colourCounts[c]=(colourCounts[c]||0)+1;
+      }
+    }
+  }
+  const topColours=Object.entries(colourCounts).sort((a,b)=>b[1]-a[1]).slice(0,8);
+
+  // ── AVAILABILITY ──
+  let available=0,soldOut=0;
+  for(const p of products){
+    const hasStock=p.variants.some(v=>v.available);
+    if(hasStock)available++;else soldOut++;
+  }
+  const soldOutPct=(soldOut/total*100).toFixed(1);
+
+  // ── TAGS / DESIGN THEMES ──
+  const tagCounts={};
+  for(const p of products){
+    const tags=(p.tags||'').split(',').map(t=>t.trim().toLowerCase()).filter(t=>t&&t.length>2);
+    for(const t of tags)tagCounts[t]=(tagCounts[t]||0)+1;
+  }
+  const topTags=Object.entries(tagCounts).sort((a,b)=>b[1]-a[1]).slice(0,10);
+
+  // ── VARIANT DEPTH (size range) ──
+  const variantCounts=products.map(p=>p.variants.length);
+  const avgVariants=(variantCounts.reduce((a,b)=>a+b,0)/total).toFixed(1);
+  const maxVariants=Math.max(...variantCounts);
+  const maxProduct=products.find(p=>p.variants.length===maxVariants);
+
+  // ── SOLD OUT BY CATEGORY ──
+  const soldOutByType={};
+  for(const p of products){
+    const t=p.product_type||'Uncategorised';
+    if(!soldOutByType[t])soldOutByType[t]={total:0,soldOut:0};
+    soldOutByType[t].total++;
+    if(!p.variants.some(v=>v.available))soldOutByType[t].soldOut++;
+  }
+  const worstSoldOut=Object.entries(soldOutByType)
+    .filter(([,d])=>d.total>=3)
+    .map(([t,d])=>({type:t,...d,pct:d.soldOut/d.total*100}))
+    .sort((a,b)=>b.pct-a.pct).slice(0,3);
+
+  // ── RENDER ──
+  const sections=[
+    {
+      ico:'👕',title:'Range Overview',dotClass:'insight-dot-teal',
+      items:[
+        {text:`Your live store has <strong>${total}</strong> active products across <strong>${topTypes.length}</strong> categories, with an average of <strong>${avgVariants}</strong> variants per product.`},
+        {text:`<strong>${available}</strong> products have stock available (${(available/total*100).toFixed(1)}%), while <strong>${soldOut}</strong> are fully sold out (${soldOutPct}%).`},
+        ...topTypes.slice(0,5).map(([t,c])=>({text:`<strong>${toTitleCase(t)}</strong> — ${c} product${c!==1?'s':''} (${(c/total*100).toFixed(1)}% of range).`}))
+      ]
+    },
+    {
+      ico:'🎨',title:'Colour Distribution',dotClass:'insight-dot-purple',
+      items:[
+        {text:`The most dominant colour in your range is <strong>${toTitleCase(topColours[0]?.[0]||'')}</strong>, appearing in <strong>${topColours[0]?.[1]||0}</strong> product titles.`},
+        ...topColours.slice(1,5).map(([c,n])=>({text:`<strong>${toTitleCase(c)}</strong> features in <strong>${n}</strong> products across the range.`}))
+      ]
+    },
+    {
+      ico:'🚫',title:'Sold Out Alerts',dotClass:'insight-dot-red',
+      items:[
+        {text:`<strong>${soldOut}</strong> products are fully sold out online — that's <strong>${soldOutPct}%</strong> of your active range.`},
+        ...worstSoldOut.map(d=>({text:`<strong>${toTitleCase(d.type)}</strong> has the highest sell-out rate with <strong>${d.soldOut}/${d.total}</strong> products (${d.pct.toFixed(0)}%) fully sold out.`}))
+      ]
+    },
+    {
+      ico:'🏷️',title:'Design Themes & Tags',dotClass:'insight-dot-blue',
+      items:topTags.length>0
+        ?[{text:`Top product tags reveal your key design themes and collections:`},
+          ...topTags.slice(0,6).map(([t,n])=>({text:`<strong>${toTitleCase(t)}</strong> — tagged on <strong>${n}</strong> product${n!==1?'s':''}.`}))]
+        :[{text:'No tags found on store products.'}]
+    }
+  ];
+
+  const lastUpdated=new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'});
+  document.getElementById('store-insights-body').innerHTML=
+    `<div style="font-size:11px;color:var(--text-muted);margin-bottom:16px;">Last scanned at ${lastUpdated} · ${total} products fetched from wndrr.com</div>`+
+    sections.map(s=>`
+      <div class="insight-section">
+        <div class="insight-section-header">
+          <span class="insight-ico">${s.ico}</span>
+          <span class="insight-section-title">${s.title}</span>
+          <span class="insight-section-count">${s.items.length} insight${s.items.length!==1?'s':''}</span>
+        </div>
+        ${s.items.map(item=>`
+          <div class="insight-item">
+            <div class="insight-dot ${s.dotClass}"></div>
+            <div class="insight-text">${item.text}</div>
+          </div>`).join('')}
+      </div>`).join('');
+}
+
+function renderInsights(data){
+  const sections=[
+    {key:'reorder',ico:'⚠️',title:'Re-Order Alerts',dotClass:'insight-dot-red'},
+    {key:'overstock',ico:'📦',title:'Reduce / Overstock',dotClass:'insight-dot-amber'},
+    {key:'topPerformers',ico:'🚀',title:'Top Performers',dotClass:'insight-dot-teal'},
+    {key:'slowMovers',ico:'📉',title:'Slow Movers',dotClass:'insight-dot-blue'},
+    {key:'incomingOrders',ico:'🚚',title:'Incoming Orders',dotClass:'insight-dot-purple'},
+    {key:'margin',ico:'💰',title:'Margin Watch',dotClass:'insight-dot-green'},
+  ];
+  document.getElementById('insights-body').innerHTML=sections.map(s=>{
+    const items=data[s.key]||[];
+    if(!items.length)return'';
+    return`<div class="insight-section">
+      <div class="insight-section-header">
+        <span class="insight-ico">${s.ico}</span>
+        <span class="insight-section-title">${s.title}</span>
+        <span class="insight-section-count">${items.length} insight${items.length!==1?'s':''}</span>
+      </div>
+      ${items.map(item=>`<div class="insight-item">
+        <div class="insight-dot ${s.dotClass}"></div>
+        <div class="insight-text">${item.text}</div>
+      </div>`).join('')}
+    </div>`;
+  }).join('');
+}
+
 /* ── PASSWORD ── */
 function checkPassword(){
   const input=document.getElementById('pw-input').value.trim();
@@ -592,22 +1117,39 @@ function togglePwVisibility(e){
 }
 
 /* ── STATE ── */
-let shopifyData=null,amData=null,currentView='category',sortCol='days',sortDir='asc',currentPage=1;
-const shopifyPeriods={};
+let shopifyInvData=null, shopifySalesData=null, amData=null;
+let currentView='category', sortCol='days', sortDir='asc', currentPage=1;
+let selectedPeriod=7;
 const PAGE_SIZE=50;
-let filteredRows=[],allVariantRows=[];
+let filteredRows=[], allVariantRows=[];
+
+/* ── PERIOD SELECTOR ── */
+function setPeriod(days){
+  selectedPeriod=days;
+  document.querySelectorAll('.period-btn').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.days)===days));
+  if(allVariantRows.length) buildVariantRows();
+}
 
 /* ── LOADERS ── */
-function loadShopifyPeriod(input,days){
+function loadShopifyInventory(input){
   const file=input.files[0];if(!file)return;
   const rd=new FileReader();
   rd.onload=e=>{
-    shopifyPeriods[days]=parseCSV(e.target.result);
-    // Use the longest period uploaded as the primary source for stock/sold figures
-    shopifyData=shopifyPeriods[days];
-    document.getElementById('sf-row-'+days).classList.add('loaded');
-    document.getElementById('sf-name-'+days).textContent=file.name;
+    shopifyInvData=parseCSV(e.target.result);
     document.getElementById('shopify-card').classList.add('loaded');
+    document.getElementById('sf-inv-fname').textContent=file.name;
+    checkReady();
+  };
+  rd.readAsText(file);
+}
+
+function loadShopifySales(input){
+  const file=input.files[0];if(!file)return;
+  const rd=new FileReader();
+  rd.onload=e=>{
+    shopifySalesData=parseCSV(e.target.result);
+    document.getElementById('sales-card').classList.add('loaded');
+    document.getElementById('sf-sales-fname').textContent=file.name;
     checkReady();
   };
   rd.readAsText(file);
@@ -626,8 +1168,8 @@ function loadAM(input){
 }
 
 function checkReady(){
-  const hasShopify=Object.keys(shopifyPeriods).length>0;
-  if(hasShopify||amData)document.getElementById('analyse-btn').classList.add('ready');
+  if(shopifyInvData||shopifySalesData||amData)
+    document.getElementById('analyse-btn').classList.add('ready');
 }
 
 /* ── CSV ── */
@@ -654,12 +1196,69 @@ function parseCSVLine(line){
   r.push(c);return r;
 }
 
+/* ── BUILD SALES MAPS FROM 365-DAY FILE ── */
+function buildSalesMaps(){
+  // salesBySkuDay: {sku: {date: {qty, cogs}}}
+  // priceMap: {sku: {price, compareAt, vendor, category, productName, colour, size}}
+  const salesBySkuDay={};
+  const priceMap={};
+
+  if(!shopifySalesData)return{salesBySkuDay,priceMap};
+
+  const today=new Date();
+  today.setHours(0,0,0,0);
+
+  for(const row of shopifySalesData){
+    const sku=(row['Product variant SKU']||'').trim();
+    const day=(row['Day']||'').trim();
+    const qty=parseFloat(row['Quantity ordered']||0)||0;
+    const cogs=parseFloat(row['Cost of goods sold']||0)||0;
+    const price=parseFloat(row['Product variant price']||0)||0;
+    const compareAt=parseFloat(row['Product variant compare at price']||0)||0;
+    const vendor=(row['Product vendor']||'').trim().toUpperCase();
+    const category=(row['Product type']||'').trim().toUpperCase();
+    const fullTitle=(row['Product title']||'').trim().toUpperCase();
+    const variantTitle=(row['Product variant title']||'').trim();
+
+    if(!sku||!day)continue;
+
+    // Only count positive quantities (ignore returns/refunds)
+    if(qty>0){
+      if(!salesBySkuDay[sku])salesBySkuDay[sku]={};
+      if(!salesBySkuDay[sku][day])salesBySkuDay[sku][day]={qty:0,cogs:0};
+      salesBySkuDay[sku][day].qty+=qty;
+      salesBySkuDay[sku][day].cogs+=cogs;
+    }
+
+    // Store price/meta info — use most recent row (overwrite)
+    if(!priceMap[sku]||day>priceMap[sku].day){
+      const{name:productName,colour}=extractName(fullTitle);
+      const sizeParts=variantTitle.split('/');
+      let size=sizeParts.length>1?sizeParts[sizeParts.length-1].trim():variantTitle.trim();
+      if(size.toUpperCase()===colour.toUpperCase())size='OS';
+      priceMap[sku]={price,compareAt,vendor,category,productName,colour,size,day};
+    }
+  }
+  return{salesBySkuDay,priceMap};
+}
+
+function getSoldInPeriod(salesBySkuDay, sku, days){
+  // Sum qty sold in last N days from today
+  const today=new Date();
+  today.setHours(0,0,0,0);
+  const cutoff=new Date(today);
+  cutoff.setDate(cutoff.getDate()-days);
+  const dayData=salesBySkuDay[sku]||{};
+  let qty=0, cogs=0;
+  for(const[day,d] of Object.entries(dayData)){
+    const dt=new Date(day);
+    if(dt>=cutoff&&dt<=today){qty+=d.qty;cogs+=d.cogs;}
+  }
+  return{qty,cogs};
+}
+
 /* ── AM DATA ── */
 function buildAMData(){
-  // Three maps:
-  // variantMap: desc||colour||size → {qtyOpen, monthDue, category}  (per size)
-  // productMap: desc||colour       → {qtyOpen, monthDue, category}  (colour total, for AM-only products)
-  // products:   desc               → {colours, category}             (for AM-only product discovery)
   const variantMap={};
   const productMap={};
   const products={};
@@ -672,33 +1271,22 @@ function buildAMData(){
     const monthDue=(row['Month Due']||'').trim();
     const category=(row['Category']||'').trim().toUpperCase();
     const qtyOpen=parseInt((row['Qty Open']||'0').replace(/[^0-9]/g,''))||0;
-
-    // Skip blank descriptions and grand total rows
     if(!desc||desc==='TOTAL')continue;
-    // Skip rows without colour (product-level subtotals)
     if(!colour)continue;
-
-    // Track all colours seen per product for AM-only product discovery
     if(!products[desc])products[desc]={colours:new Set(),category:category||''};
     products[desc].colours.add(colour);
     if(category)products[desc].category=category;
-
     if(size){
-      // Variant-level row (has size) — this is the detail we want
       const vKey=desc+'||'+colour+'||'+size;
-      if(!variantMap[vKey]){
-        variantMap[vKey]={qtyOpen,monthDue:monthDue||'',category:category||''};
-      }
+      if(!variantMap[vKey])variantMap[vKey]={qtyOpen,monthDue:monthDue||'',category:category||''};
     } else if(monthDue){
-      // Colour-level subtotal with Month Due — use for product-level rollup
       const pKey=desc+'||'+colour;
-      if(!productMap[pKey]){
-        productMap[pKey]={qtyOpen,monthDue:monthDue||'',category:category||''};
-      }
+      if(!productMap[pKey])productMap[pKey]={qtyOpen,monthDue:monthDue||'',category:category||''};
     }
   }
   return{variantMap,productMap,products};
 }
+
 
 /* ── HELPERS ── */
 function extractName(t){
@@ -755,116 +1343,96 @@ function getFlag(days,stock,onOrder,vendor){
 }
 
 /* ── PROCESS ── */
-function processRows(amVariantMap,amProductMap,amProducts){
+function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap){
   const rows=[];
 
-  // Build velocity lookup: {SKU: {7: vel, 30: vel}}
-  const velMap={};
-  // Build sold lookup per period: {SKU: {7: sold, 30: sold}}
-  const soldMap={};
-  const uploadedPeriods=Object.keys(shopifyPeriods).map(Number).sort((a,b)=>a-b);
-  for(const days of uploadedPeriods){
-    for(const row of shopifyPeriods[days]){
+  // Build SOH lookup from inventory file: {sku: stock}
+  const sohMap={};
+  if(shopifyInvData){
+    for(const row of shopifyInvData){
       const sku=(row['Product variant SKU']||'').trim();
-      const sold=parseInt(row['Inventory units sold'])||0;
-      const vel=days>0?sold/days:0;
-      if(!velMap[sku])velMap[sku]={};
-      velMap[sku][days]=vel;
-      if(!soldMap[sku])soldMap[sku]={};
-      soldMap[sku][days]=sold;
-    }
-  }
-
-  const primaryDays=uploadedPeriods[uploadedPeriods.length-1]||30;
-  const primaryData=shopifyPeriods[primaryDays]||[];
-
-  const preferredOrder=[30,14,7];
-  function bestVelocity(skuVels){
-    for(const d of preferredOrder){
-      if(skuVels&&skuVels[d]!==undefined)return{vel:skuVels[d],days:d};
-    }
-    const available=Object.entries(skuVels||{});
-    if(available.length)return{vel:available[0][1],days:parseInt(available[0][0])};
-    return{vel:0,days:null};
-  }
-
-  if(primaryData.length){
-    for(const row of primaryData){
-      const fullTitle=(row['Product title']||'').trim().toUpperCase();
-      const variant=(row['Product variant title']||'').trim();
-      const sku=(row['Product variant SKU']||'').trim();
-      const category=(row['Product type']||'').trim().toUpperCase();
-      const vendor=(row['Product vendor']||'').trim().toUpperCase();
       const stock=parseInt(row['Ending inventory units'])||0;
-      const sold=parseInt(row['Inventory units sold'])||0;
-      const{name:productName,colour}=extractName(fullTitle);
+      if(sku)sohMap[sku]=stock;
+    }
+  }
 
-      // Extract size from variant title (e.g. "BLACK / XL" → "XL")
-      const sizeParts=variant.split('/');
-      let size=sizeParts.length>1?sizeParts[sizeParts.length-1].trim():variant.trim();
-      // If there's no size separator and the extracted "size" matches the colour,
-      // the product is one-size — treat as OS (e.g. "CHALLENGER SOCKS 3 PK - BLACK" with variant "BLACK")
-      if(size.toUpperCase()===colour.toUpperCase())size='OS';
+  // Get all SKUs — union of inventory file and sales history
+  const allSkus=new Set([
+    ...Object.keys(sohMap),
+    ...Object.keys(salesBySkuDay),
+    ...Object.keys(priceMap)
+  ]);
 
-      // Look up on-order at variant level — also try OS fallback for one-size products
-      const vKey=productName+'||'+colour+'||'+size;
-      const vKeyOS=productName+'||'+colour+'||OS';
-      const pKey=productName+'||'+colour;
-      const variantEntry=amVariantMap[vKey]||amVariantMap[vKeyOS];
-      const productEntry=amProductMap[pKey];
-      const onOrder=variantEntry?variantEntry.qtyOpen:0;
-      const monthDue=variantEntry?variantEntry.monthDue:productEntry?productEntry.monthDue:'';
-      // productOnOrder is the total colour-level qty (for product/category rollups)
-      const productOnOrder=productEntry?productEntry.qtyOpen:0;
+  for(const sku of allSkus){
+    const pm=priceMap[sku];
+    if(!pm)continue; // need at minimum a sales record for meta info
 
-      const skuVels=velMap[sku]||{};
-      const{vel:primaryVel}=bestVelocity(skuVels);
+    const stock=sohMap[sku]||0;
+    const{productName,colour,size,vendor,category,price,compareAt}=pm;
 
-      // Days remaining — now includes variant-level on-order
-      let recalcDays=primaryVel>0?Math.round(stock/primaryVel):null;
-      if(primaryVel>0&&onOrder>0&&monthDue){
-        const daysUntilOrder=monthDueToDays(monthDue);
-        if(daysUntilOrder!==null&&(recalcDays===null||daysUntilOrder<=recalcDays+30)){
-          recalcDays=Math.round((stock+onOrder)/primaryVel);
-        }
+    // Sold in each standard period
+    const s7=getSoldInPeriod(salesBySkuDay,sku,7);
+    const s30=getSoldInPeriod(salesBySkuDay,sku,30);
+    const s90=getSoldInPeriod(salesBySkuDay,sku,90);
+    const s365=getSoldInPeriod(salesBySkuDay,sku,365);
+
+    // Primary sold/cogs based on selected period
+    const sPrimary=getSoldInPeriod(salesBySkuDay,sku,selectedPeriod);
+    const sold=sPrimary.qty;
+    const cogs=sPrimary.cogs;
+
+    // Velocity = units per day for selected period
+    const velocity=sold/selectedPeriod;
+
+    // Weekly velocities for display
+    const vel7=s7.qty>0?s7.qty/7*7:null;   // weekly rate from 7d
+    const vel30=s30.qty>0?s30.qty/30*7:null; // weekly rate from 30d
+
+    // Margin
+    const margin=(price>0&&cogs>0)?+((price-cogs/Math.max(sold,1))/price*100).toFixed(2):null;
+
+    // Sell through % — sold / (soh + sold)
+    const stDenom=stock+sold;
+    const sellThru7=s7.qty>0&&(stock+s7.qty)>0?+(s7.qty/(stock+s7.qty)*100).toFixed(2):null;
+
+    // Discount %
+    const discountPct=(compareAt>0&&price<compareAt)?+((1-price/compareAt)*100).toFixed(1):null;
+
+    // AM lookup
+    const vKey=productName+'||'+colour+'||'+size;
+    const vKeyOS=productName+'||'+colour+'||OS';
+    const pKey=productName+'||'+colour;
+    const variantEntry=amVariantMap[vKey]||amVariantMap[vKeyOS];
+    const productEntry=amProductMap[pKey];
+    const onOrder=variantEntry?variantEntry.qtyOpen:0;
+    const monthDue=variantEntry?variantEntry.monthDue:productEntry?productEntry.monthDue:'';
+    const productOnOrder=productEntry?productEntry.qtyOpen:0;
+
+    // Days remaining
+    let recalcDays=velocity>0?Math.round(stock/velocity):null;
+    if(velocity>0&&onOrder>0&&monthDue){
+      const daysUntilOrder=monthDueToDays(monthDue);
+      if(daysUntilOrder!==null&&(recalcDays===null||daysUntilOrder<=recalcDays+30)){
+        recalcDays=Math.round((stock+onOrder)/velocity);
       }
-      const recalcWeeks=recalcDays!==null?+(recalcDays/7).toFixed(1):null;
-      const flag=getFlag(recalcDays,stock,onOrder,vendor);
-
-      const s7=soldMap[sku]?.[7]??null;
-      const sellThru7=(s7!==null&&stock>0)?+(s7/stock*100).toFixed(2):null;
-
-      rows.push({
-        fullTitle,productName,colour,size,variant,sku,category,vendor,stock,
-        velocity:primaryVel,
-        vel7:skuVels[7]!==undefined?skuVels[7]*7:null,
-        vel30:skuVels[30]!==undefined?skuVels[30]*7:null,
-        days:recalcDays===null?9999:recalcDays,
-        daysDisplay:recalcWeeks===null?'—':recalcWeeks===0?'0':recalcWeeks,
-        sold:soldMap[sku]?.[primaryDays]||sold,
-        sold7:s7,
-        sold30:soldMap[sku]?.[30]??null,
-        sellThru7,
-        onOrder,
-        productOnOrder,
-        monthDue,flag,amOnly:false
-      });
     }
+    const recalcWeeks=recalcDays!==null?+(recalcDays/7).toFixed(1):null;
+    const flag=getFlag(recalcDays,stock,onOrder,vendor);
+
+    rows.push({
+      fullTitle:productName+' - '+colour,productName,colour,size,variant:size,sku,
+      category,vendor,stock,
+      price,compareAt,discountPct,margin,
+      velocity,vel7,vel30,
+      sold7:s7.qty,sold30:s30.qty,sold90:s90.qty,sold365:s365.qty,
+      sold,sellThru7,
+      days:recalcDays===null?9999:recalcDays,
+      daysDisplay:recalcWeeks===null?'—':recalcWeeks===0?'0':recalcWeeks,
+      onOrder,productOnOrder,monthDue,flag,amOnly:false
+    });
   }
 
-  // Build category lookup from Shopify for AM-only products
-  const shopifyCategoryMap={};
-  for(const period of Object.values(shopifyPeriods)){
-    for(const row of period){
-      const fullTitle=(row['Product title']||'').trim().toUpperCase();
-      const category=(row['Product type']||'').trim().toUpperCase();
-      const{name:productName}=extractName(fullTitle);
-      if(productName&&category&&!shopifyCategoryMap[productName])
-        shopifyCategoryMap[productName]=category;
-    }
-  }
-
-  // Add AM-only products (not yet in Shopify) — one row per size from variantMap
+  // Add AM-only products not in sales history
   const shopKeys=new Set(rows.map(r=>r.productName+'||'+r.colour));
   if(amData){
     for(const[desc,info]of Object.entries(amProducts)){
@@ -875,36 +1443,33 @@ function processRows(amVariantMap,amProductMap,amProducts){
         const totalOnOrder=productEntry?productEntry.qtyOpen:0;
         const monthDue=productEntry?productEntry.monthDue:'';
         if(totalOnOrder===0)continue;
-        const category=shopifyCategoryMap[desc]||productEntry?.category||info.category||'';
-
-        // Find all sizes for this product+colour from variantMap
+        const category=productEntry?.category||info.category||'';
         const sizeEntries=Object.entries(amVariantMap)
           .filter(([k])=>k.startsWith(pKey+'||'))
           .map(([k,v])=>({size:k.split('||')[2],qtyOpen:v.qtyOpen,monthDue:v.monthDue||monthDue}));
-
         if(sizeEntries.length>0){
-          // Add one row per size
           for(const se of sizeEntries){
             rows.push({
               fullTitle:desc+' - '+colour,productName:desc,colour,
               size:se.size,variant:se.size,sku:'—',
               category,vendor:'INDENT',
-              stock:0,velocity:0,vel7:null,vel30:null,
-              days:9999,daysDisplay:'—',sold:0,
-              onOrder:se.qtyOpen,
-              productOnOrder:totalOnOrder,
+              stock:0,price:null,compareAt:null,discountPct:null,margin:null,
+              velocity:0,vel7:null,vel30:null,
+              sold7:0,sold30:0,sold90:0,sold365:0,sold:0,sellThru7:null,
+              days:9999,daysDisplay:'—',
+              onOrder:se.qtyOpen,productOnOrder:totalOnOrder,
               monthDue:se.monthDue,flag:'on-order',amOnly:true
             });
           }
         } else {
-          // No size breakdown available — add single row
           rows.push({
             fullTitle:desc+' - '+colour,productName:desc,colour,size:'—',variant:'—',sku:'—',
             category,vendor:'INDENT',
-            stock:0,velocity:0,vel7:null,vel30:null,
-            days:9999,daysDisplay:'—',sold:0,
-            onOrder:null,
-            productOnOrder:totalOnOrder,
+            stock:0,price:null,compareAt:null,discountPct:null,margin:null,
+            velocity:0,vel7:null,vel30:null,
+            sold7:0,sold30:0,sold90:0,sold365:0,sold:0,sellThru7:null,
+            days:9999,daysDisplay:'—',
+            onOrder:null,productOnOrder:totalOnOrder,
             monthDue,flag:'on-order',amOnly:true
           });
         }
@@ -914,15 +1479,20 @@ function processRows(amVariantMap,amProductMap,amProducts){
   return rows;
 }
 
+function buildVariantRows(){
+  const{variantMap:amVariantMap,productMap:amProductMap,products:amProducts}=buildAMData();
+  const{salesBySkuDay,priceMap}=buildSalesMaps();
+  allVariantRows=processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap);
+  document.getElementById('nav-count').textContent=allVariantRows.length.toLocaleString()+' SKUs';
+  renderKPIs();
+  setView(currentView);
+}
+
 /* ── DASHBOARD ── */
 function buildDashboard(){
   document.getElementById('upload-screen').style.display='none';
   document.getElementById('app').style.display='block';
-  const{variantMap:amVariantMap,productMap:amProductMap,products:amProducts}=buildAMData();
-  allVariantRows=processRows(amVariantMap,amProductMap,amProducts);
-  document.getElementById('nav-count').textContent=allVariantRows.length.toLocaleString()+' SKUs';
-  const periods=Object.keys(shopifyPeriods).sort((a,b)=>a-b).map(d=>d+'d').join(', ');
-  document.getElementById('nav-days-range').textContent=`📅 ${periods||'—'} velocity`;
+  buildVariantRows();
 
   const cats=[...new Set(allVariantRows.map(r=>r.category).filter(Boolean))].sort();
   const vendors=[...new Set(allVariantRows.map(r=>r.vendor).filter(Boolean))].sort();
@@ -944,7 +1514,7 @@ function renderKPIs(){
   const kpis=[
     {name:'Total SKUs',val:rows.length.toLocaleString(),sub:'All variants',ico:'📊',bg:'#eef1fe',ic:'#4f6ef7'},
     {name:'SOH',val:rows.reduce((s,r)=>s+r.stock,0).toLocaleString(),sub:'Units on hand',ico:'📦',bg:'#e6f7f7',ic:'var(--teal)'},
-    {name:'Units Sold (30d)',val:rows.reduce((s,r)=>s+(r.sold30||r.sold||0),0).toLocaleString(),sub:'Last 30 days',ico:'🛍️',bg:'#dcfce7',ic:'var(--green)'},
+    {name:`Units Sold (${selectedPeriod}d)`,val:rows.reduce((s,r)=>s+(r.sold||0),0).toLocaleString(),sub:`Last ${selectedPeriod} days`,ico:'🛍️',bg:'#dcfce7',ic:'var(--green)'},
     {name:'Out of Stock',val:rows.filter(r=>r.flag==='oos').length.toLocaleString(),sub:'Zero stock, no order',ico:'🚫',bg:'#fee2e2',ic:'var(--red)'},
     {name:'Re-Order',val:rows.filter(r=>r.flag==='reorder').length.toLocaleString(),sub:'≤14 weeks cover',ico:'⚠️',bg:'#fef9c3',ic:'#854d0e'},
     {name:'Reduce',val:rows.filter(r=>r.flag==='reduce').length.toLocaleString(),sub:'26w+ cover, no order',ico:'📦',bg:'#fee2e2',ic:'var(--red)'},
@@ -1096,17 +1666,21 @@ function toProduct(vr){
   for(const r of vr){
     const key=r.productName+'||'+r.colour;
     if(!map[key]){
-      map[key]={...r,velSum:r.velocity,stock:r.stock,sold:r.sold,sold7:r.sold7||0,sold30:r.sold30||0,count:1,
+      map[key]={...r,velSum:r.velocity,stock:r.stock,sold:r.sold,
+        sold7:r.sold7||0,sold30:r.sold30||0,sold90:r.sold90||0,sold365:r.sold365||0,
         onOrder:r.onOrder!==null?(r.onOrder||0):(r.productOnOrder||0),
         sizes:r.size&&r.size!=='—'?[r.size]:[],
-        earliestDue:r.monthDue,earliestKey:monthDueSortKey(r.monthDue)
+        earliestDue:r.monthDue,earliestKey:monthDueSortKey(r.monthDue),
+        priceSum:r.price||0,priceCount:r.price?1:0
       };
     } else {
       const p=map[key];
       p.stock+=r.stock;p.sold+=r.sold;
       p.sold7+=(r.sold7||0);p.sold30+=(r.sold30||0);
+      p.sold90+=(r.sold90||0);p.sold365+=(r.sold365||0);
       p.velSum+=r.velocity;p.count++;
       p.onOrder+=(r.onOrder!==null?(r.onOrder||0):(r.productOnOrder||0));
+      if(r.price){p.priceSum+=r.price;p.priceCount++;}
       if(r.size&&r.size!=='—')p.sizes.push(r.size);
       if(!r.amOnly)p.amOnly=false;
       const sk=monthDueSortKey(r.monthDue);
@@ -1125,7 +1699,7 @@ function toProduct(vr){
       }
     }
     return{...p,velocity,onOrder,monthDue,
-      sellThru7:(p.sold7>0&&p.stock>0)?+(p.sold7/p.stock*100).toFixed(2):null,
+      sellThru7:(p.sold7>0&&(p.stock+p.sold7)>0)?+(p.sold7/(p.stock+p.sold7)*100).toFixed(2):null,
       days:days===null?9999:days,
       daysDisplay:days===null?'—':+(days/7).toFixed(1),
       flag:getFlag(days,p.stock,onOrder,p.vendor),
@@ -1137,15 +1711,16 @@ function toCategory(vr){
   const map={};
   for(const r of vr){
     const key=r.category||'UNCATEGORISED';
-    if(!map[key])map[key]={category:key,stock:0,sold:0,sold7:0,sold30:0,onOrder:0,velSum:0,vel7Sum:0,vel30Sum:0,
+    if(!map[key])map[key]={category:key,stock:0,sold:0,sold7:0,sold30:0,sold90:0,sold365:0,
+      onOrder:0,velSum:0,vel7Sum:0,vel30Sum:0,
       productSet:new Set(),
       oosCount:0,critCount:0,earliestDue:'',earliestKey:999999};
     const c=map[key];
     c.stock+=r.stock;c.sold+=r.sold;c.velSum+=r.velocity;
     c.sold7+=(r.sold7||0);c.sold30+=(r.sold30||0);
+    c.sold90+=(r.sold90||0);c.sold365+=(r.sold365||0);
     c.vel7Sum+=(r.vel7||0);
     c.vel30Sum+=(r.vel30||0);
-    // For Shopify variants use variant-level onOrder; for AM-only use productOnOrder
     c.onOrder+=(r.onOrder!==null?(r.onOrder||0):(r.productOnOrder||0));
     c.productSet.add(r.productName+'||'+r.colour);
     if(r.flag==='oos')c.oosCount++;
@@ -1165,7 +1740,7 @@ function toCategory(vr){
       }
     }
     return{...c,products:c.productSet.size,monthDue,
-      sellThru7:(c.sold7>0&&c.stock>0)?+(c.sold7/c.stock*100).toFixed(2):null,
+      sellThru7:(c.sold7>0&&(c.stock+c.sold7)>0)?+(c.sold7/(c.stock+c.sold7)*100).toFixed(2):null,
       vel7:c.vel7Sum||null,vel30:c.vel30Sum||null,
       days:days===null?9999:days,
       daysDisplay:days===null?'—':+(days/7).toFixed(1),
@@ -1177,7 +1752,7 @@ function toCategory(vr){
 const colFilters={};  // {colKey: {op1, v1, op2, v2}}
 
 // Numeric columns use number operators; text/flag columns use text operators
-const NUM_COLS=new Set(['stock','sold7','sold30','onOrder','vel7','vel30','days','products','oosCount','critCount','sellThru7']);
+const NUM_COLS=new Set(['stock','sold7','sold30','sold90','sold365','onOrder','vel7','vel30','days','products','oosCount','critCount','sellThru7','price','compareAt','discountPct','margin']);
 const TEXT_COLS=new Set(['productName','category','vendor','size','sku','flag','monthDue']);
 
 function getCondOpts(colKey){
@@ -1328,8 +1903,14 @@ function getFilteredRows(){
     if(typeof bv==='string')bv=bv.toLowerCase();
     if(av<bv)return sortDir==='asc'?-1:1;
     if(av>bv)return sortDir==='asc'?1:-1;
-    // Tiebreak by size order for variant view
-    if(currentView==='variant')return sizeSort(a.size,b.size);
+    // Tiebreak for variant view: product name → colour → size smallest to largest
+    if(currentView==='variant'){
+      const nameComp=(a.productName||'').localeCompare(b.productName||'');
+      if(nameComp!==0)return nameComp;
+      const colourComp=(a.colour||'').localeCompare(b.colour||'');
+      if(colourComp!==0)return colourComp;
+      return sizeSort(a.size,b.size);
+    }
     return 0;
   });
   return rows;
@@ -1347,24 +1928,27 @@ function renderTable(){
   const start=(currentPage-1)*PAGE_SIZE;
   const pageRows=filteredRows.slice(start,start+PAGE_SIZE);
 
+  const soldLabel=`Sold (${selectedPeriod}d)`;
   const catHeaders=[
     {k:'category',l:'Category'},{k:'products',l:'Products'},
-    {k:'stock',l:'SOH'},{k:'sellThru7',l:'ST% (7d)'},{k:'sold7',l:'Sold (7d)'},{k:'sold30',l:'Sold (30d)'},
-    {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},{k:'vel7',l:'7d Wkly'},{k:'vel30',l:'30d Wkly'},
+    {k:'sellThru7',l:'ST% (7d)'},{k:'stock',l:'SOH'},{k:'sold',l:soldLabel},
+    {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},
     {k:'days',l:'Weeks Cover'},
     {k:'oosCount',l:'OOS'},{k:'critCount',l:'Re-Order'},{k:'flag',l:'Stock Status'}
   ];
   const prodHeaders=[
     {k:'productName',l:'Product'},{k:'category',l:'Category'},{k:'vendor',l:'Status'},
-    {k:'stock',l:'SOH'},{k:'sellThru7',l:'ST% (7d)'},{k:'sold7',l:'Sold (7d)'},{k:'sold30',l:'Sold (30d)'},
-    {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},{k:'vel7',l:'7d Wkly'},{k:'vel30',l:'30d Wkly'},
+    {k:'sellThru7',l:'ST% (7d)'},{k:'stock',l:'SOH'},{k:'sold',l:soldLabel},
+    {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},
+    {k:'price',l:'Price'},{k:'compareAt',l:'RRP'},{k:'discountPct',l:'Disc%'},{k:'margin',l:'Margin%'},
     {k:'days',l:'Weeks Cover'},{k:'flag',l:'Stock Status'}
   ];
   const varHeaders=[
     {k:'productName',l:'Product'},{k:'size',l:'Size'},{k:'sku',l:'SKU'},
     {k:'category',l:'Category'},{k:'vendor',l:'Status'},
-    {k:'stock',l:'SOH'},{k:'sellThru7',l:'ST% (7d)'},{k:'sold7',l:'Sold (7d)'},{k:'sold30',l:'Sold (30d)'},
-    {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},{k:'vel7',l:'7d Wkly'},{k:'vel30',l:'30d Wkly'},
+    {k:'sellThru7',l:'ST% (7d)'},{k:'stock',l:'SOH'},{k:'sold',l:soldLabel},
+    {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},
+    {k:'price',l:'Price'},{k:'compareAt',l:'RRP'},{k:'discountPct',l:'Disc%'},{k:'margin',l:'Margin%'},
     {k:'days',l:'Weeks Cover'},{k:'flag',l:'Stock Status'}
   ];
 
@@ -1422,6 +2006,19 @@ function renderRow(row,headers){
       if(val===null||val===undefined)return`<td class="cell-muted">—</td>`;
       return`<td class="cell-num">${val.toFixed(2)}%</td>`;
     }
+    if(h.k==='price'||h.k==='compareAt'){
+      if(val===null||val===undefined||val===0)return`<td class="cell-muted">—</td>`;
+      return`<td class="cell-num">$${parseFloat(val).toFixed(2)}</td>`;
+    }
+    if(h.k==='discountPct'){
+      if(val===null||val===undefined)return`<td class="cell-muted">—</td>`;
+      return`<td class="cell-num" style="color:var(--red);font-weight:600">${val.toFixed(1)}%</td>`;
+    }
+    if(h.k==='margin'){
+      if(val===null||val===undefined)return`<td class="cell-muted">—</td>`;
+      const color=val>=50?'var(--teal)':val>=30?'var(--green)':val>=15?'var(--amber)':'var(--red)';
+      return`<td class="cell-num" style="color:${color};font-weight:600">${val.toFixed(2)}%</td>`;
+    }
     if(h.k==='days'){
       if(row.flag==='on-order')return`<td><span class="dn-on-order">Not live yet</span></td>`;
       const d=row.daysDisplay;
@@ -1434,7 +2031,7 @@ function renderRow(row,headers){
     if(h.k==='monthDue') return`<td>${renderMonthDue(val)}</td>`;
     if(h.k==='onOrder') return`<td><span class="${(val||0)>0?'on-order-num':'cell-muted'}">${(val||0)>0?(val).toLocaleString():'—'}</span></td>`;
     if(h.k==='vel7'||h.k==='vel30') return`<td>${renderVel(val)}</td>`;
-    if(h.k==='stock'||h.k==='sold7'||h.k==='sold30'||h.k==='products') return`<td class="cell-num">${typeof val==='number'?val.toLocaleString():val??'—'}</td>`;
+    if(h.k==='stock'||h.k==='sold'||h.k==='products') return`<td class="cell-num">${typeof val==='number'?val.toLocaleString():val??'—'}</td>`;
     if(h.k==='oosCount') return`<td class="cell-num" style="${val>0?'color:var(--red);font-weight:600':''}">${val??0}</td>`;
     if(h.k==='critCount') return`<td class="cell-num" style="${val>0?'color:var(--amber);font-weight:600':''}">${val??0}</td>`;
     if(h.k==='size'||h.k==='sku') return`<td class="cell-muted">${val||'—'}</td>`;
@@ -1489,23 +2086,26 @@ function renderVel(val){
 /* ── EXPORT ── */
 function exportCSV(){
   const rows=getFilteredRows();
+  const soldLabel=`Sold (${selectedPeriod}d)`;
   const h=currentView==='category'
-    ?['Category','Products','SOH','ST% (7d)','Sold (7d)','Sold (30d)','On Order','Month Due','7d Wkly','30d Wkly','Weeks Cover','OOS','Re-Order','Stock Status']
+    ?['Category','Products','SOH','ST% (7d)',soldLabel,'On Order','Month Due','Weeks Cover','OOS','Re-Order','Stock Status']
     :currentView==='product'
-    ?['Product','Colour','Category','Status','SOH','ST% (7d)','Sold (7d)','Sold (30d)','On Order','Month Due','7d Wkly','30d Wkly','Weeks Cover','Stock Status']
-    :['Product','Colour','Size','SKU','Category','Status','SOH','ST% (7d)','Sold (7d)','Sold (30d)','On Order','Month Due','7d Wkly','30d Wkly','Weeks Cover','Stock Status'];
+    ?['Product','Colour','Category','Status','SOH','ST% (7d)',soldLabel,'On Order','Month Due','Price','RRP','Disc%','Margin%','Weeks Cover','Stock Status']
+    :['Product','Colour','Size','SKU','Category','Status','SOH','ST% (7d)',soldLabel,'On Order','Month Due','Price','RRP','Disc%','Margin%','Weeks Cover','Stock Status'];
   const lines=[h.join(',')];
   for(const r of rows){
     let v;
     const st7=r.sellThru7!=null?r.sellThru7.toFixed(2)+'%':'';
     const onOrderVal=r.onOrder!=null?r.onOrder:(r.productOnOrder||0);
     const monthDueAbbr=shortMonth(r.monthDue);
+    const mg=r.margin!=null?r.margin.toFixed(2)+'%':'';
+    const disc=r.discountPct!=null?r.discountPct.toFixed(1)+'%':'';
     if(currentView==='category')
-      v=[r.category,r.products,r.stock,st7,r.sold7??'',r.sold30??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.vel7!=null?Math.round(r.vel7):'',r.vel30!=null?Math.round(r.vel30):'',r.daysDisplay,r.oosCount,r.critCount,SL[r.flag]||r.flag];
+      v=[r.category,r.products,r.stock,st7,r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.daysDisplay,r.oosCount,r.critCount,SL[r.flag]||r.flag];
     else if(currentView==='product')
-      v=[r.productName,r.colour,r.category,r.vendor,r.stock,st7,r.sold7??'',r.sold30??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.vel7!=null?Math.round(r.vel7):'',r.vel30!=null?Math.round(r.vel30):'',r.daysDisplay,SL[r.flag]||r.flag];
+      v=[r.productName,r.colour,r.category,r.vendor,r.stock,st7,r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.price??'',r.compareAt??'',disc,mg,r.daysDisplay,SL[r.flag]||r.flag];
     else
-      v=[r.productName,r.colour,r.size,r.sku,r.category,r.vendor,r.stock,st7,r.sold7??'',r.sold30??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.vel7!=null?Math.round(r.vel7):'',r.vel30!=null?Math.round(r.vel30):'',r.daysDisplay,SL[r.flag]||r.flag];
+      v=[r.productName,r.colour,r.size,r.sku,r.category,r.vendor,r.stock,st7,r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.price??'',r.compareAt??'',disc,mg,r.daysDisplay,SL[r.flag]||r.flag];
     lines.push(v.map(x=>`"${x??''}"`).join(','));
   }
   const a=document.createElement('a');
@@ -1516,13 +2116,14 @@ function exportCSV(){
 
 /* ── RESET ── */
 function resetApp(){
-  shopifyData=null;amData=null;
-  Object.keys(shopifyPeriods).forEach(k=>delete shopifyPeriods[k]);
+  shopifyInvData=null;shopifySalesData=null;amData=null;
+  allVariantRows=[];
   document.getElementById('upload-screen').style.display='flex';
-  document.getElementById('app').style.display='none';  ['shopify-card','am-card'].forEach(id=>document.getElementById(id).classList.remove('loaded'));
-  ['sf-row-7','sf-row-30'].forEach(id=>document.getElementById(id).classList.remove('loaded'));
+  document.getElementById('app').style.display='none';
+  ['shopify-card','sales-card','am-card'].forEach(id=>document.getElementById(id).classList.remove('loaded'));
   document.getElementById('analyse-btn').classList.remove('ready');
-  ['sf-file-7','sf-file-30','am-file'].forEach(id=>document.getElementById(id).value='');
+  ['sf-inv-file','sf-sales-file','am-file'].forEach(id=>document.getElementById(id).value='');
+  ['sf-inv-fname','sf-sales-fname','am-fname'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent='';});
   document.getElementById('search-input').value='';
   ['cat','vendor'].forEach(type=>{
     const container=document.getElementById('ms-'+type+'-options');
@@ -1532,7 +2133,6 @@ function resetApp(){
     if(labelEl)labelEl.textContent=type==='cat'?'All Categories':'All Statuses';
     if(btnEl)btnEl.classList.remove('filtered');
   });
-  // Reset flag checkboxes
   document.querySelectorAll('#ms-flag-options input[type="checkbox"]').forEach(b=>b.checked=true);
   const flagAllBox=document.querySelector('#ms-flag .ms-all input');
   if(flagAllBox)flagAllBox.checked=true;
@@ -1540,6 +2140,7 @@ function resetApp(){
   const flagLabel=document.getElementById('ms-flag-label');
   if(flagBtn)flagBtn.classList.remove('filtered');
   if(flagLabel)flagLabel.textContent='All Stock Status';
+  Object.keys(colFilters).forEach(k=>delete colFilters[k]);
 }
 </script>
 </body>
