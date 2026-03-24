@@ -1045,7 +1045,7 @@ function clearPlanningData(){
 function getPlanMonths(){
   const months=[];
   const today=new Date();
-  for(let i=0;i<12;i++){
+  for(let i=1;i<=12;i++){
     const d=new Date(today.getFullYear(),today.getMonth()+i,1);
     const label=d.toLocaleString('en-AU',{month:'short',year:'2-digit'});
     const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
