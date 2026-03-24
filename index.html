@@ -225,6 +225,36 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .rp-bundle{background:var(--purple-light);color:var(--purple);}
 .rp-other{background:var(--surface2);color:var(--text-secondary);}
 
+/* Planning */
+.plan-table-wrap{overflow-x:auto;margin-bottom:24px;}
+.plan-table{width:100%;border-collapse:collapse;font-size:12px;}
+.plan-table th{background:var(--navy);color:var(--navy-text);padding:8px 10px;text-align:center;font-weight:600;font-size:11px;white-space:nowrap;border:1px solid var(--navy-border);}
+.plan-table th.plan-th-left{text-align:left;}
+.plan-table th.plan-month{background:var(--navy);color:white;border-bottom:2px solid var(--teal);}
+.plan-table td{padding:6px 8px;border:1px solid var(--border);text-align:center;white-space:nowrap;vertical-align:middle;}
+.plan-table td.plan-cat{text-align:left;font-weight:600;color:var(--text);background:var(--surface2);position:sticky;left:0;z-index:1;min-width:160px;}
+.plan-table td.plan-soh{font-weight:600;color:var(--text);}
+.plan-table td.plan-wks-ok{color:var(--teal);font-weight:600;}
+.plan-table td.plan-wks-warn{color:var(--red);font-weight:600;}
+.plan-table tr.plan-row-growth td{background:#f0fdf4;}
+.plan-table tr.plan-row-growth td.plan-cat{background:#dcfce7;color:var(--text-secondary);font-weight:500;font-size:11px;}
+.plan-table tr:hover td{background:var(--surface2);}
+.plan-table tr:hover td.plan-cat{background:var(--surface2);}
+.plan-table tr.plan-total-row td{background:var(--surface2);font-weight:700;border-top:2px solid var(--border);}
+.plan-table tr.plan-total-row td.plan-cat{background:var(--navy);color:white;}
+.plan-input{width:60px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-family:'Inter',sans-serif;font-size:11px;text-align:center;background:var(--surface);color:var(--text);outline:none;}
+.plan-input:focus{border-color:var(--teal);box-shadow:0 0 0 2px rgba(14,165,160,0.15);}
+.plan-input.growth-input{width:52px;background:#f0fdf4;border-color:#86efac;}
+.plan-input.growth-input:focus{border-color:var(--teal);}
+.plan-budget{font-weight:600;color:var(--text);}
+.plan-onorder{color:var(--purple);font-weight:500;}
+.plan-variance-ok{color:var(--teal);font-weight:700;}
+.plan-variance-warn{color:var(--red);font-weight:700;}
+.plan-section-header{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);padding:4px 0;border-bottom:2px solid var(--teal);margin-bottom:2px;}
+.plan-legend{display:flex;gap:16px;align-items:center;font-size:11px;color:var(--text-secondary);margin-bottom:14px;flex-wrap:wrap;}
+.plan-legend-item{display:flex;align-items:center;gap:5px;}
+.plan-legend-dot{width:10px;height:10px;border-radius:2px;}
+
 /* Cadence */
 .cadence-toggle{display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:2px;gap:2px;}
 .cadence-btn{padding:6px 16px;border:none;background:transparent;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;color:var(--text-secondary);cursor:pointer;border-radius:var(--r-sm);transition:all 0.12s;white-space:nowrap;}
@@ -562,6 +592,7 @@ th{position:relative;}
         <button class="screen-btn active" id="btn-dashboard" onclick="showScreen('dashboard')">📊 Dashboard</button>
         <button class="screen-btn" id="btn-insights" onclick="showScreen('insights')">💡 Insights</button>
         <button class="screen-btn" id="btn-cadence" onclick="showScreen('cadence')">📈 Sales Cadence</button>
+        <button class="screen-btn" id="btn-planning" onclick="showScreen('planning')">📋 Planning</button>
       </div>
       <div class="period-selector" id="period-selector">
         <span class="period-label">Period:</span>
@@ -753,6 +784,26 @@ th{position:relative;}
     </div>
   </div>
 
+  <!-- PLANNING SCREEN -->
+  <div id="planning-screen" style="display:none;padding:28px;overflow-y:auto;height:calc(100vh - 56px);">
+    <div style="max-width:1400px;margin:0 auto;">
+      <div class="insights-header" style="margin-bottom:20px;">
+        <div>
+          <div class="insights-title">Planning</div>
+          <div class="insights-sub">Forward planning by category — next 12 months. Data saved automatically in your browser.</div>
+        </div>
+        <button class="insights-refresh-btn" onclick="clearPlanningData()" style="background:var(--surface);border:1px solid var(--border);color:var(--text-secondary);">✕ Clear All</button>
+      </div>
+      <div id="planning-body">
+        <div class="insights-empty">
+          <div class="insights-empty-ico">📋</div>
+          <div class="insights-empty-title">Ready to plan</div>
+          <div class="insights-empty-sub">Planning data will appear here once data is loaded.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -761,17 +812,20 @@ let currentScreen='dashboard';
 
 function showScreen(screen){
   currentScreen=screen;
-  document.getElementById('btn-dashboard').classList.toggle('active',screen==='dashboard');
-  document.getElementById('btn-insights').classList.toggle('active',screen==='insights');
-  document.getElementById('btn-cadence').classList.toggle('active',screen==='cadence');
+  ['dashboard','insights','cadence','planning'].forEach(s=>{
+    const btn=document.getElementById('btn-'+s);
+    if(btn)btn.classList.toggle('active',s===screen);
+  });
   const layout=document.getElementById('dashboard-layout');
   const insightsScreen=document.getElementById('insights-screen');
   const cadenceScreen=document.getElementById('cadence-screen');
+  const planningScreen=document.getElementById('planning-screen');
   const periodSelector=document.getElementById('period-selector');
   const exportBtn=document.getElementById('export-btn');
   layout.style.display=screen==='dashboard'?'':'none';
   insightsScreen.style.display=screen==='insights'?'block':'none';
   cadenceScreen.style.display=screen==='cadence'?'block':'none';
+  planningScreen.style.display=screen==='planning'?'block':'none';
   periodSelector.style.display=screen==='dashboard'?'':'none';
   exportBtn.style.display=screen==='dashboard'?'':'none';
   if(screen==='insights'){
@@ -779,6 +833,7 @@ function showScreen(screen){
     document.getElementById('insights-sku-count').textContent=allVariantRows.length.toLocaleString();
   }
   if(screen==='cadence') renderCadence();
+  if(screen==='planning') renderPlanning();
 }
 
 /* ── SALES CADENCE ── */
@@ -970,6 +1025,206 @@ function buildCadenceChart(periods,cats,data,totals){
     <div style="display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:12px;">${legend}</div>`;
 }
 
+
+/* ── PLANNING ── */
+const PLAN_STORAGE_KEY='wndrr_planning_v1';
+
+function getPlanningData(){
+  try{const d=localStorage.getItem(PLAN_STORAGE_KEY);return d?JSON.parse(d):{};}
+  catch(e){return{};}
+}
+function savePlanningData(data){
+  try{localStorage.setItem(PLAN_STORAGE_KEY,JSON.stringify(data));}catch(e){}
+}
+function clearPlanningData(){
+  if(!confirm('Clear all planning entries? This cannot be undone.'))return;
+  localStorage.removeItem(PLAN_STORAGE_KEY);
+  renderPlanning();
+}
+
+function getPlanMonths(){
+  const months=[];
+  const today=new Date();
+  for(let i=0;i<12;i++){
+    const d=new Date(today.getFullYear(),today.getMonth()+i,1);
+    const label=d.toLocaleString('en-AU',{month:'short',year:'2-digit'});
+    const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const lyStart=new Date(d.getFullYear()-1,d.getMonth(),1);
+    const lyEnd=new Date(d.getFullYear()-1,d.getMonth()+1,0);
+    months.push({label,key,lyStart,lyEnd,d});
+  }
+  return months;
+}
+
+function getLYSalesByCategory(months){
+  const result={};
+  if(!window._salesBySkuDay)return result;
+  for(const row of allVariantRows){
+    if(row.amOnly)continue;
+    const cat=row.category||'UNCATEGORISED';
+    if(!result[cat])result[cat]={};
+    const dayData=window._salesBySkuDay[row.sku]||{};
+    for(const[day,d] of Object.entries(dayData)){
+      const dt=new Date(day);dt.setHours(0,0,0,0);
+      for(const m of months){
+        if(dt>=m.lyStart&&dt<=m.lyEnd){
+          result[cat][m.key]=(result[cat][m.key]||0)+d.qty;
+        }
+      }
+    }
+  }
+  return result;
+}
+
+function getAMOnOrderByCategory(months){
+  const result={};
+  for(const row of allVariantRows){
+    const cat=row.category||'UNCATEGORISED';
+    if(!result[cat])result[cat]={};
+    const onOrder=row.onOrder||0;
+    if(onOrder<=0||!row.monthDue)continue;
+    const parts=row.monthDue.split(' - ');
+    if(parts.length<2)continue;
+    const yr=parseInt(parts[0]);
+    const MONTHS=['january','february','march','april','may','june','july','august','september','october','november','december'];
+    const mi=MONTHS.indexOf(parts[1].toLowerCase().trim());
+    if(mi<0||isNaN(yr))continue;
+    const mKey=`${yr}-${String(mi+1).padStart(2,'0')}`;
+    result[cat][mKey]=(result[cat][mKey]||0)+onOrder;
+  }
+  return result;
+}
+
+function renderPlanning(){
+  if(!allVariantRows||allVariantRows.length===0){
+    document.getElementById('planning-body').innerHTML=`<div class="insights-error">⚠️ No data loaded yet. Please upload your files and analyse first.</div>`;
+    return;
+  }
+
+  const months=getPlanMonths();
+  const cats=[...new Set(allVariantRows.filter(r=>!r.amOnly).map(r=>r.category||'UNCATEGORISED'))].sort();
+  const lyData=getLYSalesByCategory(months);
+  const onOrderData=getAMOnOrderByCategory(months);
+  const saved=getPlanningData();
+
+  const catSoh={},catVel={};
+  for(const r of allVariantRows){
+    const c=r.category||'UNCATEGORISED';
+    catSoh[c]=(catSoh[c]||0)+r.stock;
+    catVel[c]=(catVel[c]||0)+r.velocity;
+  }
+
+  const monthHeaders=months.map(m=>`
+    <th class="plan-month" colspan="4" style="border-left:2px solid rgba(255,255,255,0.15);">${m.label}</th>`).join('');
+
+  const subHeaders=months.map(()=>`
+    <th style="border-left:2px solid var(--border);">Budget</th>
+    <th>On Order</th>
+    <th>To Order</th>
+    <th>Variance</th>`).join('');
+
+  const growthCells=months.map(m=>{
+    const gVal=saved[`growth_${m.key}`]||'';
+    return`<td colspan="4" style="border-left:2px solid var(--border);padding:4px 6px;">
+        <div style="display:flex;align-items:center;gap:4px;justify-content:center;">
+          <input class="plan-input growth-input" type="number" step="1" min="-100" max="200"
+            placeholder="0" value="${gVal}"
+            onchange="savePlanField('growth_${m.key}',this.value);renderPlanning();">
+          <span style="font-size:10px;color:var(--text-muted);">%</span>
+        </div></td>`;
+  }).join('');
+
+  const catRows=cats.map(cat=>{
+    const soh=catSoh[cat]||0;
+    const vel=catVel[cat]||0;
+    const wksRaw=vel>0?(soh/(vel*7)):null;
+    const wks=wksRaw!==null?wksRaw.toFixed(1):null;
+    const wksClass=wks===null?'plan-soh':parseFloat(wks)>=12?'plan-wks-ok':'plan-wks-warn';
+
+    const monthlyCells=months.map(m=>{
+      const growth=parseFloat(saved[`growth_${m.key}`]||0)||0;
+      const ly=Math.round(lyData[cat]?.[m.key]||0);
+      const budget=Math.round(ly*(1+growth/100));
+      const onOrder=Math.round(onOrderData[cat]?.[m.key]||0);
+      const toOrderVal=saved[`to_${cat}_${m.key}`]||'';
+      const toOrder=parseInt(toOrderVal)||0;
+      const variance=(onOrder+toOrder)-budget;
+      const varClass=budget===0?'':variance>=0?'plan-variance-ok':'plan-variance-warn';
+      const varLabel=budget===0?'—':(variance>=0?'+':'')+variance.toLocaleString();
+      return`
+        <td style="border-left:2px solid var(--border);">
+          <span class="plan-budget">${budget>0?budget.toLocaleString():'—'}</span></td>
+        <td><span class="${onOrder>0?'plan-onorder':'cell-muted'}">${onOrder>0?onOrder.toLocaleString():'—'}</span></td>
+        <td style="padding:3px 5px;">
+          <input class="plan-input" type="number" min="0" step="1" placeholder="0" value="${toOrderVal}"
+            onchange="savePlanField('to_${cat}_${m.key}',this.value);renderPlanning();"></td>
+        <td><span class="${varClass}">${varLabel}</span></td>`;
+    }).join('');
+
+    return`<tr>
+      <td class="plan-cat">${cat}</td>
+      <td class="plan-soh">${soh.toLocaleString()}</td>
+      <td class="${wksClass}">${wks!==null?wks+'w':'—'}</td>
+      ${monthlyCells}</tr>`;
+  }).join('');
+
+  const totalCells=months.map(m=>{
+    const growth=parseFloat(saved[`growth_${m.key}`]||0)||0;
+    let tb=0,too=0,tto=0;
+    for(const cat of cats){
+      tb+=Math.round((lyData[cat]?.[m.key]||0)*(1+growth/100));
+      too+=Math.round(onOrderData[cat]?.[m.key]||0);
+      tto+=parseInt(saved[`to_${cat}_${m.key}`]||0)||0;
+    }
+    const variance=(too+tto)-tb;
+    const varClass=tb===0?'':variance>=0?'plan-variance-ok':'plan-variance-warn';
+    return`
+      <td style="border-left:2px solid var(--border);font-weight:700;">${tb>0?tb.toLocaleString():'—'}</td>
+      <td style="font-weight:700;color:var(--purple);">${too>0?too.toLocaleString():'—'}</td>
+      <td style="font-weight:700;">${tto>0?tto.toLocaleString():'—'}</td>
+      <td><span class="${varClass}" style="font-size:12px;">${tb===0?'—':((variance>=0?'+':'')+variance.toLocaleString())}</span></td>`;
+  }).join('');
+
+  document.getElementById('planning-body').innerHTML=`
+    <div class="plan-legend">
+      <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--teal)"></div>12w+ cover — healthy</div>
+      <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--red)"></div>Under 12w — reorder risk</div>
+      <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--purple)"></div>On Order from Apparel Magic</div>
+      <div class="plan-legend-item" style="color:var(--teal);">▲ Variance green = covered</div>
+      <div class="plan-legend-item" style="color:var(--red);">▼ Variance red = short</div>
+    </div>
+    <div class="plan-table-wrap">
+      <table class="plan-table">
+        <thead>
+          <tr>
+            <th class="plan-th-left" rowspan="2" style="min-width:160px;">Category</th>
+            <th rowspan="2">SOH</th>
+            <th rowspan="2">Wks Cover</th>
+            ${monthHeaders}
+          </tr>
+          <tr>${subHeaders}</tr>
+        </thead>
+        <tbody>
+          <tr class="plan-row-growth">
+            <td class="plan-cat" colspan="3" style="font-size:11px;color:var(--text-secondary);font-style:italic;">↑ Growth % (all categories)</td>
+            ${growthCells}
+          </tr>
+          ${catRows}
+          <tr class="plan-total-row">
+            <td class="plan-cat" colspan="3">TOTAL</td>
+            ${totalCells}
+          </tr>
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function savePlanField(key,value){
+  const data=getPlanningData();
+  if(value===''||value===null)delete data[key];
+  else data[key]=value;
+  savePlanningData(data);
+}
 
 async function generateInsights(){
   const btn=document.querySelector('.insights-refresh-btn');
