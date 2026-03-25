@@ -2898,6 +2898,7 @@ function renderRow(row,headers){
     }
     if(h.k==='category') return`<td class="cell-muted">${val||'—'}</td>`;
     if(h.k==='vendor'){
+      const displayVal=(val||'');
       const isEnd=displayVal==='OLD';
       const v=displayVal.toLowerCase();
       const cls=isEnd?'rp-old':v==='new'?'rp-new':v==='current'?'rp-current':v==='core'?'rp-core':v==='old'?'rp-old':'rp-other';
