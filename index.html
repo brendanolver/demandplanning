@@ -701,7 +701,7 @@ th{position:relative;}
         <div class="filter-row">
           <div class="search-wrap">
             <span class="search-ico">🔍</span>
-            <input type="text" id="search-input" placeholder="Search product or SKU..." oninput="applyFilters()">
+            <input type="text" id="search-input" placeholder="Search product, colour or SKU... e.g. Halo Baggy Trackpant - Black" oninput="applyFilters()">
           </div>
           <div class="ms-wrap" id="ms-cat">
             <button class="ms-btn" onclick="toggleDropdown('ms-cat')">
@@ -939,6 +939,8 @@ function showScreen(screen){
 
 /* ── SALES CADENCE ── */
 let cadenceMode='12m';
+let cadenceSortCol=null; // null = default order, 'soh', or period label
+let cadenceSortDir='desc';
 let cadenceView='cat'; // 'cat' or 'prod'
 
 function setCadence(mode){
@@ -964,6 +966,8 @@ function populateCadenceDelMonthFilter(){
   const container=document.getElementById('ms-cad-delmonth-options');
   if(!container)return;
   const monthOrder={Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
+  const delMonthCounts={};
+  for(const r of allVariantRows){if(r.deliveryMonth)delMonthCounts[r.deliveryMonth]=(delMonthCounts[r.deliveryMonth]||0)+1;}
   const months=[...new Set(allVariantRows.map(r=>r.deliveryMonth).filter(d=>d&&d!=='CORE'))];
   months.sort((a,b)=>{
     const[am,ay]=a.split('-');const[bm,by]=b.split('-');
@@ -973,8 +977,8 @@ function populateCadenceDelMonthFilter(){
     return(monthOrder[bm]||0)-(monthOrder[am]||0);
   });
   container.innerHTML=
-    `<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="updateCadenceDelMonthLabel();renderCadence()"> CORE</label>`+
-    months.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="updateCadenceDelMonthLabel();renderCadence()"> ${m}</label>`).join('');
+    `<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="updateCadenceDelMonthLabel();renderCadence()"> CORE (${delMonthCounts['CORE']||0})</label>`+
+    months.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="updateCadenceDelMonthLabel();renderCadence()"> ${m} (${delMonthCounts[m]||0})</label>`).join('');
 }
 
 function toggleCadenceDelMonthAll(allCheckbox){
@@ -1008,9 +1012,11 @@ function getCadenceSelectedDelMonths(){
 function populateCadenceCatFilter(){
   const container=document.getElementById('ms-cad-cat-options');
   if(!container)return;
+  const catCounts={};
+  for(const r of allVariantRows){if(r.category)catCounts[r.category]=(catCounts[r.category]||0)+1;}
   const cats=[...new Set(allVariantRows.map(r=>r.category).filter(Boolean))].sort();
   container.innerHTML=cats.map(v=>
-    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="updateCadenceCatLabel();renderCadence()"> ${v}</label>`
+    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="updateCadenceCatLabel();renderCadence()"> ${v} (${catCounts[v]||0})</label>`
   ).join('');
 }
 
@@ -1048,9 +1054,11 @@ function getCadenceSelectedCats(){
 function populateCadenceStatusFilter(){
   const container=document.getElementById('ms-cad-status-options');
   if(!container)return;
+  const vendorCounts={};
+  for(const r of allVariantRows){if(r.vendor)vendorCounts[r.vendor]=(vendorCounts[r.vendor]||0)+1;}
   const vendors=[...new Set(allVariantRows.map(r=>r.vendor).filter(Boolean))].sort();
   container.innerHTML=vendors.map(v=>
-    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="updateCadenceStatusLabel();renderCadence()"> ${v}</label>`
+    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="updateCadenceStatusLabel();renderCadence()"> ${v} (${vendorCounts[v]||0})</label>`
   ).join('');
 }
 
@@ -1180,8 +1188,26 @@ function renderCadence(){
     return parts[0]+(parts[1]?' <span style="color:var(--text-muted);font-weight:400">'+parts[1]+'</span>':'');
   };
 
+  // Apply sort to rowKeys
+  if(cadenceSortCol){
+    rowKeys.sort((a,b)=>{
+      if(cadenceSortCol==='label'){
+        const cmp=a.localeCompare(b);
+        return cadenceSortDir==='asc'?cmp:-cmp;
+      }
+      let av,bv;
+      if(cadenceSortCol==='soh'){av=sohByKey[a]||0;bv=sohByKey[b]||0;}
+      else{av=data[a]?.[cadenceSortCol]||0;bv=data[b]?.[cadenceSortCol]||0;}
+      return cadenceSortDir==='desc'?bv-av:av-bv;
+    });
+  }
+
+  // Sortable header helper
+  const sortArrow=col=>cadenceSortCol===col?(cadenceSortDir==='desc'?' ↓':' ↑'):'';
+  const thStyle='cursor:pointer;user-select:none;white-space:nowrap;';
+
   // Table
-  const headers=periods.map(p=>`<th>${p.label}</th>`).join('');
+  const headers=periods.map(p=>`<th style="${thStyle}" onclick="setCadenceSort('${p.label}')">${p.label}${sortArrow(p.label)}</th>`).join('');
   const totalSoh=rowKeys.reduce((s,k)=>s+(sohByKey[k]||0),0);
   const tableRows=rowKeys.map(k=>{
     const soh=sohByKey[k]||0;
@@ -1193,7 +1219,7 @@ function renderCadence(){
   }).join('');
   const totalCells=periods.map(p=>`<td>${Math.round(totals[p.label]||0).toLocaleString()}</td>`).join('');
 
-  const limitNote=cadenceView==='prod'&&!search?`<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">Showing top 50 products — use the search to find specific products.</div>`:'';
+  const limitNote=cadenceView==='prod'&&!search&&!getCadenceSelectedStatuses().length&&!getCadenceSelectedCats().length&&!getCadenceSelectedDelMonths().length?`<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">Showing top 50 products — use search or filters to find specific products.</div>`:'';
   const noResults=rowKeys.length===0?`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No products found</div><div class="insights-empty-sub">Try a different search term.</div></div>`:'';
 
   // Chart (category view only)
@@ -1203,7 +1229,11 @@ function renderCadence(){
     ${limitNote}
     ${noResults||`<div class="cadence-table-wrap">
       <table class="cadence-table">
-        <thead><tr><th>${rowLabel}</th><th style="min-width:60px;">SOH</th>${headers}</tr></thead>
+        <thead><tr>
+          <th style="${thStyle}" onclick="setCadenceSort('label')">${rowLabel}${sortArrow('label')}</th>
+          <th style="${thStyle};min-width:60px;" onclick="setCadenceSort('soh')">SOH${sortArrow('soh')}</th>
+          ${headers}
+        </tr></thead>
         <tbody>
           ${tableRows}
           <tr class="cadence-total"><td>TOTAL</td><td style="font-weight:700;">${totalSoh>0?totalSoh.toLocaleString():"—"}</td>${totalCells}</tr>
@@ -1214,6 +1244,16 @@ function renderCadence(){
       <div class="cadence-chart-title">Total Units Sold — ${cadenceMode==='12m'?'Last 12 Months':cadenceMode==='12w'?'Last 12 Weeks':'Last 5 Weeks'}</div>
       ${chartHtml}
     </div>`:''}`}`;
+}
+
+function setCadenceSort(col){
+  if(cadenceSortCol===col){
+    cadenceSortDir=cadenceSortDir==='desc'?'asc':'desc';
+  } else {
+    cadenceSortCol=col;
+    cadenceSortDir=col==='label'?'asc':'desc';
+  }
+  renderCadence();
 }
 
 function buildCadencePeriods(today){
@@ -2984,7 +3024,8 @@ function getFilteredRows(){
     const name=(r.productName||'').toUpperCase();
     const colour=(r.colour||'').toUpperCase();
     const sku=(r.sku||'').toUpperCase();
-    return (name+' '+colour).includes(search)||name.includes(search)||colour.includes(search)||sku.includes(search);
+    const full=name+' - '+colour; // matches Shopify format e.g. "Halo Baggy Trackpant - Black"
+    return full.includes(search)||name.includes(search)||colour.includes(search)||sku.includes(search);
   });
 
   // Now aggregate the filtered variants into the requested view
