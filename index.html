@@ -223,6 +223,7 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .rp-indent{background:var(--amber-light);color:var(--amber);}
 .rp-clearance{background:var(--red-light);color:var(--red);}
 .rp-bundle{background:var(--purple-light);color:var(--purple);}
+.rp-end{background:#f1f5f9;color:#64748b;}
 .rp-other{background:var(--surface2);color:var(--text-secondary);}
 
 /* Planning */
@@ -1864,7 +1865,8 @@ function buildSalesMaps(){
       priceMap[sku]={
         price:price||compareAt,
         compareAt:compareAt||price,
-        vendor,category,productName,colour,size,day,status
+        vendor,category,productName,colour,size,day,status,
+        firstSaleDay:qty>0?day:null
       };
     } else {
       // Most recent row = current sell price + status
@@ -1874,6 +1876,10 @@ function buildSalesMaps(){
         priceMap[sku].category=category;
         priceMap[sku].day=day;
         priceMap[sku].status=status;
+      }
+      // Earliest sale day = style age
+      if(qty>0&&(!priceMap[sku].firstSaleDay||day<priceMap[sku].firstSaleDay)){
+        priceMap[sku].firstSaleDay=day;
       }
       // Highest compareAt ever seen = true RRP
       if(compareAt>priceMap[sku].compareAt){
@@ -1934,6 +1940,25 @@ function buildAMData(){
 
 
 /* ── HELPERS ── */
+function decodeSkuDelivery(sku){
+  // SKU: W{YY}{M}{rest} — pos 1-2=year, pos 3=month letter
+  if(!sku||sku.length<4)return'';
+  const yearDigits=sku.slice(1,3);
+  const monthChar=sku[3].toUpperCase();
+  if(!yearDigits.match(/^\d{2}$/))return'';
+  const monthMap={
+    'A':'January','B':'February','C':'March','D':'April',
+    'E':'May','F':'June','G':'July','H':'August',
+    'I':'September','J':'October','K':'November','L':'December',
+    'M':'December','N':'January'
+  };
+  const month=monthMap[monthChar];
+  if(!month)return'';
+  let year=2000+parseInt(yearDigits);
+  if(monthChar==='N')year+=1; // N = January of next year
+  return`${year} - ${month}`; // matches "2026 - June" format
+}
+
 function extractName(t){
   const p=t.split(' - ');
   if(p.length>=2)return{name:p.slice(0,-1).join(' - '),colour:p[p.length-1]};
@@ -2036,7 +2061,15 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const plEntry=plKey in plMap?plMap[plKey]:plMap[productName.toUpperCase()];
     const price=plEntry?plEntry.price:(pm.price||0);
     const compareAt=plEntry?plEntry.compareAt:(pm.compareAt||pm.price||0);
-    const deliveryMonth=plEntry?plEntry.deliveryMonth||'':'';
+    const isCore=(vendor||'').toUpperCase()==='CORE';
+
+    // Delivery month: Better Reports > SKU decode; CORE always shows CORE
+    let deliveryMonth=plEntry?plEntry.deliveryMonth||'':'';
+    if(isCore){
+      deliveryMonth='CORE';
+    } else if(!deliveryMonth){
+      deliveryMonth=decodeSkuDelivery(sku);
+    }
 
     // Cost priority: 1) Better Reports Cost, 2) AM Amount/Units, 3) Sales COGS/sold
     const brCost=plEntry?plEntry.cost||0:0;
@@ -2097,11 +2130,26 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
       }
     }
     const recalcWeeks=recalcDays!==null?+(recalcDays/7).toFixed(1):null;
-    const flag=getFlag(recalcDays,stock,onOrder,vendor,discountPct);
+    let flag=getFlag(recalcDays,stock,onOrder,vendor,discountPct);
+
+    // ── END logic ──
+    // Style > 3 months old + poor 90-day ST% (<30%) + no on order + not CORE/CLEARANCE
+    const firstSaleDay=pm.firstSaleDay;
+    const today90=new Date();today90.setHours(0,0,0,0);
+    today90.setDate(today90.getDate()-90);
+    const isOldStyle=firstSaleDay&&new Date(firstSaleDay)<=today90;
+    const st90=s90.qty>0&&(stock+s90.qty)>0?s90.qty/(stock+s90.qty)*100:0;
+    const isPoorSellThru=st90<30;
+    const isClearance=(vendor||'').toUpperCase()==='CLEARANCE';
+    const hasNoOrder=(onOrder||0)+(productOnOrder||0)===0;
+    const isEnd=isOldStyle&&isPoorSellThru&&hasNoOrder&&!isCore&&!isClearance&&stock>0;
+    const effectiveVendor=isEnd?'END':vendor;
+    // If END and not discounted, force reduce; if discounted keep existing flag
+    if(isEnd&&!discountPct)flag='reduce';
 
     rows.push({
       fullTitle:productName+' - '+colour,productName,colour,size,variant:size,sku,
-      category,vendor,stock,
+      category,vendor:effectiveVendor,stock,
       price,compareAt,discountPct,margin,
       velocity,vel7,vel30,
       sold7:s7.qty,sold30:s30.qty,sold90:s90.qty,sold365:s365.qty,
@@ -2770,9 +2818,11 @@ function renderRow(row,headers){
     }
     if(h.k==='category') return`<td class="cell-muted">${val||'—'}</td>`;
     if(h.k==='vendor'){
-      const v=(val||'').toLowerCase();
-      const cls=v==='core'?'rp-core':v==='indent'?'rp-indent':v==='clearance'?'rp-clearance':v==='bundle'?'rp-bundle':'rp-other';
-      return`<td><span class="range-pill ${cls}">${val||'—'}</span></td>`;
+      const isEnd=(row.stock===0)&&((row.onOrder||0)+(row.productOnOrder||0)===0)&&row.flag!=='on-order';
+      const displayVal=isEnd?'END':(val||'');
+      const v=displayVal.toLowerCase();
+      const cls=isEnd?'rp-end':v==='core'?'rp-core':v==='indent'?'rp-indent':v==='clearance'?'rp-clearance':v==='bundle'?'rp-bundle':'rp-other';
+      return`<td><span class="range-pill ${cls}">${displayVal||'—'}</span></td>`;
     }
     if(h.k==='sohValue'||h.k==='sellValue'){
       if(!val||val===0)return`<td class="cell-muted">—</td>`;
@@ -2780,6 +2830,7 @@ function renderRow(row,headers){
     }
     if(h.k==='deliveryMonth'){
       if(!val)return`<td class="cell-muted">—</td>`;
+      if(val==='CORE')return`<td><span style="font-size:11px;font-weight:600;color:var(--blue);">CORE</span></td>`;
       return`<td><span style="font-size:12px;font-weight:500;color:var(--text-secondary);">${val}</span></td>`;
     }
     if(h.k==='soldOutSizes'){
