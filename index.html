@@ -1844,6 +1844,9 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     // SOH Value at cost
     const sohValue=stock>0&&avgCostPerUnit>0?+(stock*avgCostPerUnit).toFixed(2):null;
 
+    // SOH Value at sell price
+    const sellValue=stock>0&&price>0?+(stock*price).toFixed(2):null;
+
     // Sell through % — sold in period / (soh + sold in period)
     const sellThru=sPrimary.qty>0&&(stock+sPrimary.qty)>0?+(sPrimary.qty/(stock+sPrimary.qty)*100).toFixed(2):null;
 
@@ -1882,7 +1885,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
       daysDisplay:recalcWeeks===null?'—':recalcWeeks===0?'0':recalcWeeks,
       onOrder,productOnOrder,monthDue,flag,amOnly:false,
       soldOutSizes:soMap[productName+'||'+colour]||null,
-      deliveryMonth,sohValue
+      deliveryMonth,sohValue,sellValue
     });
   }
 
@@ -2134,7 +2137,7 @@ function toProduct(vr){
         sizes:r.size&&r.size!=='—'?[r.size]:[],
         earliestDue:r.monthDue,earliestKey:monthDueSortKey(r.monthDue),
         priceSum:r.price||0,priceCount:r.price?1:0,
-        sohValue:r.sohValue||0
+        sohValue:r.sohValue||0,sellValue:r.sellValue||0
       };
     } else {
       const p=map[key];
@@ -2145,6 +2148,7 @@ function toProduct(vr){
       p.onOrder+=(r.onOrder!==null?(r.onOrder||0):(r.productOnOrder||0));
       if(r.price){p.priceSum+=r.price;p.priceCount++;}
       p.sohValue+=(r.sohValue||0);
+      p.sellValue+=(r.sellValue||0);
       if(r.size&&r.size!=='—')p.sizes.push(r.size);
       if(!r.amOnly)p.amOnly=false;
       const sk=monthDueSortKey(r.monthDue);
@@ -2169,7 +2173,9 @@ function toProduct(vr){
       flag:getFlag(days,p.stock,onOrder,p.vendor),
       sizes:[...new Set(p.sizes)].join(', '),
       soldOutSizes:p.soldOutSizes||null,
-      deliveryMonth:p.deliveryMonth||''};
+      deliveryMonth:p.deliveryMonth||'',
+      sohValue:p.sohValue||0,
+      sellValue:p.sellValue||0};
   });
 }
 
@@ -2178,7 +2184,7 @@ function toCategory(vr){
   for(const r of vr){
     const key=r.category||'UNCATEGORISED';
     if(!map[key])map[key]={category:key,stock:0,sold:0,sold7:0,sold30:0,sold90:0,sold365:0,
-      onOrder:0,velSum:0,vel7Sum:0,vel30Sum:0,sohValue:0,
+      onOrder:0,velSum:0,vel7Sum:0,vel30Sum:0,sohValue:0,sellValue:0,
       productSet:new Set(),
       oosCount:0,critCount:0,earliestDue:'',earliestKey:999999};
     const c=map[key];
@@ -2188,6 +2194,7 @@ function toCategory(vr){
     c.vel7Sum+=(r.vel7||0);
     c.vel30Sum+=(r.vel30||0);
     c.sohValue+=(r.sohValue||0);
+    c.sellValue+=(r.sellValue||0);
     c.onOrder+=(r.onOrder!==null?(r.onOrder||0):(r.productOnOrder||0));
     c.productSet.add(r.productName+'||'+r.colour);
     if(r.flag==='oos')c.oosCount++;
@@ -2219,7 +2226,7 @@ function toCategory(vr){
 const colFilters={};  // {colKey: {op1, v1, op2, v2}}
 
 // Numeric columns use number operators; text/flag columns use text operators
-const NUM_COLS=new Set(['stock','sold7','sold30','sold90','sold365','onOrder','vel7','vel30','days','products','oosCount','critCount','sellThru7','price','compareAt','discountPct','margin','soldOutSizes','sohValue']);
+const NUM_COLS=new Set(['stock','sold7','sold30','sold90','sold365','onOrder','vel7','vel30','days','products','oosCount','critCount','sellThru7','price','compareAt','discountPct','margin','soldOutSizes','sohValue','sellValue']);
 const TEXT_COLS=new Set(['productName','category','vendor','size','sku','flag','monthDue']);
 
 function getCondOpts(colKey){
@@ -2408,7 +2415,7 @@ function renderTable(){
   const stLabel=`ST% (${selectedPeriod}d)`;
   const catHeaders=[
     {k:'category',l:'Category'},{k:'products',l:'Products'},
-    {k:'sellThru7',l:stLabel},{k:'stock',l:'SOH'},{k:'sohValue',l:'SOH Value'},
+    {k:'sellThru7',l:stLabel},{k:'stock',l:'SOH'},{k:'sohValue',l:'SOH Value'},{k:'sellValue',l:'Sell Value'},
     {k:'sold',l:soldLabel},
     {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},
     {k:'days',l:'Weeks Cover'},
@@ -2417,7 +2424,7 @@ function renderTable(){
   const prodHeaders=[
     {k:'productName',l:'Product'},{k:'category',l:'Category'},{k:'vendor',l:'Status'},
     {k:'deliveryMonth',l:'Month Del'},
-    {k:'sellThru7',l:stLabel},{k:'stock',l:'SOH'},{k:'sohValue',l:'SOH Value'},
+    {k:'sellThru7',l:stLabel},{k:'stock',l:'SOH'},{k:'sohValue',l:'SOH Value'},{k:'sellValue',l:'Sell Value'},
     {k:'sold',l:soldLabel},
     {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},
     {k:'soldOutSizes',l:'Sizes Sold Out'},
@@ -2482,6 +2489,7 @@ function renderCategoryTotals(rows,headers){
     products:rows.reduce((s,r)=>s+(r.products||0),0),
     stock:rows.reduce((s,r)=>s+(r.stock||0),0),
     sohValue:rows.reduce((s,r)=>s+(r.sohValue||0),0),
+    sellValue:rows.reduce((s,r)=>s+(r.sellValue||0),0),
     sold:rows.reduce((s,r)=>s+(r.sold||0),0),
     onOrder:rows.reduce((s,r)=>s+(r.onOrder||0),0),
     oosCount:rows.reduce((s,r)=>s+(r.oosCount||0),0),
@@ -2498,6 +2506,7 @@ function renderCategoryTotals(rows,headers){
     if(h.k==='products') return`<td class="cell-num" style="font-weight:700;">${sum.products.toLocaleString()}</td>`;
     if(h.k==='stock') return`<td class="cell-num" style="font-weight:700;">${sum.stock.toLocaleString()}</td>`;
     if(h.k==='sohValue') return`<td class="cell-num" style="font-weight:700;">${sum.sohValue>0?'$'+Math.round(sum.sohValue).toLocaleString():'—'}</td>`;
+    if(h.k==='sellValue') return`<td class="cell-num" style="font-weight:700;">${sum.sellValue>0?'$'+Math.round(sum.sellValue).toLocaleString():'—'}</td>`;
     if(h.k==='sold') return`<td class="cell-num" style="font-weight:700;">${sum.sold.toLocaleString()}</td>`;
     if(h.k==='onOrder') return`<td class="cell-num" style="font-weight:700;">${sum.onOrder>0?sum.onOrder.toLocaleString():'—'}</td>`;
     if(h.k==='oosCount') return`<td class="cell-num" style="font-weight:700;color:var(--red);">${sum.oosCount}</td>`;
@@ -2523,7 +2532,7 @@ function renderRow(row,headers){
       const cls=v==='core'?'rp-core':v==='indent'?'rp-indent':v==='clearance'?'rp-clearance':v==='bundle'?'rp-bundle':'rp-other';
       return`<td><span class="range-pill ${cls}">${val||'—'}</span></td>`;
     }
-    if(h.k==='sohValue'){
+    if(h.k==='sohValue'||h.k==='sellValue'){
       if(!val||val===0)return`<td class="cell-muted">—</td>`;
       return`<td class="cell-num">$${val.toLocaleString('en-AU',{minimumFractionDigits:0,maximumFractionDigits:0})}</td>`;
     }
@@ -2622,9 +2631,9 @@ function exportCSV(){
   const soldLabel=`Sold (${selectedPeriod}d)`;
   const stLabel=`ST% (${selectedPeriod}d)`;
   const h=currentView==='category'
-    ?['Category','Products',stLabel,'SOH','SOH Value',soldLabel,'On Order','Month Due','Weeks Cover','OOS','Re-Order','Stock Status']
+    ?['Category','Products',stLabel,'SOH','SOH Value','Sell Value',soldLabel,'On Order','Month Due','Weeks Cover','OOS','Re-Order','Stock Status']
     :currentView==='product'
-    ?['Product','Colour','Category','Status','Month Del',stLabel,'SOH','SOH Value',soldLabel,'On Order','Month Due','Sizes Sold Out','Price','RRP','Disc%','Margin%','Weeks Cover','Stock Status']
+    ?['Product','Colour','Category','Status','Month Del',stLabel,'SOH','SOH Value','Sell Value',soldLabel,'On Order','Month Due','Sizes Sold Out','Price','RRP','Disc%','Margin%','Weeks Cover','Stock Status']
     :['Product','Colour','Size','SKU','Category','Status','Month Del',stLabel,'SOH',soldLabel,'On Order','Month Due','Price','RRP','Disc%','Margin%','Weeks Cover','Stock Status'];
   const lines=[h.join(',')];
   for(const r of rows){
@@ -2635,10 +2644,11 @@ function exportCSV(){
     const mg=r.margin!=null?r.margin.toFixed(2)+'%':'';
     const disc=r.discountPct!=null?r.discountPct.toFixed(1)+'%':'';
     const sohVal=r.sohValue?Math.round(r.sohValue):'';
+    const sellVal=r.sellValue?Math.round(r.sellValue):'';
     if(currentView==='category')
-      v=[r.category,r.products,st7,r.stock,sohVal,r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.daysDisplay,r.oosCount,r.critCount,SL[r.flag]||r.flag];
+      v=[r.category,r.products,st7,r.stock,sohVal,sellVal,r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.daysDisplay,r.oosCount,r.critCount,SL[r.flag]||r.flag];
     else if(currentView==='product')
-      v=[r.productName,r.colour,r.category,r.vendor,r.deliveryMonth||'',st7,r.stock,sohVal,r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.soldOutSizes||'',r.price??'',r.compareAt??'',disc,mg,r.daysDisplay,SL[r.flag]||r.flag];
+      v=[r.productName,r.colour,r.category,r.vendor,r.deliveryMonth||'',st7,r.stock,sohVal,sellVal,r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.soldOutSizes||'',r.price??'',r.compareAt??'',disc,mg,r.daysDisplay,SL[r.flag]||r.flag];
     else
       v=[r.productName,r.colour,r.size,r.sku,r.category,r.vendor,r.deliveryMonth||'',st7,r.stock,r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.price??'',r.compareAt??'',disc,mg,r.daysDisplay,SL[r.flag]||r.flag];
     lines.push(v.map(x=>`"${x??''}"`).join(','));
