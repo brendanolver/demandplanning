@@ -2272,6 +2272,58 @@ function buildVariantRows(){
   const{soMap,plMap}=buildSoldOutMap();
   allVariantRows=processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap);
   document.getElementById('nav-count').textContent=allVariantRows.length.toLocaleString()+' SKUs';
+
+  // Build counts based on rows that would show in product view (SOH >= 1 OR on order)
+  const countableRows=allVariantRows.filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0);
+  const flagCounts={},discCounts={'none':0,'20':0,'30':0,'40':0,'50':0,'60':0,'70':0};
+  const soldoutCounts={'none':0,'1':0,'2':0,'3':0,'4':0,'5+':0};
+  for(const r of countableRows){
+    if(r.flag)flagCounts[r.flag]=(flagCounts[r.flag]||0)+1;
+    const d=Math.round(r.discountPct||0);
+    if(!r.discountPct||d===0)discCounts['none']++;
+    else if(d===20)discCounts['20']++;
+    else if(d===30)discCounts['30']++;
+    else if(d===40)discCounts['40']++;
+    else if(d===50)discCounts['50']++;
+    else if(d===60)discCounts['60']++;
+    else if(d===70)discCounts['70']++;
+    const s=r.soldOutSizes||0;
+    if(!s||s===0)soldoutCounts['none']++;
+    else if(s===1)soldoutCounts['1']++;
+    else if(s===2)soldoutCounts['2']++;
+    else if(s===3)soldoutCounts['3']++;
+    else if(s===4)soldoutCounts['4']++;
+    else if(s>=5)soldoutCounts['5+']++;
+  }
+
+  // Update flag options with counts
+  document.getElementById('ms-flag-options').innerHTML=`
+    <label class="ms-item"><input type="checkbox" value="on-order" checked onchange="applyFilters()"> On Order (AM) (${flagCounts['on-order']||0})</label>
+    <label class="ms-item"><input type="checkbox" value="oos" checked onchange="applyFilters()"> Out of Stock (${flagCounts['oos']||0})</label>
+    <label class="ms-item"><input type="checkbox" value="reorder" checked onchange="applyFilters()"> Re-Order ≤14w (${flagCounts['reorder']||0})</label>
+    <label class="ms-item"><input type="checkbox" value="ok" checked onchange="applyFilters()"> OK 14–26w (${flagCounts['ok']||0})</label>
+    <label class="ms-item"><input type="checkbox" value="reduce" checked onchange="applyFilters()"> Reduce 26w+ (${flagCounts['reduce']||0})</label>
+    <label class="ms-item"><input type="checkbox" value="clearance" checked onchange="applyFilters()"> Clearance (${flagCounts['clearance']||0})</label>`;
+
+  // Update disc options with counts
+  document.getElementById('ms-disc-options').innerHTML=`
+    <label class="ms-item"><input type="checkbox" value="none" checked onchange="applyFilters()"> No Discount (${discCounts['none']})</label>
+    <label class="ms-item"><input type="checkbox" value="20" checked onchange="applyFilters()"> 20% off (${discCounts['20']})</label>
+    <label class="ms-item"><input type="checkbox" value="30" checked onchange="applyFilters()"> 30% off (${discCounts['30']})</label>
+    <label class="ms-item"><input type="checkbox" value="40" checked onchange="applyFilters()"> 40% off (${discCounts['40']})</label>
+    <label class="ms-item"><input type="checkbox" value="50" checked onchange="applyFilters()"> 50% off (${discCounts['50']})</label>
+    <label class="ms-item"><input type="checkbox" value="60" checked onchange="applyFilters()"> 60% off (${discCounts['60']})</label>
+    <label class="ms-item"><input type="checkbox" value="70" checked onchange="applyFilters()"> 70% off (${discCounts['70']})</label>`;
+
+  // Update soldout options with counts
+  document.getElementById('ms-soldout-options').innerHTML=`
+    <label class="ms-item"><input type="checkbox" value="none" checked onchange="applyFilters()"> None sold out (${soldoutCounts['none']})</label>
+    <label class="ms-item"><input type="checkbox" value="1" checked onchange="applyFilters()"> 1 size sold out (${soldoutCounts['1']})</label>
+    <label class="ms-item"><input type="checkbox" value="2" checked onchange="applyFilters()"> 2 sizes sold out (${soldoutCounts['2']})</label>
+    <label class="ms-item"><input type="checkbox" value="3" checked onchange="applyFilters()"> 3 sizes sold out (${soldoutCounts['3']})</label>
+    <label class="ms-item"><input type="checkbox" value="4" checked onchange="applyFilters()"> 4 sizes sold out (${soldoutCounts['4']})</label>
+    <label class="ms-item"><input type="checkbox" value="5+" checked onchange="applyFilters()"> 5+ sizes sold out (${soldoutCounts['5+']})</label>`;
+
   // Populate Month Del filter options dynamically from data
   const delMonths=[...new Set(allVariantRows.map(r=>r.deliveryMonth).filter(d=>d&&d!=='CORE'))];
   // Sort chronologically using a simple Mon-YY sort
@@ -2280,14 +2332,19 @@ function buildVariantRows(){
     const [am,ay]=a.split('-');const [bm,by]=b.split('-');
     const ayFull=parseInt(ay)<50?2000+parseInt(ay):1900+parseInt(ay);
     const byFull=parseInt(by)<50?2000+parseInt(by):1900+parseInt(by);
-    if(ayFull!==byFull)return ayFull-byFull;
-    return(monthOrder[am]||0)-(monthOrder[bm]||0);
+    if(ayFull!==byFull)return byFull-ayFull; // newest year first
+    return(monthOrder[bm]||0)-(monthOrder[am]||0); // newest month first
   });
   const delMonthContainer=document.getElementById('ms-delmonth-options');
   if(delMonthContainer){
+    const delMonthCounts={};
+    for(const r of countableRows2){
+      if(r.deliveryMonth)delMonthCounts[r.deliveryMonth]=(delMonthCounts[r.deliveryMonth]||0)+1;
+    }
+    const coreCount=delMonthCounts['CORE']||0;
     delMonthContainer.innerHTML=
-      `<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="applyFilters()"> CORE</label>`+
-      delMonths.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="applyFilters()"> ${m}</label>`).join('');
+      `<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="applyFilters()"> CORE (${coreCount})</label>`+
+      delMonths.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="applyFilters()"> ${m} (${delMonthCounts[m]||0})</label>`).join('');
   }
   renderKPIs();
   setView(currentView);
@@ -2301,8 +2358,16 @@ function buildDashboard(){
 
   const cats=[...new Set(allVariantRows.map(r=>r.category).filter(Boolean))].sort();
   const vendors=[...new Set(allVariantRows.map(r=>r.vendor).filter(Boolean))].sort();
-  populateMultiSelect('cat',cats);
-  populateMultiSelect('vendor',vendors);
+
+  // Count SKUs per category and vendor (only rows with SOH or on order)
+  const countableRows2=allVariantRows.filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0);
+  const catCounts={},vendorCounts={};
+  for(const r of countableRows2){
+    if(r.category)catCounts[r.category]=(catCounts[r.category]||0)+1;
+    if(r.vendor)vendorCounts[r.vendor]=(vendorCounts[r.vendor]||0)+1;
+  }
+  populateMultiSelect('cat',cats,catCounts);
+  populateMultiSelect('vendor',vendors,vendorCounts);
 
   const oos=allVariantRows.filter(r=>r.flag==='oos').length;
   const reorder=allVariantRows.filter(r=>r.flag==='reorder').length;
@@ -2395,12 +2460,14 @@ function updateLabel(type,allLabel){
   if(allBox)allBox.checked=checkedCount===total;
 }
 
-function populateMultiSelect(type,values){
+function populateMultiSelect(type,values,countMap){
   const container=document.getElementById('ms-'+type+'-options');
   if(!container)return;
-  container.innerHTML=values.map(v=>
-    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="applyFilters()"> ${v}</label>`
-  ).join('');
+  container.innerHTML=values.map(v=>{
+    const count=countMap?countMap[v]||0:'';
+    const label=count!==''?`${v} (${count})`:v;
+    return`<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="applyFilters()"> ${label}</label>`;
+  }).join('');
 }
 
 function quickFlag(f){
@@ -2717,6 +2784,8 @@ function getFilteredRows(){
   if(currentView==='category') rows=[...toCategory(baseRows)];
   else if(currentView==='product'){
     rows=[...toProduct(baseRows)];
+    // Hide products with 0 SOH and nothing on order
+    rows=rows.filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0);
     // Apply Sizes Sold Out filter after aggregation (product level only)
     if(soldouts.length){
       rows=rows.filter(r=>{
