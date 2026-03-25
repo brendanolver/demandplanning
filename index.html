@@ -2347,19 +2347,10 @@ function buildVariantRows(){
       delMonths.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="applyFilters()"> ${m} (${delMonthCounts[m]||0})</label>`).join('');
   }
   renderKPIs();
-  setView(currentView);
-}
 
-/* ── DASHBOARD ── */
-function buildDashboard(){
-  document.getElementById('upload-screen').style.display='none';
-  document.getElementById('app').style.display='flex';
-  buildVariantRows();
-
+  // Repopulate cat/vendor dropdowns (needed when period changes via setPeriod)
   const cats=[...new Set(allVariantRows.map(r=>r.category).filter(Boolean))].sort();
   const vendors=[...new Set(allVariantRows.map(r=>r.vendor).filter(Boolean))].sort();
-
-  // Count SKUs per category and vendor (only rows with SOH or on order)
   const countableRows2=allVariantRows.filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0);
   const catCounts={},vendorCounts={};
   for(const r of countableRows2){
@@ -2368,6 +2359,15 @@ function buildDashboard(){
   }
   populateMultiSelect('cat',cats,catCounts);
   populateMultiSelect('vendor',vendors,vendorCounts);
+
+  setView(currentView);
+}
+
+/* ── DASHBOARD ── */
+function buildDashboard(){
+  document.getElementById('upload-screen').style.display='none';
+  document.getElementById('app').style.display='flex';
+  buildVariantRows();
 
   const oos=allVariantRows.filter(r=>r.flag==='oos').length;
   const reorder=allVariantRows.filter(r=>r.flag==='reorder').length;
@@ -2420,7 +2420,7 @@ function toggleDropdown(wrapId){
 
 // Close dropdowns when clicking outside
 document.addEventListener('click',e=>{
-  if(!e.target.closest('.ms-wrap'))
+  if(!e.target.closest('.ms-wrap')&&!e.target.closest('.ms-dropdown'))
     document.querySelectorAll('.ms-wrap.open').forEach(w=>w.classList.remove('open'));
 });
 
@@ -2465,8 +2465,8 @@ function populateMultiSelect(type,values,countMap){
   if(!container)return;
   container.innerHTML=values.map(v=>{
     const count=countMap?countMap[v]||0:'';
-    const label=count!==''?`${v} (${count})`:v;
-    return`<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="applyFilters()"> ${label}</label>`;
+    const labelText=count!==''?`${v} (${count})`:v;
+    return`<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="applyFilters()"> ${labelText}</label>`;
   }).join('');
 }
 
@@ -2759,10 +2759,13 @@ function getFilteredRows(){
   const delmonths=getSelected('delmonth');
   const search=document.getElementById('search-input').value.trim().toUpperCase();
 
-  // Filter at the variant level first so search + aggregation both work correctly
+  // Filter at variant level for variant view; post-aggregation for product view
   let baseRows=[...allVariantRows];
-  if(cats.length) baseRows=baseRows.filter(r=>cats.includes(r.category||''));
-  if(vendors.length) baseRows=baseRows.filter(r=>vendors.includes(r.vendor||''));
+  if(currentView==='variant'){
+    if(cats.length) baseRows=baseRows.filter(r=>cats.includes(r.category||''));
+    if(vendors.length) baseRows=baseRows.filter(r=>vendors.includes(r.vendor||''));
+    if(delmonths.length) baseRows=baseRows.filter(r=>delmonths.includes(r.deliveryMonth||''));
+  }
   if(discs.length) baseRows=baseRows.filter(r=>{
     const d=r.discountPct||0;
     return discs.some(band=>{
@@ -2771,7 +2774,6 @@ function getFilteredRows(){
       return Math.round(d)===pct;
     });
   });
-  if(delmonths.length) baseRows=baseRows.filter(r=>delmonths.includes(r.deliveryMonth||''));
   if(search) baseRows=baseRows.filter(r=>{
     const name=(r.productName||'').toUpperCase();
     const colour=(r.colour||'').toUpperCase();
@@ -2781,12 +2783,19 @@ function getFilteredRows(){
 
   // Now aggregate the filtered variants into the requested view
   let rows;
-  if(currentView==='category') rows=[...toCategory(baseRows)];
+  if(currentView==='category'){
+    rows=[...toCategory(baseRows)];
+    if(cats.length) rows=rows.filter(r=>cats.includes(r.category||''));
+  }
   else if(currentView==='product'){
     rows=[...toProduct(baseRows)];
     // Hide products with 0 SOH and nothing on order
     rows=rows.filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0);
-    // Apply Sizes Sold Out filter after aggregation (product level only)
+    // Post-aggregation filters for product view
+    if(cats.length) rows=rows.filter(r=>cats.includes(r.category||''));
+    if(vendors.length) rows=rows.filter(r=>vendors.includes(r.vendor||''));
+    if(delmonths.length) rows=rows.filter(r=>delmonths.includes(r.deliveryMonth||''));
+    // Sizes Sold Out filter
     if(soldouts.length){
       rows=rows.filter(r=>{
         const s=r.soldOutSizes||0;
