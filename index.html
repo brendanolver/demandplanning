@@ -2593,19 +2593,20 @@ function getFilteredRows(){
   // Now aggregate the filtered variants into the requested view
   let rows;
   if(currentView==='category') rows=[...toCategory(baseRows)];
-  else if(currentView==='product') rows=[...toProduct(baseRows)];
-  // Apply Sizes Sold Out filter after aggregation (product level only)
-  if(soldouts.length&&currentView==='product'){
-    rows=rows.filter(r=>{
-      const s=r.soldOutSizes||0;
-      return soldouts.some(band=>{
-        if(band==='none') return !s||s===0;
-        if(band==='5+') return s>=5;
-        return s===parseInt(band);
+  else if(currentView==='product'){
+    rows=[...toProduct(baseRows)];
+    // Apply Sizes Sold Out filter after aggregation (product level only)
+    if(soldouts.length){
+      rows=rows.filter(r=>{
+        const s=r.soldOutSizes||0;
+        return soldouts.some(band=>{
+          if(band==='none') return !s||s===0;
+          if(band==='5+') return s>=5;
+          return s===parseInt(band);
+        });
       });
-    });
-  }
-  else rows=baseRows.sort((a,b)=>{
+    }
+  } else rows=baseRows.sort((a,b)=>{
     const nameComp=a.productName.localeCompare(b.productName);
     if(nameComp!==0)return nameComp;
     const colourComp=(a.colour||'').localeCompare(b.colour||'');
