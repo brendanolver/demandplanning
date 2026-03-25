@@ -1621,10 +1621,10 @@ async function gdriveFetchFiles(){
         text=await dlRes.text();
       }
       const parsed=parseCSV(text);
-      if(config.loader==='inv'){shopifyInvData=parsed;document.getElementById('shopify-card').classList.add('loaded');document.getElementById('sf-inv-fname').textContent=filename;}
-      else if(config.loader==='sales'){shopifySalesData=parsed;document.getElementById('sales-card').classList.add('loaded');document.getElementById('sf-sales-fname').textContent=filename;}
-      else if(config.loader==='soldout'){soldOutData=parsed;document.getElementById('soldout-card').classList.add('loaded');document.getElementById('soldout-fname').textContent=filename;}
-      else if(config.loader==='am'){amData=parsed;document.getElementById('am-card').classList.add('loaded');document.getElementById('am-fname').textContent=match.name;}
+      if(config.loader==='inv'){shopifyInvData=parsed;_cachedSalesMaps=null;_cachedAMData=null;document.getElementById('shopify-card').classList.add('loaded');document.getElementById('sf-inv-fname').textContent=filename;}
+      else if(config.loader==='sales'){shopifySalesData=parsed;_cachedSalesMaps=null;document.getElementById('sales-card').classList.add('loaded');document.getElementById('sf-sales-fname').textContent=filename;}
+      else if(config.loader==='soldout'){soldOutData=parsed;_cachedSoldOutData=null;document.getElementById('soldout-card').classList.add('loaded');document.getElementById('soldout-fname').textContent=filename;}
+      else if(config.loader==='am'){amData=parsed;_cachedAMData=null;document.getElementById('am-card').classList.add('loaded');document.getElementById('am-fname').textContent=match.name;}
       loaded++;
     }
     checkReady();
@@ -1704,6 +1704,7 @@ function loadShopifyInventory(input){
   const rd=new FileReader();
   rd.onload=e=>{
     shopifyInvData=parseCSV(e.target.result);
+    _cachedSalesMaps=null;_cachedAMData=null;_cachedSoldOutData=null;
     document.getElementById('shopify-card').classList.add('loaded');
     document.getElementById('sf-inv-fname').textContent=file.name;
     checkReady();
@@ -1715,6 +1716,7 @@ function loadShopifySales(input){
   const file=input.files[0];if(!file)return;
   const rd=new FileReader();
   rd.onload=e=>{
+    _cachedSalesMaps=null;_cachedAMData=null;_cachedSoldOutData=null;
     shopifySalesData=parseCSV(e.target.result);
     document.getElementById('sales-card').classList.add('loaded');
     document.getElementById('sf-sales-fname').textContent=file.name;
@@ -1727,6 +1729,7 @@ function loadVariantsSoldOut(input){
   const file=input.files[0];if(!file)return;
   const rd=new FileReader();
   rd.onload=e=>{
+    _cachedSoldOutData=null;
     variantsSoldOutData=parseCSV(e.target.result);
     document.getElementById('variants-soldout-card').classList.add('loaded');
     document.getElementById('variants-soldout-fname').textContent=file.name;
@@ -1739,6 +1742,7 @@ function loadSoldOut(input){
   const file=input.files[0];if(!file)return;
   const rd=new FileReader();
   rd.onload=e=>{
+    _cachedSoldOutData=null;
     soldOutData=parseCSV(e.target.result);
     document.getElementById('soldout-card').classList.add('loaded');
     document.getElementById('soldout-fname').textContent=file.name;
@@ -1751,6 +1755,7 @@ function loadAM(input){
   const file=input.files[0];if(!file)return;
   const rd=new FileReader();
   rd.onload=e=>{
+    _cachedAMData=null;
     amData=parseCSV(e.target.result);
     document.getElementById('am-card').classList.add('loaded');
     document.getElementById('am-fname').textContent=file.name;
@@ -2260,16 +2265,26 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
   return rows;
 }
 
+let _cachedSalesMaps=null;
+let _cachedAMData=null;
+let _cachedSoldOutData=null;
+
 function buildVariantRows(){
-  const{variantMap:amVariantMap,productMap:amProductMap,products:amProducts}=buildAMData();
-  const{salesBySkuDay,priceMap}=buildSalesMaps();
-  window._salesBySkuDay=salesBySkuDay; // cache for cadence screen
-  // Cache full SKU→category map (ALL products inc. draft) for cadence accuracy
-  window._skuCategoryMap={};
-  for(const[sku,pm] of Object.entries(priceMap)){
-    window._skuCategoryMap[sku]=pm.category||'UNCATEGORISED';
+  // Only rebuild sales maps and AM data if source files changed
+  if(!_cachedSalesMaps){
+    _cachedSalesMaps=buildSalesMaps();
+    window._salesBySkuDay=_cachedSalesMaps.salesBySkuDay;
+    window._skuCategoryMap={};
+    for(const[sku,pm] of Object.entries(_cachedSalesMaps.priceMap)){
+      window._skuCategoryMap[sku]=pm.category||'UNCATEGORISED';
+    }
   }
-  const{soMap,plMap}=buildSoldOutMap();
+  if(!_cachedAMData) _cachedAMData=buildAMData();
+  if(!_cachedSoldOutData) _cachedSoldOutData=buildSoldOutMap();
+
+  const{salesBySkuDay,priceMap}=_cachedSalesMaps;
+  const{variantMap:amVariantMap,productMap:amProductMap,products:amProducts}=_cachedAMData;
+  const{soMap,plMap}=_cachedSoldOutData;
   allVariantRows=processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap);
   document.getElementById('nav-count').textContent=allVariantRows.length.toLocaleString()+' SKUs';
 
@@ -2324,16 +2339,29 @@ function buildVariantRows(){
     <label class="ms-item"><input type="checkbox" value="4" checked onchange="applyFilters()"> 4 sizes sold out (${soldoutCounts['4']})</label>
     <label class="ms-item"><input type="checkbox" value="5+" checked onchange="applyFilters()"> 5+ sizes sold out (${soldoutCounts['5+']})</label>`;
 
-  // Populate Month Del filter options dynamically from data
+  renderKPIs();
+
+  // Repopulate cat/vendor/delmonth dropdowns
+  const cats=[...new Set(allVariantRows.map(r=>r.category).filter(Boolean))].sort();
+  const vendors=[...new Set(allVariantRows.map(r=>r.vendor).filter(Boolean))].sort();
+  const countableRows2=allVariantRows.filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0);
+  const catCounts={},vendorCounts={};
+  for(const r of countableRows2){
+    if(r.category)catCounts[r.category]=(catCounts[r.category]||0)+1;
+    if(r.vendor)vendorCounts[r.vendor]=(vendorCounts[r.vendor]||0)+1;
+  }
+  populateMultiSelect('cat',cats,catCounts);
+  populateMultiSelect('vendor',vendors,vendorCounts);
+
+  // Populate Month Del filter
   const delMonths=[...new Set(allVariantRows.map(r=>r.deliveryMonth).filter(d=>d&&d!=='CORE'))];
-  // Sort chronologically using a simple Mon-YY sort
   const monthOrder={Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
   delMonths.sort((a,b)=>{
     const [am,ay]=a.split('-');const [bm,by]=b.split('-');
     const ayFull=parseInt(ay)<50?2000+parseInt(ay):1900+parseInt(ay);
     const byFull=parseInt(by)<50?2000+parseInt(by):1900+parseInt(by);
-    if(ayFull!==byFull)return byFull-ayFull; // newest year first
-    return(monthOrder[bm]||0)-(monthOrder[am]||0); // newest month first
+    if(ayFull!==byFull)return byFull-ayFull;
+    return(monthOrder[bm]||0)-(monthOrder[am]||0);
   });
   const delMonthContainer=document.getElementById('ms-delmonth-options');
   if(delMonthContainer){
@@ -2346,19 +2374,6 @@ function buildVariantRows(){
       `<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="applyFilters()"> CORE (${coreCount})</label>`+
       delMonths.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="applyFilters()"> ${m} (${delMonthCounts[m]||0})</label>`).join('');
   }
-  renderKPIs();
-
-  // Repopulate cat/vendor dropdowns (needed when period changes via setPeriod)
-  const cats=[...new Set(allVariantRows.map(r=>r.category).filter(Boolean))].sort();
-  const vendors=[...new Set(allVariantRows.map(r=>r.vendor).filter(Boolean))].sort();
-  const countableRows2=allVariantRows.filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0);
-  const catCounts={},vendorCounts={};
-  for(const r of countableRows2){
-    if(r.category)catCounts[r.category]=(catCounts[r.category]||0)+1;
-    if(r.vendor)vendorCounts[r.vendor]=(vendorCounts[r.vendor]||0)+1;
-  }
-  populateMultiSelect('cat',cats,catCounts);
-  populateMultiSelect('vendor',vendors,vendorCounts);
 
   setView(currentView);
 }
@@ -2367,6 +2382,7 @@ function buildVariantRows(){
 function buildDashboard(){
   document.getElementById('upload-screen').style.display='none';
   document.getElementById('app').style.display='flex';
+  currentView='category'; // always start on category view
   buildVariantRows();
 
   const oos=allVariantRows.filter(r=>r.flag==='oos').length;
@@ -2375,8 +2391,6 @@ function buildDashboard(){
   document.getElementById('sb-oos-count').textContent=oos;
   document.getElementById('sb-crit-count').textContent=reorder;
   document.getElementById('sb-onorder-count').textContent=onOrd;
-
-  renderKPIs();setView('category');
 }
 
 function renderKPIs(){
@@ -3113,6 +3127,7 @@ function exportCSV(){
 /* ── RESET ── */
 function resetApp(){
   shopifyInvData=null;shopifySalesData=null;amData=null;soldOutData=null;variantsSoldOutData=null;
+  _cachedSalesMaps=null;_cachedAMData=null;_cachedSoldOutData=null;
   allVariantRows=[];
   document.getElementById('upload-screen').style.display='flex';
   document.getElementById('app').style.display='none';
