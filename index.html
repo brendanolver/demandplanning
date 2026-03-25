@@ -750,6 +750,22 @@ th{position:relative;}
               </div>
             </div>
           </div>
+          <div class="ms-wrap" id="ms-soldout" style="display:none;">
+            <button class="ms-btn" onclick="toggleDropdown('ms-soldout')">
+              <span id="ms-soldout-label">Sizes Sold Out</span><span class="ms-arrow">▾</span>
+            </button>
+            <div class="ms-dropdown" id="ms-soldout-dropdown">
+              <label class="ms-item ms-all"><input type="checkbox" checked onchange="toggleAll('soldout',this)"> All</label>
+              <div id="ms-soldout-options">
+                <label class="ms-item"><input type="checkbox" value="none" checked onchange="applyFilters()"> None sold out</label>
+                <label class="ms-item"><input type="checkbox" value="1" checked onchange="applyFilters()"> 1 size sold out</label>
+                <label class="ms-item"><input type="checkbox" value="2" checked onchange="applyFilters()"> 2 sizes sold out</label>
+                <label class="ms-item"><input type="checkbox" value="3" checked onchange="applyFilters()"> 3 sizes sold out</label>
+                <label class="ms-item"><input type="checkbox" value="4" checked onchange="applyFilters()"> 4 sizes sold out</label>
+                <label class="ms-item"><input type="checkbox" value="5+" checked onchange="applyFilters()"> 5+ sizes sold out</label>
+              </div>
+            </div>
+          </div>
           <button class="clear-btn" onclick="clearFilters()">✕ Clear</button>
         </div>
       </div>
@@ -2293,12 +2309,13 @@ function applyFilters(){
   updateLabel('vendor','All Statuses');
   updateLabel('flag','All Stock Status');
   updateLabel('disc','Discount %');
+  updateLabel('soldout','Sizes Sold Out');
   currentPage=1;
   renderTable();
 }
 
 function clearFilters(){
-  ['cat','vendor','flag','disc'].forEach(type=>{
+  ['cat','vendor','flag','disc','soldout'].forEach(type=>{
     const boxes=document.querySelectorAll('#ms-'+type+'-options input[type="checkbox"]');
     boxes.forEach(b=>b.checked=true);
     const allBox=document.querySelector('#ms-'+type+' .ms-all input');
@@ -2307,7 +2324,7 @@ function clearFilters(){
     const btnEl=document.querySelector('#ms-'+type+' .ms-btn');
     if(btnEl)btnEl.classList.remove('filtered');
   });
-  const labels={cat:'All Categories',vendor:'All Statuses',flag:'All Stock Status',disc:'Discount %'};
+  const labels={cat:'All Categories',vendor:'All Statuses',flag:'All Stock Status',disc:'Discount %',soldout:'Sizes Sold Out'};
   Object.entries(labels).forEach(([t,l])=>{const el=document.getElementById('ms-'+t+'-label');if(el)el.textContent=l;});
   document.getElementById('search-input').value='';
   // Also clear all column filters
@@ -2331,6 +2348,9 @@ function setView(v){
   document.querySelectorAll('.view-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
   const titles={category:'Category View',product:'Product View',variant:'Variant View'};
   document.getElementById('toolbar-title').textContent=titles[v];
+  // Show Sizes Sold Out filter only on product view
+  const soldoutWrap=document.getElementById('ms-soldout');
+  if(soldoutWrap)soldoutWrap.style.display=v==='product'?'':'none';
   renderTable();
 }
 
@@ -2548,6 +2568,7 @@ function getFilteredRows(){
   const vendors=getSelected('vendor');
   const flags=getSelected('flag');
   const discs=getSelected('disc');
+  const soldouts=getSelected('soldout');
   const search=document.getElementById('search-input').value.trim().toUpperCase();
 
   // Filter at the variant level first so search + aggregation both work correctly
@@ -2573,6 +2594,17 @@ function getFilteredRows(){
   let rows;
   if(currentView==='category') rows=[...toCategory(baseRows)];
   else if(currentView==='product') rows=[...toProduct(baseRows)];
+  // Apply Sizes Sold Out filter after aggregation (product level only)
+  if(soldouts.length&&currentView==='product'){
+    rows=rows.filter(r=>{
+      const s=r.soldOutSizes||0;
+      return soldouts.some(band=>{
+        if(band==='none') return !s||s===0;
+        if(band==='5+') return s>=5;
+        return s===parseInt(band);
+      });
+    });
+  }
   else rows=baseRows.sort((a,b)=>{
     const nameComp=a.productName.localeCompare(b.productName);
     if(nameComp!==0)return nameComp;
