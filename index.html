@@ -535,16 +535,7 @@ th{position:relative;}
       </button>
       <div id="gdrive-status" style="font-size:11px;color:var(--text-muted);margin-top:8px;text-align:center;min-height:16px;"></div>
       <div id="gdrive-folder-wrap" style="display:none;margin-top:10px;">
-        <div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px;">Google Drive folder name containing your 4 CSV files:</div>
-        <div style="display:flex;gap:8px;">
-          <input type="text" id="gdrive-folder" placeholder="e.g. WNDRR Demand Planning" 
-            style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;color:var(--text);background:var(--surface2);outline:none;">
-          <button onclick="gdriveFetchFiles()" style="padding:8px 14px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">Fetch Files</button>
-        </div>
-        <div style="font-size:10px;color:var(--text-muted);margin-top:6px;">
-          Expected filenames in folder:<br>
-          1. <strong>shopify_inventory.csv</strong> &nbsp;2. <strong>shopify_sales.csv</strong> &nbsp;3. <strong>better_reports_all_products.csv</strong> &nbsp;4. <strong>apparel_magic.csv</strong>
-        </div>
+        <div style="font-size:11px;color:var(--text-muted);text-align:center;">Fetching from <strong>WNDRR Stock Demand Planning App</strong>...</div>
       </div>
     </div>
 
@@ -1518,19 +1509,19 @@ function gdriveAuth(btn,status){
         btn.disabled=false;return;
       }
       gdriveToken=tokenResponse.access_token;
-      status.innerHTML='<span style="color:var(--teal);">✓ Connected to Google Drive</span>';
+      status.innerHTML='<span style="color:var(--teal);">✓ Connected — fetching files...</span>';
       btn.disabled=false;
       document.getElementById('gdrive-folder-wrap').style.display='block';
+      gdriveFetchFiles();
     }
   });
   client.requestAccessToken();
 }
 
 async function gdriveFetchFiles(){
-  const folderName=document.getElementById('gdrive-folder').value.trim();
+  const folderName='WNDRR Stock Demand Planning App';
   const status=document.getElementById('gdrive-status');
   if(!gdriveToken){status.innerHTML='<span style="color:var(--red);">⚠️ Please connect to Google Drive first.</span>';return;}
-  if(!folderName){status.innerHTML='<span style="color:var(--red);">⚠️ Please enter a folder name.</span>';return;}
   status.textContent='🔍 Finding folder...';
   try{
     const folderRes=await fetch(
