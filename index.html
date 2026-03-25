@@ -396,6 +396,15 @@ th{position:relative;}
 .sf-ok{display:none;font-size:11px;color:var(--teal);font-weight:500;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .shopify-upload-row.loaded .sf-ok{display:block;}
 
+/* Google Drive */
+.gdrive-section{margin:12px 0 4px;}
+.gdrive-divider{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+.gdrive-divider::before,.gdrive-divider::after{content:'';flex:1;height:1px;background:var(--border);}
+.gdrive-divider span{font-size:11px;color:var(--text-muted);white-space:nowrap;}
+.gdrive-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;padding:10px 16px;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:500;color:var(--text);cursor:pointer;transition:all 0.15s;}
+.gdrive-btn:hover{border-color:#4f6ef7;color:#4f6ef7;background:rgba(79,110,247,0.04);}
+.gdrive-btn:disabled{opacity:0.6;cursor:not-allowed;}
+
 /* Password screen */
 #password-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--navy);}
 .pw-card{background:var(--surface);border-radius:var(--r-lg);padding:48px 40px;width:100%;max-width:380px;box-shadow:var(--shadow-lg);text-align:center;}
@@ -513,6 +522,28 @@ th{position:relative;}
             <span>↑</span> Upload Apparel Magic CSV
           </label>
           <div class="file-ok" id="am-ok"><span>✓</span><span id="am-fname"></span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Google Drive Import -->
+    <div class="gdrive-section">
+      <div class="gdrive-divider"><span>or import from</span></div>
+      <button class="gdrive-btn" id="gdrive-btn" onclick="gdriveImport()">
+        <svg viewBox="0 0 87.3 78" width="16" height="16"><path d="M6.6 66.85l3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="M43.65 25L29.9 1.2C28.55 2 27.4 3.1 26.6 4.5L1.2 49.5c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/><path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.8l5.85 11.5z" fill="#ea4335"/><path d="M43.65 25L57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="M59.8 53H27.5L13.75 76.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/><path d="M73.4 26.5l-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3L43.65 25 59.8 53h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/></svg>
+        Import from Google Drive
+      </button>
+      <div id="gdrive-status" style="font-size:11px;color:var(--text-muted);margin-top:8px;text-align:center;min-height:16px;"></div>
+      <div id="gdrive-folder-wrap" style="display:none;margin-top:10px;">
+        <div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px;">Google Drive folder name containing your 4 CSV files:</div>
+        <div style="display:flex;gap:8px;">
+          <input type="text" id="gdrive-folder" placeholder="e.g. WNDRR Demand Planning" 
+            style="flex:1;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;color:var(--text);background:var(--surface2);outline:none;">
+          <button onclick="gdriveFetchFiles()" style="padding:8px 14px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">Fetch Files</button>
+        </div>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:6px;">
+          Expected filenames in folder:<br>
+          1. <strong>shopify_inventory.csv</strong> &nbsp;2. <strong>shopify_sales.csv</strong> &nbsp;3. <strong>better_reports_all_products.csv</strong> &nbsp;4. <strong>apparel_magic.csv</strong>
         </div>
       </div>
     </div>
@@ -1425,8 +1456,6 @@ function toTitleCase(str){
   return str.toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
 }
 
-/* ── PASSWORD ── */
-
 function renderInsights(data){
   const sections=[
     {key:'reorder',ico:'⚠️',title:'Re-Order Alerts',dotClass:'insight-dot-red'},
@@ -1451,6 +1480,121 @@ function renderInsights(data){
       </div>`).join('')}
     </div>`;
   }).join('');
+}
+
+/* ── GOOGLE DRIVE IMPORT ── */
+const GDRIVE_CLIENT_ID='666471093703-8eeoqttlchs0of0nu8r12v7ga7e8pe0r.apps.googleusercontent.com';
+const GDRIVE_SCOPE='https://www.googleapis.com/auth/drive.readonly';
+let gdriveToken=null;
+
+function gdriveImport(){
+  const btn=document.getElementById('gdrive-btn');
+  const status=document.getElementById('gdrive-status');
+  if(!GDRIVE_CLIENT_ID||GDRIVE_CLIENT_ID==='YOUR_GOOGLE_CLIENT_ID_HERE'){
+    status.innerHTML='<span style="color:var(--red);">⚠️ Google Client ID not configured.</span>';
+    showGdriveSetup();
+    return;
+  }
+  btn.disabled=true;
+  status.textContent='Connecting to Google...';
+  if(!window.google?.accounts?.oauth2){
+    const script=document.createElement('script');
+    script.src='https://accounts.google.com/gsi/client';
+    script.onload=()=>gdriveAuth(btn,status);
+    script.onerror=()=>{status.innerHTML='<span style="color:var(--red);">⚠️ Could not load Google Sign-In.</span>';btn.disabled=false;};
+    document.head.appendChild(script);
+  } else {
+    gdriveAuth(btn,status);
+  }
+}
+
+function gdriveAuth(btn,status){
+  const client=google.accounts.oauth2.initTokenClient({
+    client_id:GDRIVE_CLIENT_ID,
+    scope:GDRIVE_SCOPE,
+    callback:(tokenResponse)=>{
+      if(tokenResponse.error){
+        status.innerHTML=`<span style="color:var(--red);">⚠️ Auth failed: ${tokenResponse.error}</span>`;
+        btn.disabled=false;return;
+      }
+      gdriveToken=tokenResponse.access_token;
+      status.innerHTML='<span style="color:var(--teal);">✓ Connected to Google Drive</span>';
+      btn.disabled=false;
+      document.getElementById('gdrive-folder-wrap').style.display='block';
+    }
+  });
+  client.requestAccessToken();
+}
+
+async function gdriveFetchFiles(){
+  const folderName=document.getElementById('gdrive-folder').value.trim();
+  const status=document.getElementById('gdrive-status');
+  if(!gdriveToken){status.innerHTML='<span style="color:var(--red);">⚠️ Please connect to Google Drive first.</span>';return;}
+  if(!folderName){status.innerHTML='<span style="color:var(--red);">⚠️ Please enter a folder name.</span>';return;}
+  status.textContent='🔍 Finding folder...';
+  try{
+    const folderRes=await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=name='${encodeURIComponent(folderName)}' and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id,name)`,
+      {headers:{Authorization:`Bearer ${gdriveToken}`}}
+    );
+    const folderData=await folderRes.json();
+    if(!folderData.files?.length){
+      status.innerHTML=`<span style="color:var(--red);">⚠️ Folder "${folderName}" not found in your Drive.</span>`;return;
+    }
+    const folderId=folderData.files[0].id;
+    status.textContent='📂 Folder found — fetching files...';
+    const filesRes=await fetch(
+      `https://www.googleapis.com/drive/v3/files?q='${folderId}' in parents and trashed=false and mimeType='text/csv'&fields=files(id,name)`,
+      {headers:{Authorization:`Bearer ${gdriveToken}`}}
+    );
+    const filesData=await filesRes.json();
+    const files=filesData.files||[];
+    const fileMap={
+      'shopify_inventory.csv':{loader:'inv'},
+      'shopify_sales.csv':{loader:'sales'},
+      'better_reports_all_products.csv':{loader:'soldout'},
+      'apparel_magic.csv':{loader:'am'},
+    };
+    let loaded=0,errors=[];
+    status.textContent='⬇️ Downloading files...';
+    for(const[filename,config]of Object.entries(fileMap)){
+      const match=files.find(f=>f.name.toLowerCase()===filename.toLowerCase());
+      if(!match){errors.push(`"${filename}" not found`);continue;}
+      const dlRes=await fetch(`https://www.googleapis.com/drive/v3/files/${match.id}?alt=media`,{headers:{Authorization:`Bearer ${gdriveToken}`}});
+      const text=await dlRes.text();
+      const parsed=parseCSV(text);
+      if(config.loader==='inv'){shopifyInvData=parsed;document.getElementById('shopify-card').classList.add('loaded');document.getElementById('sf-inv-fname').textContent=filename;}
+      else if(config.loader==='sales'){shopifySalesData=parsed;document.getElementById('sales-card').classList.add('loaded');document.getElementById('sf-sales-fname').textContent=filename;}
+      else if(config.loader==='soldout'){soldOutData=parsed;document.getElementById('soldout-card').classList.add('loaded');document.getElementById('soldout-fname').textContent=filename;}
+      else if(config.loader==='am'){amData=parsed;document.getElementById('am-card').classList.add('loaded');document.getElementById('am-fname').textContent=filename;}
+      loaded++;
+    }
+    checkReady();
+    if(errors.length){
+      status.innerHTML=`<span style="color:var(--amber);">⚠️ Loaded ${loaded}/4 files. Missing: ${errors.join(', ')}</span>`;
+    } else {
+      status.innerHTML=`<span style="color:var(--teal);">✓ All 4 files loaded! Click Analyse Stock to continue.</span>`;
+    }
+  } catch(err){
+    status.innerHTML=`<span style="color:var(--red);">⚠️ Error: ${err.message}</span>`;
+  }
+}
+
+function showGdriveSetup(){
+  const existing=document.getElementById('gdrive-setup-info');
+  if(existing){existing.remove();return;}
+  const div=document.createElement('div');
+  div.id='gdrive-setup-info';
+  div.style.cssText='margin-top:10px;padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);font-size:11px;color:var(--text-secondary);line-height:1.7;';
+  div.innerHTML=`<strong style="color:var(--text);">One-time Google Drive setup:</strong><br>
+    1. Go to <a href="https://console.cloud.google.com" target="_blank" style="color:var(--teal);">console.cloud.google.com</a> → Create a project<br>
+    2. Enable the <strong>Google Drive API</strong><br>
+    3. Create an <strong>OAuth 2.0 Client ID</strong> (Web application)<br>
+    4. Add your Netlify URL to <strong>Authorised JavaScript origins</strong><br>
+    5. Copy the Client ID into the <code>GDRIVE_CLIENT_ID</code> variable at the top of the script<br>
+    6. Name your 4 files exactly and put them in one Drive folder:<br>
+    &nbsp;&nbsp;<strong>shopify_inventory.csv &nbsp;·&nbsp; shopify_sales.csv &nbsp;·&nbsp; better_reports_all_products.csv &nbsp;·&nbsp; apparel_magic.csv</strong>`;
+  document.getElementById('gdrive-btn').after(div);
 }
 
 /* ── PASSWORD ── */
