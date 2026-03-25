@@ -1606,10 +1606,12 @@ function buildSalesMaps(){
     const category=(row['Product type']||'').trim().toUpperCase();
     const fullTitle=(row['Product title']||'').trim().toUpperCase();
     const variantTitle=(row['Product variant title']||'').trim();
+    const status=(row['Product status']||'').trim().toUpperCase();
 
     if(!sku||!day)continue;
 
     // Only count positive quantities (ignore returns/refunds)
+    // Include ALL products (active + draft) in sales history so Cadence is accurate
     if(qty>0){
       if(!salesBySkuDay[sku])salesBySkuDay[sku]={};
       if(!salesBySkuDay[sku][day])salesBySkuDay[sku][day]={qty:0,cogs:0};
@@ -1629,15 +1631,16 @@ function buildSalesMaps(){
       priceMap[sku]={
         price:price||compareAt,
         compareAt:compareAt||price,
-        vendor,category,productName,colour,size,day
+        vendor,category,productName,colour,size,day,status
       };
     } else {
-      // Most recent row = current sell price
+      // Most recent row = current sell price + status
       if(day>priceMap[sku].day){
         priceMap[sku].price=price||compareAt;
         priceMap[sku].vendor=vendor;
         priceMap[sku].category=category;
         priceMap[sku].day=day;
+        priceMap[sku].status=status;
       }
       // Highest compareAt ever seen = true RRP
       if(compareAt>priceMap[sku].compareAt){
@@ -1778,6 +1781,16 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
 
     const stock=sohMap[sku]||0;
     const{productName,colour,size,vendor,category}=pm;
+
+    // Skip DRAFT products unless they have AM on-order data
+    const isDraft=(pm.status||'')==='DRAFT';
+    if(isDraft){
+      const vKey=productName+'||'+colour+'||'+size;
+      const vKeyOS=productName+'||'+colour+'||OS';
+      const pKey=productName+'||'+colour;
+      const hasOnOrder=(amVariantMap[vKey]||amVariantMap[vKeyOS]||amProductMap[pKey]);
+      if(!hasOnOrder||(hasOnOrder.qtyOpen||0)===0)continue;
+    }
 
     // Use price list if uploaded (matched by product title), fall back to sales file prices
     const plKey=(productName+' - '+colour).toUpperCase();
