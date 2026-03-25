@@ -633,8 +633,8 @@ th{position:relative;}
       <div class="topbar-pill" id="nav-count">— SKUs</div>
       <div class="screen-nav">
         <button class="screen-btn active" id="btn-dashboard" onclick="showScreen('dashboard')">📊 Dashboard</button>
-        <button class="screen-btn" id="btn-insights" onclick="showScreen('insights')">💡 Insights</button>
         <button class="screen-btn" id="btn-cadence" onclick="showScreen('cadence')">📈 Sales Cadence</button>
+        <button class="screen-btn" id="btn-insights" onclick="showScreen('insights')">💡 Insights</button>
         <button class="screen-btn" id="btn-planning" onclick="showScreen('planning')">📋 Planning</button>
       </div>
       <div class="period-selector" id="period-selector">
@@ -1565,152 +1565,113 @@ async function generateInsights(){
 }
 
 function analyseStockData(){
-  const rows=allVariantRows.filter(r=>!r.amOnly);
-  const allRows=allVariantRows;
-  const pd=selectedPeriod;
-
-  // ── RE-ORDER ALERTS ──
-  const reorder=[];
-  const criticals=rows.filter(r=>r.flag==='reorder'&&r.stock>0)
-    .sort((a,b)=>a.days-b.days);
-  // Group by product+colour for cleaner insights
-  const critMap={};
-  for(const r of criticals){
+  // Aggregate variant rows to product level (productName + colour)
+  const productMap={};
+  for(const r of allVariantRows){
+    if(r.amOnly)continue;
     const k=r.productName+'||'+r.colour;
-    if(!critMap[k])critMap[k]={...r,sizes:[]};
-    critMap[k].sizes.push(r.size);
+    if(!productMap[k]){
+      productMap[k]={
+        productName:r.productName,colour:r.colour,category:r.category,
+        vendor:r.vendor,stock:0,sold7:0,sold14:0,sold30:0,sold90:0,
+        onOrder:0,discountPct:r.discountPct||0,flag:r.flag,
+        price:r.price,daysDisplay:r.daysDisplay
+      };
+    }
+    const p=productMap[k];
+    p.stock+=(r.stock||0);
+    p.sold7+=(r.sold7||0);
+    p.sold14+=getSoldInPeriod(window._salesBySkuDay,r.sku,14).qty;
+    p.sold30+=(r.sold30||0);
+    p.sold90+=(r.sold90||0);
+    p.onOrder+=(r.onOrder||0)+(r.productOnOrder||0);
   }
-  Object.values(critMap).slice(0,5).forEach(r=>{
-    const sizes=r.sizes.filter(s=>s&&s!=='—').join(', ')||'all sizes';
-    reorder.push({text:`<strong>${toTitleCase(r.productName)} — ${toTitleCase(r.colour)}</strong> has only <strong>${r.daysDisplay}w</strong> cover remaining (${r.stock} SOH). Affected sizes: ${sizes}.`});
-  });
-  const oosWithOrder=allRows.filter(r=>r.flag==='on-order');
-  if(oosWithOrder.length>0){
-    const names=[...new Set(oosWithOrder.map(r=>toTitleCase(r.productName)))].slice(0,3).join(', ');
-    reorder.push({text:`<strong>${oosWithOrder.length} new product${oosWithOrder.length!==1?'s':''}</strong> are on order but not yet live in Shopify, including ${names}.`});
-  }
-  const oosNoOrder=rows.filter(r=>r.flag==='oos');
-  if(oosNoOrder.length>0){
-    reorder.push({text:`<strong>${oosNoOrder.length} SKU${oosNoOrder.length!==1?'s':''}</strong> are completely out of stock with no units on order — consider reviewing for restock or delisting.`});
-  }
+  const products=Object.values(productMap);
 
-  // ── OVERSTOCK / REDUCE ──
-  const overstock=[];
-  const reduceRows=rows.filter(r=>r.flag==='reduce').sort((a,b)=>b.stock-a.stock);
-  const reduceMap={};
-  for(const r of reduceRows){
-    const k=r.productName+'||'+r.colour;
-    if(!reduceMap[k])reduceMap[k]={...r,totalStock:0};
-    reduceMap[k].totalStock+=r.stock;
-  }
-  Object.values(reduceMap).slice(0,4).forEach(r=>{
-    overstock.push({text:`<strong>${toTitleCase(r.productName)} — ${toTitleCase(r.colour)}</strong> has <strong>${r.daysDisplay}w</strong> cover with <strong>${r.totalStock}</strong> units on hand and no orders incoming. Consider a markdown or promotion.`});
-  });
-  const reduceBycat={};
-  for(const r of reduceRows){
-    reduceBycat[r.category]=(reduceBycat[r.category]||0)+1;
-  }
-  const topReduceCat=Object.entries(reduceBycat).sort((a,b)=>b[1]-a[1])[0];
-  if(topReduceCat){
-    overstock.push({text:`<strong>${toTitleCase(topReduceCat[0])}</strong> has the most overstock situations with <strong>${topReduceCat[1]}</strong> products flagged for reduction.`});
-  }
+  // Helper
+  const fmt=p=>`<strong>${toTitleCase(p.productName)} — ${toTitleCase(p.colour)}</strong>`;
+  const isReduced=p=>(p.discountPct||0)>0;
+  const hasOrder=p=>(p.onOrder||0)>0;
 
-  // ── TOP PERFORMERS ──
-  const topPerformers=[];
-  // Best sell-through by product (aggregate)
-  const stByProduct={};
-  for(const r of rows){
-    if(r.sellThru7===null)continue;
-    const k=r.productName+'||'+r.colour;
-    if(!stByProduct[k])stByProduct[k]={name:r.productName,colour:r.colour,category:r.category,stSum:0,count:0,soldSum:0};
-    stByProduct[k].stSum+=r.sellThru7;stByProduct[k].count++;stByProduct[k].soldSum+=(r.sold||0);
-  }
-  const topST=Object.values(stByProduct)
-    .map(p=>({...p,avgST:p.stSum/p.count}))
-    .sort((a,b)=>b.avgST-a.avgST).slice(0,4);
-  topST.forEach(p=>{
-    topPerformers.push({text:`<strong>${toTitleCase(p.name)} — ${toTitleCase(p.colour)}</strong> is a standout performer with <strong>${p.avgST.toFixed(1)}%</strong> sell-through and <strong>${p.soldSum}</strong> units sold in the last ${pd} days.`});
-  });
-  // Best category
-  const catPerf={};
-  for(const r of rows){
-    if(!catPerf[r.category])catPerf[r.category]={sold:0,soh:0};
-    catPerf[r.category].sold+=(r.sold||0);catPerf[r.category].soh+=r.stock;
-  }
-  const topCat=Object.entries(catPerf).filter(([,d])=>d.soh>0)
-    .map(([c,d])=>({cat:c,st:d.sold/(d.sold+d.soh)*100}))
-    .sort((a,b)=>b.st-a.st)[0];
-  if(topCat){
-    topPerformers.push({text:`<strong>${toTitleCase(topCat.cat)}</strong> is the best-performing category overall with a <strong>${topCat.st.toFixed(1)}%</strong> sell-through rate in the last ${pd} days.`});
-  }
+  // ── 1. NEEDS RE-ORDER ──
+  // ST% ≥ 20% over last 7 or 14 days, not reduced, not on order, has stock
+  const needsReorder=products
+    .filter(p=>p.stock>0&&!isReduced(p)&&!hasOrder(p))
+    .filter(p=>{
+      const st7=p.sold7>0&&(p.stock+p.sold7)>0?p.sold7/(p.stock+p.sold7)*100:0;
+      const st14=p.sold14>0&&(p.stock+p.sold14)>0?p.sold14/(p.stock+p.sold14)*100:0;
+      return st7>=20||st14>=20;
+    })
+    .sort((a,b)=>b.sold7-a.sold7)
+    .slice(0,20)
+    .map(p=>{
+      const st7=p.sold7>0&&(p.stock+p.sold7)>0?(p.sold7/(p.stock+p.sold7)*100).toFixed(1):null;
+      const st14=p.sold14>0&&(p.stock+p.sold14)>0?(p.sold14/(p.stock+p.sold14)*100).toFixed(1):null;
+      return{text:`${fmt(p)} — ${p.stock} SOH, ST% ${st7?st7+'% (7d)':''}${st7&&st14?' / ':''}${st14?st14+'% (14d)':''}. Consider reordering.`};
+    });
 
-  // ── SLOW MOVERS ──
-  const slowMovers=[];
-  const slow=rows.filter(r=>r.sold===0&&r.stock>0&&r.flag!=='clearance')
-    .sort((a,b)=>b.stock-a.stock);
-  const slowMap={};
-  for(const r of slow){
-    const k=r.productName+'||'+r.colour;
-    if(!slowMap[k])slowMap[k]={...r,totalStock:0};
-    slowMap[k].totalStock+=r.stock;
-  }
-  Object.values(slowMap).slice(0,4).forEach(r=>{
-    slowMovers.push({text:`<strong>${toTitleCase(r.productName)} — ${toTitleCase(r.colour)}</strong> has <strong>${r.totalStock}</strong> units on hand with <strong>zero sales</strong> in the last ${pd} days — review for markdown or promotion.`});
-  });
-  const slowByCat={};
-  for(const r of slow){slowByCat[r.category]=(slowByCat[r.category]||0)+1;}
-  const topSlowCat=Object.entries(slowByCat).sort((a,b)=>b[1]-a[1])[0];
-  if(topSlowCat){
-    slowMovers.push({text:`<strong>${toTitleCase(topSlowCat[0])}</strong> has the most slow movers with <strong>${topSlowCat[1]}</strong> SKUs recording zero sales over the last ${pd} days.`});
-  }
+  // ── 2. NEEDS META ADS ──
+  // Strong early ST% (≥15% in first 7-14 days) but now slow (sold30 < sold7*4) with high stock (>50)
+  const needsMetaAds=products
+    .filter(p=>p.stock>=50&&!isReduced(p))
+    .filter(p=>{
+      const st7=p.sold7>0&&(p.stock+p.sold7)>0?p.sold7/(p.stock+p.sold7)*100:0;
+      const st14=p.sold14>0&&(p.stock+p.sold14)>0?p.sold14/(p.stock+p.sold14)*100:0;
+      const hadStrongStart=st7>=15||st14>=15;
+      // Now slowing — recent 30d sales not keeping pace (less than 2x the early weekly rate)
+      const weeklyRate=p.sold7||p.sold14/2||0;
+      const nowSlow=p.sold30<weeklyRate*6;
+      return hadStrongStart&&nowSlow;
+    })
+    .sort((a,b)=>b.stock-a.stock)
+    .slice(0,20)
+    .map(p=>{
+      const st14=p.sold14>0&&(p.stock+p.sold14)>0?(p.sold14/(p.stock+p.sold14)*100).toFixed(1):null;
+      return{text:`${fmt(p)} — ${p.stock} SOH, ${p.sold30} sold in last 30d. Strong early ST% (${st14||'—'}% in 14d) but pace has dropped — consider Meta Ads to push inventory.`};
+    });
 
-  // ── INCOMING ORDERS ──
-  const incomingOrders=[];
-  const incoming=allRows.filter(r=>(r.onOrder||0)>0&&r.monthDue);
-  // Group by month using raw monthDue as sort key, display as abbreviated
-  const byMonth={};
-  for(const r of incoming){
-    const rawM=r.monthDue; // e.g. "2026 - June"
-    const displayM=shortMonth(rawM); // e.g. "JUN26"
-    if(!byMonth[rawM])byMonth[rawM]={display:displayM,units:0,products:new Set()};
-    byMonth[rawM].units+=(r.onOrder||0);
-    byMonth[rawM].products.add(r.productName);
-  }
-  Object.entries(byMonth).sort((a,b)=>monthDueSortKey(a[0])-monthDueSortKey(b[0])).forEach(([,d])=>{
-    incomingOrders.push({text:`<strong>${d.display}</strong> — <strong>${d.units.toLocaleString()}</strong> units arriving across <strong>${d.products.size}</strong> product${d.products.size!==1?'s':''}.`});
-  });
-  // Check if any critical items have orders arriving in time
-  const savedByCritical=criticals.filter(r=>r.onOrder>0&&r.monthDue);
-  if(savedByCritical.length>0){
-    incomingOrders.push({text:`<strong>${savedByCritical.length}</strong> re-order alert product${savedByCritical.length!==1?'s':''} have units on order arriving — weeks cover figures already include these incoming units.`});
-  }
+  // ── 3. STYLES TO WATCH ──
+  // ST% ≥ 15% over last 14 days, not reduced, not on order — worth watching for reorder
+  const stylesToWatch=products
+    .filter(p=>p.stock>0&&!isReduced(p)&&!hasOrder(p))
+    .filter(p=>{
+      const st7=p.sold7>0&&(p.stock+p.sold7)>0?p.sold7/(p.stock+p.sold7)*100:0;
+      const st14=p.sold14>0&&(p.stock+p.sold14)>0?p.sold14/(p.stock+p.sold14)*100:0;
+      // 15-19% range (below reorder threshold but worth watching)
+      return (st7>=15&&st7<20)||(st14>=15&&st14<20);
+    })
+    .sort((a,b)=>b.sold14-a.sold14)
+    .slice(0,20)
+    .map(p=>{
+      const st14=p.sold14>0&&(p.stock+p.sold14)>0?(p.sold14/(p.stock+p.sold14)*100).toFixed(1):null;
+      return{text:`${fmt(p)} — ${p.stock} SOH, ${st14||'—'}% ST in 14d. Keep an eye on this one for reorder potential.`};
+    });
 
-  // ── MARGIN WATCH ──
-  const margin=[];
-  const withMargin=rows.filter(r=>r.margin!==null&&r.stock>0);
-  const avgMargin=withMargin.reduce((s,r)=>s+r.margin,0)/Math.max(withMargin.length,1);
-  margin.push({text:`Overall average margin across stocked SKUs is <strong>${avgMargin.toFixed(1)}%</strong> based on current sell prices and cost of goods.`});
-  const lowM=withMargin.filter(r=>r.margin<25).sort((a,b)=>a.margin-b.margin);
-  const lowMMap={};
-  for(const r of lowM){
-    const k=r.productName+'||'+r.colour;
-    if(!lowMMap[k])lowMMap[k]={...r};
-  }
-  Object.values(lowMMap).slice(0,3).forEach(r=>{
-    margin.push({text:`<strong>${toTitleCase(r.productName)} — ${toTitleCase(r.colour)}</strong> has a low margin of <strong>${r.margin.toFixed(1)}%</strong> at $${r.price} sell price — review pricing or cost.`});
-  });
-  const highM=withMargin.filter(r=>r.margin>=60).length;
-  if(highM>0){
-    margin.push({text:`<strong>${highM}</strong> SKU${highM!==1?'s':''} achieve a margin of 60% or above — these are your highest-value products to prioritise for restock.`});
-  }
-  // Discounted items
-  const discounted=rows.filter(r=>r.discountPct>0&&r.stock>0);
-  if(discounted.length>0){
-    const avgDisc=discounted.reduce((s,r)=>s+r.discountPct,0)/discounted.length;
-    margin.push({text:`<strong>${discounted.length}</strong> SKUs are currently selling below RRP at an average discount of <strong>${avgDisc.toFixed(1)}%</strong>.`});
-  }
+  // ── 4. SLOWER MOVERS ──
+  // < 20 units sold in last 30 days, not reduced, not on order, has stock
+  const slowerMovers=products
+    .filter(p=>p.stock>0&&!isReduced(p)&&!hasOrder(p)&&p.sold30<20&&p.sold30>9)
+    .sort((a,b)=>b.stock-a.stock)
+    .slice(0,20)
+    .map(p=>({text:`${fmt(p)} — ${p.stock} SOH, only ${p.sold30} units sold in last 30 days. Consider a promotion to move stock.`}));
 
-  return{reorder,overstock,topPerformers,slowMovers,incomingOrders,margin};
+  // ── 5. DEAD STYLES ──
+  // < 10 sales in last 30 days, not reduced, has stock
+  const deadStyles=products
+    .filter(p=>p.stock>0&&!isReduced(p)&&p.sold30<10)
+    .sort((a,b)=>b.stock-a.stock)
+    .slice(0,20)
+    .map(p=>({text:`${fmt(p)} — ${p.stock} SOH, only ${p.sold30} units sold in last 30 days. Consider marking down or delisting.`}));
+
+  // ── 6. ORDER PROBLEMS ──
+  // Slow movers (< 20 sold in 30 days) but have units on order
+  const orderProblems=products
+    .filter(p=>p.sold30<20&&hasOrder(p)&&!isReduced(p))
+    .sort((a,b)=>b.onOrder-a.onOrder)
+    .slice(0,20)
+    .map(p=>({text:`${fmt(p)} — ${p.onOrder} units on order but only ${p.sold30} sold in last 30 days. Review if this order is still needed.`}));
+
+  return{needsReorder,needsMetaAds,stylesToWatch,slowerMovers,deadStyles,orderProblems};
 }
 
 function toTitleCase(str){
@@ -1720,12 +1681,18 @@ function toTitleCase(str){
 
 function renderInsights(data){
   const sections=[
-    {key:'reorder',ico:'⚠️',title:'Re-Order Alerts',dotClass:'insight-dot-red'},
-    {key:'overstock',ico:'📦',title:'Reduce / Overstock',dotClass:'insight-dot-amber'},
-    {key:'topPerformers',ico:'🚀',title:'Top Performers',dotClass:'insight-dot-teal'},
-    {key:'slowMovers',ico:'📉',title:'Slow Movers',dotClass:'insight-dot-blue'},
-    {key:'incomingOrders',ico:'🚚',title:'Incoming Orders',dotClass:'insight-dot-purple'},
-    {key:'margin',ico:'💰',title:'Margin Watch',dotClass:'insight-dot-green'},
+    {key:'needsReorder',   ico:'🔴',title:'Needs Re-Order',      dotClass:'insight-dot-red',
+     sub:'ST% ≥20% in last 7 or 14 days — not reduced or on order'},
+    {key:'needsMetaAds',   ico:'📣',title:'Needs Meta Ads',      dotClass:'insight-dot-amber',
+     sub:'Strong early sell-through but pace has dropped with high stock remaining'},
+    {key:'stylesToWatch',  ico:'👀',title:'Styles to Watch',     dotClass:'insight-dot-teal',
+     sub:'ST% 15–19% in last 14 days — monitor for reorder potential'},
+    {key:'slowerMovers',   ico:'🐢',title:'Slower Movers',       dotClass:'insight-dot-blue',
+     sub:'10–19 units sold in last 30 days — not reduced or on order'},
+    {key:'deadStyles',     ico:'💀',title:'Dead Styles',          dotClass:'insight-dot-purple',
+     sub:'Less than 10 units sold in last 30 days — not reduced'},
+    {key:'orderProblems',  ico:'⚠️',title:'Order Problems',      dotClass:'insight-dot-red',
+     sub:'Slow movers (under 20 units/30 days) with units still on order'},
   ];
   document.getElementById('insights-body').innerHTML=sections.map(s=>{
     const items=data[s.key]||[];
@@ -1733,8 +1700,13 @@ function renderInsights(data){
     return`<div class="insight-section">
       <div class="insight-section-header">
         <span class="insight-ico">${s.ico}</span>
-        <span class="insight-section-title">${s.title}</span>
-        <span class="insight-section-count">${items.length} insight${items.length!==1?'s':''}</span>
+        <div style="flex:1;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span class="insight-section-title">${s.title}</span>
+            <span class="insight-section-count">${items.length} product${items.length!==1?'s':''}</span>
+          </div>
+          ${s.sub?`<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${s.sub}</div>`:''}
+        </div>
       </div>
       ${items.map(item=>`<div class="insight-item">
         <div class="insight-dot ${s.dotClass}"></div>
