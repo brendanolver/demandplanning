@@ -223,7 +223,10 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .rp-indent{background:var(--amber-light);color:var(--amber);}
 .rp-clearance{background:var(--red-light);color:var(--red);}
 .rp-bundle{background:var(--purple-light);color:var(--purple);}
-.rp-end{background:#f1f5f9;color:#64748b;}
+.rp-new{background:#dcfce7;color:#16a34a;}
+.rp-current{background:#eff6ff;color:#3b82f6;}
+.rp-onorder{background:var(--purple-light);color:var(--purple);}
+.rp-old{background:#f1f5f9;color:#64748b;}
 .rp-other{background:var(--surface2);color:var(--text-secondary);}
 
 /* Planning */
@@ -677,9 +680,9 @@ th{position:relative;}
       <div class="sb-divider"></div>
       <div class="sb-section">Status</div>
       <div class="sb-item" onclick="quickVendor('CORE')"><div class="sb-icon">⭐</div>Core</div>
-      <div class="sb-item" onclick="quickVendor('INDENT')"><div class="sb-icon">📋</div>Indent</div>
-      <div class="sb-item" onclick="quickVendor('CLEARANCE')"><div class="sb-icon">🏷️</div>Clearance</div>
-      <div class="sb-item" onclick="quickVendor('BUNDLE')"><div class="sb-icon">🎁</div>Bundle</div>
+      <div class="sb-item" onclick="quickVendor('NEW')"><div class="sb-icon">🆕</div>New</div>
+      <div class="sb-item" onclick="quickVendor('CURRENT')"><div class="sb-icon">🟢</div>Current</div>
+      <div class="sb-item" onclick="quickVendor('OLD')"><div class="sb-icon">🏷️</div>Old</div>
     </aside>
 
     <!-- MAIN -->
@@ -765,6 +768,15 @@ th{position:relative;}
                 <label class="ms-item"><input type="checkbox" value="4" checked onchange="applyFilters()"> 4 sizes sold out</label>
                 <label class="ms-item"><input type="checkbox" value="5+" checked onchange="applyFilters()"> 5+ sizes sold out</label>
               </div>
+            </div>
+          </div>
+          <div class="ms-wrap" id="ms-delmonth" style="display:none;">
+            <button class="ms-btn" onclick="toggleDropdown('ms-delmonth')">
+              <span id="ms-delmonth-label">Month Del</span><span class="ms-arrow">▾</span>
+            </button>
+            <div class="ms-dropdown" id="ms-delmonth-dropdown">
+              <label class="ms-item ms-all"><input type="checkbox" checked onchange="toggleAll('delmonth',this)"> All</label>
+              <div id="ms-delmonth-options"></div>
             </div>
           </div>
           <button class="clear-btn" onclick="clearFilters()">✕ Clear</button>
@@ -1940,6 +1952,26 @@ function buildAMData(){
 
 
 /* ── HELPERS ── */
+function normaliseDeliveryMonth(val){
+  if(!val||val==='CORE')return val;
+  // Already in short format e.g. "Jan-25" — return as-is
+  if(/^[A-Za-z]{3}-\d{2}$/.test(val.trim()))return val.trim();
+  // Better Reports format: "Jan-25" or "Jan-2025"
+  if(/^[A-Za-z]{3}-\d{2,4}$/.test(val.trim())){
+    const parts=val.trim().split('-');
+    return parts[0].slice(0,3)+'-'+parts[1].slice(-2);
+  }
+  // SKU decoded format: "2026 - June" → "Jun-26"
+  if(val.includes(' - ')){
+    const parts=val.split(' - ');
+    const year=(parts[0]||'').trim().slice(-2);
+    const month=(parts[1]||'').trim().slice(0,3);
+    if(month&&year)return month+'-'+year;
+  }
+  // Fallback — return as-is
+  return val;
+}
+
 function decodeSkuDelivery(sku){
   // SKU: W{YY}{M}{rest} — pos 1-2=year, pos 3=month letter
   if(!sku||sku.length<4)return'';
@@ -1999,7 +2031,6 @@ function shortMonth(monthDue){
 }
 
 function getFlag(days,stock,onOrder,vendor,discountPct){
-  if((vendor||'').toUpperCase()==='CLEARANCE')return'clearance';
   if(stock===0&&onOrder>0)return'on-order';
   if(stock===0)return'oos';
   if(days===null||days===undefined)return'oos';
@@ -2070,6 +2101,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     } else if(!deliveryMonth){
       deliveryMonth=decodeSkuDelivery(sku);
     }
+    deliveryMonth=normaliseDeliveryMonth(deliveryMonth);
 
     // Cost priority: 1) Better Reports Cost, 2) AM Amount/Units, 3) Sales COGS/sold
     const brCost=plEntry?plEntry.cost||0:0;
@@ -2132,19 +2164,38 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const recalcWeeks=recalcDays!==null?+(recalcDays/7).toFixed(1):null;
     let flag=getFlag(recalcDays,stock,onOrder,vendor,discountPct);
 
-    // ── END logic ──
-    // Style > 3 months old + poor 90-day ST% (<30%) + no on order + not CORE/CLEARANCE
-    const firstSaleDay=pm.firstSaleDay;
-    const today90=new Date();today90.setHours(0,0,0,0);
-    today90.setDate(today90.getDate()-90);
-    const isOldStyle=firstSaleDay&&new Date(firstSaleDay)<=today90;
-    const st90=s90.qty>0&&(stock+s90.qty)>0?s90.qty/(stock+s90.qty)*100:0;
-    const isPoorSellThru=st90<30;
+    // Decode delivery month from SKU for age-based logic
+    const skuDelivery=decodeSkuDelivery(sku);
+    const skuDeliveryDate=(()=>{
+      if(!skuDelivery)return null;
+      const parts=skuDelivery.split(' - ');
+      if(parts.length<2)return null;
+      const MONTHS={january:0,february:1,march:2,april:3,may:4,june:5,july:6,august:7,september:8,october:9,november:10,december:11};
+      const yr=parseInt(parts[0]);
+      const mo=MONTHS[(parts[1]||'').toLowerCase().trim()];
+      if(isNaN(yr)||mo===undefined)return null;
+      return new Date(yr,mo,1);
+    })();
+
+    const now=new Date();
+    const threeMonthsAgo=new Date(now.getFullYear(),now.getMonth()-3,1);
+
+    // OLD — delivered more than 3 months ago, no on order, not CORE, has stock
+    // Also applies to CLEARANCE and BUNDLE with stock on hand
     const isClearance=(vendor||'').toUpperCase()==='CLEARANCE';
+    const isBundle=(vendor||'').toUpperCase()==='BUNDLE';
     const hasNoOrder=(onOrder||0)+(productOnOrder||0)===0;
-    const isEnd=isOldStyle&&isPoorSellThru&&hasNoOrder&&!isCore&&!isClearance&&stock>0;
-    const effectiveVendor=isEnd?'END':vendor;
-    // If END and not discounted, force reduce; if discounted keep existing flag
+    const isOldStyle=skuDeliveryDate&&skuDeliveryDate<threeMonthsAgo;
+    const isEnd=(isOldStyle&&hasNoOrder&&!isCore&&stock>0)||
+                ((isClearance||isBundle)&&stock>0);
+
+    // NEW — delivered this calendar month, not CORE/CLEARANCE/BUNDLE
+    const isCurrentMonth=skuDeliveryDate&&skuDeliveryDate.getFullYear()===now.getFullYear()&&skuDeliveryDate.getMonth()===now.getMonth();
+    // CURRENT — delivered within last 3 months (but not this month), not CORE/CLEARANCE/BUNDLE
+    const isCurrent=skuDeliveryDate&&skuDeliveryDate>=threeMonthsAgo&&!isCurrentMonth&&!isCore&&!isClearance&&!isBundle&&stock>0;
+
+    const isNew=isCurrentMonth&&!isCore&&!isClearance&&!isBundle;
+    const effectiveVendor=isNew?'NEW':isEnd?'OLD':isCurrent?'CURRENT':vendor;
     if(isEnd&&!discountPct)flag='reduce';
 
     rows.push({
@@ -2221,6 +2272,23 @@ function buildVariantRows(){
   const{soMap,plMap}=buildSoldOutMap();
   allVariantRows=processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap);
   document.getElementById('nav-count').textContent=allVariantRows.length.toLocaleString()+' SKUs';
+  // Populate Month Del filter options dynamically from data
+  const delMonths=[...new Set(allVariantRows.map(r=>r.deliveryMonth).filter(d=>d&&d!=='CORE'))];
+  // Sort chronologically using a simple Mon-YY sort
+  const monthOrder={Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
+  delMonths.sort((a,b)=>{
+    const [am,ay]=a.split('-');const [bm,by]=b.split('-');
+    const ayFull=parseInt(ay)<50?2000+parseInt(ay):1900+parseInt(ay);
+    const byFull=parseInt(by)<50?2000+parseInt(by):1900+parseInt(by);
+    if(ayFull!==byFull)return ayFull-byFull;
+    return(monthOrder[am]||0)-(monthOrder[bm]||0);
+  });
+  const delMonthContainer=document.getElementById('ms-delmonth-options');
+  if(delMonthContainer){
+    delMonthContainer.innerHTML=
+      `<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="applyFilters()"> CORE</label>`+
+      delMonths.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="applyFilters()"> ${m}</label>`).join('');
+  }
   renderKPIs();
   setView(currentView);
 }
@@ -2358,12 +2426,13 @@ function applyFilters(){
   updateLabel('flag','All Stock Status');
   updateLabel('disc','Discount %');
   updateLabel('soldout','Sizes Sold Out');
+  updateLabel('delmonth','Month Del');
   currentPage=1;
   renderTable();
 }
 
 function clearFilters(){
-  ['cat','vendor','flag','disc','soldout'].forEach(type=>{
+  ['cat','vendor','flag','disc','soldout','delmonth'].forEach(type=>{
     const boxes=document.querySelectorAll('#ms-'+type+'-options input[type="checkbox"]');
     boxes.forEach(b=>b.checked=true);
     const allBox=document.querySelector('#ms-'+type+' .ms-all input');
@@ -2372,7 +2441,7 @@ function clearFilters(){
     const btnEl=document.querySelector('#ms-'+type+' .ms-btn');
     if(btnEl)btnEl.classList.remove('filtered');
   });
-  const labels={cat:'All Categories',vendor:'All Statuses',flag:'All Stock Status',disc:'Discount %',soldout:'Sizes Sold Out'};
+  const labels={cat:'All Categories',vendor:'All Statuses',flag:'All Stock Status',disc:'Discount %',soldout:'Sizes Sold Out',delmonth:'Month Del'};
   Object.entries(labels).forEach(([t,l])=>{const el=document.getElementById('ms-'+t+'-label');if(el)el.textContent=l;});
   document.getElementById('search-input').value='';
   // Also clear all column filters
@@ -2399,6 +2468,9 @@ function setView(v){
   // Show Sizes Sold Out filter only on product view
   const soldoutWrap=document.getElementById('ms-soldout');
   if(soldoutWrap)soldoutWrap.style.display=v==='product'?'':'none';
+  // Show Month Del filter on product and variant views
+  const delmonthWrap=document.getElementById('ms-delmonth');
+  if(delmonthWrap)delmonthWrap.style.display=(v==='product'||v==='variant')?'':'none';
   renderTable();
 }
 
@@ -2617,6 +2689,7 @@ function getFilteredRows(){
   const flags=getSelected('flag');
   const discs=getSelected('disc');
   const soldouts=getSelected('soldout');
+  const delmonths=getSelected('delmonth');
   const search=document.getElementById('search-input').value.trim().toUpperCase();
 
   // Filter at the variant level first so search + aggregation both work correctly
@@ -2631,6 +2704,7 @@ function getFilteredRows(){
       return Math.round(d)===pct;
     });
   });
+  if(delmonths.length) baseRows=baseRows.filter(r=>delmonths.includes(r.deliveryMonth||''));
   if(search) baseRows=baseRows.filter(r=>{
     const name=(r.productName||'').toUpperCase();
     const colour=(r.colour||'').toUpperCase();
@@ -2764,35 +2838,36 @@ function renderTable(){
     document.getElementById('tbl-body').innerHTML=`<tr><td colspan="${headers.length}"><div class="empty-cell"><div class="empty-ico">🔍</div><div class="empty-msg">No results found</div><div class="empty-sub">Try adjusting your filters</div></div></td></tr>`;
   }else{
     let bodyHtml=pageRows.map(row=>renderRow(row,headers)).join('');
-    // Add totals row for category view only
-    if(currentView==='category'&&filteredRows.length>0){
-      bodyHtml+=renderCategoryTotals(filteredRows,headers);
+    if(filteredRows.length>0){
+      bodyHtml+=renderTotalsRow(filteredRows,headers);
     }
     document.getElementById('tbl-body').innerHTML=bodyHtml;
   }
   renderFoot();
 }
 
-function renderCategoryTotals(rows,headers){
-  // SUM columns
+function renderTotalsRow(rows,headers){
   const sum={
     products:rows.reduce((s,r)=>s+(r.products||0),0),
     stock:rows.reduce((s,r)=>s+(r.stock||0),0),
     sohValue:rows.reduce((s,r)=>s+(r.sohValue||0),0),
     sellValue:rows.reduce((s,r)=>s+(r.sellValue||0),0),
     sold:rows.reduce((s,r)=>s+(r.sold||0),0),
-    onOrder:rows.reduce((s,r)=>s+(r.onOrder||0),0),
+    onOrder:rows.reduce((s,r)=>s+(r.onOrder!=null?r.onOrder:(r.productOnOrder||0)),0),
     oosCount:rows.reduce((s,r)=>s+(r.oosCount||0),0),
     critCount:rows.reduce((s,r)=>s+(r.critCount||0),0),
   };
-  // AVERAGE columns (weighted where possible)
   const stRows=rows.filter(r=>r.sellThru7!=null);
   const avgST=stRows.length?+(stRows.reduce((s,r)=>s+r.sellThru7,0)/stRows.length).toFixed(2):null;
   const wkRows=rows.filter(r=>r.daysDisplay!=='—'&&r.flag!=='on-order');
   const avgWks=wkRows.length?+(wkRows.reduce((s,r)=>s+parseFloat(r.daysDisplay),0)/wkRows.length).toFixed(1):null;
+  const avgMargin=rows.filter(r=>r.margin!=null).length?
+    +(rows.filter(r=>r.margin!=null).reduce((s,r)=>s+r.margin,0)/rows.filter(r=>r.margin!=null).length).toFixed(2):null;
+
+  const firstLabel=headers[0]?.k;
 
   const cells=headers.map(h=>{
-    if(h.k==='category') return`<td style="font-weight:700;color:var(--text);">TOTAL</td>`;
+    if(h.k===firstLabel) return`<td style="font-weight:700;color:var(--text);">TOTAL</td>`;
     if(h.k==='products') return`<td class="cell-num" style="font-weight:700;">${sum.products.toLocaleString()}</td>`;
     if(h.k==='stock') return`<td class="cell-num" style="font-weight:700;">${sum.stock.toLocaleString()}</td>`;
     if(h.k==='sohValue') return`<td class="cell-num" style="font-weight:700;">${sum.sohValue>0?'$'+Math.round(sum.sohValue).toLocaleString():'—'}</td>`;
@@ -2803,10 +2878,15 @@ function renderCategoryTotals(rows,headers){
     if(h.k==='critCount') return`<td class="cell-num" style="font-weight:700;color:var(--amber);">${sum.critCount}</td>`;
     if(h.k==='sellThru7') return`<td class="cell-num" style="font-weight:700;">${avgST!=null?avgST+'%':'—'}</td>`;
     if(h.k==='days') return`<td class="cell-num" style="font-weight:700;">${avgWks!=null?avgWks+'w avg':'—'}</td>`;
+    if(h.k==='margin') return`<td class="cell-num" style="font-weight:700;">${avgMargin!=null?avgMargin+'%':'—'}</td>`;
     return`<td></td>`;
   }).join('');
 
   return`<tr class="totals-row">${cells}</tr>`;
+}
+
+function renderCategoryTotals(rows,headers){
+  return renderTotalsRow(rows,headers);
 }
 
 function renderRow(row,headers){
@@ -2818,10 +2898,9 @@ function renderRow(row,headers){
     }
     if(h.k==='category') return`<td class="cell-muted">${val||'—'}</td>`;
     if(h.k==='vendor'){
-      const isEnd=(row.stock===0)&&((row.onOrder||0)+(row.productOnOrder||0)===0)&&row.flag!=='on-order';
-      const displayVal=isEnd?'END':(val||'');
+      const isEnd=displayVal==='OLD';
       const v=displayVal.toLowerCase();
-      const cls=isEnd?'rp-end':v==='core'?'rp-core':v==='indent'?'rp-indent':v==='clearance'?'rp-clearance':v==='bundle'?'rp-bundle':'rp-other';
+      const cls=isEnd?'rp-old':v==='new'?'rp-new':v==='current'?'rp-current':v==='core'?'rp-core':v==='old'?'rp-old':'rp-other';
       return`<td><span class="range-pill ${cls}">${displayVal||'—'}</span></td>`;
     }
     if(h.k==='sohValue'||h.k==='sellValue'){
