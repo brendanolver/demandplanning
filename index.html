@@ -526,6 +526,22 @@ th{position:relative;}
       </div>
     </div>
 
+    <!-- Source 05 — Variants Sold Out -->
+    <div class="upload-card" id="variants-soldout-card">
+      <div class="upload-step">
+        <div class="step-num">5</div>
+        <div class="step-body">
+          <div class="step-label">Source 05 · Shopify</div>
+          <div class="step-title">Variants with 0 Inventory <span style="font-size:11px;color:var(--teal);font-weight:500;">Optional</span></div>
+          <div class="step-desc">Export "Variants 0 inventory by Product" from Shopify — provides an accurate count of sold-out sizes per product. Overrides the count from Better Reports when uploaded.</div>
+          <label class="upload-btn" for="variants-soldout-file">
+            <span>↑</span> Upload Variants CSV
+          </label>
+          <div class="file-ok" id="variants-soldout-ok"><span>✓</span><span id="variants-soldout-fname"></span></div>
+        </div>
+      </div>
+    </div>
+
     <!-- Google Drive Import -->
     <div class="gdrive-section">
       <div class="gdrive-divider"><span>or import from</span></div>
@@ -547,6 +563,7 @@ th{position:relative;}
     <input type="file" id="sf-sales-file" accept=".csv" onchange="loadShopifySales(this)">
     <input type="file" id="am-file" accept=".csv" onchange="loadAM(this)">
     <input type="file" id="soldout-file" accept=".csv" onchange="loadSoldOut(this)">
+    <input type="file" id="variants-soldout-file" accept=".csv" onchange="loadVariantsSoldOut(this)">
   </div>
 
   <!-- Right preview panel -->
@@ -1639,7 +1656,7 @@ function togglePwVisibility(e){
 }
 
 /* ── STATE ── */
-let shopifyInvData=null, shopifySalesData=null, amData=null, soldOutData=null;
+let shopifyInvData=null, shopifySalesData=null, amData=null, soldOutData=null, variantsSoldOutData=null;
 let currentView='category', sortCol='days', sortDir='asc', currentPage=1;
 let selectedPeriod=7;
 const PAGE_SIZE=50;
@@ -1672,6 +1689,18 @@ function loadShopifySales(input){
     shopifySalesData=parseCSV(e.target.result);
     document.getElementById('sales-card').classList.add('loaded');
     document.getElementById('sf-sales-fname').textContent=file.name;
+    checkReady();
+  };
+  rd.readAsText(file);
+}
+
+function loadVariantsSoldOut(input){
+  const file=input.files[0];if(!file)return;
+  const rd=new FileReader();
+  rd.onload=e=>{
+    variantsSoldOutData=parseCSV(e.target.result);
+    document.getElementById('variants-soldout-card').classList.add('loaded');
+    document.getElementById('variants-soldout-fname').textContent=file.name;
     checkReady();
   };
   rd.readAsText(file);
@@ -1732,24 +1761,42 @@ function parseCSVLine(line){
 
 /* ── SOLD OUT + PRICE MAP ── */
 function buildSoldOutMap(){
-  // Returns {soMap: {productName||colour: count}, plMap: {titleUpper: {price,compareAt}}}
   const soMap={};
   const plMap={};
-  if(!soldOutData)return{soMap,plMap};
-  for(const row of soldOutData){
-    const title=(row['Product title']||'').trim().toUpperCase();
-    if(!title||title.startsWith('TOTAL '))continue;
-    const price=parseFloat(row['Price']||0)||0;
-    const compareAt=parseFloat(row['Compare at price']||0)||0;
-    const variants=parseInt(row['Total variants']||0)||0;
-    const deliveryMonth=(row["Product Metafield 'custom.delivery_month'"]||'').trim();
-    const dashIdx=title.lastIndexOf(' - ');
-    const productName=dashIdx>=0?title.slice(0,dashIdx):title;
-    const colour=dashIdx>=0?title.slice(dashIdx+3):'';
-    const soKey=productName+'||'+colour;
-    if(variants>0)soMap[soKey]=variants;
-    if(price>0)plMap[title]={price,compareAt:compareAt||price,deliveryMonth,cost:parseFloat(row['Cost']||0)||0};
+
+  // Build price/delivery month map from Better Reports (soldOutData)
+  if(soldOutData){
+    for(const row of soldOutData){
+      const title=(row['Product title']||'').trim().toUpperCase();
+      if(!title||title.startsWith('TOTAL '))continue;
+      const price=parseFloat(row['Price']||0)||0;
+      const compareAt=parseFloat(row['Compare at price']||0)||0;
+      const variants=parseInt(row['Total variants']||0)||0;
+      const deliveryMonth=(row["Product Metafield 'custom.delivery_month'"]||'').trim();
+      const dashIdx=title.lastIndexOf(' - ');
+      const productName=dashIdx>=0?title.slice(0,dashIdx):title;
+      const colour=dashIdx>=0?title.slice(dashIdx+3):'';
+      const soKey=productName+'||'+colour;
+      // Only use Better Reports for soMap if no dedicated variants file uploaded
+      if(!variantsSoldOutData&&variants>0)soMap[soKey]=variants;
+      if(price>0)plMap[title]={price,compareAt:compareAt||price,deliveryMonth,cost:parseFloat(row['Cost']||0)||0};
+    }
   }
+
+  // Override soMap with dedicated variants sold-out file if uploaded (more accurate)
+  if(variantsSoldOutData){
+    for(const row of variantsSoldOutData){
+      const title=(row['Product title']||'').trim().toUpperCase();
+      if(!title||title.startsWith('TOTAL '))continue;
+      const variants=parseInt(row['Total variants']||0)||0;
+      const dashIdx=title.lastIndexOf(' - ');
+      const productName=dashIdx>=0?title.slice(0,dashIdx):title;
+      const colour=dashIdx>=0?title.slice(dashIdx+3):'';
+      const soKey=productName+'||'+colour;
+      if(variants>0)soMap[soKey]=variants;
+    }
+  }
+
   return{soMap,plMap};
 }
 
@@ -2823,11 +2870,11 @@ function exportCSV(){
 
 /* ── RESET ── */
 function resetApp(){
-  shopifyInvData=null;shopifySalesData=null;amData=null;soldOutData=null;
+  shopifyInvData=null;shopifySalesData=null;amData=null;soldOutData=null;variantsSoldOutData=null;
   allVariantRows=[];
   document.getElementById('upload-screen').style.display='flex';
   document.getElementById('app').style.display='none';
-  ['shopify-card','sales-card','am-card','soldout-card'].forEach(id=>document.getElementById(id).classList.remove('loaded'));
+  ['shopify-card','sales-card','am-card','soldout-card','variants-soldout-card'].forEach(id=>document.getElementById(id).classList.remove('loaded'));
   document.getElementById('analyse-btn').classList.remove('ready');
   ['sf-inv-file','sf-sales-file','am-file'].forEach(id=>document.getElementById(id).value='');
   ['sf-inv-fname','sf-sales-fname','am-fname'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent='';});
