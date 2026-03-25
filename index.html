@@ -1535,29 +1535,50 @@ async function gdriveFetchFiles(){
     const folderId=folderData.files[0].id;
     status.textContent='📂 Folder found — fetching files...';
     const filesRes=await fetch(
-      `https://www.googleapis.com/drive/v3/files?q='${folderId}' in parents and trashed=false and mimeType='text/csv'&fields=files(id,name)`,
+      `https://www.googleapis.com/drive/v3/files?q='${folderId}' in parents and trashed=false and (mimeType='text/csv' or mimeType='application/vnd.google-apps.spreadsheet')&fields=files(id,name,mimeType,modifiedTime)&orderBy=modifiedTime desc`,
       {headers:{Authorization:`Bearer ${gdriveToken}`}}
     );
     const filesData=await filesRes.json();
     const files=filesData.files||[];
+
     const fileMap={
-      'shopify_inventory.csv':{loader:'inv'},
-      'shopify_sales.csv':{loader:'sales'},
-      'better_reports_all_products.csv':{loader:'soldout'},
-      'apparel_magic.csv':{loader:'am'},
+      'shopify_inventory.csv':{loader:'inv',exact:true,sheet:false},
+      'shopify_sales.csv':{loader:'sales',exact:true,sheet:false},
+      'Better Reports':{loader:'soldout',exact:false,sheet:true}, // Google Sheet, export as CSV
+      'Order Item Analysis':{loader:'am',exact:false,sheet:false},
     };
     let loaded=0,errors=[];
     status.textContent='⬇️ Downloading files...';
     for(const[filename,config]of Object.entries(fileMap)){
-      const match=files.find(f=>f.name.toLowerCase()===filename.toLowerCase());
+      let match;
+      if(config.exact){
+        match=files.find(f=>f.name.toLowerCase()===filename.toLowerCase());
+      } else {
+        // Pick latest by modifiedTime (already sorted desc by API)
+        match=files.find(f=>f.name.startsWith(filename));
+      }
       if(!match){errors.push(`"${filename}" not found`);continue;}
-      const dlRes=await fetch(`https://www.googleapis.com/drive/v3/files/${match.id}?alt=media`,{headers:{Authorization:`Bearer ${gdriveToken}`}});
-      const text=await dlRes.text();
+
+      let text;
+      if(config.sheet||match.mimeType==='application/vnd.google-apps.spreadsheet'){
+        // Export Google Sheet as CSV
+        const dlRes=await fetch(
+          `https://www.googleapis.com/drive/v3/files/${match.id}/export?mimeType=text/csv`,
+          {headers:{Authorization:`Bearer ${gdriveToken}`}}
+        );
+        text=await dlRes.text();
+      } else {
+        const dlRes=await fetch(
+          `https://www.googleapis.com/drive/v3/files/${match.id}?alt=media`,
+          {headers:{Authorization:`Bearer ${gdriveToken}`}}
+        );
+        text=await dlRes.text();
+      }
       const parsed=parseCSV(text);
       if(config.loader==='inv'){shopifyInvData=parsed;document.getElementById('shopify-card').classList.add('loaded');document.getElementById('sf-inv-fname').textContent=filename;}
       else if(config.loader==='sales'){shopifySalesData=parsed;document.getElementById('sales-card').classList.add('loaded');document.getElementById('sf-sales-fname').textContent=filename;}
       else if(config.loader==='soldout'){soldOutData=parsed;document.getElementById('soldout-card').classList.add('loaded');document.getElementById('soldout-fname').textContent=filename;}
-      else if(config.loader==='am'){amData=parsed;document.getElementById('am-card').classList.add('loaded');document.getElementById('am-fname').textContent=filename;}
+      else if(config.loader==='am'){amData=parsed;document.getElementById('am-card').classList.add('loaded');document.getElementById('am-fname').textContent=match.name;}
       loaded++;
     }
     checkReady();
@@ -1584,7 +1605,7 @@ function showGdriveSetup(){
     4. Add your Netlify URL to <strong>Authorised JavaScript origins</strong><br>
     5. Copy the Client ID into the <code>GDRIVE_CLIENT_ID</code> variable at the top of the script<br>
     6. Name your 4 files exactly and put them in one Drive folder:<br>
-    &nbsp;&nbsp;<strong>shopify_inventory.csv &nbsp;·&nbsp; shopify_sales.csv &nbsp;·&nbsp; better_reports_all_products.csv &nbsp;·&nbsp; apparel_magic.csv</strong>`;
+    &nbsp;&nbsp;<strong>shopify_inventory.csv &nbsp;·&nbsp; shopify_sales.csv &nbsp;·&nbsp; Better Reports</strong> (Google Sheet) &nbsp;·&nbsp; <strong>Order Item Analysis*.csv</strong> (latest)`;
   document.getElementById('gdrive-btn').after(div);
 }
 
