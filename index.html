@@ -851,6 +851,28 @@ th{position:relative;}
               </div>
             </div>
           </div>
+          <div id="cadence-cat-wrap" style="display:none;">
+            <div class="ms-wrap" id="ms-cad-cat">
+              <button class="ms-btn" onclick="toggleDropdown('ms-cad-cat')">
+                <span id="ms-cad-cat-label">All Categories</span><span class="ms-arrow">▾</span>
+              </button>
+              <div class="ms-dropdown" id="ms-cad-cat-dropdown">
+                <label class="ms-item ms-all"><input type="checkbox" checked onchange="toggleCadenceCatAll(this)"> All Categories</label>
+                <div id="ms-cad-cat-options"></div>
+              </div>
+            </div>
+          </div>
+          <div id="cadence-delmonth-wrap" style="display:none;">
+            <div class="ms-wrap" id="ms-cad-delmonth">
+              <button class="ms-btn" onclick="toggleDropdown('ms-cad-delmonth')">
+                <span id="ms-cad-delmonth-label">Month Del</span><span class="ms-arrow">▾</span>
+              </button>
+              <div class="ms-dropdown" id="ms-cad-delmonth-dropdown">
+                <label class="ms-item ms-all"><input type="checkbox" checked onchange="toggleCadenceDelMonthAll(this)"> All</label>
+                <div id="ms-cad-delmonth-options"></div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <div id="cadence-body">
@@ -931,9 +953,96 @@ function setCadenceView(view){
   document.getElementById('cad-prod').classList.toggle('active',view==='prod');
   document.getElementById('cadence-search-wrap').style.display=view==='prod'?'':'none';
   document.getElementById('cadence-status-wrap').style.display=view==='prod'?'':'none';
+  document.getElementById('cadence-cat-wrap').style.display=view==='prod'?'':'none';
+  document.getElementById('cadence-delmonth-wrap').style.display=view==='prod'?'':'none';
   if(view==='cat')document.getElementById('cadence-search').value='';
-  if(view==='prod')populateCadenceStatusFilter();
+  if(view==='prod'){populateCadenceStatusFilter();populateCadenceCatFilter();populateCadenceDelMonthFilter();}
   renderCadence();
+}
+
+function populateCadenceDelMonthFilter(){
+  const container=document.getElementById('ms-cad-delmonth-options');
+  if(!container)return;
+  const monthOrder={Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
+  const months=[...new Set(allVariantRows.map(r=>r.deliveryMonth).filter(d=>d&&d!=='CORE'))];
+  months.sort((a,b)=>{
+    const[am,ay]=a.split('-');const[bm,by]=b.split('-');
+    const ayF=parseInt(ay)<50?2000+parseInt(ay):1900+parseInt(ay);
+    const byF=parseInt(by)<50?2000+parseInt(by):1900+parseInt(by);
+    if(ayF!==byF)return byF-ayF;
+    return(monthOrder[bm]||0)-(monthOrder[am]||0);
+  });
+  container.innerHTML=
+    `<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="updateCadenceDelMonthLabel();renderCadence()"> CORE</label>`+
+    months.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="updateCadenceDelMonthLabel();renderCadence()"> ${m}</label>`).join('');
+}
+
+function toggleCadenceDelMonthAll(allCheckbox){
+  document.querySelectorAll('#ms-cad-delmonth-options input').forEach(b=>b.checked=allCheckbox.checked);
+  updateCadenceDelMonthLabel();renderCadence();
+}
+
+function updateCadenceDelMonthLabel(){
+  const boxes=[...document.querySelectorAll('#ms-cad-delmonth-options input')];
+  const checked=boxes.filter(b=>b.checked);
+  const label=document.getElementById('ms-cad-delmonth-label');
+  const btn=document.querySelector('#ms-cad-delmonth .ms-btn');
+  const allBox=document.querySelector('#ms-cad-delmonth .ms-all input');
+  if(allBox)allBox.checked=checked.length===boxes.length;
+  if(checked.length===0||checked.length===boxes.length){
+    label.textContent='Month Del';if(btn)btn.classList.remove('filtered');
+  } else {
+    label.textContent=checked.length===1?checked[0].value:`${checked.length} selected`;
+    if(btn)btn.classList.add('filtered');
+  }
+}
+
+function getCadenceSelectedDelMonths(){
+  const boxes=[...document.querySelectorAll('#ms-cad-delmonth-options input')];
+  if(!boxes.length)return[];
+  const checked=boxes.filter(b=>b.checked).map(b=>b.value);
+  if(checked.length===0||checked.length===boxes.length)return[];
+  return checked;
+}
+
+function populateCadenceCatFilter(){
+  const container=document.getElementById('ms-cad-cat-options');
+  if(!container)return;
+  const cats=[...new Set(allVariantRows.map(r=>r.category).filter(Boolean))].sort();
+  container.innerHTML=cats.map(v=>
+    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="updateCadenceCatLabel();renderCadence()"> ${v}</label>`
+  ).join('');
+}
+
+function toggleCadenceCatAll(allCheckbox){
+  const boxes=document.querySelectorAll('#ms-cad-cat-options input');
+  boxes.forEach(b=>b.checked=allCheckbox.checked);
+  updateCadenceCatLabel();
+  renderCadence();
+}
+
+function updateCadenceCatLabel(){
+  const boxes=[...document.querySelectorAll('#ms-cad-cat-options input')];
+  const checked=boxes.filter(b=>b.checked);
+  const label=document.getElementById('ms-cad-cat-label');
+  const btn=document.querySelector('#ms-cad-cat .ms-btn');
+  const allBox=document.querySelector('#ms-cad-cat .ms-all input');
+  if(allBox)allBox.checked=checked.length===boxes.length;
+  if(checked.length===0||checked.length===boxes.length){
+    label.textContent='All Categories';
+    if(btn)btn.classList.remove('filtered');
+  } else {
+    label.textContent=checked.length===1?checked[0].value:`${checked.length} selected`;
+    if(btn)btn.classList.add('filtered');
+  }
+}
+
+function getCadenceSelectedCats(){
+  const boxes=[...document.querySelectorAll('#ms-cad-cat-options input')];
+  if(!boxes.length)return[];
+  const checked=boxes.filter(b=>b.checked).map(b=>b.value);
+  if(checked.length===0||checked.length===boxes.length)return[];
+  return checked;
 }
 
 function populateCadenceStatusFilter(){
@@ -1009,12 +1118,16 @@ function renderCadence(){
     }
     getKey=null; // already built above
   } else {
-    // Group by product+colour, filter by search and status
+    // Group by product+colour, filter by search, status, category and month del
     const selectedStatuses=getCadenceSelectedStatuses();
+    const selectedCats=getCadenceSelectedCats();
+    const selectedDelMonths=getCadenceSelectedDelMonths();
     const prodSet=new Map();
     for(const r of allVariantRows){
       if(r.amOnly)continue;
       if(selectedStatuses.length&&!selectedStatuses.includes(r.vendor))continue;
+      if(selectedCats.length&&!selectedCats.includes(r.category))continue;
+      if(selectedDelMonths.length&&!selectedDelMonths.includes(r.deliveryMonth||''))continue;
       const k=r.productName+'||'+r.colour;
       if(!prodSet.has(k))prodSet.set(k,r.productName+(r.colour?' — '+r.colour:''));
     }
@@ -1022,8 +1135,8 @@ function renderCadence(){
       if(!search)return true;
       return k.toUpperCase().includes(search);
     }).sort();
-    // Limit to 50 results when no search to avoid overload
-    if(!search&&!selectedStatuses.length)rowKeys=rowKeys.slice(0,50);
+    // Limit to 50 results when no search/filters active
+    if(!search&&!selectedStatuses.length&&!selectedCats.length&&!selectedDelMonths.length)rowKeys=rowKeys.slice(0,50);
     rowLabel='Product';
     getKey=r=>r.productName+'||'+r.colour;
   }
@@ -1045,6 +1158,21 @@ function renderCadence(){
     }
   }
 
+  // Build SOH map per row key
+  const sohByKey={};
+  if(cadenceView==='cat'){
+    for(const r of allVariantRows){
+      const c=r.category||'UNCATEGORISED';
+      sohByKey[c]=(sohByKey[c]||0)+(r.stock||0);
+    }
+  } else {
+    for(const r of allVariantRows){
+      if(r.amOnly)continue;
+      const k=getKey(r);
+      sohByKey[k]=(sohByKey[k]||0)+(r.stock||0);
+    }
+  }
+
   // Display labels for product view
   const displayLabel=k=>{
     if(cadenceView==='cat')return k;
@@ -1054,12 +1182,14 @@ function renderCadence(){
 
   // Table
   const headers=periods.map(p=>`<th>${p.label}</th>`).join('');
+  const totalSoh=rowKeys.reduce((s,k)=>s+(sohByKey[k]||0),0);
   const tableRows=rowKeys.map(k=>{
+    const soh=sohByKey[k]||0;
     const cells=periods.map(p=>{
       const v=Math.round(data[k][p.label]||0);
       return`<td>${v>0?`<span class="cadence-cell-val">${v.toLocaleString()}</span>`:`<span class="cadence-cell-zero">—</span>`}</td>`;
     }).join('');
-    return`<tr><td>${displayLabel(k)}</td>${cells}</tr>`;
+    return`<tr><td>${displayLabel(k)}</td><td class="cell-num" style="font-weight:500;">${soh>0?soh.toLocaleString():'—'}</td>${cells}</tr>`;
   }).join('');
   const totalCells=periods.map(p=>`<td>${Math.round(totals[p.label]||0).toLocaleString()}</td>`).join('');
 
@@ -1073,10 +1203,10 @@ function renderCadence(){
     ${limitNote}
     ${noResults||`<div class="cadence-table-wrap">
       <table class="cadence-table">
-        <thead><tr><th>${rowLabel}</th>${headers}</tr></thead>
+        <thead><tr><th>${rowLabel}</th><th style="min-width:60px;">SOH</th>${headers}</tr></thead>
         <tbody>
           ${tableRows}
-          <tr class="cadence-total"><td>TOTAL</td>${totalCells}</tr>
+          <tr class="cadence-total"><td>TOTAL</td><td style="font-weight:700;">${totalSoh>0?totalSoh.toLocaleString():"—"}</td>${totalCells}</tr>
         </tbody>
       </table>
     </div>
