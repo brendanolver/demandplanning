@@ -867,12 +867,26 @@ function renderCadence(){
 
   const search=(document.getElementById('cadence-search')?.value||'').trim().toUpperCase();
 
+  const data={};
+  const totals={};
+  for(const p of periods)totals[p.label]=0;
+
   let rowKeys, rowLabel, getKey;
   if(cadenceView==='cat'){
-    // Group by category
-    rowKeys=[...new Set(allVariantRows.filter(r=>!r.amOnly).map(r=>r.category||'UNCATEGORISED'))].sort();
+    // Use ALL SKUs including draft for accurate historical category totals
+    const skuCatMap=window._skuCategoryMap||{};
+    rowKeys=[...new Set(Object.values(skuCatMap).filter(Boolean))].sort();
     rowLabel='Category';
-    getKey=r=>r.category||'UNCATEGORISED';
+    // For category view, sum directly from _salesBySkuDay using skuCatMap
+    for(const[sku,cat] of Object.entries(skuCatMap)){
+      if(!data[cat])data[cat]={};
+      const skuDays=getSoldInPeriodBreakdown(sku,periods);
+      for(const p of periods){
+        data[cat][p.label]=(data[cat][p.label]||0)+skuDays[p.label];
+        totals[p.label]=(totals[p.label]||0)+skuDays[p.label];
+      }
+    }
+    getKey=null; // already built above
   } else {
     // Group by product+colour, filter by search
     const prodSet=new Map();
@@ -891,20 +905,20 @@ function renderCadence(){
     getKey=r=>r.productName+'||'+r.colour;
   }
 
-  // Build data map
-  const data={};
-  const totals={};
-  for(const k of rowKeys)data[k]={};
-  for(const p of periods)totals[p.label]=0;
+  // Build data map (product view only — category view built inline above)
+  if(cadenceView==='prod'){
+    for(const k of rowKeys)data[k]={};
+    for(const p of periods)totals[p.label]=0;
 
-  for(const row of allVariantRows){
-    if(row.amOnly)continue;
-    const k=getKey(row);
-    if(!data[k])continue;
-    const skuDays=getSoldInPeriodBreakdown(row.sku,periods);
-    for(const p of periods){
-      data[k][p.label]=(data[k][p.label]||0)+skuDays[p.label];
-      totals[p.label]=(totals[p.label]||0)+skuDays[p.label];
+    for(const row of allVariantRows){
+      if(row.amOnly)continue;
+      const k=getKey(row);
+      if(!data[k])continue;
+      const skuDays=getSoldInPeriodBreakdown(row.sku,periods);
+      for(const p of periods){
+        data[k][p.label]=(data[k][p.label]||0)+skuDays[p.label];
+        totals[p.label]=(totals[p.label]||0)+skuDays[p.label];
+      }
     }
   }
 
@@ -1923,6 +1937,11 @@ function buildVariantRows(){
   const{variantMap:amVariantMap,productMap:amProductMap,products:amProducts}=buildAMData();
   const{salesBySkuDay,priceMap}=buildSalesMaps();
   window._salesBySkuDay=salesBySkuDay; // cache for cadence screen
+  // Cache full SKU→category map (ALL products inc. draft) for cadence accuracy
+  window._skuCategoryMap={};
+  for(const[sku,pm] of Object.entries(priceMap)){
+    window._skuCategoryMap[sku]=pm.category||'UNCATEGORISED';
+  }
   const{soMap,plMap}=buildSoldOutMap();
   allVariantRows=processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap);
   document.getElementById('nav-count').textContent=allVariantRows.length.toLocaleString()+' SKUs';
