@@ -840,6 +840,17 @@ th{position:relative;}
               <input type="text" id="cadence-search" placeholder="Search product..." oninput="renderCadence()">
             </div>
           </div>
+          <div id="cadence-status-wrap" style="display:none;">
+            <div class="ms-wrap" id="ms-cad-status">
+              <button class="ms-btn" onclick="toggleDropdown('ms-cad-status')">
+                <span id="ms-cad-status-label">All Statuses</span><span class="ms-arrow">▾</span>
+              </button>
+              <div class="ms-dropdown" id="ms-cad-status-dropdown">
+                <label class="ms-item ms-all"><input type="checkbox" checked onchange="toggleCadenceStatusAll(this)"> All Statuses</label>
+                <div id="ms-cad-status-options"></div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <div id="cadence-body">
@@ -919,8 +930,50 @@ function setCadenceView(view){
   document.getElementById('cad-cat').classList.toggle('active',view==='cat');
   document.getElementById('cad-prod').classList.toggle('active',view==='prod');
   document.getElementById('cadence-search-wrap').style.display=view==='prod'?'':'none';
+  document.getElementById('cadence-status-wrap').style.display=view==='prod'?'':'none';
   if(view==='cat')document.getElementById('cadence-search').value='';
+  if(view==='prod')populateCadenceStatusFilter();
   renderCadence();
+}
+
+function populateCadenceStatusFilter(){
+  const container=document.getElementById('ms-cad-status-options');
+  if(!container)return;
+  const vendors=[...new Set(allVariantRows.map(r=>r.vendor).filter(Boolean))].sort();
+  container.innerHTML=vendors.map(v=>
+    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="updateCadenceStatusLabel();renderCadence()"> ${v}</label>`
+  ).join('');
+}
+
+function toggleCadenceStatusAll(allCheckbox){
+  const boxes=document.querySelectorAll('#ms-cad-status-options input');
+  boxes.forEach(b=>b.checked=allCheckbox.checked);
+  updateCadenceStatusLabel();
+  renderCadence();
+}
+
+function updateCadenceStatusLabel(){
+  const boxes=[...document.querySelectorAll('#ms-cad-status-options input')];
+  const checked=boxes.filter(b=>b.checked);
+  const label=document.getElementById('ms-cad-status-label');
+  const btn=document.querySelector('#ms-cad-status .ms-btn');
+  const allBox=document.querySelector('#ms-cad-status .ms-all input');
+  if(allBox)allBox.checked=checked.length===boxes.length;
+  if(checked.length===0||checked.length===boxes.length){
+    label.textContent='All Statuses';
+    if(btn)btn.classList.remove('filtered');
+  } else {
+    label.textContent=checked.length===1?checked[0].value:`${checked.length} selected`;
+    if(btn)btn.classList.add('filtered');
+  }
+}
+
+function getCadenceSelectedStatuses(){
+  const boxes=[...document.querySelectorAll('#ms-cad-status-options input')];
+  if(!boxes.length)return[];
+  const checked=boxes.filter(b=>b.checked).map(b=>b.value);
+  if(checked.length===0||checked.length===boxes.length)return[];
+  return checked;
 }
 
 function renderCadence(){
@@ -956,10 +1009,12 @@ function renderCadence(){
     }
     getKey=null; // already built above
   } else {
-    // Group by product+colour, filter by search
+    // Group by product+colour, filter by search and status
+    const selectedStatuses=getCadenceSelectedStatuses();
     const prodSet=new Map();
     for(const r of allVariantRows){
       if(r.amOnly)continue;
+      if(selectedStatuses.length&&!selectedStatuses.includes(r.vendor))continue;
       const k=r.productName+'||'+r.colour;
       if(!prodSet.has(k))prodSet.set(k,r.productName+(r.colour?' — '+r.colour:''));
     }
@@ -968,7 +1023,7 @@ function renderCadence(){
       return k.toUpperCase().includes(search);
     }).sort();
     // Limit to 50 results when no search to avoid overload
-    if(!search)rowKeys=rowKeys.slice(0,50);
+    if(!search&&!selectedStatuses.length)rowKeys=rowKeys.slice(0,50);
     rowLabel='Product';
     getKey=r=>r.productName+'||'+r.colour;
   }
@@ -2099,12 +2154,19 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const compareAt=plEntry?plEntry.compareAt:(pm.compareAt||pm.price||0);
     const isCore=(vendor||'').toUpperCase()==='CORE';
 
-    // Delivery month: Better Reports > SKU decode; CORE always shows CORE
-    let deliveryMonth=plEntry?plEntry.deliveryMonth||'':'';
+    // Delivery month: SKU decode is authoritative; Better Reports as fallback; CORE always shows CORE
+    let deliveryMonth='';
     if(isCore){
       deliveryMonth='CORE';
-    } else if(!deliveryMonth){
-      deliveryMonth=decodeSkuDelivery(sku);
+    } else {
+      // SKU decode first — most reliable
+      const skuDecoded=decodeSkuDelivery(sku);
+      if(skuDecoded){
+        deliveryMonth=skuDecoded;
+      } else if(plEntry&&plEntry.deliveryMonth){
+        // Fall back to Better Reports only if SKU can't be decoded
+        deliveryMonth=plEntry.deliveryMonth;
+      }
     }
     deliveryMonth=normaliseDeliveryMonth(deliveryMonth);
 
@@ -2185,19 +2247,19 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const now=new Date();
     const threeMonthsAgo=new Date(now.getFullYear(),now.getMonth()-3,1);
 
-    // OLD — delivered more than 3 months ago, no on order, not CORE, has stock
-    // Also applies to CLEARANCE and BUNDLE with stock on hand
+    // OLD — delivered more than 3 months ago, no on order, not CORE
+    // Also applies to CLEARANCE and BUNDLE
     const isClearance=(vendor||'').toUpperCase()==='CLEARANCE';
     const isBundle=(vendor||'').toUpperCase()==='BUNDLE';
     const hasNoOrder=(onOrder||0)+(productOnOrder||0)===0;
     const isOldStyle=skuDeliveryDate&&skuDeliveryDate<threeMonthsAgo;
-    const isEnd=(isOldStyle&&hasNoOrder&&!isCore&&stock>0)||
-                ((isClearance||isBundle)&&stock>0);
+    const isEnd=(isOldStyle&&hasNoOrder&&!isCore)||
+                (isClearance||isBundle);
 
     // NEW — delivered this calendar month, not CORE/CLEARANCE/BUNDLE
     const isCurrentMonth=skuDeliveryDate&&skuDeliveryDate.getFullYear()===now.getFullYear()&&skuDeliveryDate.getMonth()===now.getMonth();
     // CURRENT — delivered within last 3 months (but not this month), not CORE/CLEARANCE/BUNDLE
-    const isCurrent=skuDeliveryDate&&skuDeliveryDate>=threeMonthsAgo&&!isCurrentMonth&&!isCore&&!isClearance&&!isBundle&&stock>0;
+    const isCurrent=skuDeliveryDate&&skuDeliveryDate>=threeMonthsAgo&&!isCurrentMonth&&!isCore&&!isClearance&&!isBundle;
 
     const isNew=isCurrentMonth&&!isCore&&!isClearance&&!isBundle;
     const effectiveVendor=isNew?'NEW':isEnd?'OLD':isCurrent?'CURRENT':vendor;
