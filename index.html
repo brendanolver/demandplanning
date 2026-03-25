@@ -1754,17 +1754,23 @@ function shortMonth(monthDue){
   return mon&&year?`${mon}${year}`:monthDue;
 }
 
-function getFlag(days,stock,onOrder,vendor){
-  if((vendor||'').toUpperCase()==='CLEARANCE')return'clearance'; // always clearance regardless of weeks
+function getFlag(days,stock,onOrder,vendor,discountPct){
+  if((vendor||'').toUpperCase()==='CLEARANCE')return'clearance';
   if(stock===0&&onOrder>0)return'on-order';
   if(stock===0)return'oos';
   if(days===null||days===undefined)return'oos';
   const d=parseFloat(days);
   if(isNaN(d)||d===0)return'oos';
   const weeks=d/7;
-  if(weeks<=14)return'reorder';
+  const isCore=(vendor||'').toUpperCase()==='CORE';
+  const isReduced=(discountPct||0)>0;
+  // Under 14w cover — re-order unless already discounted (being cleared out)
+  if(weeks<=14)return isReduced?'ok':'reorder';
+  // 14–26w — always OK
   if(weeks<=26)return'ok';
+  // Over 26w — reduce, unless CORE (always restock) or already discounted (being cleared)
   if(onOrder>0)return'ok';
+  if(isCore||isReduced)return'ok';
   return'reduce';
 }
 
@@ -1872,7 +1878,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
       }
     }
     const recalcWeeks=recalcDays!==null?+(recalcDays/7).toFixed(1):null;
-    const flag=getFlag(recalcDays,stock,onOrder,vendor);
+    const flag=getFlag(recalcDays,stock,onOrder,vendor,discountPct);
 
     rows.push({
       fullTitle:productName+' - '+colour,productName,colour,size,variant:size,sku,
@@ -2170,7 +2176,7 @@ function toProduct(vr){
       sellThru7:(p.sold>0&&(p.stock+p.sold)>0)?+(p.sold/(p.stock+p.sold)*100).toFixed(2):null,
       days:days===null?9999:days,
       daysDisplay:days===null?'—':+(days/7).toFixed(1),
-      flag:getFlag(days,p.stock,onOrder,p.vendor),
+      flag:getFlag(days,p.stock,onOrder,p.vendor,p.discountPct),
       sizes:[...new Set(p.sizes)].join(', '),
       soldOutSizes:p.soldOutSizes||null,
       deliveryMonth:p.deliveryMonth||'',
