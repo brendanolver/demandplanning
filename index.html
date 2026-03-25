@@ -966,7 +966,7 @@ function renderCadence(){
 function buildCadencePeriods(today){
   const periods=[];
   if(cadenceMode==='12m'){
-    for(let i=11;i>=0;i--){
+    for(let i=12;i>=0;i--){
       const d=new Date(today.getFullYear(),today.getMonth()-i,1);
       const end=new Date(d.getFullYear(),d.getMonth()+1,0);
       const label=d.toLocaleString('en-AU',{month:'short',year:'2-digit'});
