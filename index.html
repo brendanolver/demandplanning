@@ -2146,16 +2146,15 @@ function buildSalesMaps(){
 }
 
 function getSoldInPeriod(salesBySkuDay, sku, days){
-  // Sum qty sold in last N days from today
-  const today=new Date();
-  today.setHours(0,0,0,0);
-  const cutoff=new Date(today);
-  cutoff.setDate(cutoff.getDate()-days);
+  // Sum qty sold in last N days from today (local date)
+  const now=new Date();
+  const todayLocal=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const cutoffDate=new Date(now.getFullYear(),now.getMonth(),now.getDate()-days);
+  const cutoffLocal=`${cutoffDate.getFullYear()}-${String(cutoffDate.getMonth()+1).padStart(2,'0')}-${String(cutoffDate.getDate()).padStart(2,'0')}`;
   const dayData=salesBySkuDay[sku]||{};
   let qty=0, cogs=0;
   for(const[day,d] of Object.entries(dayData)){
-    const dt=new Date(day);
-    if(dt>=cutoff&&dt<=today){qty+=d.qty;cogs+=d.cogs;}
+    if(day>=cutoffLocal&&day<=todayLocal){qty+=d.qty;cogs+=d.cogs;}
   }
   return{qty,cogs};
 }
@@ -2376,12 +2375,19 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const s90=getSoldInPeriod(salesBySkuDay,sku,90);
     const s365=getSoldInPeriod(salesBySkuDay,sku,365);
 
-    // Sold today and yesterday — based on actual dates in sales file
-    const skuDays=Object.keys(salesBySkuDay[sku]||{}).sort();
-    const latestDay=skuDays.length?skuDays[skuDays.length-1]:null;
-    const soldYesterday=latestDay?(salesBySkuDay[sku][latestDay]?.qty||0):0;
-    const todayStr=new Date().toISOString().slice(0,10);
+    // Sold today and yesterday — use local date (Melbourne AEDT/AEST)
+    const nowLocal=new Date();
+    const localDateStr=d=>{ 
+      const y=d.getFullYear();
+      const m=String(d.getMonth()+1).padStart(2,'0');
+      const day=String(d.getDate()).padStart(2,'0');
+      return`${y}-${m}-${day}`;
+    };
+    const todayStr=localDateStr(nowLocal);
+    const yesterdayDate=new Date(nowLocal);yesterdayDate.setDate(yesterdayDate.getDate()-1);
+    const yesterdayStr=localDateStr(yesterdayDate);
     const soldToday=(salesBySkuDay[sku]||{})[todayStr]?.qty||0;
+    const soldYesterday=(salesBySkuDay[sku]||{})[yesterdayStr]?.qty||0;
 
     // Primary sold/cogs based on selected period
     const sPrimary=getSoldInPeriod(salesBySkuDay,sku,selectedPeriod);
@@ -2660,6 +2666,8 @@ function buildDashboard(){
   document.getElementById('upload-screen').style.display='none';
   document.getElementById('app').style.display='flex';
   currentView='category'; // always start on category view
+  // Clear AM cache to ensure style field is picked up from latest buildAMData logic
+  _cachedAMData=null;
   buildVariantRows();
 
   const oos=allVariantRows.filter(r=>r.flag==='oos').length;
