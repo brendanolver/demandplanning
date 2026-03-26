@@ -248,7 +248,7 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .plan-table tr.plan-total-row td.plan-cat{background:var(--navy);color:white;}
 .plan-input{width:60px;padding:4px 6px;border:1px solid var(--border);border-radius:4px;font-family:'Inter',sans-serif;font-size:11px;text-align:center;background:var(--surface);color:var(--text);outline:none;}
 .plan-input:focus{border-color:var(--teal);box-shadow:0 0 0 2px rgba(14,165,160,0.15);}
-.plan-input.growth-input{width:52px;background:#f0fdf4;border-color:#86efac;}
+.plan-input.growth-input{width:72px;background:#f0fdf4;border-color:#86efac;font-size:14px;font-weight:700;text-align:center;padding:6px 8px;}
 .plan-input.growth-input:focus{border-color:var(--teal);}
 .plan-budget{font-weight:600;color:var(--text);}
 .plan-onorder{color:var(--purple);font-weight:500;}
@@ -1211,13 +1211,31 @@ function renderCadence(){
   const totalSoh=rowKeys.reduce((s,k)=>s+(sohByKey[k]||0),0);
   const tableRows=rowKeys.map(k=>{
     const soh=sohByKey[k]||0;
-    const cells=periods.map(p=>{
+    const cells=periods.map((p,i)=>{
       const v=Math.round(data[k][p.label]||0);
-      return`<td>${v>0?`<span class="cadence-cell-val">${v.toLocaleString()}</span>`:`<span class="cadence-cell-zero">—</span>`}</td>`;
+      // Compare to next period (older) — periods are newest first
+      const prev=periods[i+1]?Math.round(data[k][periods[i+1].label]||0):null;
+      let color='';
+      if(v>0&&prev!==null){
+        if(v>prev)color='color:#16a34a;font-weight:700;';
+        else if(v<prev)color='color:var(--red);font-weight:600;';
+        // same = no colour
+      }
+      return`<td>${v>0?`<span class="cadence-cell-val" style="${color}">${v.toLocaleString()}</span>`:`<span class="cadence-cell-zero">—</span>`}</td>`;
     }).join('');
     return`<tr><td>${displayLabel(k)}</td><td class="cell-num" style="font-weight:500;">${soh>0?soh.toLocaleString():'—'}</td>${cells}</tr>`;
   }).join('');
-  const totalCells=periods.map(p=>`<td>${Math.round(totals[p.label]||0).toLocaleString()}</td>`).join('');
+  // Totals row — also colour by comparison to previous period
+  const totalCells=periods.map((p,i)=>{
+    const v=Math.round(totals[p.label]||0);
+    const prev=periods[i+1]?Math.round(totals[periods[i+1].label]||0):null;
+    let color='';
+    if(v>0&&prev!==null){
+      if(v>prev)color='color:#16a34a;font-weight:700;';
+      else if(v<prev)color='color:var(--red);font-weight:600;';
+    }
+    return`<td style="${color}">${v.toLocaleString()}</td>`;
+  }).join('');
 
   const limitNote=cadenceView==='prod'&&!search&&!getCadenceSelectedStatuses().length&&!getCadenceSelectedCats().length&&!getCadenceSelectedDelMonths().length?`<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">Showing top 50 products — use search or filters to find specific products.</div>`:'';
   const noResults=rowKeys.length===0?`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No products found</div><div class="insights-empty-sub">Try a different search term.</div></div>`:'';
@@ -1423,17 +1441,18 @@ function renderPlanning(){
   }
 
   const monthHeaders=months.map(m=>`
-    <th class="plan-month" colspan="4" style="border-left:2px solid rgba(255,255,255,0.15);">${m.label}</th>`).join('');
+    <th class="plan-month" colspan="5" style="border-left:2px solid rgba(255,255,255,0.15);">${m.label}</th>`).join('');
 
   const subHeaders=months.map(()=>`
     <th style="border-left:2px solid var(--border);">Budget</th>
+    <th>SOH</th>
     <th>On Order</th>
     <th>To Order</th>
     <th>Variance</th>`).join('');
 
   const growthCells=months.map(m=>{
     const gVal=saved[`growth_${m.key}`]||'';
-    return`<td colspan="4" style="border-left:2px solid var(--border);padding:4px 6px;">
+    return`<td colspan="5" style="border-left:2px solid var(--border);padding:4px 6px;">
         <div style="display:flex;align-items:center;gap:4px;justify-content:center;">
           <input class="plan-input growth-input" type="number" step="1" min="-100" max="200"
             placeholder="0" value="${gVal}"
@@ -1456,12 +1475,13 @@ function renderPlanning(){
       const onOrder=Math.round(onOrderData[cat]?.[m.key]||0);
       const toOrderVal=saved[`to_${cat}_${m.key}`]||'';
       const toOrder=parseInt(toOrderVal)||0;
-      const variance=(onOrder+toOrder)-budget;
+      const variance=(soh+onOrder+toOrder)-budget;
       const varClass=budget===0?'':variance>=0?'plan-variance-ok':'plan-variance-warn';
       const varLabel=budget===0?'—':(variance>=0?'+':'')+variance.toLocaleString();
       return`
         <td style="border-left:2px solid var(--border);">
           <span class="plan-budget">${budget>0?budget.toLocaleString():'—'}</span></td>
+        <td><span class="${soh>0?'plan-soh':'cell-muted'}">${soh>0?soh.toLocaleString():'—'}</span></td>
         <td><span class="${onOrder>0?'plan-onorder':'cell-muted'}">${onOrder>0?onOrder.toLocaleString():'—'}</span></td>
         <td style="padding:3px 5px;">
           <input class="plan-input" type="number" min="0" step="1" placeholder="0" value="${toOrderVal}"
@@ -1478,16 +1498,18 @@ function renderPlanning(){
 
   const totalCells=months.map(m=>{
     const growth=parseFloat(saved[`growth_${m.key}`]||0)||0;
-    let tb=0,too=0,tto=0;
+    let tb=0,tsoh=0,too=0,tto=0;
     for(const cat of cats){
       tb+=Math.round((lyData[cat]?.[m.key]||0)*(1+growth/100));
+      tsoh+=catSoh[cat]||0;
       too+=Math.round(onOrderData[cat]?.[m.key]||0);
       tto+=parseInt(saved[`to_${cat}_${m.key}`]||0)||0;
     }
-    const variance=(too+tto)-tb;
+    const variance=(tsoh+too+tto)-tb;
     const varClass=tb===0?'':variance>=0?'plan-variance-ok':'plan-variance-warn';
     return`
       <td style="border-left:2px solid var(--border);font-weight:700;">${tb>0?tb.toLocaleString():'—'}</td>
+      <td style="font-weight:700;color:var(--text-secondary);">${tsoh>0?tsoh.toLocaleString():'—'}</td>
       <td style="font-weight:700;color:var(--purple);">${too>0?too.toLocaleString():'—'}</td>
       <td style="font-weight:700;">${tto>0?tto.toLocaleString():'—'}</td>
       <td><span class="${varClass}" style="font-size:12px;">${tb===0?'—':((variance>=0?'+':'')+variance.toLocaleString())}</span></td>`;
@@ -1498,8 +1520,8 @@ function renderPlanning(){
       <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--teal)"></div>12w+ cover — healthy</div>
       <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--red)"></div>Under 12w — reorder risk</div>
       <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--purple)"></div>On Order from Apparel Magic</div>
-      <div class="plan-legend-item" style="color:var(--teal);">▲ Variance green = covered</div>
-      <div class="plan-legend-item" style="color:var(--red);">▼ Variance red = short</div>
+      <div class="plan-legend-item" style="color:var(--text-secondary);">Variance = SOH + On Order + To Order − Budget</div>
+      <div class="plan-legend-item" style="color:var(--teal);">▲ Green = covered &nbsp;|&nbsp; <span style="color:var(--red);">▼ Red = short</span></div>
     </div>
     <div class="plan-table-wrap">
       <table class="plan-table">
@@ -2131,6 +2153,7 @@ function buildAMData(){
     const colour=(row['COLOUR']||'').trim().toUpperCase();
     const size=(row['SIZE']||'').trim().toUpperCase();
     const monthDue=(row['Month Due']||'').trim();
+    const style=(row['Style']||'').trim(); // SKU prefix e.g. W26FA005BLK
     const category=(row['Category']||'').trim().toUpperCase();
     const qtyOpen=parseInt((row['Qty Open']||'0').replace(/[^0-9]/g,''))||0;
     const units=parseFloat(row['Units']||0)||0;
@@ -2143,11 +2166,15 @@ function buildAMData(){
     if(category)products[desc].category=category;
     if(size){
       const vKey=desc+'||'+colour+'||'+size;
-      if(!variantMap[vKey])variantMap[vKey]={qtyOpen,monthDue:monthDue||'',category:category||'',amCostPerUnit};
+      if(!variantMap[vKey])variantMap[vKey]={qtyOpen,monthDue:monthDue||'',style,category:category||'',amCostPerUnit};
     } else if(monthDue){
       const pKey=desc+'||'+colour;
-      if(!productMap[pKey])productMap[pKey]={qtyOpen,monthDue:monthDue||'',category:category||'',amCostPerUnit};
+      if(!productMap[pKey])productMap[pKey]={qtyOpen,monthDue:monthDue||'',style,category:category||'',amCostPerUnit};
     }
+    // Also store at product level for AM-only delivery month lookup
+    const pKey=desc+'||'+colour;
+    if(!productMap[pKey])productMap[pKey]={qtyOpen:0,monthDue:monthDue||'',style,category:category||'',amCostPerUnit:0};
+    else if(!productMap[pKey].style&&style)productMap[pKey].style=style;
   }
   return{variantMap,productMap,products};
 }
@@ -2298,7 +2325,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const compareAt=plEntry?plEntry.compareAt:(pm.compareAt||pm.price||0);
     const isCore=(vendor||'').toUpperCase()==='CORE';
 
-    // Delivery month: SKU decode is authoritative; Better Reports as fallback; CORE always shows CORE
+    // Delivery month: SKU decode is authoritative; Better Reports as fallback; CORE always shows CORE; AM as last resort
     let deliveryMonth='';
     if(isCore){
       deliveryMonth='CORE';
@@ -2310,6 +2337,12 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
       } else if(plEntry&&plEntry.deliveryMonth){
         // Fall back to Better Reports only if SKU can't be decoded
         deliveryMonth=plEntry.deliveryMonth;
+      } else {
+        // Last resort: use AM Month Due if available
+        const amEntry=amVariantMap[productName+'||'+colour+'||'+size]||
+                      amVariantMap[productName+'||'+colour+'||OS']||
+                      amProductMap[productName+'||'+colour];
+        if(amEntry?.monthDue) deliveryMonth=amEntry.monthDue;
       }
     }
     deliveryMonth=normaliseDeliveryMonth(deliveryMonth);
@@ -2442,35 +2475,56 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
         const productEntry=amProductMap[pKey];
         const totalOnOrder=productEntry?productEntry.qtyOpen:0;
         const monthDue=productEntry?productEntry.monthDue:'';
+        const amStyle=productEntry?.style||'';
         if(totalOnOrder===0)continue;
         const category=productEntry?.category||info.category||'';
+        // Determine status for AM-only product based on delivery month
+        const amVendor=(()=>{
+          if(!amDeliveryMonth||amDeliveryMonth==='CORE')return'NEW';
+          const now=new Date();
+          const parts=amDeliveryMonth.split('-');
+          if(parts.length<2)return'NEW';
+          const mo={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11}[parts[0]]??-1;
+          const yr=parseInt(parts[1])<50?2000+parseInt(parts[1]):1900+parseInt(parts[1]);
+          if(mo<0)return'NEW';
+          const delDate=new Date(yr,mo,1);
+          const threeMonthsAgo=new Date(now.getFullYear(),now.getMonth()-3,1);
+          if(delDate.getFullYear()===now.getFullYear()&&delDate.getMonth()===now.getMonth())return'NEW';
+          if(delDate>=threeMonthsAgo)return'CURRENT';
+          return'OLD';
+        })();
         const sizeEntries=Object.entries(amVariantMap)
           .filter(([k])=>k.startsWith(pKey+'||'))
-          .map(([k,v])=>({size:k.split('||')[2],qtyOpen:v.qtyOpen,monthDue:v.monthDue||monthDue}));
+          .map(([k,v])=>({size:k.split('||')[2],qtyOpen:v.qtyOpen,monthDue:v.monthDue||monthDue,
+            deliveryMonth:normaliseDeliveryMonth(decodeSkuDelivery(v.style||amStyle)||v.monthDue||monthDue||'')}));
         if(sizeEntries.length>0){
           for(const se of sizeEntries){
             rows.push({
               fullTitle:desc+' - '+colour,productName:desc,colour,
-              size:se.size,variant:se.size,sku:'—',
-              category,vendor:'INDENT',
+              size:se.size,variant:se.size,sku:amStyle||'—',
+              category,vendor:amVendor,
               stock:0,price:null,compareAt:null,discountPct:null,margin:null,
               velocity:0,vel7:null,vel30:null,
               sold7:0,sold30:0,sold90:0,sold365:0,sold:0,sellThru7:null,
+              soldToday:0,soldYesterday:0,
               days:9999,daysDisplay:'—',
               onOrder:se.qtyOpen,productOnOrder:totalOnOrder,
-              monthDue:se.monthDue,flag:'on-order',amOnly:true
+              monthDue:se.monthDue,deliveryMonth:se.deliveryMonth,
+              flag:'on-order',amOnly:true,sohValue:null,sellValue:null,soldOutSizes:null
             });
           }
         } else {
           rows.push({
-            fullTitle:desc+' - '+colour,productName:desc,colour,size:'—',variant:'—',sku:'—',
-            category,vendor:'INDENT',
+            fullTitle:desc+' - '+colour,productName:desc,colour,size:'—',variant:'—',sku:amStyle||'—',
+            category,vendor:amVendor,
             stock:0,price:null,compareAt:null,discountPct:null,margin:null,
             velocity:0,vel7:null,vel30:null,
             sold7:0,sold30:0,sold90:0,sold365:0,sold:0,sellThru7:null,
+            soldToday:0,soldYesterday:0,
             days:9999,daysDisplay:'—',
             onOrder:null,productOnOrder:totalOnOrder,
-            monthDue,flag:'on-order',amOnly:true
+            monthDue,deliveryMonth:amDeliveryMonth,
+            flag:'on-order',amOnly:true,sohValue:null,sellValue:null,soldOutSizes:null
           });
         }
       }
