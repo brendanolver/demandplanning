@@ -3036,7 +3036,15 @@ function getFilteredRows(){
   });
 
   // Flag filter applied after aggregation (flags are recalculated on aggregated rows)
-  if(flags.length) rows=rows.filter(r=>flags.includes(r.flag));
+  if(flags.length) rows=rows.filter(r=>{
+    // For on-order filter, check actual on order units (catches CORE + other statuses)
+    if(!flags.includes('on-order')&&((r.onOrder||0)+(r.productOnOrder||0))>0)return false;
+    // For other flags, match normally
+    if(flags.includes(r.flag))return true;
+    // If on-order is included and this row has on order units, include it
+    if(flags.includes('on-order')&&((r.onOrder||0)+(r.productOnOrder||0))>0)return true;
+    return false;
+  });
 
   // Apply column-level filters
   rows=applyColFilterToRows(rows);
