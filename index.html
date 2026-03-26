@@ -2493,9 +2493,12 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
         const pKey=desc+'||'+colour;
         if(shopKeys.has(pKey))continue;
         const productEntry=amProductMap[pKey];
-        const totalOnOrder=productEntry?productEntry.qtyOpen:0;
         const monthDue=productEntry?productEntry.monthDue:'';
         const amStyle=productEntry?.style||'';
+        // Calculate totalOnOrder from variant map entries (more reliable than productMap subtotal)
+        const variantEntries=Object.entries(amVariantMap).filter(([k])=>k.startsWith(pKey+'||'));
+        const totalOnOrderFromVariants=variantEntries.reduce((s,[,v])=>s+(v.qtyOpen||0),0);
+        const totalOnOrder=totalOnOrderFromVariants||(productEntry?productEntry.qtyOpen:0);
         if(totalOnOrder===0)continue;
         const category=productEntry?.category||info.category||'';
         // Decode delivery month from AM Style SKU, fall back to AM Month Due
