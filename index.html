@@ -2324,6 +2324,13 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const s90=getSoldInPeriod(salesBySkuDay,sku,90);
     const s365=getSoldInPeriod(salesBySkuDay,sku,365);
 
+    // Sold today and yesterday — based on actual dates in sales file
+    const skuDays=Object.keys(salesBySkuDay[sku]||{}).sort();
+    const latestDay=skuDays.length?skuDays[skuDays.length-1]:null;
+    const soldYesterday=latestDay?(salesBySkuDay[sku][latestDay]?.qty||0):0;
+    const todayStr=new Date().toISOString().slice(0,10);
+    const soldToday=(salesBySkuDay[sku]||{})[todayStr]?.qty||0;
+
     // Primary sold/cogs based on selected period
     const sPrimary=getSoldInPeriod(salesBySkuDay,sku,selectedPeriod);
     const sold=sPrimary.qty;
@@ -2415,6 +2422,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
       price,compareAt,discountPct,margin,
       velocity,vel7,vel30,
       sold7:s7.qty,sold30:s30.qty,sold90:s90.qty,sold365:s365.qty,
+      soldToday,soldYesterday,
       sold,sellThru7:sellThru,
       days:recalcDays===null?9999:recalcDays,
       daysDisplay:recalcWeeks===null?'—':recalcWeeks===0?'0':recalcWeeks,
@@ -2769,6 +2777,7 @@ function toProduct(vr){
     if(!map[key]){
       map[key]={...r,velSum:r.velocity,stock:r.stock,sold:r.sold,
         sold7:r.sold7||0,sold30:r.sold30||0,sold90:r.sold90||0,sold365:r.sold365||0,
+        soldToday:r.soldToday||0,soldYesterday:r.soldYesterday||0,
         onOrder:r.onOrder!==null?(r.onOrder||0):(r.productOnOrder||0),
         sizes:r.size&&r.size!=='—'?[r.size]:[],
         earliestDue:r.monthDue,earliestKey:monthDueSortKey(r.monthDue),
@@ -2780,6 +2789,8 @@ function toProduct(vr){
       p.stock+=r.stock;p.sold+=r.sold;
       p.sold7+=(r.sold7||0);p.sold30+=(r.sold30||0);
       p.sold90+=(r.sold90||0);p.sold365+=(r.sold365||0);
+      p.soldToday+=(r.soldToday||0);
+      p.soldYesterday+=(r.soldYesterday||0);
       p.velSum+=r.velocity;p.count++;
       p.onOrder+=(r.onOrder!==null?(r.onOrder||0):(r.productOnOrder||0));
       if(r.price){p.priceSum+=r.price;p.priceCount++;}
@@ -2820,12 +2831,15 @@ function toCategory(vr){
   for(const r of vr){
     const key=r.category||'UNCATEGORISED';
     if(!map[key])map[key]={category:key,stock:0,sold:0,sold7:0,sold30:0,sold90:0,sold365:0,
+      soldToday:0,soldYesterday:0,
       onOrder:0,velSum:0,vel7Sum:0,vel30Sum:0,sohValue:0,sellValue:0,
       productSet:new Set(),
       oosCount:0,critCount:0,earliestDue:'',earliestKey:999999};
     const c=map[key];
     c.stock+=r.stock;c.sold+=r.sold;c.velSum+=r.velocity;
     c.sold7+=(r.sold7||0);c.sold30+=(r.sold30||0);
+    c.soldToday+=(r.soldToday||0);
+    c.soldYesterday+=(r.soldYesterday||0);
     c.sold90+=(r.sold90||0);c.sold365+=(r.sold365||0);
     c.vel7Sum+=(r.vel7||0);
     c.vel30Sum+=(r.vel30||0);
@@ -2862,7 +2876,7 @@ function toCategory(vr){
 const colFilters={};  // {colKey: {op1, v1, op2, v2}}
 
 // Numeric columns use number operators; text/flag columns use text operators
-const NUM_COLS=new Set(['stock','sold7','sold30','sold90','sold365','onOrder','vel7','vel30','days','products','oosCount','critCount','sellThru7','price','compareAt','discountPct','margin','soldOutSizes','sohValue','sellValue']);
+const NUM_COLS=new Set(['stock','sold7','sold30','sold90','sold365','soldToday','soldYesterday','onOrder','vel7','vel30','days','products','oosCount','critCount','sellThru7','price','compareAt','discountPct','margin','soldOutSizes','sohValue','sellValue']);
 const TEXT_COLS=new Set(['productName','category','vendor','size','sku','flag','monthDue']);
 
 function getCondOpts(colKey){
@@ -3087,28 +3101,30 @@ function renderTable(){
   const catHeaders=[
     {k:'category',l:'Category'},{k:'products',l:'Products'},
     {k:'sellThru7',l:stLabel},{k:'stock',l:'SOH'},{k:'sohValue',l:'SOH Value'},{k:'sellValue',l:'Sell Value'},
+    {k:'soldToday',l:'Today'},{k:'soldYesterday',l:'Yest'},
     {k:'sold',l:soldLabel},
     {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},
     {k:'days',l:'Weeks Cover'},
     {k:'oosCount',l:'OOS'},{k:'critCount',l:'Re-Order'},{k:'flag',l:'Stock Status'}
   ];
   const prodHeaders=[
-    {k:'productName',l:'Product'},{k:'category',l:'Category'},{k:'vendor',l:'Status'},
+    {k:'productName',l:'Product'},{k:'category',l:'Category'},{k:'discountPct',l:'Disc%'},{k:'vendor',l:'Status'},
     {k:'deliveryMonth',l:'Month Del'},
     {k:'sellThru7',l:stLabel},{k:'stock',l:'SOH'},{k:'sohValue',l:'SOH Value'},{k:'sellValue',l:'Sell Value'},
+    {k:'soldToday',l:'Today'},{k:'soldYesterday',l:'Yest'},
     {k:'sold',l:soldLabel},
     {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},
     {k:'soldOutSizes',l:'Sizes Sold Out'},
-    {k:'price',l:'Price'},{k:'compareAt',l:'RRP'},{k:'discountPct',l:'Disc%'},{k:'margin',l:'Margin%'},
+    {k:'price',l:'Price'},{k:'compareAt',l:'RRP'},{k:'margin',l:'Margin%'},
     {k:'days',l:'Weeks Cover'},{k:'flag',l:'Stock Status'}
   ];
   const varHeaders=[
     {k:'productName',l:'Product'},{k:'size',l:'Size'},{k:'sku',l:'SKU'},
-    {k:'category',l:'Category'},{k:'vendor',l:'Status'},
+    {k:'category',l:'Category'},{k:'discountPct',l:'Disc%'},{k:'vendor',l:'Status'},
     {k:'deliveryMonth',l:'Month Del'},
-    {k:'sellThru7',l:stLabel},{k:'stock',l:'SOH'},{k:'sold',l:soldLabel},
+    {k:'sellThru7',l:stLabel},{k:'stock',l:'SOH'},{k:'soldToday',l:'Today'},{k:'soldYesterday',l:'Yest'},{k:'sold',l:soldLabel},
     {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},
-    {k:'price',l:'Price'},{k:'compareAt',l:'RRP'},{k:'discountPct',l:'Disc%'},{k:'margin',l:'Margin%'},
+    {k:'price',l:'Price'},{k:'compareAt',l:'RRP'},{k:'margin',l:'Margin%'},
     {k:'days',l:'Weeks Cover'},{k:'flag',l:'Stock Status'}
   ];
 
@@ -3180,6 +3196,8 @@ function renderTotalsRow(rows,headers){
     if(h.k==='sohValue') return`<td class="cell-num" style="font-weight:700;">${sum.sohValue>0?'$'+Math.round(sum.sohValue).toLocaleString():'—'}</td>`;
     if(h.k==='sellValue') return`<td class="cell-num" style="font-weight:700;">${sum.sellValue>0?'$'+Math.round(sum.sellValue).toLocaleString():'—'}</td>`;
     if(h.k==='sold') return`<td class="cell-num" style="font-weight:700;">${sum.sold.toLocaleString()}</td>`;
+    if(h.k==='soldYesterday'){const sy=rows.reduce((s,r)=>s+(r.soldYesterday||0),0);return`<td class="cell-num" style="font-weight:700;color:var(--teal);">${sy>0?sy.toLocaleString():'—'}</td>`;}
+    if(h.k==='soldToday'){const st=rows.reduce((s,r)=>s+(r.soldToday||0),0);return`<td class="cell-num" style="font-weight:700;color:var(--teal);">${st>0?st.toLocaleString():'—'}</td>`;}
     if(h.k==='onOrder') return`<td class="cell-num" style="font-weight:700;">${sum.onOrder>0?sum.onOrder.toLocaleString():'—'}</td>`;
     if(h.k==='oosCount') return`<td class="cell-num" style="font-weight:700;color:var(--red);">${sum.oosCount}</td>`;
     if(h.k==='critCount') return`<td class="cell-num" style="font-weight:700;color:var(--amber);">${sum.critCount}</td>`;
@@ -3210,6 +3228,14 @@ function renderRow(row,headers){
       const v=displayVal.toLowerCase();
       const cls=isEnd?'rp-old':v==='new'?'rp-new':v==='current'?'rp-current':v==='core'?'rp-core':v==='old'?'rp-old':'rp-other';
       return`<td><span class="range-pill ${cls}">${displayVal||'—'}</span></td>`;
+    }
+    if(h.k==='soldToday'){
+      if(!val||val===0)return`<td class="cell-muted">—</td>`;
+      return`<td class="cell-num" style="color:var(--teal);font-weight:700;">${val.toLocaleString()}</td>`;
+    }
+    if(h.k==='soldYesterday'){
+      if(!val||val===0)return`<td class="cell-muted">—</td>`;
+      return`<td class="cell-num" style="color:var(--teal);font-weight:600;">${val.toLocaleString()}</td>`;
     }
     if(h.k==='sohValue'||h.k==='sellValue'){
       if(!val||val===0)return`<td class="cell-muted">—</td>`;
@@ -3311,9 +3337,9 @@ function exportCSV(){
   const soldLabel=`Sold (${selectedPeriod}d)`;
   const stLabel=`ST% (${selectedPeriod}d)`;
   const h=currentView==='category'
-    ?['Category','Products',stLabel,'SOH','SOH Value','Sell Value',soldLabel,'On Order','Month Due','Weeks Cover','OOS','Re-Order','Stock Status']
+    ?['Category','Products',stLabel,'SOH','SOH Value','Sell Value','Today','Yest',soldLabel,'On Order','Month Due','Weeks Cover','OOS','Re-Order','Stock Status']
     :currentView==='product'
-    ?['Product','Colour','Category','Status','Month Del',stLabel,'SOH','SOH Value','Sell Value',soldLabel,'On Order','Month Due','Sizes Sold Out','Price','RRP','Disc%','Margin%','Weeks Cover','Stock Status']
+    ?['Product','Colour','Category','Status','Month Del',stLabel,'SOH','SOH Value','Sell Value','Today','Yest',soldLabel,'On Order','Month Due','Sizes Sold Out','Price','RRP','Disc%','Margin%','Weeks Cover','Stock Status']
     :['Product','Colour','Size','SKU','Category','Status','Month Del',stLabel,'SOH',soldLabel,'On Order','Month Due','Price','RRP','Disc%','Margin%','Weeks Cover','Stock Status'];
   const lines=[h.join(',')];
   for(const r of rows){
@@ -3326,9 +3352,9 @@ function exportCSV(){
     const sohVal=r.sohValue?Math.round(r.sohValue):'';
     const sellVal=r.sellValue?Math.round(r.sellValue):'';
     if(currentView==='category')
-      v=[r.category,r.products,st7,r.stock,sohVal,sellVal,r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.daysDisplay,r.oosCount,r.critCount,SL[r.flag]||r.flag];
+      v=[r.category,r.products,st7,r.stock,sohVal,sellVal,r.soldToday||'',r.soldYesterday||'',r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.daysDisplay,r.oosCount,r.critCount,SL[r.flag]||r.flag];
     else if(currentView==='product')
-      v=[r.productName,r.colour,r.category,r.vendor,r.deliveryMonth||'',st7,r.stock,sohVal,sellVal,r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.soldOutSizes||'',r.price??'',r.compareAt??'',disc,mg,r.daysDisplay,SL[r.flag]||r.flag];
+      v=[r.productName,r.colour,r.category,r.vendor,r.deliveryMonth||'',st7,r.stock,sohVal,sellVal,r.soldToday||'',r.soldYesterday||'',r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.soldOutSizes||'',r.price??'',r.compareAt??'',disc,mg,r.daysDisplay,SL[r.flag]||r.flag];
     else
       v=[r.productName,r.colour,r.size,r.sku,r.category,r.vendor,r.deliveryMonth||'',st7,r.stock,r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.price??'',r.compareAt??'',disc,mg,r.daysDisplay,SL[r.flag]||r.flag];
     lines.push(v.map(x=>`"${x??''}"`).join(','));
