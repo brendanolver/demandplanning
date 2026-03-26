@@ -2233,21 +2233,23 @@ function shortMonth(monthDue){
 }
 
 function getFlag(days,stock,onOrder,vendor,discountPct){
+  const isCore=(vendor||'').toUpperCase()==='CORE';
+  const isReduced=(discountPct||0)>0;
+  // CORE products always show as OK regardless of stock level
+  if(isCore)return'ok';
   if(stock===0&&onOrder>0)return'on-order';
   if(stock===0)return'oos';
   if(days===null||days===undefined)return'oos';
   const d=parseFloat(days);
   if(isNaN(d)||d===0)return'oos';
   const weeks=d/7;
-  const isCore=(vendor||'').toUpperCase()==='CORE';
-  const isReduced=(discountPct||0)>0;
   // Under 14w cover — re-order unless already discounted (being cleared out)
   if(weeks<=14)return isReduced?'ok':'reorder';
   // 14–26w — always OK
   if(weeks<=26)return'ok';
-  // Over 26w — reduce, unless CORE (always restock) or already discounted (being cleared)
+  // Over 26w — reduce, unless already discounted (being cleared)
   if(onOrder>0)return'ok';
-  if(isCore||isReduced)return'ok';
+  if(isReduced)return'ok';
   return'reduce';
 }
 
