@@ -2498,23 +2498,8 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
         const amStyle=productEntry?.style||'';
         if(totalOnOrder===0)continue;
         const category=productEntry?.category||info.category||'';
-        // Decode delivery month from AM Style SKU first, fall back to AM Month Due
+        // Decode delivery month from AM Style SKU, fall back to AM Month Due
         const amDeliveryMonth=normaliseDeliveryMonth(decodeSkuDelivery(amStyle)||monthDue||'');
-        // Determine status based on delivery month
-        const amVendor=(()=>{
-          if(!amDeliveryMonth||amDeliveryMonth==='CORE')return'NEW';
-          const now=new Date();
-          const parts=amDeliveryMonth.split('-');
-          if(parts.length<2)return'NEW';
-          const mo={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11}[parts[0]]??-1;
-          const yr=parseInt(parts[1])<50?2000+parseInt(parts[1]):1900+parseInt(parts[1]);
-          if(mo<0)return'NEW';
-          const delDate=new Date(yr,mo,1);
-          const threeMonthsAgo=new Date(now.getFullYear(),now.getMonth()-3,1);
-          if(delDate.getFullYear()===now.getFullYear()&&delDate.getMonth()===now.getMonth())return'NEW';
-          if(delDate>=threeMonthsAgo)return'CURRENT';
-          return'OLD';
-        })();
         const sizeEntries=Object.entries(amVariantMap)
           .filter(([k])=>k.startsWith(pKey+'||'))
           .map(([k,v])=>({size:k.split('||')[2],qtyOpen:v.qtyOpen,monthDue:v.monthDue||monthDue,
@@ -2524,7 +2509,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
             rows.push({
               fullTitle:desc+' - '+colour,productName:desc,colour,
               size:se.size,variant:se.size,sku:amStyle||'—',
-              category,vendor:amVendor,
+              category,vendor:'INDENT',
               stock:0,price:null,compareAt:null,discountPct:null,margin:null,
               velocity:0,vel7:null,vel30:null,
               sold7:0,sold30:0,sold90:0,sold365:0,sold:0,sellThru7:null,
@@ -2538,7 +2523,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
         } else {
           rows.push({
             fullTitle:desc+' - '+colour,productName:desc,colour,size:'—',variant:'—',sku:amStyle||'—',
-            category,vendor:amVendor,
+            category,vendor:'INDENT',
             stock:0,price:null,compareAt:null,discountPct:null,margin:null,
             velocity:0,vel7:null,vel30:null,
             sold7:0,sold30:0,sold90:0,sold365:0,sold:0,sellThru7:null,
