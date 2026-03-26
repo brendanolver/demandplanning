@@ -1383,12 +1383,11 @@ function getPlanMonths(){
 
 function getLYSalesByCategory(months){
   const result={};
-  if(!window._salesBySkuDay)return result;
-  for(const row of allVariantRows){
-    if(row.amOnly)continue;
-    const cat=row.category||'UNCATEGORISED';
+  if(!window._salesBySkuDay||!window._skuCategoryMap)return result;
+  // Use ALL SKUs including DRAFT for accurate LY totals (same as Cadence)
+  for(const[sku,cat] of Object.entries(window._skuCategoryMap)){
+    const dayData=window._salesBySkuDay[sku]||{};
     if(!result[cat])result[cat]={};
-    const dayData=window._salesBySkuDay[row.sku]||{};
     for(const[day,d] of Object.entries(dayData)){
       const dt=new Date(day);dt.setHours(0,0,0,0);
       for(const m of months){
