@@ -1468,16 +1468,27 @@ function renderPlanning(){
     const wks=wksRaw!==null?wksRaw.toFixed(1):null;
     const wksClass=wks===null?'plan-soh':parseFloat(wks)>=12?'plan-wks-ok':'plan-wks-warn';
 
-    const monthlyCells=months.map(m=>{
+    const monthlyCells=months.map((m,mi)=>{
       const growth=parseFloat(saved[`growth_${m.key}`]||0)||0;
       const ly=Math.round(lyData[cat]?.[m.key]||0);
       const budget=Math.round(ly*(1+growth/100));
       const onOrder=Math.round(onOrderData[cat]?.[m.key]||0);
       const toOrderVal=saved[`to_${cat}_${m.key}`]||'';
       const toOrder=parseInt(toOrderVal)||0;
-      const variance=(soh+onOrder+toOrder)-budget;
-      const varClass=budget===0?'':variance>=0?'plan-variance-ok':'plan-variance-warn';
-      const varLabel=budget===0?'—':(variance>=0?'+':'')+variance.toLocaleString();
+
+      // 3-month forward coverage: sum budgets for this month + next 2 months
+      let coverage3m=0;
+      for(let j=0;j<3;j++){
+        const fm=months[mi+j];
+        if(!fm)break;
+        const fg=parseFloat(saved[`growth_${fm.key}`]||0)||0;
+        const fly=Math.round(lyData[cat]?.[fm.key]||0);
+        coverage3m+=Math.round(fly*(1+fg/100));
+      }
+
+      const variance=(soh+onOrder+toOrder)-coverage3m;
+      const varClass=coverage3m===0?'':variance>=0?'plan-variance-ok':'plan-variance-warn';
+      const varLabel=coverage3m===0?'—':(variance>=0?'+':'')+variance.toLocaleString();
       return`
         <td style="border-left:2px solid var(--border);">
           <span class="plan-budget">${budget>0?budget.toLocaleString():'—'}</span></td>
@@ -1496,23 +1507,32 @@ function renderPlanning(){
       ${monthlyCells}</tr>`;
   }).join('');
 
-  const totalCells=months.map(m=>{
+  const totalCells=months.map((m,mi)=>{
     const growth=parseFloat(saved[`growth_${m.key}`]||0)||0;
-    let tb=0,tsoh=0,too=0,tto=0;
+    let tb=0,tsoh=0,too=0,tto=0,tcoverage3m=0;
     for(const cat of cats){
       tb+=Math.round((lyData[cat]?.[m.key]||0)*(1+growth/100));
       tsoh+=catSoh[cat]||0;
       too+=Math.round(onOrderData[cat]?.[m.key]||0);
       tto+=parseInt(saved[`to_${cat}_${m.key}`]||0)||0;
     }
-    const variance=(tsoh+too+tto)-tb;
-    const varClass=tb===0?'':variance>=0?'plan-variance-ok':'plan-variance-warn';
+    // 3-month forward coverage for totals
+    for(let j=0;j<3;j++){
+      const fm=months[mi+j];
+      if(!fm)break;
+      const fg=parseFloat(saved[`growth_${fm.key}`]||0)||0;
+      for(const cat of cats){
+        tcoverage3m+=Math.round((lyData[cat]?.[fm.key]||0)*(1+fg/100));
+      }
+    }
+    const variance=(tsoh+too+tto)-tcoverage3m;
+    const varClass=tcoverage3m===0?'':variance>=0?'plan-variance-ok':'plan-variance-warn';
     return`
       <td style="border-left:2px solid var(--border);font-weight:700;">${tb>0?tb.toLocaleString():'—'}</td>
       <td style="font-weight:700;color:var(--text-secondary);">${tsoh>0?tsoh.toLocaleString():'—'}</td>
       <td style="font-weight:700;color:var(--purple);">${too>0?too.toLocaleString():'—'}</td>
       <td style="font-weight:700;">${tto>0?tto.toLocaleString():'—'}</td>
-      <td><span class="${varClass}" style="font-size:12px;">${tb===0?'—':((variance>=0?'+':'')+variance.toLocaleString())}</span></td>`;
+      <td><span class="${varClass}" style="font-size:12px;">${tcoverage3m===0?'—':((variance>=0?'+':'')+variance.toLocaleString())}</span></td>`;
   }).join('');
 
   document.getElementById('planning-body').innerHTML=`
@@ -1520,7 +1540,7 @@ function renderPlanning(){
       <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--teal)"></div>12w+ cover — healthy</div>
       <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--red)"></div>Under 12w — reorder risk</div>
       <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--purple)"></div>On Order from Apparel Magic</div>
-      <div class="plan-legend-item" style="color:var(--text-secondary);">Variance = SOH + On Order + To Order − Budget</div>
+      <div class="plan-legend-item" style="color:var(--text-secondary);">Variance = SOH + On Order + To Order − Next 3 Months Budget</div>
       <div class="plan-legend-item" style="color:var(--teal);">▲ Green = covered &nbsp;|&nbsp; <span style="color:var(--red);">▼ Red = short</span></div>
     </div>
     <div class="plan-table-wrap">
@@ -2478,7 +2498,9 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
         const amStyle=productEntry?.style||'';
         if(totalOnOrder===0)continue;
         const category=productEntry?.category||info.category||'';
-        // Determine status for AM-only product based on delivery month
+        // Decode delivery month from AM Style SKU first, fall back to AM Month Due
+        const amDeliveryMonth=normaliseDeliveryMonth(decodeSkuDelivery(amStyle)||monthDue||'');
+        // Determine status based on delivery month
         const amVendor=(()=>{
           if(!amDeliveryMonth||amDeliveryMonth==='CORE')return'NEW';
           const now=new Date();
