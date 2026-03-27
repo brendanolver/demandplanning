@@ -2571,12 +2571,16 @@ function buildVariantRows(){
   allVariantRows=processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap);
   document.getElementById('nav-count').textContent=allVariantRows.length.toLocaleString()+' SKUs';
 
-  // Build counts based on rows that would show in product view (SOH >= 1 OR on order)
+  // Build counts based on aggregated product rows (matches what Product view shows)
   const countableRows=allVariantRows.filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0);
-  const flagCounts={},discCounts={'none':0,'20':0,'30':0,'40':0,'50':0,'60':0,'70':0};
+  const productRows=[...toProduct(countableRows)];
+  const flagCounts={};
+  for(const r of productRows){
+    if(r.flag)flagCounts[r.flag]=(flagCounts[r.flag]||0)+1;
+  }
+  const discCounts={'none':0,'20':0,'30':0,'40':0,'50':0,'60':0,'70':0};
   const soldoutCounts={'none':0,'1':0,'2':0,'3':0,'4':0,'5+':0};
   for(const r of countableRows){
-    if(r.flag)flagCounts[r.flag]=(flagCounts[r.flag]||0)+1;
     const d=Math.round(r.discountPct||0);
     if(!r.discountPct||d===0)discCounts['none']++;
     else if(d===20)discCounts['20']++;
