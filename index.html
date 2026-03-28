@@ -2327,11 +2327,27 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
 
   // Build SOH lookup from inventory file: {sku: stock}
   const sohMap={};
+  const invMetaMap={}; // fallback metadata for SKUs not in sales history
   if(shopifyInvData){
     for(const row of shopifyInvData){
       const sku=(row['Product variant SKU']||'').trim();
       const stock=parseInt(row['Ending inventory units'])||0;
-      if(sku)sohMap[sku]=stock;
+      if(sku){
+        sohMap[sku]=stock;
+        if(!priceMap[sku]){
+          // Build basic meta from inventory file for SKUs with no sales history
+          const fullTitle=(row['Product title']||'').trim().toUpperCase();
+          const variantTitle=(row['Product variant title']||'').trim();
+          const vendor=(row['Product vendor']||'').trim().toUpperCase();
+          const category=(row['Product type']||'').trim().toUpperCase();
+          const{name:productName,colour}=extractName(fullTitle);
+          const sizeParts=variantTitle.split('/');
+          let size=sizeParts.length>1?sizeParts[sizeParts.length-1].trim():variantTitle.trim();
+          if(size.toUpperCase()===colour.toUpperCase())size='OS';
+          invMetaMap[sku]={productName,colour,size,vendor,category,
+            price:0,compareAt:0,day:'',status:'ACTIVE'};
+        }
+      }
     }
   }
 
@@ -2343,8 +2359,8 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
   ]);
 
   for(const sku of allSkus){
-    const pm=priceMap[sku];
-    if(!pm)continue; // need at minimum a sales record for meta info
+    const pm=priceMap[sku]||invMetaMap[sku];
+    if(!pm)continue; // need at minimum a sales or inventory record for meta info
 
     const stock=sohMap[sku]||0;
     const{productName,colour,size,vendor,category}=pm;
