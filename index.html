@@ -941,6 +941,8 @@ function showScreen(screen){
 let cadenceMode='12m';
 let cadenceSortCol=null; // null = default order, 'soh', or period label
 let cadenceSortDir='desc';
+let planSortCol='category';
+let planSortDir='asc';
 let cadenceView='cat'; // 'cat' or 'prod'
 
 function setCadence(mode){
@@ -1419,6 +1421,12 @@ function getAMOnOrderByCategory(months){
   return result;
 }
 
+function setPlanSort(col){
+  if(planSortCol===col){planSortDir=planSortDir==='asc'?'desc':'asc';}
+  else{planSortCol=col;planSortDir=col==='category'?'asc':'desc';}
+  renderPlanning();
+}
+
 function renderPlanning(){
   if(!allVariantRows||allVariantRows.length===0){
     document.getElementById('planning-body').innerHTML=`<div class="insights-error">⚠️ No data loaded yet. Please upload your files and analyse first.</div>`;
@@ -1435,9 +1443,24 @@ function renderPlanning(){
   for(const r of allVariantRows){
     const c=r.category||'UNCATEGORISED';
     catSoh[c]=(catSoh[c]||0)+r.stock;
-    // Use fixed 30-day velocity for planning weeks cover
     catVel30[c]=(catVel30[c]||0)+(r.sold30||0)/30;
   }
+
+  // Sort categories
+  const sortedCats=[...cats].sort((a,b)=>{
+    let av,bv;
+    if(planSortCol==='category'){av=a;bv=b;return planSortDir==='asc'?av.localeCompare(bv):bv.localeCompare(av);}
+    if(planSortCol==='soh'){av=catSoh[a]||0;bv=catSoh[b]||0;}
+    else if(planSortCol==='wks'){
+      const va=catVel30[a]||0;const vb=catVel30[b]||0;
+      av=va>0?(catSoh[a]||0)/(va*7):9999;
+      bv=vb>0?(catSoh[b]||0)/(vb*7):9999;
+    }
+    return planSortDir==='asc'?av-bv:bv-av;
+  });
+
+  const planArrow=col=>planSortCol===col?(planSortDir==='asc'?' ↑':' ↓'):'';
+  const planThStyle='cursor:pointer;user-select:none;';
 
   const monthHeaders=months.map(m=>`
     <th class="plan-month" colspan="5" style="border-left:2px solid rgba(255,255,255,0.15);">${m.label}</th>`).join('');
@@ -1460,7 +1483,7 @@ function renderPlanning(){
         </div></td>`;
   }).join('');
 
-  const catRows=cats.map(cat=>{
+  const catRows=sortedCats.map((cat)=>{
     const soh=catSoh[cat]||0;
     const vel=catVel30[cat]||0;
     const wksRaw=vel>0?(soh/(vel*7)):null;
@@ -1509,7 +1532,7 @@ function renderPlanning(){
   const totalCells=months.map((m,mi)=>{
     const growth=parseFloat(saved[`growth_${m.key}`]||0)||0;
     let tb=0,tsoh=0,too=0,tto=0,tcoverage3m=0;
-    for(const cat of cats){
+    for(const cat of sortedCats){
       tb+=Math.round((lyData[cat]?.[m.key]||0)*(1+growth/100));
       tsoh+=catSoh[cat]||0;
       too+=Math.round(onOrderData[cat]?.[m.key]||0);
@@ -1520,7 +1543,7 @@ function renderPlanning(){
       const fm=months[mi+j];
       if(!fm)break;
       const fg=parseFloat(saved[`growth_${fm.key}`]||0)||0;
-      for(const cat of cats){
+      for(const cat of sortedCats){
         tcoverage3m+=Math.round((lyData[cat]?.[fm.key]||0)*(1+fg/100));
       }
     }
@@ -1546,9 +1569,9 @@ function renderPlanning(){
       <table class="plan-table">
         <thead>
           <tr>
-            <th class="plan-th-left" rowspan="2" style="min-width:160px;">Category</th>
-            <th rowspan="2">SOH</th>
-            <th rowspan="2" title="SOH ÷ 30-day velocity">Wks Cover<br><span style="font-weight:400;font-size:9px;opacity:0.7;">30d basis</span></th>
+            <th class="plan-th-left" rowspan="2" style="min-width:160px;${planThStyle}" onclick="setPlanSort('category')">Category${planArrow('category')}</th>
+            <th rowspan="2" style="${planThStyle}" onclick="setPlanSort('soh')">SOH${planArrow('soh')}</th>
+            <th rowspan="2" title="SOH ÷ 30-day velocity" style="${planThStyle}" onclick="setPlanSort('wks')">Wks Cover${planArrow('wks')}<br><span style="font-weight:400;font-size:9px;opacity:0.7;">30d basis</span></th>
             ${monthHeaders}
           </tr>
           <tr>${subHeaders}</tr>
