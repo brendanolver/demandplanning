@@ -1968,13 +1968,39 @@ function mdPopulateFilters(products){
     months.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="mdUpdateLabel('delmonth');renderMarkdowns()"> ${m}</label>`).join('');
 }
 
+function mdSelectAll(checked){
+  const d=getMdData();
+  // Only select/deselect products currently visible (respects filters & search)
+  const visibleKeys=window._mdVisibleKeys||[];
+  if(visibleKeys.length){
+    visibleKeys.forEach(key=>{
+      if(!d[key])d[key]={};
+      d[key].checked=checked;
+    });
+  } else {
+    // Fallback — all products
+    const products=[...toProduct(allVariantRows.filter(r=>!r.amOnly&&((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)))];
+    products.forEach(p=>{
+      if(!d[p.fullTitle])d[p.fullTitle]={};
+      d[p.fullTitle].checked=checked;
+    });
+  }
+  saveMdData(d);
+  renderMarkdowns();
+}
+
 function mdApplyBulkPct(){
   const pct=document.getElementById('md-bulk-pct')?.value?.trim();
   if(!pct)return;
   const d=getMdData();
-  // Apply to all currently ticked products
-  Object.keys(d).forEach(key=>{
-    if(d[key]?.checked)d[key].pct=pct;
+  const visibleKeys=window._mdVisibleKeys||[];
+  // Apply to all ticked visible products (or all visible if none ticked)
+  const ticked=visibleKeys.filter(key=>d[key]?.checked);
+  const toApply=ticked.length?ticked:visibleKeys;
+  toApply.forEach(key=>{
+    if(!d[key])d[key]={};
+    d[key].pct=pct;
+    d[key].checked=true; // also tick them
   });
   saveMdData(d);
   renderMarkdowns();
@@ -2031,6 +2057,9 @@ function renderMarkdowns(){
 
   const selectedCount=products.filter(p=>saved[p.fullTitle]?.checked||saved[p.fullTitle]?.pct).length;
   if(countEl)countEl.textContent=`${products.length} products shown — ${selectedCount} selected for markdown`;
+
+  // Cache visible keys for mdSelectAll
+  window._mdVisibleKeys=products.map(p=>p.fullTitle);
 
   if(!products.length){
     body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No results found</div><div class="insights-empty-sub">Try adjusting your filters.</div></div>`;
