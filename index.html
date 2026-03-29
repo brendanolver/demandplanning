@@ -2105,7 +2105,7 @@ function renderMarkdowns(){
 
   body.innerHTML=`<div class="tbl-wrap"><table style="width:100%;border-collapse:collapse;">
     <thead><tr>
-      <th style="width:36px;text-align:center;padding:8px 6px;"><input type="checkbox" style="width:15px;height:15px;accent-color:var(--teal);" onchange="mdSelectAllVisible(this.checked,${JSON.stringify(products.map(p=>p.fullTitle))})"></th>
+      <th style="width:36px;text-align:center;padding:8px 6px;"><input type="checkbox" style="width:15px;height:15px;accent-color:var(--teal);" onchange="mdSelectAll(this.checked)"></th>
       <th style="${thS}" onclick="setMdSort('productName')">Product${mdArrow('productName')}</th>
       <th style="${thS}" onclick="setMdSort('category')">Category${mdArrow('category')}</th>
       <th style="${thS}" onclick="setMdSort('discountPct')">Disc%${mdArrow('discountPct')}</th>
