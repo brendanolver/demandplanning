@@ -640,6 +640,7 @@ th{position:relative;}
         <button class="screen-btn" id="btn-cadence" onclick="showScreen('cadence')">📈 Sales Cadence</button>
         <button class="screen-btn" id="btn-insights" onclick="showScreen('insights')">💡 Insights</button>
         <button class="screen-btn" id="btn-planning" onclick="showScreen('planning')">📋 Planning</button>
+        <button class="screen-btn" id="btn-markdowns" onclick="showScreen('markdowns')">🏷️ Markdowns</button>
       </div>
       <div class="period-selector" id="period-selector">
         <span class="period-label">Period:</span>
@@ -909,6 +910,31 @@ th{position:relative;}
     </div>
   </div>
 
+  <!-- MARKDOWNS SCREEN -->
+  <div id="markdowns-screen" style="display:none;padding:28px;overflow-y:auto;height:calc(100vh - 56px);">
+    <div style="max-width:1600px;margin:0 auto;">
+      <div class="insights-header" style="margin-bottom:16px;">
+        <div>
+          <div class="insights-title">Markdowns</div>
+          <div class="insights-sub">Tick styles & set proposed markdown % — export selected to CSV</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button onclick="mdSelectAll(true)" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✓ Select All</button>
+          <button onclick="mdSelectAll(false)" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✕ Clear All</button>
+          <button onclick="mdExport()" style="padding:7px 18px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">⬇ Export Selected</button>
+        </div>
+      </div>
+      <div id="markdowns-count" style="font-size:12px;color:var(--text-muted);margin-bottom:12px;"></div>
+      <div id="markdowns-body">
+        <div class="insights-empty">
+          <div class="insights-empty-ico">🏷️</div>
+          <div class="insights-empty-title">Ready for markdowns</div>
+          <div class="insights-empty-sub">Load your data first then switch to this tab.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -917,7 +943,7 @@ let currentScreen='dashboard';
 
 function showScreen(screen){
   currentScreen=screen;
-  ['dashboard','insights','cadence','planning'].forEach(s=>{
+  ['dashboard','insights','cadence','planning','markdowns'].forEach(s=>{
     const btn=document.getElementById('btn-'+s);
     if(btn)btn.classList.toggle('active',s===screen);
   });
@@ -925,12 +951,14 @@ function showScreen(screen){
   const insightsScreen=document.getElementById('insights-screen');
   const cadenceScreen=document.getElementById('cadence-screen');
   const planningScreen=document.getElementById('planning-screen');
+  const markdownsScreen=document.getElementById('markdowns-screen');
   const periodSelector=document.getElementById('period-selector');
   const exportBtn=document.getElementById('export-btn');
   layout.style.display=screen==='dashboard'?'':'none';
   insightsScreen.style.display=screen==='insights'?'block':'none';
   cadenceScreen.style.display=screen==='cadence'?'block':'none';
   planningScreen.style.display=screen==='planning'?'block':'none';
+  markdownsScreen.style.display=screen==='markdowns'?'block':'none';
   periodSelector.style.display=screen==='dashboard'?'':'none';
   exportBtn.style.display=screen==='dashboard'?'':'none';
   if(screen==='insights'){
@@ -939,6 +967,7 @@ function showScreen(screen){
   }
   if(screen==='cadence') renderCadence();
   if(screen==='planning') renderPlanning();
+  if(screen==='markdowns') renderMarkdowns();
 }
 
 /* ── SALES CADENCE ── */
@@ -1782,6 +1811,141 @@ function renderInsights(data){
       </div>`).join('')}
     </div>`;
   }).join('');
+}
+
+/* ── MARKDOWNS ── */
+const MD_STORAGE_KEY='wndrr_markdowns_v1';
+
+function getMdData(){try{return JSON.parse(localStorage.getItem(MD_STORAGE_KEY)||'{}');}catch(e){return{};}}
+function saveMdData(d){try{localStorage.setItem(MD_STORAGE_KEY,JSON.stringify(d));}catch(e){}}
+
+function renderMarkdowns(){
+  const body=document.getElementById('markdowns-body');
+  const countEl=document.getElementById('markdowns-count');
+  if(!allVariantRows||allVariantRows.length===0){
+    body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">🏷️</div><div class="insights-empty-title">No data loaded</div><div class="insights-empty-sub">Load your data first then switch to this tab.</div></div>`;
+    return;
+  }
+
+  const saved=getMdData();
+
+  // Aggregate to product level (same as toProduct)
+  const products=[...toProduct(allVariantRows.filter(r=>!r.amOnly&&((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)))];
+  products.sort((a,b)=>a.productName.localeCompare(b.productName)||a.colour.localeCompare(b.colour));
+
+  const selected=products.filter(p=>saved[p.fullTitle]?.checked||saved[p.fullTitle]?.pct).length;
+  countEl.textContent=`${products.length} products — ${selected} selected for markdown`;
+
+  const rows=products.map(p=>{
+    const key=p.fullTitle;
+    const isChecked=saved[key]?.checked||false;
+    const pct=saved[key]?.pct||'';
+    const disc=p.discountPct?p.discountPct.toFixed(1)+'%':'—';
+    const st=p.sellThru7!=null?p.sellThru7.toFixed(1)+'%':'—';
+    const currentPrice=p.price>0?'$'+p.price.toFixed(2):'—';
+    const rrp=p.compareAt>0?'$'+p.compareAt.toFixed(2):'—';
+    const proposedPrice=p.compareAt>0&&pct?(p.compareAt*(1-parseFloat(pct)/100)).toFixed(2):'';
+    const proposedLabel=proposedPrice?`<span style="color:var(--red);font-weight:600;">$${proposedPrice}</span>`:'—';
+
+    return`<tr style="background:${isChecked?'#f0fdf4':''};transition:background 0.15s;">
+      <td style="padding:8px 10px;text-align:center;">
+        <input type="checkbox" ${isChecked?'checked':''} style="width:16px;height:16px;accent-color:var(--teal);cursor:pointer;"
+          onchange="mdToggle('${key.replace(/'/g,"\\'")}',this.checked)">
+      </td>
+      <td style="padding:8px 10px;font-weight:600;font-size:13px;">${toTitleCase(p.productName)}<br><span style="font-weight:400;font-size:11px;color:var(--text-muted);">${toTitleCase(p.colour)}</span></td>
+      <td style="padding:8px 10px;font-size:12px;color:var(--text-secondary);">${p.category||'—'}</td>
+      <td style="padding:8px 10px;font-size:12px;"><span class="range-pill ${p.vendor==='CORE'?'rp-core':p.vendor==='NEW'?'rp-new':p.vendor==='CURRENT'?'rp-current':'rp-old'}">${p.vendor||'—'}</span></td>
+      <td style="padding:8px 10px;font-size:12px;text-align:right;">${p.stock.toLocaleString()}</td>
+      <td style="padding:8px 10px;font-size:12px;text-align:right;">${st}</td>
+      <td style="padding:8px 10px;font-size:12px;text-align:right;">${currentPrice}</td>
+      <td style="padding:8px 10px;font-size:12px;text-align:right;">${rrp}</td>
+      <td style="padding:8px 10px;font-size:12px;text-align:right;color:var(--red);">${disc}</td>
+      <td style="padding:8px 10px;text-align:center;">
+        <div style="display:flex;align-items:center;gap:4px;justify-content:center;">
+          <input type="number" min="0" max="90" step="5" placeholder="%" value="${pct}"
+            style="width:60px;padding:5px 8px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;text-align:center;outline:none;"
+            oninput="mdSetPct('${key.replace(/'/g,"\\'")}',this.value)"
+            onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
+          <span style="font-size:12px;color:var(--text-muted);">%</span>
+        </div>
+      </td>
+      <td style="padding:8px 10px;font-size:12px;text-align:right;">${proposedLabel}</td>
+    </tr>`;
+  }).join('');
+
+  body.innerHTML=`<div class="cadence-table-wrap"><table class="cadence-table" style="min-width:900px;">
+    <thead><tr style="position:sticky;top:0;z-index:10;">
+      <th style="width:40px;text-align:center;"><input type="checkbox" style="width:15px;height:15px;accent-color:var(--teal);" onchange="mdSelectAll(this.checked)"></th>
+      <th>Product</th>
+      <th>Category</th>
+      <th>Status</th>
+      <th style="text-align:right;">SOH</th>
+      <th style="text-align:right;">ST%</th>
+      <th style="text-align:right;">Price</th>
+      <th style="text-align:right;">RRP</th>
+      <th style="text-align:right;">Curr Disc%</th>
+      <th style="text-align:center;min-width:100px;">Proposed %</th>
+      <th style="text-align:right;">New Price</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+
+function mdToggle(key,checked){
+  const d=getMdData();
+  if(!d[key])d[key]={};
+  d[key].checked=checked;
+  saveMdData(d);
+  document.getElementById('markdowns-count').textContent=''; // quick update
+  // Update row background
+  renderMarkdowns();
+}
+
+function mdSetPct(key,val){
+  const d=getMdData();
+  if(!d[key])d[key]={};
+  d[key].pct=val;
+  saveMdData(d);
+  // Update proposed price inline without full re-render
+  renderMarkdowns();
+}
+
+function mdSelectAll(checked){
+  const d=getMdData();
+  const products=[...toProduct(allVariantRows.filter(r=>!r.amOnly&&((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)))];
+  products.forEach(p=>{
+    if(!d[p.fullTitle])d[p.fullTitle]={};
+    d[p.fullTitle].checked=checked;
+  });
+  saveMdData(d);
+  renderMarkdowns();
+}
+
+function mdExport(){
+  const d=getMdData();
+  const products=[...toProduct(allVariantRows.filter(r=>!r.amOnly&&((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)))];
+  const selected=products.filter(p=>d[p.fullTitle]?.checked||d[p.fullTitle]?.pct);
+  if(!selected.length){alert('No styles selected — tick a checkbox or enter a proposed % first.');return;}
+
+  const headers=['Product','Colour','Category','Status','Month Del','SOH','SOH Value','Sell Value','ST%','Price','RRP','Curr Disc%','Margin%','Proposed Markdown %','Proposed New Price','Wks Cover','Stock Status'];
+  const csvRows=selected.map(p=>{
+    const pct=d[p.fullTitle]?.pct||'';
+    const proposedPrice=p.compareAt>0&&pct?(p.compareAt*(1-parseFloat(pct)/100)).toFixed(2):'';
+    const st=p.sellThru7!=null?p.sellThru7.toFixed(1):'';
+    const disc=p.discountPct!=null?p.discountPct.toFixed(1):'';
+    const mg=p.margin!=null?p.margin.toFixed(1):'';
+    const sohVal=p.sohValue?Math.round(p.sohValue):'';
+    const sellVal=p.sellValue?Math.round(p.sellValue):'';
+    const SL={ok:'OK','on-order':'On Order',oos:'Out of Stock',reorder:'Re-Order',reduce:'Reduce',clearance:'Clearance'};
+    return[p.productName,p.colour,p.category,p.vendor,p.deliveryMonth||'',p.stock,sohVal,sellVal,st,p.price||'',p.compareAt||'',disc,mg,pct,proposedPrice,p.daysDisplay,SL[p.flag]||p.flag];
+  });
+
+  const csv=[headers,...csvRows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download='wndrr_markdowns.csv';a.click();
+  URL.revokeObjectURL(url);
 }
 
 /* ── GOOGLE DRIVE IMPORT ── */
