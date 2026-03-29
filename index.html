@@ -921,6 +921,14 @@ th{position:relative;}
         <div style="display:flex;gap:8px;align-items:center;">
           <button onclick="mdSelectAll(true)" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✓ Select All</button>
           <button onclick="mdSelectAll(false)" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✕ Clear All</button>
+          <div style="display:flex;align-items:center;gap:6px;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);">
+            <span style="font-size:12px;color:var(--text-secondary);white-space:nowrap;">Bulk %:</span>
+            <input type="number" id="md-bulk-pct" min="0" max="90" step="5" placeholder="e.g. 30"
+              style="width:72px;padding:5px 8px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:14px;font-weight:600;text-align:center;outline:none;"
+              onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
+            <span style="font-size:12px;color:var(--text-muted);">%</span>
+            <button onclick="mdApplyBulkPct()" style="padding:5px 12px;background:var(--teal);color:white;border:none;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">Apply to Ticked</button>
+          </div>
           <button onclick="mdExport()" style="padding:7px 18px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">⬇ Export Selected</button>
         </div>
       </div>
@@ -1960,6 +1968,18 @@ function mdPopulateFilters(products){
     months.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="mdUpdateLabel('delmonth');renderMarkdowns()"> ${m}</label>`).join('');
 }
 
+function mdApplyBulkPct(){
+  const pct=document.getElementById('md-bulk-pct')?.value?.trim();
+  if(!pct)return;
+  const d=getMdData();
+  // Apply to all currently ticked products
+  Object.keys(d).forEach(key=>{
+    if(d[key]?.checked)d[key].pct=pct;
+  });
+  saveMdData(d);
+  renderMarkdowns();
+}
+
 function setMdSort(col){
   if(mdSortCol===col){mdSortDir=mdSortDir==='asc'?'desc':'asc';}
   else{mdSortCol=col;mdSortDir=col==='productName'||col==='colour'||col==='category'||col==='vendor'||col==='deliveryMonth'?'asc':'desc';}
@@ -2034,6 +2054,8 @@ function renderMarkdowns(){
       case'sohValue':return num('sohValue');
       case'sellValue':return num('sellValue');
       case'sold':av=a.sold7||0;bv=b.sold7||0;return mdSortDir==='asc'?av-bv:bv-av;
+      case'soldToday':return num('soldToday');
+      case'soldYesterday':return num('soldYesterday');
       case'sellThru7':av=a.sellThru7||0;bv=b.sellThru7||0;return mdSortDir==='asc'?av-bv:bv-av;
       case'price':return num('price');
       case'compareAt':return num('compareAt');
@@ -2106,7 +2128,7 @@ function renderMarkdowns(){
 
   body.innerHTML=`<div class="tbl-wrap"><table style="width:100%;border-collapse:collapse;">
     <thead><tr>
-      <th style="width:36px;text-align:center;padding:8px 6px;"><input type="checkbox" style="width:15px;height:15px;accent-color:var(--teal);" onchange="mdSelectAll(this.checked)"></th>
+      <th style="width:36px;text-align:center;padding:8px 6px;"><input type="checkbox" style="width:15px;height:15px;accent-color:var(--teal);" onchange="mdSelectAll(this.checked);if(this.checked)mdApplyBulkPct()"></th>
       <th style="${thS}" onclick="setMdSort('productName')">Product${mdArrow('productName')}</th>
       <th style="${thS}" onclick="setMdSort('category')">Category${mdArrow('category')}</th>
       <th style="${thS}" onclick="setMdSort('discountPct')">Disc%${mdArrow('discountPct')}</th>
@@ -2116,8 +2138,8 @@ function renderMarkdowns(){
       <th style="${thS}text-align:right;" onclick="setMdSort('stock')">SOH${mdArrow('stock')}</th>
       <th style="${thS}text-align:right;" onclick="setMdSort('sohValue')">SOH Value${mdArrow('sohValue')}</th>
       <th style="${thS}text-align:right;" onclick="setMdSort('sellValue')">Sell Value${mdArrow('sellValue')}</th>
-      <th style="text-align:right;">Today</th>
-      <th style="text-align:right;">Yest</th>
+      <th style="${thS}text-align:right;" onclick="setMdSort('soldToday')">Today${mdArrow('soldToday')}</th>
+      <th style="${thS}text-align:right;" onclick="setMdSort('soldYesterday')">Yest${mdArrow('soldYesterday')}</th>
       <th style="${thS}text-align:right;" onclick="setMdSort('sold')">${soldLabel}${mdArrow('sold')}</th>
       <th style="${thS}text-align:right;" onclick="setMdSort('onOrder')">On Order${mdArrow('onOrder')}</th>
       <th style="${thS}text-align:right;" onclick="setMdSort('price')">Price${mdArrow('price')}</th>
