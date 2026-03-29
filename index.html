@@ -1961,6 +1961,18 @@ function mdPopulateFilters(products){
   document.getElementById('ms-md-flag-options').innerHTML=flags.map(v=>
     `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="mdUpdateLabel('flag');renderMarkdowns()"> ${flagLabels[v]||v} <span class="ms-count">(${flagCounts[v]||0})</span></label>`).join('');
 
+  // Sizes Sold Out
+  const soldoutBands=['none','1','2','3','4','5+'];
+  const soldoutLabels={'none':'None','1':'1 size','2':'2 sizes','3':'3 sizes','4':'4 sizes','5+':'5+ sizes'};
+  const soldoutCounts={};
+  products.forEach(p=>{
+    const s=p.soldOutSizes||0;
+    const band=s===0?'none':s===1?'1':s===2?'2':s===3?'3':s===4?'4':'5+';
+    soldoutCounts[band]=(soldoutCounts[band]||0)+1;
+  });
+  document.getElementById('ms-md-soldout-options').innerHTML=soldoutBands.map(v=>
+    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="mdUpdateLabel('soldout');renderMarkdowns()"> ${soldoutLabels[v]} <span class="ms-count">(${soldoutCounts[v]||0})</span></label>`).join('');
+
   // Discount %
   const discBands=['none','20','30','40','50','60','70'];
   const discLabels={'none':'No Discount','20':'20% off','30':'30% off','40':'40% off','50':'50% off','60':'60% off','70':'70% off'};
@@ -2049,12 +2061,12 @@ function renderMarkdowns(){
 
   // Repopulate filters preserving checked state
   const prevChecked={};
-  ['cat','vendor','flag','disc','delmonth'].forEach(type=>{
+  ['cat','vendor','flag','disc','soldout','delmonth'].forEach(type=>{
     prevChecked[type]=new Set([...document.querySelectorAll(`#ms-md-${type}-options input:checked`)].map(b=>b.value));
   });
   mdPopulateFilters(allProducts);
   // Restore checked state
-  ['cat','vendor','flag','disc','delmonth'].forEach(type=>{
+  ['cat','vendor','flag','disc','soldout','delmonth'].forEach(type=>{
     if(!prevChecked[type].size)return; // first render — all checked by default
     document.querySelectorAll(`#ms-md-${type}-options input`).forEach(b=>{
       b.checked=prevChecked[type].has(b.value);
