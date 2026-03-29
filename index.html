@@ -1970,6 +1970,7 @@ function mdUpdateLabel(type){
 }
 
 function mdClearFilters(){
+  // Clear filters
   ['cat','vendor','flag','disc','soldout','delmonth'].forEach(type=>{
     document.querySelectorAll(`#ms-md-${type}-options input`).forEach(b=>b.checked=true);
     const allBox=document.querySelector(`#ms-md-${type} .ms-all input`);
@@ -1977,6 +1978,8 @@ function mdClearFilters(){
     mdUpdateLabel(type);
   });
   const s=document.getElementById('md-search');if(s)s.value='';
+  // Clear all ticked boxes and proposed % from localStorage
+  saveMdData({});
   renderMarkdowns();
 }
 
