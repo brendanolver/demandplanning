@@ -966,6 +966,13 @@ th{position:relative;}
             <div id="ms-md-disc-options"></div>
           </div>
         </div>
+        <div class="ms-wrap" id="ms-md-soldout">
+          <button class="ms-btn" onclick="toggleDropdown('ms-md-soldout')"><span id="ms-md-soldout-label">Sizes Sold Out</span><span class="ms-arrow">▾</span></button>
+          <div class="ms-dropdown" id="ms-md-soldout-dropdown">
+            <label class="ms-item ms-all"><input type="checkbox" checked onchange="mdToggleAll('soldout',this)"> All</label>
+            <div id="ms-md-soldout-options"></div>
+          </div>
+        </div>
         <div class="ms-wrap" id="ms-md-delmonth">
           <button class="ms-btn" onclick="toggleDropdown('ms-md-delmonth')"><span id="ms-md-delmonth-label">Month Del</span><span class="ms-arrow">▾</span></button>
           <div class="ms-dropdown" id="ms-md-delmonth-dropdown">
@@ -1905,7 +1912,7 @@ function mdToggleAll(type,allCheckbox){
 }
 
 function mdUpdateLabel(type){
-  const defaults={cat:'All Categories',vendor:'All Statuses',flag:'All Stock Status',disc:'Discount %',delmonth:'Month Del'};
+  const defaults={cat:'All Categories',vendor:'All Statuses',flag:'All Stock Status',disc:'Discount %',soldout:'Sizes Sold Out',delmonth:'Month Del'};
   const boxes=[...document.querySelectorAll(`#ms-md-${type}-options input`)];
   const checked=boxes.filter(b=>b.checked);
   const label=document.getElementById(`ms-md-${type}-label`);
@@ -1919,7 +1926,7 @@ function mdUpdateLabel(type){
 }
 
 function mdClearFilters(){
-  ['cat','vendor','flag','disc','delmonth'].forEach(type=>{
+  ['cat','vendor','flag','disc','soldout','delmonth'].forEach(type=>{
     document.querySelectorAll(`#ms-md-${type}-options input`).forEach(b=>b.checked=true);
     const allBox=document.querySelector(`#ms-md-${type} .ms-all input`);
     if(allBox)allBox.checked=true;
@@ -1932,29 +1939,42 @@ function mdClearFilters(){
 function mdPopulateFilters(products){
   const monthOrder={Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
 
+  // Count helpers
+  const countBy=(fn)=>{const m={};products.forEach(p=>{const k=fn(p);if(k!=null)m[k]=(m[k]||0)+1;});return m;};
+
   // Categories
+  const catCounts=countBy(p=>p.category);
   const cats=[...new Set(products.map(p=>p.category).filter(Boolean))].sort();
   document.getElementById('ms-md-cat-options').innerHTML=cats.map(v=>
-    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="mdUpdateLabel('cat');renderMarkdowns()"> ${v}</label>`).join('');
+    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="mdUpdateLabel('cat');renderMarkdowns()"> ${v} <span class="ms-count">(${catCounts[v]||0})</span></label>`).join('');
 
   // Statuses
+  const vendorCounts=countBy(p=>p.vendor);
   const vendors=[...new Set(products.map(p=>p.vendor).filter(Boolean))].sort();
   document.getElementById('ms-md-vendor-options').innerHTML=vendors.map(v=>
-    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="mdUpdateLabel('vendor');renderMarkdowns()"> ${v}</label>`).join('');
+    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="mdUpdateLabel('vendor');renderMarkdowns()"> ${v} <span class="ms-count">(${vendorCounts[v]||0})</span></label>`).join('');
 
   // Stock Status
   const flagLabels={'on-order':'On Order','oos':'Out of Stock','reorder':'Re-Order ≤14w','ok':'OK 14–26w','reduce':'Reduce 26w+'};
+  const flagCounts=countBy(p=>p.flag);
   const flags=[...new Set(products.map(p=>p.flag).filter(Boolean))];
   document.getElementById('ms-md-flag-options').innerHTML=flags.map(v=>
-    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="mdUpdateLabel('flag');renderMarkdowns()"> ${flagLabels[v]||v}</label>`).join('');
+    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="mdUpdateLabel('flag');renderMarkdowns()"> ${flagLabels[v]||v} <span class="ms-count">(${flagCounts[v]||0})</span></label>`).join('');
 
   // Discount %
   const discBands=['none','20','30','40','50','60','70'];
   const discLabels={'none':'No Discount','20':'20% off','30':'30% off','40':'40% off','50':'50% off','60':'60% off','70':'70% off'};
+  const discCounts={};
+  products.forEach(p=>{
+    const d=Math.round(p.discountPct||0);
+    const band=!p.discountPct||d===0?'none':['20','30','40','50','60','70'].includes(String(d))?String(d):null;
+    if(band)discCounts[band]=(discCounts[band]||0)+1;
+  });
   document.getElementById('ms-md-disc-options').innerHTML=discBands.map(v=>
-    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="mdUpdateLabel('disc');renderMarkdowns()"> ${discLabels[v]}</label>`).join('');
+    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="mdUpdateLabel('disc');renderMarkdowns()"> ${discLabels[v]} <span class="ms-count">(${discCounts[v]||0})</span></label>`).join('');
 
   // Month Del
+  const delCounts=countBy(p=>p.deliveryMonth||null);
   const months=[...new Set(products.map(p=>p.deliveryMonth).filter(d=>d&&d!=='CORE'))];
   months.sort((a,b)=>{
     const[am,ay]=a.split('-');const[bm,by]=b.split('-');
@@ -1963,9 +1983,10 @@ function mdPopulateFilters(products){
     if(ayF!==byF)return byF-ayF;
     return(monthOrder[bm]||0)-(monthOrder[am]||0);
   });
+  const coreCount=delCounts['CORE']||0;
   document.getElementById('ms-md-delmonth-options').innerHTML=
-    `<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="mdUpdateLabel('delmonth');renderMarkdowns()"> CORE</label>`+
-    months.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="mdUpdateLabel('delmonth');renderMarkdowns()"> ${m}</label>`).join('');
+    `<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="mdUpdateLabel('delmonth');renderMarkdowns()"> CORE <span class="ms-count">(${coreCount})</span></label>`+
+    months.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="mdUpdateLabel('delmonth');renderMarkdowns()"> ${m} <span class="ms-count">(${delCounts[m]||0})</span></label>`).join('');
 }
 
 function mdSelectAll(checked){
@@ -2026,16 +2047,27 @@ function renderMarkdowns(){
   // Get all products
   const allProducts=[...toProduct(allVariantRows.filter(r=>!r.amOnly&&((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)))];
 
-  // Populate filters on first render
-  if(!document.getElementById('ms-md-cat-options').children.length){
-    mdPopulateFilters(allProducts);
-  }
+  // Repopulate filters preserving checked state
+  const prevChecked={};
+  ['cat','vendor','flag','disc','delmonth'].forEach(type=>{
+    prevChecked[type]=new Set([...document.querySelectorAll(`#ms-md-${type}-options input:checked`)].map(b=>b.value));
+  });
+  mdPopulateFilters(allProducts);
+  // Restore checked state
+  ['cat','vendor','flag','disc','delmonth'].forEach(type=>{
+    if(!prevChecked[type].size)return; // first render — all checked by default
+    document.querySelectorAll(`#ms-md-${type}-options input`).forEach(b=>{
+      b.checked=prevChecked[type].has(b.value);
+    });
+    mdUpdateLabel(type);
+  });
 
   // Apply filters
   const cats=mdGetSelected('cat');
   const vendors=mdGetSelected('vendor');
   const flags=mdGetSelected('flag');
   const discs=mdGetSelected('disc');
+  const soldouts=mdGetSelected('soldout');
   const delmonths=mdGetSelected('delmonth');
 
   let products=allProducts;
@@ -2048,6 +2080,14 @@ function renderMarkdowns(){
   if(discs.length) products=products.filter(p=>{
     const d=Math.round(p.discountPct||0);
     return discs.some(band=>{if(band==='none')return!p.discountPct||d===0;return Math.round(d)===parseInt(band);});
+  });
+  if(soldouts.length) products=products.filter(p=>{
+    const s=p.soldOutSizes||0;
+    return soldouts.some(band=>{
+      if(band==='none')return!s||s===0;
+      if(band==='5+')return s>=5;
+      return s===parseInt(band);
+    });
   });
   if(delmonths.length) products=products.filter(p=>delmonths.includes(p.deliveryMonth||''));
   if(search) products=products.filter(p=>{
