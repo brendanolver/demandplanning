@@ -2011,6 +2011,11 @@ function renderMarkdowns(){
   const selectedCount=products.filter(p=>saved[p.fullTitle]?.checked||saved[p.fullTitle]?.pct).length;
   countEl.textContent=`${products.length} products shown — ${selectedCount} selected for markdown`;
 
+  if(!products.length){
+    body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No results found</div><div class="insights-empty-sub">Try adjusting your filters.</div></div>`;
+    return;
+  }
+
   // Apply sort
   const mdArrow=col=>mdSortCol===col?(mdSortDir==='asc'?' ↑':' ↓'):'';
   const thS='cursor:pointer;user-select:none;white-space:nowrap;';
@@ -2097,11 +2102,6 @@ function renderMarkdowns(){
       <td class="cell-num">${proposedPrice?`<span style="color:var(--red);font-weight:700;">$${proposedPrice}</span>`:'—'}</td>
     </tr>`;
   }).join('');
-
-  if(!products.length){
-    body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No results found</div><div class="insights-empty-sub">Try adjusting your filters.</div></div>`;
-    return;
-  }
 
   body.innerHTML=`<div class="tbl-wrap"><table style="width:100%;border-collapse:collapse;">
     <thead><tr>
