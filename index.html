@@ -978,6 +978,7 @@ th{position:relative;}
           <button class="period-btn" data-md-days="365" onclick="setMdPeriod(365)">365d</button>
         </div>
       </div>
+      <div id="markdowns-count" style="font-size:12px;color:var(--text-muted);margin-bottom:8px;"></div>
       <div id="markdowns-body">
         <div class="insights-empty">
           <div class="insights-empty-ico">🏷️</div>
@@ -1969,7 +1970,7 @@ function renderMarkdowns(){
   const body=document.getElementById('markdowns-body');
   const countEl=document.getElementById('markdowns-count');
   if(!allVariantRows||allVariantRows.length===0){
-    body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">🏷️</div><div class="insights-empty-title">No data loaded</div><div class="insights-empty-sub">Load your data first then switch to this tab.</div></div>`;
+    if(body)body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">🏷️</div><div class="insights-empty-title">No data loaded</div><div class="insights-empty-sub">Load your data first then switch to this tab.</div></div>`;
     return;
   }
 
@@ -2009,7 +2010,7 @@ function renderMarkdowns(){
   });
 
   const selectedCount=products.filter(p=>saved[p.fullTitle]?.checked||saved[p.fullTitle]?.pct).length;
-  countEl.textContent=`${products.length} products shown — ${selectedCount} selected for markdown`;
+  if(countEl)countEl.textContent=`${products.length} products shown — ${selectedCount} selected for markdown`;
 
   if(!products.length){
     body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No results found</div><div class="insights-empty-sub">Try adjusting your filters.</div></div>`;
