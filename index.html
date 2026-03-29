@@ -2058,6 +2058,8 @@ function renderMarkdowns(){
   const selectedCount=products.filter(p=>saved[p.fullTitle]?.checked||saved[p.fullTitle]?.pct).length;
   if(countEl)countEl.textContent=`${products.length} products shown — ${selectedCount} selected for markdown`;
 
+  const allTicked=products.length>0&&products.every(p=>saved[p.fullTitle]?.checked);
+  const someTicked=!allTicked&&products.some(p=>saved[p.fullTitle]?.checked);
   // Cache visible keys for mdSelectAll
   window._mdVisibleKeys=products.map(p=>p.fullTitle);
 
@@ -2157,7 +2159,7 @@ function renderMarkdowns(){
 
   body.innerHTML=`<div class="tbl-wrap"><table style="width:100%;border-collapse:collapse;">
     <thead><tr>
-      <th style="width:36px;text-align:center;padding:8px 6px;"><input type="checkbox" style="width:15px;height:15px;accent-color:var(--teal);" onchange="mdSelectAll(this.checked);if(this.checked)mdApplyBulkPct()"></th>
+      <th style="width:36px;text-align:center;padding:8px 6px;"><input type="checkbox" id="md-select-all-chk" ${allTicked?'checked':''} style="width:15px;height:15px;accent-color:var(--teal);" onchange="mdSelectAll(this.checked)"></th>
       <th style="${thS}" onclick="setMdSort('productName')">Product${mdArrow('productName')}</th>
       <th style="${thS}" onclick="setMdSort('category')">Category${mdArrow('category')}</th>
       <th style="${thS}" onclick="setMdSort('discountPct')">Disc%${mdArrow('discountPct')}</th>
@@ -2181,6 +2183,9 @@ function renderMarkdowns(){
     </tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
+  // Set indeterminate state for partial selection (can't be done in HTML)
+  const hdrChk=document.getElementById('md-select-all-chk');
+  if(hdrChk)hdrChk.indeterminate=someTicked;
 }
 
 /* ── GOOGLE DRIVE IMPORT ── */
