@@ -448,6 +448,10 @@ th{position:relative;}
       <input class="pw-input" type="password" id="pw-input" placeholder="Password" onkeydown="if(event.key==='Enter')checkPassword()">
       <button type="button" class="pw-toggle" id="pw-toggle-btn" onclick="togglePwVisibility(event)">👁</button>
     </div>
+    <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px;cursor:pointer;font-size:13px;color:var(--text-secondary);">
+      <input type="checkbox" id="pw-remember" style="width:15px;height:15px;accent-color:var(--teal);">
+      Remember me on this device
+    </label>
     <button class="pw-submit" onclick="checkPassword()">Access Dashboard →</button>
     <div class="pw-error" id="pw-error">Incorrect password. Please try again.</div>
   </div>
@@ -1920,7 +1924,13 @@ function showGdriveSetup(){
 function checkPassword(){
   const input=document.getElementById('pw-input').value.trim();
   const error=document.getElementById('pw-error');
+  const remember=document.getElementById('pw-remember')?.checked;
   if(input==='Magpies90!'){
+    if(remember){
+      try{localStorage.setItem('wndrr_auth','1');}catch(e){}
+    } else {
+      try{localStorage.removeItem('wndrr_auth');}catch(e){}
+    }
     document.getElementById('password-screen').style.display='none';
     document.getElementById('upload-screen').style.display='flex';
     error.classList.remove('show');
@@ -1930,6 +1940,16 @@ function checkPassword(){
     document.getElementById('pw-input').focus();
   }
 }
+
+// Auto-login if remembered
+(function(){
+  try{
+    if(localStorage.getItem('wndrr_auth')==='1'){
+      document.getElementById('password-screen').style.display='none';
+      document.getElementById('upload-screen').style.display='flex';
+    }
+  }catch(e){}
+})();
 
 function togglePwVisibility(e){
   if(e)e.preventDefault();
