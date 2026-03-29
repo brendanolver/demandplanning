@@ -1897,6 +1897,50 @@ function setMdPeriod(days){
 function getMdData(){try{return JSON.parse(localStorage.getItem(MD_STORAGE_KEY)||'{}');}catch(e){return{};}}
 function saveMdData(d){try{localStorage.setItem(MD_STORAGE_KEY,JSON.stringify(d));}catch(e){}}
 
+function mdToggle(key,checked){
+  const d=getMdData();
+  if(!d[key])d[key]={};
+  d[key].checked=checked;
+  saveMdData(d);
+  renderMarkdowns();
+}
+
+function mdSetPct(key,val){
+  const d=getMdData();
+  if(!d[key])d[key]={};
+  d[key].pct=val;
+  saveMdData(d);
+  renderMarkdowns();
+}
+
+function mdExport(){
+  const d=getMdData();
+  const allProds=[...toProduct(allVariantRows.filter(r=>!r.amOnly&&((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)))];
+  const selected=allProds.filter(p=>d[p.fullTitle]?.checked||d[p.fullTitle]?.pct);
+  if(!selected.length){alert('No styles selected — tick a checkbox or enter a proposed % first.');return;}
+  const headers=['Product','Colour','Category','Status','Month Del','ST%','SOH','SOH Value','Sell Value','Today','Yest','Sold','On Order','Sizes S/O','Price','RRP','Curr Disc%','Margin%','Proposed Markdown %','Proposed New Price','Wks Cover','Stock Status'];
+  const SL={ok:'OK','on-order':'On Order',oos:'Out of Stock',reorder:'Re-Order',reduce:'Reduce',clearance:'Clearance'};
+  const csvRows=selected.map(p=>{
+    const pct=d[p.fullTitle]?.pct||'';
+    const proposedPrice=p.compareAt>0&&pct?(p.compareAt*(1-parseFloat(pct)/100)).toFixed(2):'';
+    return[p.productName,p.colour,p.category,p.vendor,p.deliveryMonth||'',
+      p.sellThru7!=null?p.sellThru7.toFixed(1):'',p.stock,
+      p.sohValue?Math.round(p.sohValue):'',p.sellValue?Math.round(p.sellValue):'',
+      p.soldToday||'',p.soldYesterday||'',p.sold||'',
+      (p.onOrder||0)+(p.productOnOrder||0)||'',p.soldOutSizes||'',
+      p.price||'',p.compareAt||'',
+      p.discountPct!=null?p.discountPct.toFixed(1):'',
+      p.margin!=null?p.margin.toFixed(1):'',
+      pct,proposedPrice,p.daysDisplay,SL[p.flag]||p.flag];
+  });
+  const csv=[headers,...csvRows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download='wndrr_markdowns.csv';a.click();
+  URL.revokeObjectURL(url);
+}
+
 function mdGetSelected(type){
   const boxes=[...document.querySelectorAll(`#ms-md-${type}-options input[type="checkbox"]`)];
   if(!boxes.length)return[];
@@ -2061,13 +2105,16 @@ function renderMarkdowns(){
 
   // Repopulate filters preserving checked state
   const prevChecked={};
+  const wasPopulated={};
   ['cat','vendor','flag','disc','soldout','delmonth'].forEach(type=>{
-    prevChecked[type]=new Set([...document.querySelectorAll(`#ms-md-${type}-options input:checked`)].map(b=>b.value));
+    const boxes=[...document.querySelectorAll(`#ms-md-${type}-options input`)];
+    wasPopulated[type]=boxes.length>0; // true if already rendered before
+    prevChecked[type]=new Set(boxes.filter(b=>b.checked).map(b=>b.value));
   });
   mdPopulateFilters(allProducts);
-  // Restore checked state
+  // Restore checked state (only if filter was already populated)
   ['cat','vendor','flag','disc','soldout','delmonth'].forEach(type=>{
-    if(!prevChecked[type].size)return; // first render — all checked by default
+    if(!wasPopulated[type])return; // first render — leave all checked by default
     document.querySelectorAll(`#ms-md-${type}-options input`).forEach(b=>{
       b.checked=prevChecked[type].has(b.value);
     });
@@ -2146,6 +2193,7 @@ function renderMarkdowns(){
       case'margin':return num('margin');
       case'days':return num('days');
       case'onOrder':av=(a.onOrder||0)+(a.productOnOrder||0);bv=(b.onOrder||0)+(b.productOnOrder||0);return mdSortDir==='asc'?av-bv:bv-av;
+      case'soldOutSizes':return num('soldOutSizes');
       default:return(a.productName||'').localeCompare(b.productName||'')||(a.colour||'').localeCompare(b.colour||'');
     }
   });
@@ -2191,6 +2239,7 @@ function renderMarkdowns(){
       <td class="cell-num" style="color:var(--teal);">${p.soldYesterday||0?p.soldYesterday:'—'}</td>
       <td class="cell-num">${sold>0?sold.toLocaleString():'—'}</td>
       <td class="cell-num" style="color:var(--purple);">${onOrder>0?onOrder.toLocaleString():'—'}</td>
+      <td class="cell-num" style="${(p.soldOutSizes||0)>0?'color:var(--red);font-weight:600;':'color:var(--text-muted);'}">${(p.soldOutSizes||0)>0?p.soldOutSizes:'—'}</td>
       <td class="cell-num">${p.price>0?'$'+p.price.toFixed(2):'—'}</td>
       <td class="cell-num">${p.compareAt>0?'$'+p.compareAt.toFixed(2):'—'}</td>
       <td class="cell-num">${mg}</td>
@@ -2225,6 +2274,7 @@ function renderMarkdowns(){
       <th style="${thS}text-align:right;" onclick="setMdSort('soldYesterday')">Yest${mdArrow('soldYesterday')}</th>
       <th style="${thS}text-align:right;" onclick="setMdSort('sold')">${soldLabel}${mdArrow('sold')}</th>
       <th style="${thS}text-align:right;" onclick="setMdSort('onOrder')">On Order${mdArrow('onOrder')}</th>
+      <th style="${thS}text-align:right;" onclick="setMdSort('soldOutSizes')">Sizes S/O${mdArrow('soldOutSizes')}</th>
       <th style="${thS}text-align:right;" onclick="setMdSort('price')">Price${mdArrow('price')}</th>
       <th style="${thS}text-align:right;" onclick="setMdSort('compareAt')">RRP${mdArrow('compareAt')}</th>
       <th style="${thS}text-align:right;" onclick="setMdSort('margin')">Margin%${mdArrow('margin')}</th>
