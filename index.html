@@ -2220,6 +2220,21 @@ function swSelectProduct(productName,colour){
   document.getElementById('sw-results').style.display='none';
   swProduct={productName,colour};
   document.getElementById('sw-colour-wrap').style.display='none';
+
+  // Pre-fill Total Units Needed from Re-Orders qty if SW total not already set
+  const swKey=`${productName}||${colour}`;
+  const swData=getSwData();
+  if(!swData[swKey]?.total){
+    const roData=getRoData();
+    const roKey=productName+' - '+colour;
+    const roQty=roData[roKey]?.qty||'';
+    if(roQty){
+      if(!swData[swKey])swData[swKey]={};
+      swData[swKey].total=roQty;
+      saveSwData(swData);
+    }
+  }
+
   renderSizeWorkings();
 }
 
@@ -2507,7 +2522,7 @@ function renderReorders(){
     const safeKey=key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     return`<tr style="background:${isChecked?'rgba(20,184,166,0.05)':''};">
       <td style="padding:6px 8px;text-align:center;"><input type="checkbox" ${isChecked?'checked':''} style="width:16px;height:16px;accent-color:var(--teal);cursor:pointer;" onchange="roToggle('${safeKey}',this.checked)"></td>
-      <td class="cell-product"><div class="prod-name">${p.productName}</div><div class="prod-colour">${p.colour}</div></td>
+      <td class="cell-product"><div class="prod-name">${p.productName}${p.colour?" - "+p.colour:""}</div></td>
       <td class="cell-muted">${p.category||'—'}</td>
       <td style="padding:6px 8px;"><span class="range-pill ${vendorCls(p.vendor)}">${p.vendor||'—'}</span></td>
       <td style="padding:6px 8px;font-size:12px;">${p.deliveryMonth==='CORE'?'<span style="font-size:11px;font-weight:600;color:var(--blue);">CORE</span>':p.deliveryMonth||'—'}</td>
@@ -3040,7 +3055,7 @@ function renderMarkdowns(){
     const onOrder=(p.onOrder||0)+(p.productOnOrder||0);
     return`<tr style="background:${isChecked?'rgba(20,184,166,0.05)':''};">
       <td style="padding:6px 8px;text-align:center;"><input type="checkbox" ${isChecked?'checked':''} style="width:16px;height:16px;accent-color:var(--teal);cursor:pointer;" onchange="mdToggle('${safeKey}',this.checked)"></td>
-      <td class="cell-product"><div class="prod-name">${p.productName}</div><div class="prod-colour">${p.colour}</div></td>
+      <td class="cell-product"><div class="prod-name">${p.productName}${p.colour?" - "+p.colour:""}</div></td>
       <td class="cell-muted">${p.category||'—'}</td>
       <td style="padding:6px 8px;font-size:12px;color:${(p.discountPct||0)>0?'var(--red)':'var(--text-secondary)'};">${disc}</td>
       <td style="padding:6px 8px;"><span class="range-pill ${vendorCls}">${p.vendor||'—'}</span></td>
