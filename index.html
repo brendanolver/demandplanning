@@ -207,7 +207,7 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .prod-colour{font-size:11px;color:var(--text-muted);margin-top:1px;}
 .am-tag{display:inline-block;margin-left:5px;padding:1px 5px;background:var(--purple-light);color:var(--purple);border-radius:3px;font-size:9.5px;font-weight:700;vertical-align:middle;letter-spacing:0.3px;}
 .cell-num{font-variant-numeric:tabular-nums;font-weight:500;text-align:right;padding:6px 14px;white-space:nowrap;}
-.cell-muted{color:var(--text-muted);}
+.cell-muted{color:var(--text-muted);text-align:right;padding:6px 14px;white-space:nowrap;}
 
 /* Status pill */
 .status-pill{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:var(--r-pill);font-size:11px;font-weight:700;white-space:nowrap;letter-spacing:0.3px;}
@@ -5014,13 +5014,17 @@ function renderRow(row,headers){
     }
     if(h.k==='flag') return`<td><span class="status-pill sp-${row.flag}">${SL[row.flag]||val}</span></td>`;
     if(h.k==='monthDue') return`<td>${renderMonthDue(val)}</td>`;
-    if(h.k==='onOrder') return`<td><span class="${(val||0)>0?'on-order-num':'cell-muted'}">${(val||0)>0?(val).toLocaleString():'—'}</span></td>`;
+    if(h.k==='onOrder') return`<td class="cell-num"><span class="${(val||0)>0?'on-order-num':'cell-muted'}" style="text-align:right;">${(val||0)>0?(val).toLocaleString():'—'}</span></td>`;
     if(h.k==='vel7'||h.k==='vel30') return`<td>${renderVel(val)}</td>`;
     if(h.k==='stock'||h.k==='sold'||h.k==='products') return`<td class="cell-num">${typeof val==='number'?val.toLocaleString():val??'—'}</td>`;
     if(h.k==='oosCount') return`<td class="cell-num" style="${val>0?'color:var(--red);font-weight:600':''}">${val??0}</td>`;
     if(h.k==='critCount') return`<td class="cell-num" style="${val>0?'color:var(--amber);font-weight:600':''}">${val??0}</td>`;
-    if(h.k==='size'||h.k==='sku') return`<td class="cell-muted">${val||'—'}</td>`;
-    return`<td>${val!==null&&val!==undefined?val:'—'}</td>`;
+    if(h.k==='soldOutSizes'){
+      if(!val||val===0)return`<td class="cell-muted">—</td>`;
+      return`<td class="cell-num" style="color:var(--red);font-weight:600;">${val}</td>`;
+    }
+    if(h.k==='size'||h.k==='sku') return`<td class="cell-muted" style="text-align:left;">${val||'—'}</td>`;
+    return`<td class="cell-num">${val!==null&&val!==undefined?val:'—'}</td>`;
   }).join('')+'</tr>';
 }
 
