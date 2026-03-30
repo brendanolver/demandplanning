@@ -1049,7 +1049,7 @@ th{position:relative;}
           <div></div>
           <div style="display:flex;gap:8px;align-items:center;">
             <button onclick="mdSelectAll(true)" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✓ Select All</button>
-            <button onclick="mdSelectAll(false)" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✕ Clear All</button>
+            <button onclick="mdClearAll()" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✕ Clear All</button>
             <button id="md-view-selected-btn" onclick="mdToggleViewSelected()" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">👁 View Selected</button>
             <div style="display:flex;align-items:center;gap:6px;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);">
               <span style="font-size:12px;color:var(--text-secondary);white-space:nowrap;">Bulk %:</span>
@@ -2433,7 +2433,15 @@ function roSetQty(key,val){
   const d=getRoData();if(!d[key])d[key]={};d[key].qty=val;saveRoData(d);renderReorders();
 }
 function roClearAll(){
-  saveRoData({});
+  const d=getRoData();
+  const visibleKeys=window._roVisibleKeys||[];
+  const keysToReset=visibleKeys.length?visibleKeys:
+    [...toProduct(allVariantRows.filter(r=>((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)))].map(p=>p.fullTitle);
+  keysToReset.forEach(key=>{
+    if(d[key]){d[key].checked=false;delete d[key].qty;}
+    if(d[key]&&!d[key].checked&&d[key].qty===undefined)delete d[key];
+  });
+  saveRoData(d);
   renderReorders();
 }
 function roSelectAll(checked){
@@ -2529,6 +2537,7 @@ function renderReorders(){
   });
 
   window._roVisibleKeys=products.map(p=>p.fullTitle);
+  window._roFilteredProducts=products;
   const selectedCount=products.filter(p=>saved[p.fullTitle]?.checked||saved[p.fullTitle]?.qty).length;
   if(countEl)countEl.textContent=`${products.length} products shown — ${selectedCount} selected for re-order`;
 
@@ -2710,11 +2719,11 @@ function roSort(col){
 
 function roExport(){
   const d=getRoData();
-  const allProds=[...toProduct(allVariantRows)].filter(p=>
+  const filteredProds=window._roFilteredProducts||[...toProduct(allVariantRows)].filter(p=>
     allVariantRows.some(r=>r.productName===p.productName&&r.colour===p.colour&&((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0))
   );
-  const selected=allProds.filter(p=>d[p.fullTitle]?.checked||d[p.fullTitle]?.qty);
-  if(!selected.length){alert('No styles selected — tick a checkbox or enter a re-order qty first.');return;}
+  const selected=filteredProds.filter(p=>d[p.fullTitle]?.checked||d[p.fullTitle]?.qty);
+  if(!selected.length){alert('No styles selected in the current view — tick a checkbox or enter a re-order qty first.');return;}
   const headers=['Product','Colour','Category','Status','Month Del','SOH','On Order','Suggest Order','Re-Order Qty','Wks Cover (incl. RO)','Stock Status'];
   const SL={ok:'OK','on-order':'On Order',oos:'Out of Stock',reorder:'Re-Order',reduce:'Reduce',clearance:'Clearance'};
   const csvRows=selected.map(p=>{
@@ -2799,12 +2808,13 @@ function mdSetPct(key,val){
 
 function mdExport(){
   const d=getMdData();
-  const allProds=[...toProduct(allVariantRows)].filter(p=>{
-    const key=p.productName+'||'+p.colour;
-    return allVariantRows.some(r=>r.productName===p.productName&&r.colour===p.colour&&((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0));
-  });
-  const selected=allProds.filter(p=>d[p.fullTitle]?.checked||d[p.fullTitle]?.pct);
-  if(!selected.length){alert('No styles selected — tick a checkbox or enter a proposed % first.');return;}
+  // Use currently filtered+visible products (respects all active filters)
+  // Fall back to full product list if renderMarkdowns hasn't run yet
+  const filteredProds=window._mdFilteredProducts||[...toProduct(allVariantRows)].filter(p=>
+    allVariantRows.some(r=>r.productName===p.productName&&r.colour===p.colour&&((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0))
+  );
+  const selected=filteredProds.filter(p=>d[p.fullTitle]?.checked||d[p.fullTitle]?.pct);
+  if(!selected.length){alert('No styles selected in the current view — tick a checkbox or enter a proposed % first.');return;}
   const headers=['Product','Category','Status','Month Del','Month Due','ST%','SOH','SOH Value','Sell Value','Today','Yest','Sold','On Order','Sizes S/O','Price','RRP','Curr Disc%','Margin%','Proposed Markdown %','Proposed New Price','Wks Cover','Stock Status'];
   const SL={ok:'OK','on-order':'On Order',oos:'Out of Stock',reorder:'Re-Order',reduce:'Reduce',clearance:'Clearance'};
   const csvRows=selected.map(p=>{
@@ -2936,6 +2946,19 @@ function mdPopulateFilters(products){
     months.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="mdUpdateLabel('delmonth');renderMarkdowns()"> ${m} <span class="ms-count">(${delCounts[m]||0})</span></label>`).join('');
 }
 
+function mdClearAll(){
+  const d=getMdData();
+  const visibleKeys=window._mdVisibleKeys||[];
+  const keysToReset=visibleKeys.length?visibleKeys:
+    [...toProduct(allVariantRows.filter(r=>((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)))].map(p=>p.fullTitle);
+  keysToReset.forEach(key=>{
+    if(d[key]){d[key].checked=false;delete d[key].pct;}
+    if(d[key]&&!d[key].checked&&!d[key].pct)delete d[key];
+  });
+  saveMdData(d);
+  renderMarkdowns();
+}
+
 function mdSelectAll(checked){
   const d=getMdData();
   // Only select/deselect products currently visible (respects filters & search)
@@ -3060,6 +3083,7 @@ function renderMarkdowns(){
   const someTicked=!allTicked&&products.some(p=>saved[p.fullTitle]?.checked);
   // Cache visible keys for mdSelectAll
   window._mdVisibleKeys=products.map(p=>p.fullTitle);
+  window._mdFilteredProducts=products;
 
   if(!products.length){
     body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No results found</div><div class="insights-empty-sub">Try adjusting your filters.</div></div>`;
