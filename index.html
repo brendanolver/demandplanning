@@ -1011,6 +1011,14 @@ th{position:relative;}
               <div id="ms-ro-delmonth-options"></div>
             </div>
           </div>
+          <div class="ms-wrap" id="ms-ro-sugord">
+            <button class="ms-btn" onclick="toggleDropdown('ms-ro-sugord')"><span id="ms-ro-sugord-label">Suggest Order</span><span class="ms-arrow">▾</span></button>
+            <div class="ms-dropdown" id="ms-ro-sugord-dropdown">
+              <label class="ms-item ms-all"><input type="checkbox" checked onchange="roToggleSugOrd('all',this)"> All</label>
+              <label class="ms-item"><input type="checkbox" id="ro-sugord-yes" checked onchange="roToggleSugOrd('yes',this)"> Yes (≥70 units)</label>
+              <label class="ms-item"><input type="checkbox" id="ro-sugord-no" checked onchange="roToggleSugOrd('no',this)"> No</label>
+            </div>
+          </div>
           <button class="clear-btn" onclick="roClearFilters()">✕ Clear</button>
         </div>
         <!-- Period selector -->
@@ -2481,6 +2489,15 @@ function renderReorders(){
   if(delmonths.length)products=products.filter(p=>delmonths.includes(p.deliveryMonth||''));
   if(search)products=products.filter(p=>(p.productName+' - '+p.colour).toUpperCase().includes(search)||(p.productName||'').toUpperCase().includes(search));
   if(roViewSelectedOnly)products=products.filter(p=>saved[p.fullTitle]?.checked||saved[p.fullTitle]?.qty);
+  // Suggest Order filter
+  const sugYes=document.getElementById('ro-sugord-yes')?.checked??true;
+  const sugNo=document.getElementById('ro-sugord-no')?.checked??true;
+  if(!sugYes||!sugNo){
+    products=products.filter(p=>{
+      const hasSug=(p.suggestedOrder||0)>=70;
+      return (sugYes&&hasSug)||(sugNo&&!hasSug);
+    });
+  }
   const thS='cursor:pointer;user-select:none;white-space:nowrap;';
   const roArrow=col=>roSortCol===col?(roSortDir==='asc'?' ↑':' ↓'):'';
   products.sort((a,b)=>{
@@ -2622,6 +2639,17 @@ function roClearFilters(){
     roUpdateLabel(type);
   });
   const s=document.getElementById('ro-search');if(s)s.value='';
+  // Reset suggest order filter
+  const yesChk=document.getElementById('ro-sugord-yes');
+  const noChk=document.getElementById('ro-sugord-no');
+  const allChk=document.querySelector('#ms-ro-sugord .ms-all input');
+  if(yesChk)yesChk.checked=true;
+  if(noChk)noChk.checked=true;
+  if(allChk)allChk.checked=true;
+  const label=document.getElementById('ms-ro-sugord-label');
+  if(label)label.textContent='Suggest Order';
+  const btn=document.querySelector('#ms-ro-sugord .ms-btn');
+  if(btn)btn.classList.remove('filtered');
   renderReorders();
 }
 function roPopulateFilters(products){
@@ -2653,6 +2681,22 @@ function roPopulateFilters(products){
   document.getElementById('ms-ro-delmonth-options').innerHTML=
     `<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="roUpdateLabel('delmonth');renderReorders()"> CORE <span class="ms-count">(${coreCount})</span></label>`+
     months.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="roUpdateLabel('delmonth');renderReorders()"> ${m} <span class="ms-count">(${delCounts[m]||0})</span></label>`).join('');
+}
+
+function roToggleSugOrd(type,cb){
+  const yesChk=document.getElementById('ro-sugord-yes');
+  const noChk=document.getElementById('ro-sugord-no');
+  const allChk=document.querySelector('#ms-ro-sugord .ms-all input');
+  if(type==='all'){yesChk.checked=cb.checked;noChk.checked=cb.checked;}
+  else{if(allChk)allChk.checked=yesChk.checked&&noChk.checked;}
+  // Update label
+  const label=document.getElementById('ms-ro-sugord-label');
+  const btn=document.querySelector('#ms-ro-sugord .ms-btn');
+  if(yesChk.checked&&noChk.checked){label.textContent='Suggest Order';if(btn)btn.classList.remove('filtered');}
+  else if(yesChk.checked){label.textContent='Suggest Order: Yes';if(btn)btn.classList.add('filtered');}
+  else if(noChk.checked){label.textContent='Suggest Order: No';if(btn)btn.classList.add('filtered');}
+  else{label.textContent='Suggest Order';if(btn)btn.classList.remove('filtered');}
+  renderReorders();
 }
 
 function roSort(col){
