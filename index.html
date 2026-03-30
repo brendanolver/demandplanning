@@ -948,6 +948,7 @@ th{position:relative;}
           <div style="display:flex;gap:8px;align-items:center;">
             <button onclick="roSelectAll(true)" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✓ Select All</button>
             <button onclick="roSelectAll(false)" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✕ Clear All</button>
+            <button id="ro-view-selected-btn" onclick="roToggleViewSelected()" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">👁 View Selected</button>
             <button onclick="roExport()" style="padding:7px 18px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">⬇ Export Selected</button>
           </div>
         </div>
@@ -994,6 +995,17 @@ th{position:relative;}
           </div>
           <button class="clear-btn" onclick="roClearFilters()">✕ Clear</button>
         </div>
+        <!-- Period selector -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+          <span style="font-size:12px;color:var(--text-muted);font-weight:500;">Period:</span>
+          <div class="period-selector" style="position:relative;display:flex;gap:4px;">
+            <button class="period-btn active" data-ro-days="7" onclick="setRoPeriod(7)">7d</button>
+            <button class="period-btn" data-ro-days="14" onclick="setRoPeriod(14)">14d</button>
+            <button class="period-btn" data-ro-days="30" onclick="setRoPeriod(30)">30d</button>
+            <button class="period-btn" data-ro-days="90" onclick="setRoPeriod(90)">90d</button>
+            <button class="period-btn" data-ro-days="365" onclick="setRoPeriod(365)">365d</button>
+          </div>
+        </div>
         <div id="reorders-count" style="font-size:12px;color:var(--text-muted);margin-bottom:8px;"></div>
         <div id="reorders-body">
           <div class="insights-empty">
@@ -1012,6 +1024,7 @@ th{position:relative;}
           <div style="display:flex;gap:8px;align-items:center;">
             <button onclick="mdSelectAll(true)" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✓ Select All</button>
             <button onclick="mdSelectAll(false)" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✕ Clear All</button>
+            <button id="md-view-selected-btn" onclick="mdToggleViewSelected()" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">👁 View Selected</button>
             <div style="display:flex;align-items:center;gap:6px;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);">
               <span style="font-size:12px;color:var(--text-secondary);white-space:nowrap;">Bulk %:</span>
               <input type="number" id="md-bulk-pct" min="0" max="90" step="5" placeholder="e.g. 30"
@@ -2073,6 +2086,7 @@ function renderReorders(){
   if(discs.length)products=products.filter(p=>{const d=Math.round(p.discountPct||0);return discs.some(band=>{if(band==='none')return!p.discountPct||d===0;return Math.round(d)===parseInt(band);});});
   if(delmonths.length)products=products.filter(p=>delmonths.includes(p.deliveryMonth||''));
   if(search)products=products.filter(p=>(p.productName+' - '+p.colour).toUpperCase().includes(search)||(p.productName||'').toUpperCase().includes(search));
+  if(roViewSelectedOnly)products=products.filter(p=>saved[p.fullTitle]?.checked||saved[p.fullTitle]?.qty);
   const thS='cursor:pointer;user-select:none;white-space:nowrap;';
   const roArrow=col=>roSortCol===col?(roSortDir==='asc'?' ↑':' ↓'):'';
   products.sort((a,b)=>{
@@ -2081,6 +2095,7 @@ function renderReorders(){
     if(roSortCol==='category')return roSortDir==='asc'?(a.category||'').localeCompare(b.category||''):(b.category||'').localeCompare(a.category||'');
     if(roSortCol==='vendor')return roSortDir==='asc'?(a.vendor||'').localeCompare(b.vendor||''):(b.vendor||'').localeCompare(a.vendor||'');
     if(roSortCol==='deliveryMonth')return roSortDir==='asc'?(a.deliveryMonth||'').localeCompare(b.deliveryMonth||''):(b.deliveryMonth||'').localeCompare(a.deliveryMonth||'');
+    if(roSortCol==='sold'){av=a.sold7||0;bv=b.sold7||0;return roSortDir==='asc'?av-bv:bv-av;}
     return roSortDir==='asc'?av-bv:bv-av;
   });
 
@@ -2095,13 +2110,17 @@ function renderReorders(){
   const flagPillCls={ok:'sp-ok',reorder:'sp-reorder','on-order':'sp-onorder',oos:'sp-oos',reduce:'sp-reduce',clearance:'sp-clearance'};
   const vendorCls=v=>v==='CORE'?'rp-core':v==='NEW'?'rp-new':v==='CURRENT'?'rp-current':v==='OLD'?'rp-old':'rp-other';
 
+  const soldLabel=`Sold (${roPeriod}d)`;
+  const getSoldRo=p=>{if(roPeriod===7)return p.sold7||0;if(roPeriod===14)return Math.round((p.sold7||0)/7*14);if(roPeriod===30)return p.sold30||0;if(roPeriod===90)return p.sold90||0;if(roPeriod===365)return p.sold365||0;return p.sold7||0;};
+
   const rows=products.map(p=>{
     const key=p.fullTitle;
     const isChecked=saved[key]?.checked||false;
     const roQtyVal=saved[key]?.qty||'';
     const roQty=parseInt(roQtyVal)||0;
     const onOrder=(p.onOrder||0)+(p.productOnOrder||0);
-    const velocity=p.velocity||0; // units/day from selected period
+    const velocity=p.velocity||0;
+    const sold=getSoldRo(p);
     // Recalculated weeks cover with re-order qty
     const totalUnits=p.stock+onOrder+roQty;
     const recalcWks=velocity>0?+(totalUnits/(velocity*7)).toFixed(1):null;
@@ -2117,6 +2136,7 @@ function renderReorders(){
       <td style="padding:6px 8px;font-size:12px;">${p.deliveryMonth==='CORE'?'<span style="font-size:11px;font-weight:600;color:var(--blue);">CORE</span>':p.deliveryMonth||'—'}</td>
       <td class="cell-num">${p.stock.toLocaleString()}</td>
       <td class="cell-num" style="color:var(--purple);">${onOrder>0?onOrder.toLocaleString():'—'}</td>
+      <td class="cell-num">${sold>0?sold.toLocaleString():'—'}</td>
       <td class="cell-num" style="color:#f97316;font-weight:700;">${sugOrd>0?sugOrd.toLocaleString():'—'}</td>
       <td style="padding:5px 8px;text-align:center;">
         <input type="number" min="0" step="1" placeholder="0" value="${roQtyVal}"
@@ -2129,7 +2149,7 @@ function renderReorders(){
     </tr>`;
   }).join('');
 
-  if(!allProductsRo.length){
+  if(!products.length){
     body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No products found</div></div>`;return;
   }
 
@@ -2142,6 +2162,7 @@ function renderReorders(){
       <th style="${thS}" onclick="roSort('deliveryMonth')">Month Del${roArrow('deliveryMonth')}</th>
       <th style="${thS}text-align:right;" onclick="roSort('stock')">SOH${roArrow('stock')}</th>
       <th style="${thS}text-align:right;" onclick="roSort('onOrder')">On Order${roArrow('onOrder')}</th>
+      <th style="${thS}text-align:right;" onclick="roSort('sold')">${soldLabel}${roArrow('sold')}</th>
       <th style="${thS}text-align:right;" onclick="roSort('suggestedOrder')">Suggest Order${roArrow('suggestedOrder')}</th>
       <th style="text-align:center;min-width:100px;">Re-Order Qty</th>
       <th style="${thS}text-align:right;" onclick="roSort('days')">Wks Cover (incl. RO)${roArrow('days')}</th>
@@ -2251,6 +2272,40 @@ function roExport(){
 /* ── MARKDOWNS ── */
 const MD_STORAGE_KEY='wndrr_markdowns_v1';
 let mdPeriod=7;
+let roPeriod=7;
+
+let mdViewSelectedOnly=false;
+let roViewSelectedOnly=false;
+
+function mdToggleViewSelected(){
+  mdViewSelectedOnly=!mdViewSelectedOnly;
+  const btn=document.getElementById('md-view-selected-btn');
+  if(btn){
+    btn.style.background=mdViewSelectedOnly?'var(--teal)':'var(--surface)';
+    btn.style.color=mdViewSelectedOnly?'white':'var(--text-secondary)';
+    btn.style.border=mdViewSelectedOnly?'1px solid var(--teal)':'1px solid var(--border)';
+    btn.textContent=mdViewSelectedOnly?'👁 All Products':'👁 View Selected';
+  }
+  renderMarkdowns();
+}
+
+function roToggleViewSelected(){
+  roViewSelectedOnly=!roViewSelectedOnly;
+  const btn=document.getElementById('ro-view-selected-btn');
+  if(btn){
+    btn.style.background=roViewSelectedOnly?'var(--teal)':'var(--surface)';
+    btn.style.color=roViewSelectedOnly?'white':'var(--text-secondary)';
+    btn.style.border=roViewSelectedOnly?'1px solid var(--teal)':'1px solid var(--border)';
+    btn.textContent=roViewSelectedOnly?'👁 All Products':'👁 View Selected';
+  }
+  renderReorders();
+}
+
+function setRoPeriod(days){
+  roPeriod=days;
+  document.querySelectorAll('[data-ro-days]').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.roDays)===days));
+  renderReorders();
+}
 
 function setMdPeriod(days){
   mdPeriod=days;
@@ -2533,6 +2588,7 @@ function renderMarkdowns(){
     const full=(p.productName+' - '+p.colour).toUpperCase();
     return full.includes(search)||(p.productName||'').toUpperCase().includes(search)||(p.colour||'').toUpperCase().includes(search);
   });
+  if(mdViewSelectedOnly)products=products.filter(p=>saved[p.fullTitle]?.checked||saved[p.fullTitle]?.pct);
 
   const selectedCount=products.filter(p=>saved[p.fullTitle]?.checked||saved[p.fullTitle]?.pct).length;
   if(countEl)countEl.textContent=`${products.length} products shown — ${selectedCount} selected for markdown`;
