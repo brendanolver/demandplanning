@@ -1263,8 +1263,6 @@ function renderCadence(){
       if(!search)return true;
       return k.toUpperCase().includes(search);
     }).sort();
-    // Limit to 50 results when no search/filters active
-    if(!search&&!selectedStatuses.length&&!selectedCats.length&&!selectedDelMonths.length)rowKeys=rowKeys.slice(0,50);
     rowLabel='Product';
     getKey=r=>r.productName+'||'+r.colour;
   }
@@ -1286,7 +1284,7 @@ function renderCadence(){
     }
   }
 
-  // Build SOH map per row key
+  // Build SOH map per row key — uses all allVariantRows so SOH sort works across full set
   const sohByKey={};
   if(cadenceView==='cat'){
     for(const r of allVariantRows){
@@ -1308,7 +1306,7 @@ function renderCadence(){
     return parts[0]+(parts[1]?' <span style="color:var(--text-muted);font-weight:400">'+parts[1]+'</span>':'');
   };
 
-  // Apply sort to rowKeys
+  // Apply sort to rowKeys BEFORE limiting
   if(cadenceSortCol){
     rowKeys.sort((a,b)=>{
       if(cadenceSortCol==='label'){
@@ -1320,6 +1318,14 @@ function renderCadence(){
       else{av=data[a]?.[cadenceSortCol]||0;bv=data[b]?.[cadenceSortCol]||0;}
       return cadenceSortDir==='desc'?bv-av:av-bv;
     });
+  }
+
+  // Limit to 50 results only when no search/filters/sort active (AFTER sort)
+  if(cadenceView==='prod'&&!search&&!cadenceSortCol){
+    const ss=getCadenceSelectedStatuses();
+    const sc=getCadenceSelectedCats();
+    const sdm=getCadenceSelectedDelMonths();
+    if(!ss.length&&!sc.length&&!sdm.length)rowKeys=rowKeys.slice(0,50);
   }
 
   // Sortable header helper
@@ -1929,7 +1935,10 @@ function mdSetPct(key,val){
 
 function mdExport(){
   const d=getMdData();
-  const allProds=[...toProduct(allVariantRows.filter(r=>!r.amOnly&&((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)))];
+  const allProds=[...toProduct(allVariantRows)].filter(p=>{
+    const key=p.productName+'||'+p.colour;
+    return allVariantRows.some(r=>r.productName===p.productName&&r.colour===p.colour&&((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0));
+  });
   const selected=allProds.filter(p=>d[p.fullTitle]?.checked||d[p.fullTitle]?.pct);
   if(!selected.length){alert('No styles selected — tick a checkbox or enter a proposed % first.');return;}
   const headers=['Product','Colour','Category','Status','Month Del','Month Due','ST%','SOH','SOH Value','Sell Value','Today','Yest','Sold','On Order','Sizes S/O','Price','RRP','Curr Disc%','Margin%','Proposed Markdown %','Proposed New Price','Wks Cover','Stock Status'];
@@ -2118,7 +2127,14 @@ function renderMarkdowns(){
   const search=(document.getElementById('md-search')?.value||'').trim().toUpperCase();
 
   // Get all products
-  const allProducts=[...toProduct(allVariantRows.filter(r=>((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)))];
+  // Build product list — use ALL variants for sold figures (so OOS sizes contribute to sold totals)
+  // but only show products that have stock or on order
+  const allProductsFullSales=[...toProduct(allVariantRows)];
+  const hasStockOrOrder=new Set(
+    allVariantRows.filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)
+      .map(r=>r.productName+'||'+r.colour)
+  );
+  const allProducts=allProductsFullSales.filter(p=>hasStockOrOrder.has(p.productName+'||'+p.colour));
 
   // Repopulate filters preserving checked state
   const prevChecked={};
