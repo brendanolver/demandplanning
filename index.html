@@ -925,14 +925,14 @@ th{position:relative;}
   </div>
 
   <!-- WORKING SCREEN -->
-  <div id="markdowns-screen" style="display:none;padding:28px;overflow-y:auto;height:calc(100vh - 56px);">
+  <div id="markdowns-screen" style="display:none;padding:28px;overflow-y:auto;overflow-x:hidden;height:calc(100vh - 56px);">
     <div style="max-width:1600px;margin:0 auto;">
 
       <!-- Working screen title + sub-view tabs -->
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
         <div>
           <div class="insights-title">Working</div>
-          <div class="insights-sub" id="working-sub">Select a view below</div>
+          <div class="insights-sub" id="working-sub">Tick styles & enter re-order quantities — export to CSV</div>
         </div>
         <div style="display:flex;gap:6px;">
           <button id="working-btn-reorders" class="view-btn active" onclick="setWorkingView('reorders')" style="font-size:13px;padding:8px 16px;">🔄 Re-Orders</button>
@@ -3675,6 +3675,8 @@ function buildDashboard(){
   currentView='category'; // always start on category view
   // Clear AM cache to ensure style field is picked up from latest buildAMData logic
   _cachedAMData=null;
+  // Ensure all screens are in correct state
+  showScreen('dashboard');
   buildVariantRows();
 
   const oos=allVariantRows.filter(r=>r.flag==='oos').length;
