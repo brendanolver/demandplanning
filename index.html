@@ -641,7 +641,7 @@ th{position:relative;}
         <button class="screen-btn" id="btn-cadence" onclick="showScreen('cadence')">📈 Sales Cadence</button>
         <button class="screen-btn" id="btn-insights" onclick="showScreen('insights')">💡 Insights</button>
         <button class="screen-btn" id="btn-planning" onclick="showScreen('planning')">📋 Planning</button>
-        <button class="screen-btn" id="btn-markdowns" onclick="showScreen('markdowns')">🏷️ Markdowns</button>
+        <button class="screen-btn" id="btn-markdowns" onclick="showScreen('markdowns')">📝 Working</button>
       </div>
       <div class="period-selector" id="period-selector">
         <span class="period-label">Period:</span>
@@ -924,20 +924,61 @@ th{position:relative;}
     </div>
   </div>
 
-  <!-- MARKDOWNS SCREEN -->
+  <!-- WORKING SCREEN -->
   <div id="markdowns-screen" style="display:none;padding:28px;overflow-y:auto;height:calc(100vh - 56px);">
     <div style="max-width:1600px;margin:0 auto;">
-      <div class="insights-header" style="margin-bottom:12px;">
+
+      <!-- Working screen title + sub-view tabs -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
         <div>
-          <div class="insights-title">Markdowns</div>
-          <div class="insights-sub">Tick styles & set proposed markdown % — export selected to CSV</div>
+          <div class="insights-title">Working</div>
+          <div class="insights-sub" id="working-sub">Select a view below</div>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <button onclick="mdSelectAll(true)" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✓ Select All</button>
-          <button onclick="mdSelectAll(false)" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✕ Clear All</button>
-          <div style="display:flex;align-items:center;gap:6px;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);">
-            <span style="font-size:12px;color:var(--text-secondary);white-space:nowrap;">Bulk %:</span>
-            <input type="number" id="md-bulk-pct" min="0" max="90" step="5" placeholder="e.g. 30"
+        <div style="display:flex;gap:6px;">
+          <button id="working-btn-reorders" class="view-btn active" onclick="setWorkingView('reorders')" style="font-size:13px;padding:8px 16px;">🔄 Re-Orders</button>
+          <button id="working-btn-markdowns" class="view-btn" onclick="setWorkingView('markdowns')" style="font-size:13px;padding:8px 16px;">🏷️ Markdowns</button>
+          <button id="working-btn-sizeworkings" class="view-btn" onclick="setWorkingView('sizeworkings')" style="font-size:13px;padding:8px 16px;">📐 Size Workings</button>
+        </div>
+      </div>
+
+      <!-- RE-ORDERS SUB-VIEW -->
+      <div id="working-reorders" style="display:block;">
+        <div class="insights-header" style="margin-bottom:12px;">
+          <div></div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button onclick="roSelectAll(true)" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✓ Select All</button>
+            <button onclick="roSelectAll(false)" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✕ Clear All</button>
+            <button onclick="roExport()" style="padding:7px 18px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">⬇ Export Selected</button>
+          </div>
+        </div>
+        <div id="reorders-count" style="font-size:12px;color:var(--text-muted);margin-bottom:8px;"></div>
+        <div id="reorders-body">
+          <div class="insights-empty">
+            <div class="insights-empty-ico">🔄</div>
+            <div class="insights-empty-title">Ready for re-orders</div>
+            <div class="insights-empty-sub">Load your data first then switch to this tab.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MARKDOWNS SUB-VIEW -->
+      <div id="working-markdowns" style="display:none;">
+        <div class="insights-header" style="margin-bottom:12px;">
+          <div></div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button onclick="mdSelectAll(true)" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✓ Select All</button>
+            <button onclick="mdSelectAll(false)" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✕ Clear All</button>
+            <div style="display:flex;align-items:center;gap:6px;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);">
+              <span style="font-size:12px;color:var(--text-secondary);white-space:nowrap;">Bulk %:</span>
+              <input type="number" id="md-bulk-pct" min="0" max="90" step="5" placeholder="e.g. 30"
+                style="width:72px;padding:5px 8px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:14px;font-weight:600;text-align:center;outline:none;"
+                onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
+              <span style="font-size:12px;color:var(--text-muted);">%</span>
+              <button onclick="mdApplyBulkPct()" style="padding:5px 12px;background:var(--teal);color:white;border:none;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">Apply to Ticked</button>
+            </div>
+            <button onclick="mdExport()" style="padding:7px 18px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">⬇ Export Selected</button>
+          </div>
+        </div>
               style="width:72px;padding:5px 8px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:14px;font-weight:600;text-align:center;outline:none;"
               onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
             <span style="font-size:12px;color:var(--text-muted);">%</span>
@@ -1015,6 +1056,17 @@ th{position:relative;}
           <div class="insights-empty-sub">Load your data first then switch to this tab.</div>
         </div>
       </div>
+      </div><!-- end working-markdowns -->
+
+      <!-- SIZE WORKINGS SUB-VIEW -->
+      <div id="working-sizeworkings" style="display:none;">
+        <div class="insights-empty" style="margin-top:40px;">
+          <div class="insights-empty-ico">📐</div>
+          <div class="insights-empty-title">Size Workings</div>
+          <div class="insights-empty-sub">Coming soon — size-level analysis and buy planning.</div>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -1050,7 +1102,7 @@ function showScreen(screen){
   }
   if(screen==='cadence') renderCadence();
   if(screen==='planning') renderPlanning();
-  if(screen==='markdowns') renderMarkdowns();
+  if(screen==='markdowns') setWorkingView(workingView);
 }
 
 /* ── SALES CADENCE ── */
@@ -1902,6 +1954,164 @@ function renderInsights(data){
       </div>`).join('')}
     </div>`;
   }).join('');
+}
+
+/* ── WORKING SCREEN ── */
+let workingView='reorders';
+const RO_STORAGE_KEY='wndrr_reorders_v1';
+let roSortCol='productName';let roSortDir='asc';
+
+function setWorkingView(v){
+  workingView=v;
+  ['reorders','markdowns','sizeworkings'].forEach(s=>{
+    document.getElementById('working-'+s).style.display=s===v?'block':'none';
+    document.getElementById('working-btn-'+s)?.classList.toggle('active',s===v);
+  });
+  const subs={reorders:'Tick styles & enter re-order quantities — export to CSV',markdowns:'Tick styles & set proposed markdown % — export selected to CSV',sizeworkings:'Size-level analysis and buy planning'};
+  document.getElementById('working-sub').textContent=subs[v]||'';
+  if(v==='reorders')renderReorders();
+  if(v==='markdowns')renderMarkdowns();
+}
+
+function getRoData(){try{return JSON.parse(localStorage.getItem(RO_STORAGE_KEY)||'{}');}catch(e){return{};}}
+function saveRoData(d){try{localStorage.setItem(RO_STORAGE_KEY,JSON.stringify(d));}catch(e){}}
+
+function roToggle(key,checked){
+  const d=getRoData();if(!d[key])d[key]={};d[key].checked=checked;saveRoData(d);renderReorders();
+}
+function roSetQty(key,val){
+  const d=getRoData();if(!d[key])d[key]={};d[key].qty=val;saveRoData(d);renderReorders();
+}
+function roSelectAll(checked){
+  const d=getRoData();
+  const visible=window._roVisibleKeys||[];
+  visible.forEach(k=>{if(!d[k])d[k]={};d[k].checked=checked;});
+  saveRoData(d);renderReorders();
+}
+
+function renderReorders(){
+  const body=document.getElementById('reorders-body');
+  const countEl=document.getElementById('reorders-count');
+  if(!allVariantRows||allVariantRows.length===0){
+    if(body)body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">🔄</div><div class="insights-empty-title">No data loaded</div><div class="insights-empty-sub">Load your data first.</div></div>`;
+    return;
+  }
+  const saved=getRoData();
+
+  // Build product list from all variants (full sales for sold figures)
+  const allProductsRo=[...toProduct(allVariantRows)].filter(p=>{
+    return allVariantRows.some(r=>r.productName===p.productName&&r.colour===p.colour&&((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0));
+  });
+
+  // Sort
+  const thS='cursor:pointer;user-select:none;white-space:nowrap;';
+  const roArrow=col=>roSortCol===col?(roSortDir==='asc'?' ↑':' ↓'):'';
+  const str=col=>{const fa=(allProductsRo[0]||{})[col]||'';return 0;};
+  allProductsRo.sort((a,b)=>{
+    const av=a[roSortCol]||0,bv=b[roSortCol]||0;
+    if(roSortCol==='productName')return roSortDir==='asc'?(a.productName||'').localeCompare(b.productName||''):(b.productName||'').localeCompare(a.productName||'');
+    if(roSortCol==='category')return roSortDir==='asc'?(a.category||'').localeCompare(b.category||''):(b.category||'').localeCompare(a.category||'');
+    if(roSortCol==='vendor')return roSortDir==='asc'?(a.vendor||'').localeCompare(b.vendor||''):(b.vendor||'').localeCompare(a.vendor||'');
+    return roSortDir==='asc'?av-bv:bv-av;
+  });
+
+  window._roVisibleKeys=allProductsRo.map(p=>p.fullTitle);
+  const selectedCount=allProductsRo.filter(p=>saved[p.fullTitle]?.checked||saved[p.fullTitle]?.qty).length;
+  if(countEl)countEl.textContent=`${allProductsRo.length} products — ${selectedCount} selected for re-order`;
+
+  const allTicked=allProductsRo.length>0&&allProductsRo.every(p=>saved[p.fullTitle]?.checked);
+  const someTicked=!allTicked&&allProductsRo.some(p=>saved[p.fullTitle]?.checked);
+
+  const SL={ok:'OK','on-order':'On Order',oos:'Out of Stock',reorder:'Re-Order',reduce:'Reduce',clearance:'Clearance'};
+  const flagPillCls={ok:'sp-ok',reorder:'sp-reorder','on-order':'sp-onorder',oos:'sp-oos',reduce:'sp-reduce',clearance:'sp-clearance'};
+  const vendorCls=v=>v==='CORE'?'rp-core':v==='NEW'?'rp-new':v==='CURRENT'?'rp-current':v==='OLD'?'rp-old':'rp-other';
+
+  const rows=allProductsRo.map(p=>{
+    const key=p.fullTitle;
+    const isChecked=saved[key]?.checked||false;
+    const roQtyVal=saved[key]?.qty||'';
+    const roQty=parseInt(roQtyVal)||0;
+    const onOrder=(p.onOrder||0)+(p.productOnOrder||0);
+    const velocity=p.velocity||0; // units/day from selected period
+    // Recalculated weeks cover with re-order qty
+    const totalUnits=p.stock+onOrder+roQty;
+    const recalcWks=velocity>0?+(totalUnits/(velocity*7)).toFixed(1):null;
+    const wksDisplay=recalcWks!==null?recalcWks+'w':'—';
+    const wksCls=recalcWks===null?'cell-muted':recalcWks>=12?'color:var(--teal);font-weight:700;':'color:var(--red);font-weight:600;';
+    const sugOrd=p.suggestedOrder||0;
+    const safeKey=key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    return`<tr style="background:${isChecked?'rgba(20,184,166,0.05)':''};">
+      <td style="padding:6px 8px;text-align:center;"><input type="checkbox" ${isChecked?'checked':''} style="width:16px;height:16px;accent-color:var(--teal);cursor:pointer;" onchange="roToggle('${safeKey}',this.checked)"></td>
+      <td class="cell-product"><div class="prod-name">${p.productName}</div><div class="prod-colour">${p.colour}</div></td>
+      <td class="cell-muted">${p.category||'—'}</td>
+      <td style="padding:6px 8px;"><span class="range-pill ${vendorCls(p.vendor)}">${p.vendor||'—'}</span></td>
+      <td style="padding:6px 8px;font-size:12px;">${p.deliveryMonth==='CORE'?'<span style="font-size:11px;font-weight:600;color:var(--blue);">CORE</span>':p.deliveryMonth||'—'}</td>
+      <td class="cell-num">${p.stock.toLocaleString()}</td>
+      <td class="cell-num" style="color:var(--purple);">${onOrder>0?onOrder.toLocaleString():'—'}</td>
+      <td class="cell-num" style="color:#f97316;font-weight:700;">${sugOrd>0?sugOrd.toLocaleString():'—'}</td>
+      <td style="padding:5px 8px;text-align:center;">
+        <input type="number" min="0" step="1" placeholder="0" value="${roQtyVal}"
+          style="width:80px;padding:6px 8px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:14px;font-weight:600;text-align:center;outline:none;"
+          oninput="roSetQty('${safeKey}',this.value)"
+          onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
+      </td>
+      <td class="cell-num" style="${wksCls}">${wksDisplay}</td>
+      <td style="padding:6px 8px;"><span class="stock-pill ${flagPillCls[p.flag]||''}">${SL[p.flag]||p.flag||'—'}</span></td>
+    </tr>`;
+  }).join('');
+
+  if(!allProductsRo.length){
+    body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No products found</div></div>`;return;
+  }
+
+  body.innerHTML=`<div class="tbl-wrap"><table style="width:100%;border-collapse:collapse;">
+    <thead><tr>
+      <th style="width:36px;text-align:center;padding:8px 6px;"><input type="checkbox" id="ro-select-all-chk" ${allTicked?'checked':''} style="width:15px;height:15px;accent-color:var(--teal);" onchange="roSelectAll(this.checked)"></th>
+      <th style="${thS}" onclick="roSort('productName')">Product${roArrow('productName')}</th>
+      <th style="${thS}" onclick="roSort('category')">Category${roArrow('category')}</th>
+      <th style="${thS}" onclick="roSort('vendor')">Status${roArrow('vendor')}</th>
+      <th>Month Del</th>
+      <th style="${thS}text-align:right;" onclick="roSort('stock')">SOH${roArrow('stock')}</th>
+      <th style="${thS}text-align:right;" onclick="roSort('onOrder')">On Order${roArrow('onOrder')}</th>
+      <th style="${thS}text-align:right;" onclick="roSort('suggestedOrder')">Suggest Order${roArrow('suggestedOrder')}</th>
+      <th style="text-align:center;min-width:100px;">Re-Order Qty</th>
+      <th style="${thS}text-align:right;" onclick="roSort('days')">Wks Cover (incl. RO)${roArrow('days')}</th>
+      <th>Stock Status</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+
+  const hdrChk=document.getElementById('ro-select-all-chk');
+  if(hdrChk)hdrChk.indeterminate=someTicked;
+}
+
+function roSort(col){
+  if(roSortCol===col){roSortDir=roSortDir==='asc'?'desc':'asc';}
+  else{roSortCol=col;roSortDir=col==='productName'||col==='category'||col==='vendor'?'asc':'desc';}
+  renderReorders();
+}
+
+function roExport(){
+  const d=getRoData();
+  const allProds=[...toProduct(allVariantRows)].filter(p=>
+    allVariantRows.some(r=>r.productName===p.productName&&r.colour===p.colour&&((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0))
+  );
+  const selected=allProds.filter(p=>d[p.fullTitle]?.checked||d[p.fullTitle]?.qty);
+  if(!selected.length){alert('No styles selected — tick a checkbox or enter a re-order qty first.');return;}
+  const headers=['Product','Colour','Category','Status','Month Del','SOH','On Order','Suggest Order','Re-Order Qty','Wks Cover (incl. RO)','Stock Status'];
+  const SL={ok:'OK','on-order':'On Order',oos:'Out of Stock',reorder:'Re-Order',reduce:'Reduce',clearance:'Clearance'};
+  const csvRows=selected.map(p=>{
+    const roQty=parseInt(d[p.fullTitle]?.qty)||0;
+    const onOrder=(p.onOrder||0)+(p.productOnOrder||0);
+    const totalUnits=p.stock+onOrder+roQty;
+    const recalcWks=p.velocity>0?+(totalUnits/(p.velocity*7)).toFixed(1):'—';
+    return[p.productName,p.colour,p.category,p.vendor,p.deliveryMonth||'',p.stock,onOrder||'',p.suggestedOrder||'',roQty||'',recalcWks,SL[p.flag]||p.flag];
+  });
+  const csv=[headers,...csvRows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='wndrr_reorders.csv';a.click();
+  URL.revokeObjectURL(url);
 }
 
 /* ── MARKDOWNS ── */
@@ -3241,12 +3451,13 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const isEnd=(isOldStyle&&hasNoOrder&&!isCore)||
                 (isClearance||isBundle);
 
-    // NEW — delivered this calendar month, not CORE/CLEARANCE/BUNDLE
+    // NEW — delivered this calendar month, OR a future delivery month with stock on hand
     const isCurrentMonth=skuDeliveryDate&&skuDeliveryDate.getFullYear()===now.getFullYear()&&skuDeliveryDate.getMonth()===now.getMonth();
+    const isFutureWithStock=skuDeliveryDate&&skuDeliveryDate>now&&(stock>0);
     // CURRENT — delivered within last 3 months (but not this month), not CORE/CLEARANCE/BUNDLE
-    const isCurrent=skuDeliveryDate&&skuDeliveryDate>=threeMonthsAgo&&!isCurrentMonth&&!isCore&&!isClearance&&!isBundle;
+    const isCurrent=skuDeliveryDate&&skuDeliveryDate>=threeMonthsAgo&&!isCurrentMonth&&!isFutureWithStock&&!isCore&&!isClearance&&!isBundle;
 
-    const isNew=isCurrentMonth&&!isCore&&!isClearance&&!isBundle;
+    const isNew=(isCurrentMonth||isFutureWithStock)&&!isCore&&!isClearance&&!isBundle;
     // CORE/BUNDLE from CSV take precedence — then age-based status
     const effectiveVendor=isCore?'CORE':isBundle?'BUNDLE':isNew?'NEW':isEnd?'OLD':isCurrent?'CURRENT':vendor;
     if(isEnd&&!discountPct)flag='reduce';
