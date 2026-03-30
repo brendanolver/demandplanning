@@ -2129,28 +2129,36 @@ function swClearFilters(){
   });
 }
 function swPopulateFilters(){
-  // Populate from all variant rows — same approach as other views
+  if(!allVariantRows||!allVariantRows.length)return;
   const products=[...toProduct(allVariantRows.filter(r=>!r.amOnly&&((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)))];
+  const countBy=fn=>{const m={};products.forEach(p=>{const k=fn(p);if(k!=null)m[k]=(m[k]||0)+1;});return m;};
+  const catCounts=countBy(p=>p.category);
   const cats=[...new Set(products.map(p=>p.category).filter(Boolean))].sort();
   document.getElementById('ms-sw-cat-options').innerHTML=cats.map(v=>
-    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="swUpdateLabel('cat')"> ${v}</label>`).join('');
+    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="swUpdateLabel('cat')"> ${v} <span class="ms-count">(${catCounts[v]||0})</span></label>`).join('');
+  const vendorCounts=countBy(p=>p.vendor);
   const vendors=[...new Set(products.map(p=>p.vendor).filter(Boolean))].sort();
   document.getElementById('ms-sw-vendor-options').innerHTML=vendors.map(v=>
-    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="swUpdateLabel('vendor')"> ${v}</label>`).join('');
+    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="swUpdateLabel('vendor')"> ${v} <span class="ms-count">(${vendorCounts[v]||0})</span></label>`).join('');
   const flagLabels={'on-order':'On Order','oos':'Out of Stock','reorder':'Re-Order ≤14w','ok':'OK 14–26w','reduce':'Reduce 26w+'};
+  const flagCounts=countBy(p=>p.flag);
   const flags=[...new Set(products.map(p=>p.flag).filter(Boolean))];
   document.getElementById('ms-sw-flag-options').innerHTML=flags.map(v=>
-    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="swUpdateLabel('flag')"> ${flagLabels[v]||v}</label>`).join('');
+    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="swUpdateLabel('flag')"> ${flagLabels[v]||v} <span class="ms-count">(${flagCounts[v]||0})</span></label>`).join('');
   const discBands=['none','20','30','40','50','60','70'];
   const discLabels={'none':'No Discount','20':'20% off','30':'30% off','40':'40% off','50':'50% off','60':'60% off','70':'70% off'};
+  const discCounts={};
+  products.forEach(p=>{const d=Math.round(p.discountPct||0);const band=!p.discountPct||d===0?'none':['20','30','40','50','60','70'].includes(String(d))?String(d):null;if(band)discCounts[band]=(discCounts[band]||0)+1;});
   document.getElementById('ms-sw-disc-options').innerHTML=discBands.map(v=>
-    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="swUpdateLabel('disc')"> ${discLabels[v]}</label>`).join('');
+    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="swUpdateLabel('disc')"> ${discLabels[v]} <span class="ms-count">(${discCounts[v]||0})</span></label>`).join('');
   const monthOrder={Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
+  const delCounts=countBy(p=>p.deliveryMonth||null);
   const months=[...new Set(products.map(p=>p.deliveryMonth).filter(d=>d&&d!=='CORE'))];
   months.sort((a,b)=>{const[am,ay]=a.split('-');const[bm,by]=b.split('-');const ayF=parseInt(ay)<50?2000+parseInt(ay):1900+parseInt(ay);const byF=parseInt(by)<50?2000+parseInt(by):1900+parseInt(by);if(ayF!==byF)return byF-ayF;return(monthOrder[bm]||0)-(monthOrder[am]||0);});
+  const coreCount=delCounts['CORE']||0;
   document.getElementById('ms-sw-delmonth-options').innerHTML=
-    `<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="swUpdateLabel('delmonth')"> CORE</label>`+
-    months.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="swUpdateLabel('delmonth')"> ${m}</label>`).join('');
+    `<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="swUpdateLabel('delmonth')"> CORE <span class="ms-count">(${coreCount})</span></label>`+
+    months.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="swUpdateLabel('delmonth')"> ${m} <span class="ms-count">(${delCounts[m]||0})</span></label>`).join('');
 }
 function swClearAll(){
   // Clear search, filters and current table
@@ -2383,6 +2391,7 @@ function setWorkingView(v){
   document.getElementById('working-sub').textContent=subs[v]||'';
   if(v==='reorders')renderReorders();
   if(v==='markdowns')renderMarkdowns();
+  if(v==='sizeworkings')swPopulateFilters();
 }
 
 function getRoData(){try{return JSON.parse(localStorage.getItem(RO_STORAGE_KEY)||'{}');}catch(e){return{};}}
