@@ -2255,7 +2255,7 @@ function renderMarkdowns(){
       <td class="cell-num" style="color:var(--teal);">${p.soldYesterday||0?p.soldYesterday:'—'}</td>
       <td class="cell-num">${sold>0?sold.toLocaleString():'—'}</td>
       <td class="cell-num" style="color:var(--purple);">${onOrder>0?onOrder.toLocaleString():'—'}</td>
-      <td style="padding:6px 8px;font-size:12px;color:var(--text-secondary);">${p.monthDue||'—'}</td>
+      <td style="padding:6px 8px;font-size:12px;color:var(--text-secondary);">${shortMonth(p.monthDue)}</td>
       <td class="cell-num" style="${(p.soldOutSizes||0)>0?'color:var(--red);font-weight:600;':'color:var(--text-muted);'}">${(p.soldOutSizes||0)>0?p.soldOutSizes:'—'}</td>
       <td class="cell-num">${p.price>0?'$'+p.price.toFixed(2):'—'}</td>
       <td class="cell-num">${p.compareAt>0?'$'+p.compareAt.toFixed(2):'—'}</td>
