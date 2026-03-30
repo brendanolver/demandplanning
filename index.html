@@ -963,6 +963,7 @@ th{position:relative;}
 
       <!-- MARKDOWNS SUB-VIEW -->
       <div id="working-markdowns" style="display:none;">
+        <!-- Markdowns toolbar -->
         <div class="insights-header" style="margin-bottom:12px;">
           <div></div>
           <div style="display:flex;gap:8px;align-items:center;">
@@ -979,83 +980,75 @@ th{position:relative;}
             <button onclick="mdExport()" style="padding:7px 18px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">⬇ Export Selected</button>
           </div>
         </div>
-              style="width:72px;padding:5px 8px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:14px;font-weight:600;text-align:center;outline:none;"
-              onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
-            <span style="font-size:12px;color:var(--text-muted);">%</span>
-            <button onclick="mdApplyBulkPct()" style="padding:5px 12px;background:var(--teal);color:white;border:none;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">Apply to Ticked</button>
+        <!-- Filter bar -->
+        <div class="filter-row" style="margin-bottom:12px;flex-wrap:wrap;">
+          <div class="search-wrap" style="min-width:220px;">
+            <span class="search-ico">🔍</span>
+            <input type="text" id="md-search" placeholder="Search product, colour or SKU..." oninput="renderMarkdowns()" style="width:100%;">
           </div>
-          <button onclick="mdExport()" style="padding:7px 18px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">⬇ Export Selected</button>
+          <div class="ms-wrap" id="ms-md-cat">
+            <button class="ms-btn" onclick="toggleDropdown('ms-md-cat')"><span id="ms-md-cat-label">All Categories</span><span class="ms-arrow">▾</span></button>
+            <div class="ms-dropdown" id="ms-md-cat-dropdown">
+              <label class="ms-item ms-all"><input type="checkbox" checked onchange="mdToggleAll('cat',this)"> All Categories</label>
+              <div id="ms-md-cat-options"></div>
+            </div>
+          </div>
+          <div class="ms-wrap" id="ms-md-vendor">
+            <button class="ms-btn" onclick="toggleDropdown('ms-md-vendor')"><span id="ms-md-vendor-label">All Statuses</span><span class="ms-arrow">▾</span></button>
+            <div class="ms-dropdown" id="ms-md-vendor-dropdown">
+              <label class="ms-item ms-all"><input type="checkbox" checked onchange="mdToggleAll('vendor',this)"> All Statuses</label>
+              <div id="ms-md-vendor-options"></div>
+            </div>
+          </div>
+          <div class="ms-wrap" id="ms-md-flag">
+            <button class="ms-btn" onclick="toggleDropdown('ms-md-flag')"><span id="ms-md-flag-label">All Stock Status</span><span class="ms-arrow">▾</span></button>
+            <div class="ms-dropdown" id="ms-md-flag-dropdown">
+              <label class="ms-item ms-all"><input type="checkbox" checked onchange="mdToggleAll('flag',this)"> All Stock Status</label>
+              <div id="ms-md-flag-options"></div>
+            </div>
+          </div>
+          <div class="ms-wrap" id="ms-md-disc">
+            <button class="ms-btn" onclick="toggleDropdown('ms-md-disc')"><span id="ms-md-disc-label">Discount %</span><span class="ms-arrow">▾</span></button>
+            <div class="ms-dropdown" id="ms-md-disc-dropdown">
+              <label class="ms-item ms-all"><input type="checkbox" checked onchange="mdToggleAll('disc',this)"> All</label>
+              <div id="ms-md-disc-options"></div>
+            </div>
+          </div>
+          <div class="ms-wrap" id="ms-md-soldout">
+            <button class="ms-btn" onclick="toggleDropdown('ms-md-soldout')"><span id="ms-md-soldout-label">Sizes Sold Out</span><span class="ms-arrow">▾</span></button>
+            <div class="ms-dropdown" id="ms-md-soldout-dropdown">
+              <label class="ms-item ms-all"><input type="checkbox" checked onchange="mdToggleAll('soldout',this)"> All</label>
+              <div id="ms-md-soldout-options"></div>
+            </div>
+          </div>
+          <div class="ms-wrap" id="ms-md-delmonth">
+            <button class="ms-btn" onclick="toggleDropdown('ms-md-delmonth')"><span id="ms-md-delmonth-label">Month Del</span><span class="ms-arrow">▾</span></button>
+            <div class="ms-dropdown" id="ms-md-delmonth-dropdown">
+              <label class="ms-item ms-all"><input type="checkbox" checked onchange="mdToggleAll('delmonth',this)"> All</label>
+              <div id="ms-md-delmonth-options"></div>
+            </div>
+          </div>
+          <button class="clear-btn" onclick="mdClearFilters()">✕ Clear</button>
         </div>
-      </div>
-      <!-- Filter bar — mirrors Product view -->
-      <div class="filter-row" style="margin-bottom:12px;flex-wrap:wrap;">
-        <div class="search-wrap" style="min-width:220px;">
-          <span class="search-ico">🔍</span>
-          <input type="text" id="md-search" placeholder="Search product, colour or SKU..." oninput="renderMarkdowns()" style="width:100%;">
-        </div>
-        <div class="ms-wrap" id="ms-md-cat">
-          <button class="ms-btn" onclick="toggleDropdown('ms-md-cat')"><span id="ms-md-cat-label">All Categories</span><span class="ms-arrow">▾</span></button>
-          <div class="ms-dropdown" id="ms-md-cat-dropdown">
-            <label class="ms-item ms-all"><input type="checkbox" checked onchange="mdToggleAll('cat',this)"> All Categories</label>
-            <div id="ms-md-cat-options"></div>
+        <!-- Period selector -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+          <span style="font-size:12px;color:var(--text-muted);font-weight:500;">Period:</span>
+          <div class="period-selector" style="position:relative;display:flex;gap:4px;">
+            <button class="period-btn active" data-md-days="7" onclick="setMdPeriod(7)">7d</button>
+            <button class="period-btn" data-md-days="14" onclick="setMdPeriod(14)">14d</button>
+            <button class="period-btn" data-md-days="30" onclick="setMdPeriod(30)">30d</button>
+            <button class="period-btn" data-md-days="90" onclick="setMdPeriod(90)">90d</button>
+            <button class="period-btn" data-md-days="365" onclick="setMdPeriod(365)">365d</button>
           </div>
         </div>
-        <div class="ms-wrap" id="ms-md-vendor">
-          <button class="ms-btn" onclick="toggleDropdown('ms-md-vendor')"><span id="ms-md-vendor-label">All Statuses</span><span class="ms-arrow">▾</span></button>
-          <div class="ms-dropdown" id="ms-md-vendor-dropdown">
-            <label class="ms-item ms-all"><input type="checkbox" checked onchange="mdToggleAll('vendor',this)"> All Statuses</label>
-            <div id="ms-md-vendor-options"></div>
+        <div id="markdowns-count" style="font-size:12px;color:var(--text-muted);margin-bottom:8px;"></div>
+        <div id="markdowns-body">
+          <div class="insights-empty">
+            <div class="insights-empty-ico">🏷️</div>
+            <div class="insights-empty-title">Ready for markdowns</div>
+            <div class="insights-empty-sub">Load your data first then switch to this tab.</div>
           </div>
         </div>
-        <div class="ms-wrap" id="ms-md-flag">
-          <button class="ms-btn" onclick="toggleDropdown('ms-md-flag')"><span id="ms-md-flag-label">All Stock Status</span><span class="ms-arrow">▾</span></button>
-          <div class="ms-dropdown" id="ms-md-flag-dropdown">
-            <label class="ms-item ms-all"><input type="checkbox" checked onchange="mdToggleAll('flag',this)"> All Stock Status</label>
-            <div id="ms-md-flag-options"></div>
-          </div>
-        </div>
-        <div class="ms-wrap" id="ms-md-disc">
-          <button class="ms-btn" onclick="toggleDropdown('ms-md-disc')"><span id="ms-md-disc-label">Discount %</span><span class="ms-arrow">▾</span></button>
-          <div class="ms-dropdown" id="ms-md-disc-dropdown">
-            <label class="ms-item ms-all"><input type="checkbox" checked onchange="mdToggleAll('disc',this)"> All</label>
-            <div id="ms-md-disc-options"></div>
-          </div>
-        </div>
-        <div class="ms-wrap" id="ms-md-soldout">
-          <button class="ms-btn" onclick="toggleDropdown('ms-md-soldout')"><span id="ms-md-soldout-label">Sizes Sold Out</span><span class="ms-arrow">▾</span></button>
-          <div class="ms-dropdown" id="ms-md-soldout-dropdown">
-            <label class="ms-item ms-all"><input type="checkbox" checked onchange="mdToggleAll('soldout',this)"> All</label>
-            <div id="ms-md-soldout-options"></div>
-          </div>
-        </div>
-        <div class="ms-wrap" id="ms-md-delmonth">
-          <button class="ms-btn" onclick="toggleDropdown('ms-md-delmonth')"><span id="ms-md-delmonth-label">Month Del</span><span class="ms-arrow">▾</span></button>
-          <div class="ms-dropdown" id="ms-md-delmonth-dropdown">
-            <label class="ms-item ms-all"><input type="checkbox" checked onchange="mdToggleAll('delmonth',this)"> All</label>
-            <div id="ms-md-delmonth-options"></div>
-          </div>
-        </div>
-        <button class="clear-btn" onclick="mdClearFilters()">✕ Clear</button>
-      </div>
-      <!-- Period selector -->
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-        <span style="font-size:12px;color:var(--text-muted);font-weight:500;">Period:</span>
-        <div class="period-selector" style="position:relative;display:flex;gap:4px;">
-          <button class="period-btn active" data-md-days="7" onclick="setMdPeriod(7)">7d</button>
-          <button class="period-btn" data-md-days="14" onclick="setMdPeriod(14)">14d</button>
-          <button class="period-btn" data-md-days="30" onclick="setMdPeriod(30)">30d</button>
-          <button class="period-btn" data-md-days="90" onclick="setMdPeriod(90)">90d</button>
-          <button class="period-btn" data-md-days="365" onclick="setMdPeriod(365)">365d</button>
-        </div>
-      </div>
-      <div id="markdowns-count" style="font-size:12px;color:var(--text-muted);margin-bottom:8px;"></div>
-      <div id="markdowns-body">
-        <div class="insights-empty">
-          <div class="insights-empty-ico">🏷️</div>
-          <div class="insights-empty-title">Ready for markdowns</div>
-          <div class="insights-empty-sub">Load your data first then switch to this tab.</div>
-        </div>
-      </div>
       </div><!-- end working-markdowns -->
 
       <!-- SIZE WORKINGS SUB-VIEW -->
