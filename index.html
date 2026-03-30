@@ -1125,26 +1125,66 @@ th{position:relative;}
       <!-- SIZE WORKINGS SUB-VIEW -->
       <div id="working-sizeworkings" style="display:none;">
         <!-- Toolbar -->
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
           <div class="search-wrap" style="min-width:280px;max-width:420px;">
             <span class="search-ico">🔍</span>
             <input type="text" id="sw-search" placeholder="Search product name..." oninput="swSearch()" style="width:100%;">
           </div>
           <div id="sw-colour-wrap" style="display:none;">
-            <select id="sw-colour-select" onchange="renderSizeWorkings()" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;background:var(--surface);color:var(--text);outline:none;cursor:pointer;">
-            </select>
+            <select id="sw-colour-select" onchange="renderSizeWorkings()" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;background:var(--surface);color:var(--text);outline:none;cursor:pointer;"></select>
           </div>
-          <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-size:12px;color:var(--text-muted);font-weight:500;">Period:</span>
-            <div class="period-selector" style="display:flex;gap:4px;">
-              <button class="period-btn active" data-sw-days="7" onclick="setSwPeriod(7)">7d</button>
-              <button class="period-btn" data-sw-days="14" onclick="setSwPeriod(14)">14d</button>
-              <button class="period-btn" data-sw-days="30" onclick="setSwPeriod(30)">30d</button>
-              <button class="period-btn" data-sw-days="90" onclick="setSwPeriod(90)">90d</button>
-              <button class="period-btn" data-sw-days="365" onclick="setSwPeriod(365)">365d</button>
+          <button onclick="swClearAll()" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✕ Clear All</button>
+          <button onclick="swExport()" style="padding:7px 16px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">⬇ Export</button>
+        </div>
+        <!-- Filter bar -->
+        <div class="filter-row" style="margin-bottom:12px;flex-wrap:wrap;">
+          <div class="ms-wrap" id="ms-sw-cat">
+            <button class="ms-btn" onclick="toggleDropdown('ms-sw-cat')"><span id="ms-sw-cat-label">All Categories</span><span class="ms-arrow">▾</span></button>
+            <div class="ms-dropdown" id="ms-sw-cat-dropdown">
+              <label class="ms-item ms-all"><input type="checkbox" checked onchange="swToggleAll('cat',this)"> All Categories</label>
+              <div id="ms-sw-cat-options"></div>
             </div>
           </div>
-          <button onclick="swExport()" style="padding:7px 16px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">⬇ Export</button>
+          <div class="ms-wrap" id="ms-sw-vendor">
+            <button class="ms-btn" onclick="toggleDropdown('ms-sw-vendor')"><span id="ms-sw-vendor-label">All Statuses</span><span class="ms-arrow">▾</span></button>
+            <div class="ms-dropdown" id="ms-sw-vendor-dropdown">
+              <label class="ms-item ms-all"><input type="checkbox" checked onchange="swToggleAll('vendor',this)"> All Statuses</label>
+              <div id="ms-sw-vendor-options"></div>
+            </div>
+          </div>
+          <div class="ms-wrap" id="ms-sw-flag">
+            <button class="ms-btn" onclick="toggleDropdown('ms-sw-flag')"><span id="ms-sw-flag-label">All Stock Status</span><span class="ms-arrow">▾</span></button>
+            <div class="ms-dropdown" id="ms-sw-flag-dropdown">
+              <label class="ms-item ms-all"><input type="checkbox" checked onchange="swToggleAll('flag',this)"> All Stock Status</label>
+              <div id="ms-sw-flag-options"></div>
+            </div>
+          </div>
+          <div class="ms-wrap" id="ms-sw-disc">
+            <button class="ms-btn" onclick="toggleDropdown('ms-sw-disc')"><span id="ms-sw-disc-label">Discount %</span><span class="ms-arrow">▾</span></button>
+            <div class="ms-dropdown" id="ms-sw-disc-dropdown">
+              <label class="ms-item ms-all"><input type="checkbox" checked onchange="swToggleAll('disc',this)"> All</label>
+              <div id="ms-sw-disc-options"></div>
+            </div>
+          </div>
+          <div class="ms-wrap" id="ms-sw-delmonth">
+            <button class="ms-btn" onclick="toggleDropdown('ms-sw-delmonth')"><span id="ms-sw-delmonth-label">Month Del</span><span class="ms-arrow">▾</span></button>
+            <div class="ms-dropdown" id="ms-sw-delmonth-dropdown">
+              <label class="ms-item ms-all"><input type="checkbox" checked onchange="swToggleAll('delmonth',this)"> All</label>
+              <div id="ms-sw-delmonth-options"></div>
+            </div>
+          </div>
+          <button class="clear-btn" onclick="swClearFilters()">✕ Clear Filters</button>
+        </div>
+        <!-- Period selector -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+          <span style="font-size:12px;color:var(--text-muted);font-weight:500;">Period:</span>
+          <div class="period-selector" style="display:flex;gap:4px;">
+            <button class="period-btn active" data-sw-days="7" onclick="setSwPeriod(7)">7d</button>
+            <button class="period-btn" data-sw-days="14" onclick="setSwPeriod(14)">14d</button>
+            <button class="period-btn" data-sw-days="30" onclick="setSwPeriod(30)">30d</button>
+            <button class="period-btn" data-sw-days="90" onclick="setSwPeriod(90)">90d</button>
+            <button class="period-btn" data-sw-days="365" onclick="setSwPeriod(365)">365d</button>
+          </div>
         </div>
         <!-- Search results dropdown -->
         <div id="sw-results" style="display:none;position:absolute;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-lg);max-height:260px;overflow-y:auto;min-width:320px;"></div>
@@ -2056,6 +2096,71 @@ const SW_STORAGE_KEY='wndrr_sizeworkings_v1';
 function getSwData(){try{return JSON.parse(localStorage.getItem(SW_STORAGE_KEY)||'{}');}catch(e){return{};}}
 function saveSwData(d){try{localStorage.setItem(SW_STORAGE_KEY,JSON.stringify(d));}catch(e){}}
 
+function swGetSelected(type){
+  const boxes=[...document.querySelectorAll(`#ms-sw-${type}-options input[type="checkbox"]`)];
+  if(!boxes.length)return[];
+  const checked=boxes.filter(b=>b.checked).map(b=>b.value);
+  if(checked.length===0||checked.length===boxes.length)return[];
+  return checked;
+}
+function swToggleAll(type,allCheckbox){
+  document.querySelectorAll(`#ms-sw-${type}-options input`).forEach(b=>b.checked=allCheckbox.checked);
+  swUpdateLabel(type);
+}
+function swUpdateLabel(type){
+  const defaults={cat:'All Categories',vendor:'All Statuses',flag:'All Stock Status',disc:'Discount %',delmonth:'Month Del'};
+  const boxes=[...document.querySelectorAll(`#ms-sw-${type}-options input`)];
+  const checked=boxes.filter(b=>b.checked);
+  const label=document.getElementById(`ms-sw-${type}-label`);
+  const btn=document.querySelector(`#ms-sw-${type} .ms-btn`);
+  const allBox=document.querySelector(`#ms-sw-${type} .ms-all input`);
+  if(allBox)allBox.checked=checked.length===boxes.length;
+  if(label){
+    if(checked.length===0||checked.length===boxes.length){label.textContent=defaults[type];if(btn)btn.classList.remove('filtered');}
+    else{label.textContent=checked.length===1?checked[0].value:`${checked.length} selected`;if(btn)btn.classList.add('filtered');}
+  }
+}
+function swClearFilters(){
+  ['cat','vendor','flag','disc','delmonth'].forEach(type=>{
+    document.querySelectorAll(`#ms-sw-${type}-options input`).forEach(b=>b.checked=true);
+    const allBox=document.querySelector(`#ms-sw-${type} .ms-all input`);
+    if(allBox)allBox.checked=true;
+    swUpdateLabel(type);
+  });
+}
+function swPopulateFilters(){
+  // Populate from all variant rows — same approach as other views
+  const products=[...toProduct(allVariantRows.filter(r=>!r.amOnly&&((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)))];
+  const cats=[...new Set(products.map(p=>p.category).filter(Boolean))].sort();
+  document.getElementById('ms-sw-cat-options').innerHTML=cats.map(v=>
+    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="swUpdateLabel('cat')"> ${v}</label>`).join('');
+  const vendors=[...new Set(products.map(p=>p.vendor).filter(Boolean))].sort();
+  document.getElementById('ms-sw-vendor-options').innerHTML=vendors.map(v=>
+    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="swUpdateLabel('vendor')"> ${v}</label>`).join('');
+  const flagLabels={'on-order':'On Order','oos':'Out of Stock','reorder':'Re-Order ≤14w','ok':'OK 14–26w','reduce':'Reduce 26w+'};
+  const flags=[...new Set(products.map(p=>p.flag).filter(Boolean))];
+  document.getElementById('ms-sw-flag-options').innerHTML=flags.map(v=>
+    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="swUpdateLabel('flag')"> ${flagLabels[v]||v}</label>`).join('');
+  const discBands=['none','20','30','40','50','60','70'];
+  const discLabels={'none':'No Discount','20':'20% off','30':'30% off','40':'40% off','50':'50% off','60':'60% off','70':'70% off'};
+  document.getElementById('ms-sw-disc-options').innerHTML=discBands.map(v=>
+    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="swUpdateLabel('disc')"> ${discLabels[v]}</label>`).join('');
+  const monthOrder={Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
+  const months=[...new Set(products.map(p=>p.deliveryMonth).filter(d=>d&&d!=='CORE'))];
+  months.sort((a,b)=>{const[am,ay]=a.split('-');const[bm,by]=b.split('-');const ayF=parseInt(ay)<50?2000+parseInt(ay):1900+parseInt(ay);const byF=parseInt(by)<50?2000+parseInt(by):1900+parseInt(by);if(ayF!==byF)return byF-ayF;return(monthOrder[bm]||0)-(monthOrder[am]||0);});
+  document.getElementById('ms-sw-delmonth-options').innerHTML=
+    `<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="swUpdateLabel('delmonth')"> CORE</label>`+
+    months.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="swUpdateLabel('delmonth')"> ${m}</label>`).join('');
+}
+function swClearAll(){
+  // Clear search, filters and current table
+  const s=document.getElementById('sw-search');if(s)s.value='';
+  swProduct=null;
+  swClearFilters();
+  document.getElementById('sw-results').style.display='none';
+  document.getElementById('sw-body').innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">📐</div><div class="insights-empty-title">Size Workings</div><div class="insights-empty-sub">Search for a product above to begin size planning.</div></div>`;
+}
+
 function setSwPeriod(days){
   swPeriod=days;
   document.querySelectorAll('[data-sw-days]').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.swDays)===days));
@@ -2065,15 +2170,32 @@ function setSwPeriod(days){
 function swSearch(){
   const val=(document.getElementById('sw-search')?.value||'').trim().toUpperCase();
   const results=document.getElementById('sw-results');
+
+  // Populate filters on first use
+  if(!document.getElementById('ms-sw-cat-options').children.length) swPopulateFilters();
+
   if(!val||val.length<2){results.style.display='none';return;}
-  // Get unique product+colour combinations
+
+  // Apply active filters
+  const cats=swGetSelected('cat');
+  const vendors=swGetSelected('vendor');
+  const flags=swGetSelected('flag');
+  const discs=swGetSelected('disc');
+  const delmonths=swGetSelected('delmonth');
+
+  // Get unique product+colour combinations matching search and filters
   const matches=new Map();
   for(const r of allVariantRows){
     if(r.amOnly)continue;
     const key=r.productName+'||'+r.colour;
-    if(!matches.has(key)&&(r.productName.includes(val)||(r.productName+' - '+r.colour).includes(val))){
-      matches.set(key,{productName:r.productName,colour:r.colour});
-    }
+    if(matches.has(key))continue;
+    if(!(r.productName.includes(val)||(r.productName+' - '+r.colour).includes(val)))continue;
+    if(cats.length&&!cats.includes(r.category||''))continue;
+    if(vendors.length&&!vendors.includes(r.vendor||''))continue;
+    if(flags.length&&!flags.includes(r.flag||''))continue;
+    if(discs.length){const d=Math.round(r.discountPct||0);const band=!r.discountPct||d===0?'none':String(d);if(!discs.some(b=>b===band||(b==='none'&&band==='none')))continue;}
+    if(delmonths.length&&!delmonths.includes(r.deliveryMonth||''))continue;
+    matches.set(key,{productName:r.productName,colour:r.colour});
   }
   const items=[...matches.values()].slice(0,20);
   if(!items.length){results.style.display='none';return;}
@@ -2135,12 +2257,26 @@ function renderSizeWorkings(){
   const po=sorted.map(r=>(r.onOrder||0));
   const sohPoTotal=sorted.map((r,i)=>soh[i]+po[i]);
 
-  // Calculations
+  // Calculations — Suggested Order = total × sold% per size using largest remainder rounding
+  // so sizes always sum to exactly the entered total
   const total=parseInt(totalInput)||0;
-  const idealStock=soldPct.map(pct=>Math.round(pct*total));
-  const needToOrder=idealStock.map((ideal,i)=>Math.max(0,ideal-sohPoTotal[i]));
-  const needTotal=needToOrder.reduce((s,v)=>s+v,0);
-  const needPct=needToOrder.map(v=>needTotal>0?Math.round(v/needTotal*100):0);
+
+  // Largest remainder method to distribute total across sizes by sold%
+  let suggestedOrder;
+  if(total>0&&soldTotal>0){
+    const exact=soldPct.map(pct=>pct*total);
+    const floored=exact.map(v=>Math.floor(v));
+    const remainders=exact.map((v,i)=>v-floored[i]);
+    const remainder=total-floored.reduce((s,v)=>s+v,0);
+    // Distribute remaining units to sizes with largest remainders
+    const indices=[...Array(sizes.length).keys()].sort((a,b)=>remainders[b]-remainders[a]);
+    suggestedOrder=[...floored];
+    for(let i=0;i<remainder;i++)suggestedOrder[indices[i]]++;
+  } else {
+    suggestedOrder=sizes.map(()=>0);
+  }
+  const suggestedTotal=suggestedOrder.reduce((s,v)=>s+v,0);
+  const suggestedPct=suggestedOrder.map(v=>suggestedTotal>0?Math.round(v/suggestedTotal*100):0);
 
   // Size workings (manual overrides)
   const swVals=sizes.map(sz=>parseInt(swManual[sz])||0);
@@ -2201,9 +2337,8 @@ function renderSizeWorkings(){
           ${mkRow('PO (On Order)',po,'','','')}
           ${mkRow('SOH / PO Total',sohPoTotal,'sw-highlight','','')}
           ${totalInputRow}
-          ${mkRow('Ideal Stock',idealStock,'sw-highlight',total,'sw-total')}
-          ${mkRow('Need to Order',needToOrder,'sw-need',needTotal,'sw-need')}
-          <tr><td class="sw-pct"></td>${needPct.map(v=>`<td class="sw-pct">${pctFmtInt(v)}</td>`).join('')}<td class="sw-pct">100%</td></tr>
+          ${mkRow('Suggested Order',suggestedOrder,'sw-need',suggestedTotal,'sw-need')}
+          <tr><td class="sw-pct"></td>${suggestedPct.map(v=>`<td class="sw-pct">${pctFmtInt(v)}%</td>`).join('')}<td class="sw-pct">100%</td></tr>
           ${swInputRow}
         </tbody>
       </table>
