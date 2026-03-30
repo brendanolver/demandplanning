@@ -2990,20 +2990,9 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
         }
       }
     }
-    // 30-day sell-through
+    // 30-day sell-through for eligibility
     const st30=s30.qty>0&&(stock+s30.qty)>0?s30.qty/(stock+s30.qty)*100:0;
     const highSellThru=st30>=30;
-
-    // Only suggest order if not discounted AND (CORE OR recently delivered OR high ST%)
-    const lyStart=new Date(nowLocal.getFullYear()-1,nowLocal.getMonth(),nowLocal.getDate()+1);
-    const lyEnd=new Date(lyStart);lyEnd.setDate(lyEnd.getDate()+83);
-    const lyStartStr=localDateStr(lyStart);
-    const lyEndStr=localDateStr(lyEnd);
-    let lyNext12w=0;
-    const skuDayData=salesBySkuDay[sku]||{};
-    for(const[day,d] of Object.entries(skuDayData)){
-      if(day>=lyStartStr&&day<=lyEndStr)lyNext12w+=d.qty;
-    }
     const isEligible=!isDiscounted&&(isCoreSku||deliveredRecently||highSellThru);
     // suggestedOrder calculated below after onOrder is defined
 
@@ -3038,7 +3027,10 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const onOrder=variantEntry?variantEntry.qtyOpen:0;
     const monthDue=variantEntry?variantEntry.monthDue:productEntry?productEntry.monthDue:'';
     const productOnOrder=productEntry?productEntry.qtyOpen:0;
-    const suggestedOrder=isEligible?Math.max(0,Math.round(lyNext12w-(stock+onOrder))):0;
+    // Suggested order: 12 weeks of selected-period velocity minus SOH and on order
+    const velDaily=sold>0?sold/selectedPeriod:0;
+    const needed12w=Math.round(velDaily*84);
+    const suggestedOrder=isEligible&&needed12w>0?Math.max(0,needed12w-(stock+onOrder)):0;
 
     // Days remaining
     let recalcDays=velocity>0?Math.round(stock/velocity):null;
