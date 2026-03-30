@@ -951,6 +951,49 @@ th{position:relative;}
             <button onclick="roExport()" style="padding:7px 18px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">⬇ Export Selected</button>
           </div>
         </div>
+        <!-- Re-orders filter bar -->
+        <div class="filter-row" style="margin-bottom:12px;flex-wrap:wrap;">
+          <div class="search-wrap" style="min-width:220px;">
+            <span class="search-ico">🔍</span>
+            <input type="text" id="ro-search" placeholder="Search product, colour or SKU..." oninput="renderReorders()" style="width:100%;">
+          </div>
+          <div class="ms-wrap" id="ms-ro-cat">
+            <button class="ms-btn" onclick="toggleDropdown('ms-ro-cat')"><span id="ms-ro-cat-label">All Categories</span><span class="ms-arrow">▾</span></button>
+            <div class="ms-dropdown" id="ms-ro-cat-dropdown">
+              <label class="ms-item ms-all"><input type="checkbox" checked onchange="roToggleAll('cat',this)"> All Categories</label>
+              <div id="ms-ro-cat-options"></div>
+            </div>
+          </div>
+          <div class="ms-wrap" id="ms-ro-vendor">
+            <button class="ms-btn" onclick="toggleDropdown('ms-ro-vendor')"><span id="ms-ro-vendor-label">All Statuses</span><span class="ms-arrow">▾</span></button>
+            <div class="ms-dropdown" id="ms-ro-vendor-dropdown">
+              <label class="ms-item ms-all"><input type="checkbox" checked onchange="roToggleAll('vendor',this)"> All Statuses</label>
+              <div id="ms-ro-vendor-options"></div>
+            </div>
+          </div>
+          <div class="ms-wrap" id="ms-ro-flag">
+            <button class="ms-btn" onclick="toggleDropdown('ms-ro-flag')"><span id="ms-ro-flag-label">All Stock Status</span><span class="ms-arrow">▾</span></button>
+            <div class="ms-dropdown" id="ms-ro-flag-dropdown">
+              <label class="ms-item ms-all"><input type="checkbox" checked onchange="roToggleAll('flag',this)"> All Stock Status</label>
+              <div id="ms-ro-flag-options"></div>
+            </div>
+          </div>
+          <div class="ms-wrap" id="ms-ro-disc">
+            <button class="ms-btn" onclick="toggleDropdown('ms-ro-disc')"><span id="ms-ro-disc-label">Discount %</span><span class="ms-arrow">▾</span></button>
+            <div class="ms-dropdown" id="ms-ro-disc-dropdown">
+              <label class="ms-item ms-all"><input type="checkbox" checked onchange="roToggleAll('disc',this)"> All</label>
+              <div id="ms-ro-disc-options"></div>
+            </div>
+          </div>
+          <div class="ms-wrap" id="ms-ro-delmonth">
+            <button class="ms-btn" onclick="toggleDropdown('ms-ro-delmonth')"><span id="ms-ro-delmonth-label">Month Del</span><span class="ms-arrow">▾</span></button>
+            <div class="ms-dropdown" id="ms-ro-delmonth-dropdown">
+              <label class="ms-item ms-all"><input type="checkbox" checked onchange="roToggleAll('delmonth',this)"> All</label>
+              <div id="ms-ro-delmonth-options"></div>
+            </div>
+          </div>
+          <button class="clear-btn" onclick="roClearFilters()">✕ Clear</button>
+        </div>
         <div id="reorders-count" style="font-size:12px;color:var(--text-muted);margin-bottom:8px;"></div>
         <div id="reorders-body">
           <div class="insights-empty">
@@ -1972,6 +2015,9 @@ function saveRoData(d){try{localStorage.setItem(RO_STORAGE_KEY,JSON.stringify(d)
 function roToggle(key,checked){
   const d=getRoData();if(!d[key])d[key]={};d[key].checked=checked;saveRoData(d);renderReorders();
 }
+function roSavePct(key,val){
+  const d=getRoData();if(!d[key])d[key]={};d[key].qty=val;saveRoData(d);
+}
 function roSetQty(key,val){
   const d=getRoData();if(!d[key])d[key]={};d[key].qty=val;saveRoData(d);renderReorders();
 }
@@ -1990,36 +2036,66 @@ function renderReorders(){
     return;
   }
   const saved=getRoData();
+  const search=(document.getElementById('ro-search')?.value||'').trim().toUpperCase();
 
-  // Build product list from all variants (full sales for sold figures)
-  const allProductsRo=[...toProduct(allVariantRows)].filter(p=>{
-    return allVariantRows.some(r=>r.productName===p.productName&&r.colour===p.colour&&((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0));
+  // Build full product list
+  const allProductsRo=[...toProduct(allVariantRows)].filter(p=>
+    allVariantRows.some(r=>r.productName===p.productName&&r.colour===p.colour&&((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0))
+  );
+
+  // Populate filters — preserve checked state
+  const wasPopulated={};const prevChecked={};
+  ['cat','vendor','flag','disc','delmonth'].forEach(type=>{
+    const boxes=[...document.querySelectorAll(`#ms-ro-${type}-options input`)];
+    wasPopulated[type]=boxes.length>0;
+    prevChecked[type]=new Set(boxes.filter(b=>b.checked).map(b=>b.value));
+  });
+  roPopulateFilters(allProductsRo);
+  ['cat','vendor','flag','disc','delmonth'].forEach(type=>{
+    if(!wasPopulated[type])return;
+    document.querySelectorAll(`#ms-ro-${type}-options input`).forEach(b=>{b.checked=prevChecked[type].has(b.value);});
+    roUpdateLabel(type);
   });
 
-  // Sort
+  // Apply filters
+  const cats=roGetSelected('cat');
+  const vendors=roGetSelected('vendor');
+  const flags=roGetSelected('flag');
+  const discs=roGetSelected('disc');
+  const delmonths=roGetSelected('delmonth');
+  let products=[...allProductsRo];
+  if(cats.length)products=products.filter(p=>cats.includes(p.category||''));
+  if(vendors.length)products=products.filter(p=>vendors.includes(p.vendor||''));
+  if(flags.length)products=products.filter(p=>{
+    if(!flags.includes('on-order')&&((p.onOrder||0)+(p.productOnOrder||0))>0)return false;
+    return flags.includes(p.flag)||(flags.includes('on-order')&&((p.onOrder||0)+(p.productOnOrder||0))>0);
+  });
+  if(discs.length)products=products.filter(p=>{const d=Math.round(p.discountPct||0);return discs.some(band=>{if(band==='none')return!p.discountPct||d===0;return Math.round(d)===parseInt(band);});});
+  if(delmonths.length)products=products.filter(p=>delmonths.includes(p.deliveryMonth||''));
+  if(search)products=products.filter(p=>(p.productName+' - '+p.colour).toUpperCase().includes(search)||(p.productName||'').toUpperCase().includes(search));
   const thS='cursor:pointer;user-select:none;white-space:nowrap;';
   const roArrow=col=>roSortCol===col?(roSortDir==='asc'?' ↑':' ↓'):'';
-  const str=col=>{const fa=(allProductsRo[0]||{})[col]||'';return 0;};
-  allProductsRo.sort((a,b)=>{
+  products.sort((a,b)=>{
     const av=a[roSortCol]||0,bv=b[roSortCol]||0;
     if(roSortCol==='productName')return roSortDir==='asc'?(a.productName||'').localeCompare(b.productName||''):(b.productName||'').localeCompare(a.productName||'');
     if(roSortCol==='category')return roSortDir==='asc'?(a.category||'').localeCompare(b.category||''):(b.category||'').localeCompare(a.category||'');
     if(roSortCol==='vendor')return roSortDir==='asc'?(a.vendor||'').localeCompare(b.vendor||''):(b.vendor||'').localeCompare(a.vendor||'');
+    if(roSortCol==='deliveryMonth')return roSortDir==='asc'?(a.deliveryMonth||'').localeCompare(b.deliveryMonth||''):(b.deliveryMonth||'').localeCompare(a.deliveryMonth||'');
     return roSortDir==='asc'?av-bv:bv-av;
   });
 
-  window._roVisibleKeys=allProductsRo.map(p=>p.fullTitle);
-  const selectedCount=allProductsRo.filter(p=>saved[p.fullTitle]?.checked||saved[p.fullTitle]?.qty).length;
-  if(countEl)countEl.textContent=`${allProductsRo.length} products — ${selectedCount} selected for re-order`;
+  window._roVisibleKeys=products.map(p=>p.fullTitle);
+  const selectedCount=products.filter(p=>saved[p.fullTitle]?.checked||saved[p.fullTitle]?.qty).length;
+  if(countEl)countEl.textContent=`${products.length} products shown — ${selectedCount} selected for re-order`;
 
-  const allTicked=allProductsRo.length>0&&allProductsRo.every(p=>saved[p.fullTitle]?.checked);
-  const someTicked=!allTicked&&allProductsRo.some(p=>saved[p.fullTitle]?.checked);
+  const allTicked=products.length>0&&products.every(p=>saved[p.fullTitle]?.checked);
+  const someTicked=!allTicked&&products.some(p=>saved[p.fullTitle]?.checked);
 
   const SL={ok:'OK','on-order':'On Order',oos:'Out of Stock',reorder:'Re-Order',reduce:'Reduce',clearance:'Clearance'};
   const flagPillCls={ok:'sp-ok',reorder:'sp-reorder','on-order':'sp-onorder',oos:'sp-oos',reduce:'sp-reduce',clearance:'sp-clearance'};
   const vendorCls=v=>v==='CORE'?'rp-core':v==='NEW'?'rp-new':v==='CURRENT'?'rp-current':v==='OLD'?'rp-old':'rp-other';
 
-  const rows=allProductsRo.map(p=>{
+  const rows=products.map(p=>{
     const key=p.fullTitle;
     const isChecked=saved[key]?.checked||false;
     const roQtyVal=saved[key]?.qty||'';
@@ -2045,7 +2121,7 @@ function renderReorders(){
       <td style="padding:5px 8px;text-align:center;">
         <input type="number" min="0" step="1" placeholder="0" value="${roQtyVal}"
           style="width:80px;padding:6px 8px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:14px;font-weight:600;text-align:center;outline:none;"
-          oninput="roSetQty('${safeKey}',this.value)"
+          oninput="roSavePct('${safeKey}',this.value)" onblur="renderReorders()" onkeydown="if(event.key==='Enter'){renderReorders();this.blur();}"
           onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
       </td>
       <td class="cell-num" style="${wksCls}">${wksDisplay}</td>
@@ -2063,7 +2139,7 @@ function renderReorders(){
       <th style="${thS}" onclick="roSort('productName')">Product${roArrow('productName')}</th>
       <th style="${thS}" onclick="roSort('category')">Category${roArrow('category')}</th>
       <th style="${thS}" onclick="roSort('vendor')">Status${roArrow('vendor')}</th>
-      <th>Month Del</th>
+      <th style="${thS}" onclick="roSort('deliveryMonth')">Month Del${roArrow('deliveryMonth')}</th>
       <th style="${thS}text-align:right;" onclick="roSort('stock')">SOH${roArrow('stock')}</th>
       <th style="${thS}text-align:right;" onclick="roSort('onOrder')">On Order${roArrow('onOrder')}</th>
       <th style="${thS}text-align:right;" onclick="roSort('suggestedOrder')">Suggest Order${roArrow('suggestedOrder')}</th>
@@ -2076,6 +2152,71 @@ function renderReorders(){
 
   const hdrChk=document.getElementById('ro-select-all-chk');
   if(hdrChk)hdrChk.indeterminate=someTicked;
+}
+
+function roGetSelected(type){
+  const boxes=[...document.querySelectorAll(`#ms-ro-${type}-options input[type="checkbox"]`)];
+  if(!boxes.length)return[];
+  const checked=boxes.filter(b=>b.checked).map(b=>b.value);
+  if(checked.length===0||checked.length===boxes.length)return[];
+  return checked;
+}
+function roToggleAll(type,allCheckbox){
+  document.querySelectorAll(`#ms-ro-${type}-options input`).forEach(b=>b.checked=allCheckbox.checked);
+  roUpdateLabel(type);renderReorders();
+}
+function roUpdateLabel(type){
+  const defaults={cat:'All Categories',vendor:'All Statuses',flag:'All Stock Status',disc:'Discount %',delmonth:'Month Del'};
+  const boxes=[...document.querySelectorAll(`#ms-ro-${type}-options input`)];
+  const checked=boxes.filter(b=>b.checked);
+  const label=document.getElementById(`ms-ro-${type}-label`);
+  const btn=document.querySelector(`#ms-ro-${type} .ms-btn`);
+  const allBox=document.querySelector(`#ms-ro-${type} .ms-all input`);
+  if(allBox)allBox.checked=checked.length===boxes.length;
+  if(label){
+    if(checked.length===0||checked.length===boxes.length){label.textContent=defaults[type];if(btn)btn.classList.remove('filtered');}
+    else{label.textContent=checked.length===1?checked[0].value:`${checked.length} selected`;if(btn)btn.classList.add('filtered');}
+  }
+}
+function roClearFilters(){
+  ['cat','vendor','flag','disc','delmonth'].forEach(type=>{
+    document.querySelectorAll(`#ms-ro-${type}-options input`).forEach(b=>b.checked=true);
+    const allBox=document.querySelector(`#ms-ro-${type} .ms-all input`);
+    if(allBox)allBox.checked=true;
+    roUpdateLabel(type);
+  });
+  const s=document.getElementById('ro-search');if(s)s.value='';
+  renderReorders();
+}
+function roPopulateFilters(products){
+  const countBy=fn=>{const m={};products.forEach(p=>{const k=fn(p);if(k!=null)m[k]=(m[k]||0)+1;});return m;};
+  const catCounts=countBy(p=>p.category);
+  const cats=[...new Set(products.map(p=>p.category).filter(Boolean))].sort();
+  document.getElementById('ms-ro-cat-options').innerHTML=cats.map(v=>
+    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="roUpdateLabel('cat');renderReorders()"> ${v} <span class="ms-count">(${catCounts[v]||0})</span></label>`).join('');
+  const vendorCounts=countBy(p=>p.vendor);
+  const vendors=[...new Set(products.map(p=>p.vendor).filter(Boolean))].sort();
+  document.getElementById('ms-ro-vendor-options').innerHTML=vendors.map(v=>
+    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="roUpdateLabel('vendor');renderReorders()"> ${v} <span class="ms-count">(${vendorCounts[v]||0})</span></label>`).join('');
+  const flagLabels={'on-order':'On Order','oos':'Out of Stock','reorder':'Re-Order ≤14w','ok':'OK 14–26w','reduce':'Reduce 26w+'};
+  const flagCounts=countBy(p=>p.flag);
+  const flags=[...new Set(products.map(p=>p.flag).filter(Boolean))];
+  document.getElementById('ms-ro-flag-options').innerHTML=flags.map(v=>
+    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="roUpdateLabel('flag');renderReorders()"> ${flagLabels[v]||v} <span class="ms-count">(${flagCounts[v]||0})</span></label>`).join('');
+  const discBands=['none','20','30','40','50','60','70'];
+  const discLabels={'none':'No Discount','20':'20% off','30':'30% off','40':'40% off','50':'50% off','60':'60% off','70':'70% off'};
+  const discCounts={};
+  products.forEach(p=>{const d=Math.round(p.discountPct||0);const band=!p.discountPct||d===0?'none':['20','30','40','50','60','70'].includes(String(d))?String(d):null;if(band)discCounts[band]=(discCounts[band]||0)+1;});
+  document.getElementById('ms-ro-disc-options').innerHTML=discBands.map(v=>
+    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="roUpdateLabel('disc');renderReorders()"> ${discLabels[v]} <span class="ms-count">(${discCounts[v]||0})</span></label>`).join('');
+  const monthOrder={Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
+  const delCounts=countBy(p=>p.deliveryMonth||null);
+  const months=[...new Set(products.map(p=>p.deliveryMonth).filter(d=>d&&d!=='CORE'))];
+  months.sort((a,b)=>{const[am,ay]=a.split('-');const[bm,by]=b.split('-');const ayF=parseInt(ay)<50?2000+parseInt(ay):1900+parseInt(ay);const byF=parseInt(by)<50?2000+parseInt(by):1900+parseInt(by);if(ayF!==byF)return byF-ayF;return(monthOrder[bm]||0)-(monthOrder[am]||0);});
+  const coreCount=delCounts['CORE']||0;
+  document.getElementById('ms-ro-delmonth-options').innerHTML=
+    `<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="roUpdateLabel('delmonth');renderReorders()"> CORE <span class="ms-count">(${coreCount})</span></label>`+
+    months.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="roUpdateLabel('delmonth');renderReorders()"> ${m} <span class="ms-count">(${delCounts[m]||0})</span></label>`).join('');
 }
 
 function roSort(col){
@@ -2128,6 +2269,9 @@ function mdToggle(key,checked){
   renderMarkdowns();
 }
 
+function mdSavePct(key,val){
+  const d=getMdData();if(!d[key])d[key]={};d[key].pct=val;saveMdData(d);
+}
 function mdSetPct(key,val){
   const d=getMdData();
   if(!d[key])d[key]={};
@@ -2487,7 +2631,7 @@ function renderMarkdowns(){
         <div style="display:flex;align-items:center;gap:3px;justify-content:center;">
           <input type="number" min="0" max="90" step="5" placeholder="%" value="${pct}"
             style="width:72px;padding:6px 8px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:14px;font-weight:600;text-align:center;outline:none;"
-            oninput="mdSetPct('${safeKey}',this.value)"
+            oninput="mdSavePct('${safeKey}',this.value)" onblur="renderMarkdowns()" onkeydown="if(event.key==='Enter'){renderMarkdowns();this.blur();}"
             onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
           <span style="font-size:11px;color:var(--text-muted);">%</span>
         </div>
