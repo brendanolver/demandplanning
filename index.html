@@ -457,6 +457,24 @@ th{position:relative;}
   </div>
 </div>
 
+<!-- ══ LOADING / AUTO-SYNC SCREEN ══════════════════════ -->
+<div id="loading-screen" style="display:none;position:fixed;inset:0;background:var(--navy);z-index:9999;display:none;flex-direction:column;align-items:center;justify-content:center;gap:24px;">
+  <div style="text-align:center;">
+    <div style="display:flex;align-items:center;gap:12px;justify-content:center;margin-bottom:8px;">
+      <div class="logo-mark" style="width:40px;height:40px;background:var(--teal);border-radius:10px;display:flex;align-items:center;justify-content:center;">
+        <svg viewBox="0 0 24 24" style="width:22px;height:22px;stroke:white;stroke-width:2.5;fill:none;"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      </div>
+      <div style="color:white;font-size:22px;font-weight:700;letter-spacing:0.05em;">WNDRR</div>
+    </div>
+    <div style="color:rgba(255,255,255,0.5);font-size:13px;letter-spacing:0.1em;">STOCK DEMAND PLANNING</div>
+  </div>
+  <div id="loading-status" style="color:rgba(255,255,255,0.8);font-size:14px;text-align:center;min-height:24px;">Connecting to Google Drive...</div>
+  <div style="width:280px;height:4px;background:rgba(255,255,255,0.1);border-radius:2px;overflow:hidden;">
+    <div id="loading-bar" style="height:100%;width:0%;background:var(--teal);border-radius:2px;transition:width 0.4s ease;"></div>
+  </div>
+  <button onclick="showUploadScreen()" style="margin-top:8px;padding:8px 18px;background:transparent;border:1px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.5);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;">↑ Upload files manually instead</button>
+</div>
+
 <!-- ══ UPLOAD ═══════════════════════════════════════════ -->
 <div id="upload-screen" style="display:none;">
   <div class="upload-left">
@@ -651,7 +669,8 @@ th{position:relative;}
         <button class="period-btn" data-days="365" onclick="setPeriod(365)">365d</button>
       </div>
       <button class="tb-btn accent" id="export-btn" onclick="exportCSV()">↓ Export</button>
-      <button class="tb-btn" onclick="resetApp()">← Upload</button>
+      <button class="tb-btn" onclick="startAutoSync()" title="Re-sync from Google Drive">↻ Refresh</button>
+      <button class="tb-btn" onclick="showUploadScreen()" title="Manual file upload">↑ Upload</button>
     </div>
   </header>
 
@@ -2379,7 +2398,10 @@ async function gdriveFetchFiles(){
     const fileMap={
       'shopify_inventory.csv':{loader:'inv',exact:true,sheet:false},
       'shopify_sales.csv':{loader:'sales',exact:true,sheet:false},
-      'Better Reports':{loader:'soldout',exact:false,sheet:true}, // Google Sheet, export as CSV
+      'All Products Sizes Sold Out':{loader:'soldout',exact:false,sheet:false},
+      'Variants 0 inventory by Product':{loader:'variantssoldout',exact:false,sheet:false},
+      'Core Styles':{loader:'corestyles',exact:false,sheet:false},
+      'Current Bundle Styles':{loader:'bundlestyles',exact:false,sheet:false},
       'Order Item Analysis':{loader:'am',exact:false,sheet:false},
     };
     let loaded=0,errors=[];
@@ -2413,6 +2435,9 @@ async function gdriveFetchFiles(){
       if(config.loader==='inv'){shopifyInvData=parsed;_cachedSalesMaps=null;_cachedAMData=null;document.getElementById('shopify-card').classList.add('loaded');document.getElementById('sf-inv-fname').textContent=filename;}
       else if(config.loader==='sales'){shopifySalesData=parsed;_cachedSalesMaps=null;document.getElementById('sales-card').classList.add('loaded');document.getElementById('sf-sales-fname').textContent=filename;}
       else if(config.loader==='soldout'){soldOutData=parsed;_cachedSoldOutData=null;document.getElementById('soldout-card').classList.add('loaded');document.getElementById('soldout-fname').textContent=filename;}
+      else if(config.loader==='variantssoldout'){variantsSoldOutData=parsed;_cachedSoldOutData=null;document.getElementById('variants-soldout-card')?.classList.add('loaded');}
+      else if(config.loader==='corestyles'){coreStylesData=parsed;}
+      else if(config.loader==='bundlestyles'){bundleStylesData=parsed;}
       else if(config.loader==='am'){amData=parsed;_cachedAMData=null;document.getElementById('am-card').classList.add('loaded');document.getElementById('am-fname').textContent=match.name;}
       loaded++;
     }
@@ -2450,14 +2475,11 @@ function checkPassword(){
   const error=document.getElementById('pw-error');
   const remember=document.getElementById('pw-remember')?.checked;
   if(input==='Magpies90!'){
-    if(remember){
-      try{localStorage.setItem('wndrr_auth','1');}catch(e){}
-    } else {
-      try{localStorage.removeItem('wndrr_auth');}catch(e){}
-    }
+    if(remember){try{localStorage.setItem('wndrr_auth','1');}catch(e){}}
+    else{try{localStorage.removeItem('wndrr_auth');}catch(e){}}
     document.getElementById('password-screen').style.display='none';
-    document.getElementById('upload-screen').style.display='flex';
     error.classList.remove('show');
+    startAutoSync();
   } else {
     error.classList.add('show');
     document.getElementById('pw-input').value='';
@@ -2470,10 +2492,149 @@ function checkPassword(){
   try{
     if(localStorage.getItem('wndrr_auth')==='1'){
       document.getElementById('password-screen').style.display='none';
-      document.getElementById('upload-screen').style.display='flex';
+      startAutoSync();
     }
   }catch(e){}
 })();
+
+function showUploadScreen(){
+  document.getElementById('loading-screen').style.display='none';
+  document.getElementById('upload-screen').style.display='flex';
+}
+
+function setLoadingProgress(pct,msg){
+  const bar=document.getElementById('loading-bar');
+  const status=document.getElementById('loading-status');
+  if(bar)bar.style.width=pct+'%';
+  if(status&&msg)status.textContent=msg;
+}
+
+function startAutoSync(){
+  const ls=document.getElementById('loading-screen');
+  ls.style.display='flex';
+  setLoadingProgress(5,'Connecting to Google Drive...');
+  // Load Google Sign-In script if needed
+  if(!window.google?.accounts?.oauth2){
+    const script=document.createElement('script');
+    script.src='https://accounts.google.com/gsi/client';
+    script.onload=()=>autoSyncAuth();
+    script.onerror=()=>{
+      setLoadingProgress(0,'⚠️ Could not load Google Sign-In. Try manual upload.');
+      setTimeout(showUploadScreen,2500);
+    };
+    document.head.appendChild(script);
+  } else {
+    autoSyncAuth();
+  }
+}
+
+function autoSyncAuth(){
+  setLoadingProgress(15,'Authenticating with Google...');
+  const client=google.accounts.oauth2.initTokenClient({
+    client_id:GDRIVE_CLIENT_ID,
+    scope:GDRIVE_SCOPE,
+    callback:(tokenResponse)=>{
+      if(tokenResponse.error){
+        setLoadingProgress(0,'⚠️ Google auth failed. Try manual upload.');
+        setTimeout(showUploadScreen,2500);
+        return;
+      }
+      gdriveToken=tokenResponse.access_token;
+      setLoadingProgress(30,'Connected — finding files...');
+      autoSyncFetch();
+    }
+  });
+  client.requestAccessToken();
+}
+
+async function autoSyncFetch(){
+  const folderName='WNDRR Stock Demand Planning App';
+  try{
+    setLoadingProgress(35,'Finding Drive folder...');
+    const folderRes=await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=name='${encodeURIComponent(folderName)}' and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id,name)`,
+      {headers:{Authorization:`Bearer ${gdriveToken}`}}
+    );
+    const folderData=await folderRes.json();
+    if(!folderData.files?.length){
+      setLoadingProgress(0,`⚠️ Folder "${folderName}" not found in Drive.`);
+      setTimeout(showUploadScreen,2500);return;
+    }
+    const folderId=folderData.files[0].id;
+    setLoadingProgress(45,'Folder found — fetching files...');
+    const filesRes=await fetch(
+      `https://www.googleapis.com/drive/v3/files?q='${folderId}' in parents and trashed=false and (mimeType='text/csv' or mimeType='application/vnd.google-apps.spreadsheet')&fields=files(id,name,mimeType,modifiedTime)&orderBy=modifiedTime desc`,
+      {headers:{Authorization:`Bearer ${gdriveToken}`}}
+    );
+    const filesData=await filesRes.json();
+    const files=filesData.files||[];
+
+    const fileMap={
+      'shopify_inventory.csv':{loader:'inv',exact:true,sheet:false},
+      'shopify_sales.csv':{loader:'sales',exact:true,sheet:false},
+      'All Products Sizes Sold Out':{loader:'soldout',exact:false,sheet:false},
+      'Variants 0 inventory by Product':{loader:'variantssoldout',exact:false,sheet:false},
+      'Core Styles':{loader:'corestyles',exact:false,sheet:false},
+      'Current Bundle Styles':{loader:'bundlestyles',exact:false,sheet:false},
+      'Order Item Analysis':{loader:'am',exact:false,sheet:false},
+    };
+    const fileLabels={inv:'Inventory',sales:'Sales History',soldout:'All Products',variantssoldout:'Variants Sold Out',corestyles:'Core Styles',bundlestyles:'Bundle Styles',am:'Apparel Magic'};
+    let loaded=0;
+    const total=Object.keys(fileMap).length;
+    const errors=[];
+
+    for(const[filename,config]of Object.entries(fileMap)){
+      const pct=45+Math.round((loaded/total)*50);
+      setLoadingProgress(pct,`Downloading ${fileLabels[config.loader]}...`);
+      let match=config.exact?files.find(f=>f.name.toLowerCase()===filename.toLowerCase()):files.find(f=>f.name.startsWith(filename));
+      if(!match){errors.push(fileLabels[config.loader]);loaded++;continue;}
+      let text;
+      if(config.sheet||match.mimeType==='application/vnd.google-apps.spreadsheet'){
+        const dlRes=await fetch(`https://www.googleapis.com/drive/v3/files/${match.id}/export?mimeType=text/csv`,{headers:{Authorization:`Bearer ${gdriveToken}`}});
+        text=await dlRes.text();
+      } else {
+        const dlRes=await fetch(`https://www.googleapis.com/drive/v3/files/${match.id}?alt=media`,{headers:{Authorization:`Bearer ${gdriveToken}`}});
+        text=await dlRes.text();
+      }
+      const parsed=parseCSV(text);
+      if(config.loader==='inv'){shopifyInvData=parsed;_cachedSalesMaps=null;_cachedAMData=null;}
+      else if(config.loader==='sales'){shopifySalesData=parsed;_cachedSalesMaps=null;}
+      else if(config.loader==='soldout'){soldOutData=parsed;_cachedSoldOutData=null;}
+      else if(config.loader==='variantssoldout'){variantsSoldOutData=parsed;_cachedSoldOutData=null;}
+      else if(config.loader==='corestyles'){coreStylesData=parsed;}
+      else if(config.loader==='bundlestyles'){bundleStylesData=parsed;}
+      else if(config.loader==='am'){amData=parsed;_cachedAMData=null;}
+      loaded++;
+    }
+
+    // Also update upload screen indicators in background
+    if(shopifyInvData){document.getElementById('shopify-card')?.classList.add('loaded');}
+    if(shopifySalesData){document.getElementById('sales-card')?.classList.add('loaded');}
+    if(soldOutData){document.getElementById('soldout-card')?.classList.add('loaded');}
+    if(amData){document.getElementById('am-card')?.classList.add('loaded');}
+
+    setLoadingProgress(95,'Analysing stock data...');
+    await new Promise(r=>setTimeout(r,300));
+
+    if(shopifyInvData&&shopifySalesData){
+      setLoadingProgress(100,'Ready!');
+      await new Promise(r=>setTimeout(r,400));
+      document.getElementById('loading-screen').style.display='none';
+      buildDashboard();
+      if(errors.length){
+        // Show a subtle warning in topbar
+        const pill=document.getElementById('nav-count');
+        if(pill)pill.title=`⚠️ Missing files: ${errors.join(', ')}`;
+      }
+    } else {
+      setLoadingProgress(0,`⚠️ Missing required files: ${errors.join(', ')}. Please upload manually.`);
+      setTimeout(showUploadScreen,2500);
+    }
+  } catch(err){
+    setLoadingProgress(0,`⚠️ Error: ${err.message}`);
+    setTimeout(showUploadScreen,2500);
+  }
+}
 
 function togglePwVisibility(e){
   if(e)e.preventDefault();
@@ -2491,6 +2652,7 @@ function togglePwVisibility(e){
 
 /* ── STATE ── */
 let shopifyInvData=null, shopifySalesData=null, amData=null, soldOutData=null, variantsSoldOutData=null;
+let coreStylesData=null, bundleStylesData=null;
 let currentView='category', sortCol='days', sortDir='asc', currentPage=1;
 let selectedPeriod=7;
 const PAGE_SIZE=50;
@@ -2866,7 +3028,7 @@ function getFlag(days,stock,onOrder,vendor,discountPct){
 }
 
 /* ── PROCESS ── */
-function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap){
+function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap,coreSet=new Set(),bundleSet=new Set()){
   const rows=[];
 
   // Build SOH lookup from inventory file: {sku: stock}
@@ -2924,7 +3086,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const plEntry=plKey in plMap?plMap[plKey]:plMap[productName.toUpperCase()];
     const price=plEntry?plEntry.price:(pm.price||0);
     const compareAt=plEntry?plEntry.compareAt:(pm.compareAt||pm.price||0);
-    const isCore=(vendor||'').toUpperCase()==='CORE';
+    const isCore=(vendor||'').toUpperCase()==='CORE'||coreSet.has(productName+' - '+colour);
 
     // Delivery month: SKU decode is authoritative; Better Reports as fallback; CORE always shows CORE; AM as last resort
     let deliveryMonth='';
@@ -2984,7 +3146,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     // - Not discounted (no markdown applied)
     // - CORE, OR delivered within last 2 months, OR 30d sell-through >= 30%
     const isDiscounted=(compareAt>0&&price>0&&price<compareAt);
-    const isCoreSku=(vendor||'').toUpperCase()==='CORE';
+    const isCoreSku=(vendor||'').toUpperCase()==='CORE'||coreSet.has(productName+' - '+colour);
     // Delivered within last 2 months — check SKU decode
     const skuDeliveryRaw=decodeSkuDelivery(sku);
     let deliveredRecently=false;
@@ -3072,9 +3234,9 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const threeMonthsAgo=new Date(now.getFullYear(),now.getMonth()-3,1);
 
     // OLD — delivered more than 3 months ago, no on order, not CORE
-    // Also applies to CLEARANCE and BUNDLE
+    // Also applies to CLEARANCE and BUNDLE (isCore already declared above)
+    const isBundle=!isCore&&((vendor||'').toUpperCase()==='BUNDLE'||bundleSet.has(productName+' - '+colour));
     const isClearance=(vendor||'').toUpperCase()==='CLEARANCE';
-    const isBundle=(vendor||'').toUpperCase()==='BUNDLE';
     const hasNoOrder=(onOrder||0)+(productOnOrder||0)===0;
     const isOldStyle=skuDeliveryDate&&skuDeliveryDate<threeMonthsAgo;
     const isEnd=(isOldStyle&&hasNoOrder&&!isCore)||
@@ -3086,7 +3248,8 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const isCurrent=skuDeliveryDate&&skuDeliveryDate>=threeMonthsAgo&&!isCurrentMonth&&!isCore&&!isClearance&&!isBundle;
 
     const isNew=isCurrentMonth&&!isCore&&!isClearance&&!isBundle;
-    const effectiveVendor=isNew?'NEW':isEnd?'OLD':isCurrent?'CURRENT':vendor;
+    // CORE/BUNDLE from CSV take precedence — then age-based status
+    const effectiveVendor=isCore?'CORE':isBundle?'BUNDLE':isNew?'NEW':isEnd?'OLD':isCurrent?'CURRENT':vendor;
     if(isEnd&&!discountPct)flag='reduce';
 
     rows.push({
@@ -3183,10 +3346,27 @@ function buildVariantRows(){
   if(!_cachedAMData) _cachedAMData=buildAMData();
   if(!_cachedSoldOutData) _cachedSoldOutData=buildSoldOutMap();
 
+  // Build CORE and BUNDLE sets from CSV files — these are source of truth
+  // Format: "PRODUCT NAME - COLOUR" (uppercase)
+  const coreSet=new Set();
+  const bundleSet=new Set();
+  if(coreStylesData){
+    for(const row of coreStylesData){
+      const name=(row['Product name']||'').trim().toUpperCase();
+      if(name)coreSet.add(name);
+    }
+  }
+  if(bundleStylesData){
+    for(const row of bundleStylesData){
+      const name=(row['Product name']||'').trim().toUpperCase();
+      if(name)bundleSet.add(name);
+    }
+  }
+
   const{salesBySkuDay,priceMap}=_cachedSalesMaps;
   const{variantMap:amVariantMap,productMap:amProductMap,products:amProducts}=_cachedAMData;
   const{soMap,plMap}=_cachedSoldOutData;
-  allVariantRows=processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap);
+  allVariantRows=processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap,coreSet,bundleSet);
   document.getElementById('nav-count').textContent=allVariantRows.length.toLocaleString()+' SKUs';
 
   // Build counts based on aggregated product rows (matches what Product view shows)
@@ -4101,6 +4281,7 @@ function exportCSV(){
 /* ── RESET ── */
 function resetApp(){
   shopifyInvData=null;shopifySalesData=null;amData=null;soldOutData=null;variantsSoldOutData=null;
+  coreStylesData=null;bundleStylesData=null;
   _cachedSalesMaps=null;_cachedAMData=null;_cachedSoldOutData=null;
   allVariantRows=[];
   document.getElementById('upload-screen').style.display='flex';
