@@ -962,7 +962,7 @@ th{position:relative;}
           <div></div>
           <div style="display:flex;gap:8px;align-items:center;">
             <button onclick="roSelectAll(true)" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✓ Select All</button>
-            <button onclick="roSelectAll(false)" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✕ Clear All</button>
+            <button onclick="roClearAll()" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✕ Clear All</button>
             <button id="ro-view-selected-btn" onclick="roToggleViewSelected()" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">👁 View Selected</button>
             <button onclick="roExport()" style="padding:7px 18px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">⬇ Export Selected</button>
           </div>
@@ -2421,6 +2421,10 @@ function roSavePct(key,val){
 function roSetQty(key,val){
   const d=getRoData();if(!d[key])d[key]={};d[key].qty=val;saveRoData(d);renderReorders();
 }
+function roClearAll(){
+  saveRoData({});
+  renderReorders();
+}
 function roSelectAll(checked){
   const d=getRoData();
   const visible=window._roVisibleKeys||[];
@@ -2477,15 +2481,30 @@ function renderReorders(){
   const thS='cursor:pointer;user-select:none;white-space:nowrap;';
   const roArrow=col=>roSortCol===col?(roSortDir==='asc'?' ↑':' ↓'):'';
   products.sort((a,b)=>{
-    const av=a[roSortCol]||0,bv=b[roSortCol]||0;
+    let av,bv;
     if(roSortCol==='productName')return roSortDir==='asc'?(a.productName||'').localeCompare(b.productName||''):(b.productName||'').localeCompare(a.productName||'');
     if(roSortCol==='category')return roSortDir==='asc'?(a.category||'').localeCompare(b.category||''):(b.category||'').localeCompare(a.category||'');
     if(roSortCol==='vendor')return roSortDir==='asc'?(a.vendor||'').localeCompare(b.vendor||''):(b.vendor||'').localeCompare(a.vendor||'');
     if(roSortCol==='deliveryMonth')return roSortDir==='asc'?(a.deliveryMonth||'').localeCompare(b.deliveryMonth||''):(b.deliveryMonth||'').localeCompare(a.deliveryMonth||'');
+    if(roSortCol==='flag')return roSortDir==='asc'?(a.flag||'').localeCompare(b.flag||''):(b.flag||'').localeCompare(a.flag||'');
     if(roSortCol==='sold'){
       const f=roPeriod===30?'sold30':roPeriod===90?'sold90':roPeriod===365?'sold365':'sold7';
       av=a[f]||0;bv=b[f]||0;return roSortDir==='asc'?av-bv:bv-av;
     }
+    if(roSortCol==='roQty'){av=parseInt(saved[a.fullTitle]?.qty)||0;bv=parseInt(saved[b.fullTitle]?.qty)||0;return roSortDir==='asc'?av-bv:bv-av;}
+    if(roSortCol==='wks'){
+      // Recalc wks for sort
+      const periodDays=roPeriod===14?14:roPeriod===30?30:roPeriod===90?90:roPeriod===365?365:7;
+      const getSold=p=>{const f=roPeriod===30?'sold30':roPeriod===90?'sold90':roPeriod===365?'sold365':'sold7';return p[f]||0;};
+      const vel=p=>periodDays>0&&getSold(p)>0?getSold(p)/periodDays:0;
+      const wks=p=>{const v=vel(p);const onOrd=(p.onOrder||0)+(p.productOnOrder||0);const roQ=parseInt(saved[p.fullTitle]?.qty)||0;return v>0?(p.stock+onOrd+roQ)/(v*7):null;};
+      av=wks(a);bv=wks(b);
+      if(av===null&&bv===null)return 0;
+      if(av===null)return roSortDir==='asc'?1:-1;
+      if(bv===null)return roSortDir==='asc'?-1:1;
+      return roSortDir==='asc'?av-bv:bv-av;
+    }
+    av=a[roSortCol]||0;bv=b[roSortCol]||0;
     return roSortDir==='asc'?av-bv:bv-av;
   });
 
@@ -2556,9 +2575,9 @@ function renderReorders(){
       <th style="${thS}text-align:right;" onclick="roSort('onOrder')">On Order${roArrow('onOrder')}</th>
       <th style="${thS}text-align:right;" onclick="roSort('sold')">${soldLabel}${roArrow('sold')}</th>
       <th style="${thS}text-align:right;" onclick="roSort('suggestedOrder')">Suggest Order${roArrow('suggestedOrder')}</th>
-      <th style="text-align:center;min-width:100px;">Re-Order Qty</th>
-      <th style="${thS}text-align:right;" onclick="roSort('days')">Wks Cover (incl. RO)${roArrow('days')}</th>
-      <th>Stock Status</th>
+      <th style="${thS}text-align:center;min-width:100px;" onclick="roSort('roQty')">Re-Order Qty${roArrow('roQty')}</th>
+      <th style="${thS}text-align:right;" onclick="roSort('wks')">Wks Cover (incl. RO)${roArrow('wks')}</th>
+      <th style="${thS}" onclick="roSort('flag')">Stock Status${roArrow('flag')}</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
@@ -2634,7 +2653,10 @@ function roPopulateFilters(products){
 
 function roSort(col){
   if(roSortCol===col){roSortDir=roSortDir==='asc'?'desc':'asc';}
-  else{roSortCol=col;roSortDir=col==='productName'||col==='category'||col==='vendor'?'asc':'desc';}
+  else{
+    roSortCol=col;
+    roSortDir=(col==='productName'||col==='category'||col==='vendor'||col==='deliveryMonth'||col==='flag')?'asc':'desc';
+  }
   renderReorders();
 }
 
