@@ -3005,7 +3005,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
       if(day>=lyStartStr&&day<=lyEndStr)lyNext12w+=d.qty;
     }
     const isEligible=!isDiscounted&&(isCoreSku||deliveredRecently||highSellThru);
-    const suggestedOrder=isEligible?Math.max(0,Math.round(lyNext12w-(stock+onOrder))):0;
+    // suggestedOrder calculated below after onOrder is defined
 
     // Weekly velocities for display
     const vel7=s7.qty>0?s7.qty/7*7:null;   // weekly rate from 7d
@@ -3038,6 +3038,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const onOrder=variantEntry?variantEntry.qtyOpen:0;
     const monthDue=variantEntry?variantEntry.monthDue:productEntry?productEntry.monthDue:'';
     const productOnOrder=productEntry?productEntry.qtyOpen:0;
+    const suggestedOrder=isEligible?Math.max(0,Math.round(lyNext12w-(stock+onOrder))):0;
 
     // Days remaining
     let recalcDays=velocity>0?Math.round(stock/velocity):null;
