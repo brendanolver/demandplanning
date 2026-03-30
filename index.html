@@ -222,6 +222,7 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 /* Status badge (vendor/range) */
 .range-pill{display:inline-flex;padding:3px 8px;border-radius:var(--r-sm);font-size:11px;font-weight:600;}
 .rp-core{background:var(--blue-light);color:var(--blue);}
+.rp-reduced{background:#fff7ed;color:#ea580c;}
 .rp-indent{background:var(--amber-light);color:var(--amber);}
 .rp-clearance{background:var(--red-light);color:var(--red);}
 .rp-bundle{background:var(--purple-light);color:var(--purple);}
@@ -2519,7 +2520,7 @@ function renderReorders(){
 
   const SL={ok:'OK','on-order':'On Order',oos:'Out of Stock',reorder:'Re-Order',reduce:'Reduce',clearance:'Clearance'};
   const flagPillCls={ok:'sp-ok',reorder:'sp-reorder','on-order':'sp-onorder',oos:'sp-oos',reduce:'sp-reduce',clearance:'sp-clearance'};
-  const vendorCls=v=>v==='CORE'?'rp-core':v==='NEW'?'rp-new':v==='CURRENT'?'rp-current':v==='OLD'?'rp-old':'rp-other';
+  const vendorCls=v=>v==='CORE'?'rp-core':v==='NEW'?'rp-new':v==='CURRENT'?'rp-current':v==='OLD'?'rp-old':v==='REDUCED'?'rp-reduced':'rp-other';
 
   const soldLabel=`Sold (${roPeriod}d)`;
   const getSoldRo=p=>{if(roPeriod===7)return p.sold7||0;if(roPeriod===14)return Math.round((p.sold7||0)/7*14);if(roPeriod===30)return p.sold30||0;if(roPeriod===90)return p.sold90||0;if(roPeriod===365)return p.sold365||0;return p.sold7||0;};
@@ -2540,6 +2541,7 @@ function renderReorders(){
     const wksDisplay=recalcWks!==null?recalcWks+'w':'—';
     const wksCls=recalcWks===null?'cell-muted':recalcWks>=12?'color:var(--teal);font-weight:700;':'color:var(--red);font-weight:600;';
     const sugOrd=p.suggestedOrder||0;
+    const sugOrdDisplay=sugOrd>=70?sugOrd:0;
     const safeKey=key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     return`<tr style="background:${isChecked?'rgba(20,184,166,0.05)':''};">
       <td style="padding:6px 8px;text-align:center;"><input type="checkbox" ${isChecked?'checked':''} style="width:16px;height:16px;accent-color:var(--teal);cursor:pointer;" onchange="roToggle('${safeKey}',this.checked)"></td>
@@ -2550,7 +2552,7 @@ function renderReorders(){
       <td class="cell-num">${p.stock.toLocaleString()}</td>
       <td class="cell-num" style="color:var(--purple);">${onOrder>0?onOrder.toLocaleString():'—'}</td>
       <td class="cell-num">${sold>0?sold.toLocaleString():'—'}</td>
-      <td class="cell-num" style="color:#f97316;font-weight:700;">${sugOrd>0?sugOrd.toLocaleString():'—'}</td>
+      <td class="cell-num" style="color:#f97316;font-weight:700;">${sugOrdDisplay>0?sugOrdDisplay.toLocaleString():'—'}</td>
       <td style="padding:5px 10px;text-align:center;">
         <input type="number" min="0" step="1" placeholder="0" value="${roQtyVal}"
           style="width:80px;padding:6px 8px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:14px;font-weight:600;text-align:center;outline:none;"
@@ -2676,7 +2678,7 @@ function roExport(){
     const onOrder=(p.onOrder||0)+(p.productOnOrder||0);
     const totalUnits=p.stock+onOrder+roQty;
     const recalcWks=p.velocity>0?+(totalUnits/(p.velocity*7)).toFixed(1):'—';
-    return[p.productName,p.colour,p.category,p.vendor,p.deliveryMonth||'',p.stock,onOrder||'',p.suggestedOrder||'',roQty||'',recalcWks,SL[p.flag]||p.flag];
+    return[p.productName,p.colour,p.category,p.vendor,p.deliveryMonth||'',p.stock,onOrder||'',(p.suggestedOrder||0)>=70?(p.suggestedOrder||0):'',roQty||'',recalcWks,SL[p.flag]||p.flag];
   });
   const csv=[headers,...csvRows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob=new Blob([csv],{type:'text/csv'});
@@ -2759,12 +2761,13 @@ function mdExport(){
   });
   const selected=allProds.filter(p=>d[p.fullTitle]?.checked||d[p.fullTitle]?.pct);
   if(!selected.length){alert('No styles selected — tick a checkbox or enter a proposed % first.');return;}
-  const headers=['Product','Colour','Category','Status','Month Del','Month Due','ST%','SOH','SOH Value','Sell Value','Today','Yest','Sold','On Order','Sizes S/O','Price','RRP','Curr Disc%','Margin%','Proposed Markdown %','Proposed New Price','Wks Cover','Stock Status'];
+  const headers=['Product','Category','Status','Month Del','Month Due','ST%','SOH','SOH Value','Sell Value','Today','Yest','Sold','On Order','Sizes S/O','Price','RRP','Curr Disc%','Margin%','Proposed Markdown %','Proposed New Price','Wks Cover','Stock Status'];
   const SL={ok:'OK','on-order':'On Order',oos:'Out of Stock',reorder:'Re-Order',reduce:'Reduce',clearance:'Clearance'};
   const csvRows=selected.map(p=>{
     const pct=d[p.fullTitle]?.pct||'';
     const proposedPrice=p.compareAt>0&&pct?(p.compareAt*(1-parseFloat(pct)/100)).toFixed(2):'';
-    return[p.productName,p.colour,p.category,p.vendor,p.deliveryMonth||'',p.monthDue||'',
+    const productLabel=p.productName+(p.colour?' - '+p.colour:'');
+    return[productLabel,p.category,p.vendor,p.deliveryMonth||'',p.monthDue||'',
       p.sellThru7!=null?p.sellThru7.toFixed(1):'',p.stock,
       p.sohValue?Math.round(p.sohValue):'',p.sellValue?Math.round(p.sellValue):'',
       p.soldToday||'',p.soldYesterday||'',p.sold||'',
@@ -3074,7 +3077,7 @@ function renderMarkdowns(){
     const disc=p.discountPct!=null?p.discountPct.toFixed(1)+'%':'—';
     const mg=p.margin!=null?p.margin.toFixed(1)+'%':'—';
     const proposedPrice=p.compareAt>0&&pct?(p.compareAt*(1-parseFloat(pct)/100)).toFixed(2):'';
-    const vendorCls=p.vendor==='CORE'?'rp-core':p.vendor==='NEW'?'rp-new':p.vendor==='CURRENT'?'rp-current':p.vendor==='OLD'?'rp-old':'rp-other';
+    const vendorCls=p.vendor==='CORE'?'rp-core':p.vendor==='NEW'?'rp-new':p.vendor==='CURRENT'?'rp-current':p.vendor==='OLD'?'rp-old':p.vendor==='REDUCED'?'rp-reduced':'rp-other';
     const safeKey=key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     const onOrder=(p.onOrder||0)+(p.productOnOrder||0);
     return`<tr style="background:${isChecked?'rgba(20,184,166,0.05)':''};">
@@ -3671,9 +3674,10 @@ function buildSalesMaps(){
         firstSaleDay:qty>0?day:null
       };
     } else {
-      // Most recent row = current sell price + status
+      // Most recent row = current sell price, compareAt (RRP) + status
       if(day>priceMap[sku].day){
         priceMap[sku].price=price||compareAt;
+        if(compareAt>0)priceMap[sku].compareAt=compareAt;
         priceMap[sku].vendor=vendor;
         priceMap[sku].category=category;
         priceMap[sku].day=day;
@@ -3682,10 +3686,6 @@ function buildSalesMaps(){
       // Earliest sale day = style age
       if(qty>0&&(!priceMap[sku].firstSaleDay||day<priceMap[sku].firstSaleDay)){
         priceMap[sku].firstSaleDay=day;
-      }
-      // Highest compareAt ever seen = true RRP
-      if(compareAt>priceMap[sku].compareAt){
-        priceMap[sku].compareAt=compareAt;
       }
     }
   }
@@ -4068,8 +4068,9 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
 
     const isNew=(isCurrentMonth||isFutureWithStock)&&!isCore&&!isClearance&&!isBundle;
     // CORE/BUNDLE from CSV take precedence — then age-based status
-    const effectiveVendor=isCore?'CORE':isBundle?'BUNDLE':isNew?'NEW':isEnd?'OLD':isCurrent?'CURRENT':vendor;
-    if(isEnd&&!discountPct)flag='reduce';
+    const isReduced=!isCore&&!isBundle&&!isClearance&&(discountPct>0);
+    const effectiveVendor=isCore?'CORE':isBundle?'BUNDLE':isClearance?'CLEARANCE':isNew?'NEW':isReduced?'REDUCED':isEnd?'OLD':isCurrent?'CURRENT':vendor;
+    if(isEnd&&!discountPct&&!isNew)flag='reduce';
 
     rows.push({
       fullTitle:productName+' - '+colour,productName,colour,size,variant:size,sku,
@@ -4959,7 +4960,7 @@ function renderRow(row,headers){
       const displayVal=(val||'');
       const isEnd=displayVal==='OLD';
       const v=displayVal.toLowerCase();
-      const cls=isEnd?'rp-old':v==='new'?'rp-new':v==='current'?'rp-current':v==='core'?'rp-core':v==='old'?'rp-old':'rp-other';
+      const cls=isEnd?'rp-old':v==='new'?'rp-new':v==='current'?'rp-current':v==='core'?'rp-core':v==='old'?'rp-old':v==='reduced'?'rp-reduced':'rp-other';
       return`<td><span class="range-pill ${cls}">${displayVal||'—'}</span></td>`;
     }
     if(h.k==='soldToday'){
