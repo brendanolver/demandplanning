@@ -784,6 +784,18 @@ th{position:relative;}
               <div id="ms-delmonth-options"></div>
             </div>
           </div>
+          <div class="ms-wrap" id="ms-suggestorder" style="display:none;">
+            <button class="ms-btn" onclick="toggleDropdown('ms-suggestorder')">
+              <span id="ms-suggestorder-label">Suggest Order</span><span class="ms-arrow">▾</span>
+            </button>
+            <div class="ms-dropdown" id="ms-suggestorder-dropdown">
+              <div id="ms-suggestorder-options">
+                <label class="ms-item"><input type="radio" name="suggestorder-radio" value="all" checked onchange="applySuggestOrderFilter()"> All</label>
+                <label class="ms-item"><input type="radio" name="suggestorder-radio" value="yes" onchange="applySuggestOrderFilter()"> Yes (has qty)</label>
+                <label class="ms-item"><input type="radio" name="suggestorder-radio" value="no" onchange="applySuggestOrderFilter()"> No (none)</label>
+              </div>
+            </div>
+          </div>
           <button class="clear-btn" onclick="clearFilters()">✕ Clear</button>
         </div>
       </div>
@@ -3422,6 +3434,13 @@ function clearFilters(){
   const labels={cat:'All Categories',vendor:'All Statuses',flag:'All Stock Status',disc:'Discount %',soldout:'Sizes Sold Out',delmonth:'Month Del'};
   Object.entries(labels).forEach(([t,l])=>{const el=document.getElementById('ms-'+t+'-label');if(el)el.textContent=l;});
   document.getElementById('search-input').value='';
+  // Reset suggest order filter
+  const allRadio=document.querySelector('input[name="suggestorder-radio"][value="all"]');
+  if(allRadio)allRadio.checked=true;
+  const suggestLabel=document.getElementById('ms-suggestorder-label');
+  if(suggestLabel)suggestLabel.textContent='Suggest Order';
+  const suggestBtn=document.querySelector('#ms-suggestorder .ms-btn');
+  if(suggestBtn)suggestBtn.classList.remove('filtered');
   // Also clear all column filters
   Object.keys(colFilters).forEach(k=>delete colFilters[k]);
   currentPage=1;
@@ -3449,7 +3468,25 @@ function setView(v){
   // Show Month Del filter on product and variant views
   const delmonthWrap=document.getElementById('ms-delmonth');
   if(delmonthWrap)delmonthWrap.style.display=(v==='product'||v==='variant')?'':'none';
+  // Show Suggest Order filter on all views
+  const suggestWrap=document.getElementById('ms-suggestorder');
+  if(suggestWrap)suggestWrap.style.display='';
   renderTable();
+}
+
+function applySuggestOrderFilter(){
+  const val=document.querySelector('input[name="suggestorder-radio"]:checked')?.value||'all';
+  const label=document.getElementById('ms-suggestorder-label');
+  const btn=document.querySelector('#ms-suggestorder .ms-btn');
+  if(val==='yes'){label.textContent='Suggest Order: Yes';if(btn)btn.classList.add('filtered');}
+  else if(val==='no'){label.textContent='Suggest Order: No';if(btn)btn.classList.add('filtered');}
+  else{label.textContent='Suggest Order';if(btn)btn.classList.remove('filtered');}
+  document.querySelectorAll('.ms-wrap.open').forEach(w=>w.classList.remove('open'));
+  renderTable();
+}
+
+function getSuggestOrderFilter(){
+  return document.querySelector('input[name="suggestorder-radio"]:checked')?.value||'all';
 }
 
 /* ── AGGREGATION ── */
@@ -3748,6 +3785,11 @@ function getFilteredRows(){
 
   // Apply column-level filters
   rows=applyColFilterToRows(rows);
+
+  // Suggest Order filter
+  const suggestOrderFilter=getSuggestOrderFilter();
+  if(suggestOrderFilter==='yes') rows=rows.filter(r=>(r.suggestedOrder||0)>0);
+  else if(suggestOrderFilter==='no') rows=rows.filter(r=>!(r.suggestedOrder||0)>0);
 
   rows.sort((a,b)=>{
     // When sorting by size column use size order, not alphabetical
