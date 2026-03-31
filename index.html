@@ -244,9 +244,10 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .rp-other{background:var(--surface2);color:var(--text-secondary);}
 
 /* Planning */
-.plan-table-wrap{overflow:auto;max-height:calc(100vh - 320px);margin-bottom:24px;-webkit-overflow-scrolling:touch;}
+.plan-table-wrap{overflow-x:auto;margin-bottom:24px;-webkit-overflow-scrolling:touch;}
 .plan-table{width:100%;border-collapse:collapse;font-size:12px;}
 .plan-table th{background:var(--navy);color:var(--navy-text);padding:8px 10px;text-align:center;font-weight:600;font-size:11px;white-space:nowrap;border:1px solid var(--navy-border);position:sticky;top:0;z-index:10;}
+.plan-table th.plan-th-left{position:sticky;top:0;left:0;z-index:20;}
 .plan-table th.plan-th-left{text-align:left;}
 .plan-table th.plan-month{background:var(--surface2);color:var(--text);border-bottom:2px solid var(--teal);}
 .plan-table td{padding:6px 8px;border:1px solid var(--border);text-align:center;white-space:nowrap;vertical-align:middle;}
@@ -1953,6 +1954,7 @@ function renderPlanning(){
   const lyData=getLYSalesByCategory(months);
   const onOrderData=getAMOnOrderByCategory(months);
   const saved=getPlanningData();
+  const coverMonths=Math.max(1,Math.min(12,parseInt(saved['cover_months'])||2));
 
   const catSoh={},catVel30={};
   for(const r of allVariantRows){
@@ -2013,10 +2015,9 @@ function renderPlanning(){
       const toOrderVal=saved[`to_${cat}_${m.key}`]||'';
       const toOrder=parseInt(toOrderVal)||0;
 
-      // 2-month forward coverage: current month + next month
+      // Variable months cover (set by user)
       let coverage2m=0;
-      const suggestOrder_raw=0;
-      for(let j=0;j<2;j++){
+      for(let j=0;j<coverMonths;j++){
         const fm=months[mi+j];
         if(!fm)break;
         const fg=parseFloat(saved[`growth_${fm.key}`]||0)||0;
@@ -2058,8 +2059,8 @@ function renderPlanning(){
       too+=Math.round(onOrderData[cat]?.[m.key]||0);
       tto+=parseInt(saved[`to_${cat}_${m.key}`]||0)||0;
     }
-    // 2-month forward coverage for totals
-    for(let j=0;j<2;j++){
+    // Variable months cover for totals
+    for(let j=0;j<coverMonths;j++){
       const fm=months[mi+j];
       if(!fm)break;
       const fg=parseFloat(saved[`growth_${fm.key}`]||0)||0;
@@ -2087,30 +2088,53 @@ function renderPlanning(){
       <div class="plan-legend-item" style="color:var(--teal);">▲ Green = covered &nbsp;|&nbsp; <span style="color:var(--red);">▼ Red = short</span></div>
     </div>
 
-    <!-- Growth % input panel — tab across all months quickly -->
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 20px;margin-bottom:16px;box-shadow:var(--shadow-xs);">
-      <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:10px;letter-spacing:0.05em;">GROWTH % BY MONTH <span style="font-weight:400;color:var(--text-muted);">— tab across to enter, negative for decline</span></div>
-      <div style="display:flex;gap:8px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;">
-        ${months.map((m,i)=>`
-          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:68px;">
-            <div style="font-size:11px;font-weight:600;color:var(--text-secondary);white-space:nowrap;">${m.label}</div>
-            <div style="display:flex;align-items:center;gap:2px;">
-              <input type="number" step="1" min="-100" max="200"
-                placeholder="0" value="${saved[`growth_${m.key}`]||''}"
-                tabindex="${i+1}"
-                class="growth-quick-input"
-                style="width:56px;padding:6px 6px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:13px;font-weight:700;text-align:center;outline:none;background:var(--surface);"
-                onfocus="this.style.borderColor='var(--teal)';this.select()"
-                onblur="this.style.borderColor='var(--border)'"
-                onchange="savePlanField('growth_${m.key}',this.value);renderPlanning();"
-                onkeydown="if(event.key==='Enter'){event.preventDefault();const inputs=document.querySelectorAll('.growth-quick-input');const idx=Array.from(inputs).indexOf(this);if(inputs[idx+1])inputs[idx+1].focus();}">
-              <span style="font-size:11px;color:var(--text-muted);">%</span>
-            </div>
-            <div style="font-size:10px;color:${(parseFloat(saved[`growth_${m.key}`])||0)>0?'var(--teal)':(parseFloat(saved[`growth_${m.key}`])||0)<0?'var(--red)':'var(--text-muted)'};">
-              ${(parseFloat(saved[`growth_${m.key}`])||0)>0?'▲':(parseFloat(saved[`growth_${m.key}`])||0)<0?'▼':'—'}
-            </div>
-          </div>`).join('')}
+    <!-- Growth % + Months Cover input panels -->
+    <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+
+      <!-- Growth % panel -->
+      <div style="flex:1;min-width:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 20px;box-shadow:var(--shadow-xs);">
+        <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:10px;letter-spacing:0.05em;">GROWTH % BY MONTH <span style="font-weight:400;color:var(--text-muted);">— tab across, negative for decline</span></div>
+        <div style="display:flex;gap:8px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;">
+          ${months.map((m,i)=>`
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:68px;">
+              <div style="font-size:11px;font-weight:600;color:var(--text-secondary);white-space:nowrap;">${m.label}</div>
+              <div style="display:flex;align-items:center;gap:2px;">
+                <input type="number" step="1" min="-100" max="200"
+                  placeholder="0" value="${saved[`growth_${m.key}`]||''}"
+                  tabindex="${i+1}"
+                  class="growth-quick-input"
+                  style="width:56px;padding:6px 6px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:13px;font-weight:700;text-align:center;outline:none;background:var(--surface);"
+                  onfocus="this.style.borderColor='var(--teal)';this.select()"
+                  onblur="this.style.borderColor='var(--border)'"
+                  onchange="savePlanField('growth_${m.key}',this.value);renderPlanning();"
+                  onkeydown="if(event.key==='Enter'){event.preventDefault();const inputs=document.querySelectorAll('.growth-quick-input');const idx=Array.from(inputs).indexOf(this);if(inputs[idx+1])inputs[idx+1].focus();}">
+                <span style="font-size:11px;color:var(--text-muted);">%</span>
+              </div>
+              <div style="font-size:10px;color:${(parseFloat(saved[`growth_${m.key}`])||0)>0?'var(--teal)':(parseFloat(saved[`growth_${m.key}`])||0)<0?'var(--red)':'var(--text-muted)'};">
+                ${(parseFloat(saved[`growth_${m.key}`])||0)>0?'▲':(parseFloat(saved[`growth_${m.key}`])||0)<0?'▼':'—'}
+              </div>
+            </div>`).join('')}
+        </div>
       </div>
+
+      <!-- Months cover panel -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 20px;box-shadow:var(--shadow-xs);min-width:200px;max-width:260px;">
+        <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:10px;letter-spacing:0.05em;">MONTHS COVER</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;line-height:1.5;">How many months of budget to cover when calculating Variance &amp; Suggest Order</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <select
+            id="plan-cover-months"
+            style="width:72px;padding:8px 10px;border:2px solid var(--teal);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:18px;font-weight:700;text-align:center;outline:none;background:#f0fdf4;color:var(--teal);cursor:pointer;"
+            onchange="savePlanField('cover_months',this.value);renderPlanning();">
+            ${[1,2,3,4,5].map(n=>`<option value="${n}" ${(parseInt(saved['cover_months'])||2)===n?'selected':''}>${n}</option>`).join('')}
+          </select>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--text);">${saved['cover_months']||2} month${(parseInt(saved['cover_months'])||2)===1?'':'s'} cover</div>
+            <div style="font-size:11px;color:var(--text-muted);">${(parseInt(saved['cover_months'])||2)===1?'Current month only':(parseInt(saved['cover_months'])||2)===2?'Current + next month':'Current + next '+(parseInt(saved['cover_months']-1)||1)+' months'}</div>
+          </div>
+        </div>
+      </div>
+
     </div>
 
     <div class="plan-table-wrap">
