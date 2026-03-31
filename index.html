@@ -469,7 +469,6 @@ th{position:relative;}
 .touch-device .sidebar.open{transform:translateX(0) !important;}
 .touch-device .sidebar-overlay{display:block;opacity:0;pointer-events:none;transition:opacity 0.28s ease;}
 .touch-device .sidebar-overlay.open{opacity:1;pointer-events:auto;}
-.touch-device #period-selector{display:none !important;}
 .touch-device #period-bar{display:flex !important;}
 .touch-device .topbar-pill{display:none;}
 .touch-device #nav-count{display:none;}
@@ -498,7 +497,6 @@ th{position:relative;}
   .sidebar.open{transform:translateX(0) !important;}
   .sidebar-overlay{display:block;opacity:0;pointer-events:none;transition:opacity 0.28s ease;}
   .sidebar-overlay.open{opacity:1;pointer-events:auto;}
-  #period-selector{display:none !important;}
   #period-bar{display:flex !important;}
   .topbar-pill{display:none;}
   #nav-count{display:none;}
@@ -515,7 +513,6 @@ th{position:relative;}
   .topbar-pill{display:none;}
   #nav-count{display:none;}
   /* Period selector in topbar hidden — shown in period-bar below instead */
-  #period-selector{display:none !important;}
   #period-bar{display:flex !important;}
   /* Screen nav scrolls horizontally */
   .screen-nav{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;max-width:380px;}
@@ -781,6 +778,15 @@ th{position:relative;}
         <button class="screen-btn" id="btn-planning" onclick="showScreen('planning')">📋 Planning</button>
         <button class="screen-btn" id="btn-markdowns" onclick="showScreen('markdowns')">📝 Working</button>
       </div>
+      <div class="period-selector" id="period-selector" style="display:none;">
+        <span class="period-label">Period:</span>
+        <button class="period-btn active" data-days="7" onclick="setPeriod(7)">7d</button>
+        <button class="period-btn" data-days="14" onclick="setPeriod(14)">14d</button>
+        <button class="period-btn" data-days="30" onclick="setPeriod(30)">30d</button>
+        <button class="period-btn" data-days="60" onclick="setPeriod(60)">60d</button>
+        <button class="period-btn" data-days="90" onclick="setPeriod(90)">90d</button>
+        <button class="period-btn" data-days="365" onclick="setPeriod(365)">365d</button>
+      </div>
       <button class="tb-btn accent" id="export-btn" onclick="exportCSV()">↓ Export</button>
       <button class="tb-btn" onclick="startAutoSync()" title="Re-sync from Google Drive">↻ Refresh</button>
       <button class="tb-btn" onclick="showUploadScreen()" title="Manual file upload">↑ Upload</button>
@@ -789,7 +795,7 @@ th{position:relative;}
   <!-- Period selector bar — sits below topbar, only shows on dashboard -->
   <div id="period-bar" style="display:none;align-items:center;gap:6px;padding:6px 16px;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;">
     <span class="period-label" style="flex-shrink:0;">Period:</span>
-    <div class="period-selector" id="period-selector" style="display:flex;gap:4px;flex-wrap:nowrap;">
+    <div class="period-selector" id="period-selector-bar" style="display:flex;gap:4px;flex-wrap:nowrap;">
       <button class="period-btn active" data-days="7" onclick="setPeriod(7)">7d</button>
       <button class="period-btn" data-days="14" onclick="setPeriod(14)">14d</button>
       <button class="period-btn" data-days="30" onclick="setPeriod(30)">30d</button>
@@ -1419,8 +1425,15 @@ function showScreen(screen){
   planningScreen.style.display=screen==='planning'?'block':'none';
   markdownsScreen.style.display=screen==='markdowns'?'block':'none';
   // Period selector: topbar version for desktop, period-bar for touch — both toggled by screen
-  periodSelector.style.display=screen==='dashboard'?'':'none';
-  if(periodBar)periodBar.style.display=screen==='dashboard'?'flex':'none';
+  const isTouch=document.documentElement.classList.contains('touch-device');
+  // Desktop: show topbar period-selector; Touch: show period-bar below topbar
+  if(isTouch){
+    periodSelector.style.display='none';
+    if(periodBar)periodBar.style.display=screen==='dashboard'?'flex':'none';
+  } else {
+    periodSelector.style.display=screen==='dashboard'?'flex':'none';
+    if(periodBar)periodBar.style.display='none';
+  }
   exportBtn.style.display=screen==='dashboard'?'':'none';
   if(screen==='insights'){
     document.getElementById('insights-period-label').textContent=selectedPeriod+'d';
@@ -3797,7 +3810,7 @@ let filteredRows=[], allVariantRows=[];
 /* ── PERIOD SELECTOR ── */
 function setPeriod(days){
   selectedPeriod=days;
-  document.querySelectorAll('.period-btn').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.days)===days));
+  document.querySelectorAll('[data-days]').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.days)===days));
   if(allVariantRows.length) buildVariantRows();
 }
 
