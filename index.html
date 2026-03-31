@@ -479,6 +479,7 @@ th{position:relative;}
 .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:490;}
 /* Period bar below topbar - desktop hides it, tablet/mobile shows it */
 #period-bar{display:none;}
+@media(min-width:1025px) and (pointer:fine){#period-bar{display:none !important;}}
 
 /* Touch devices (including landscape iPad/iPhone) always show hamburger */
 @media(pointer:coarse){
@@ -1412,20 +1413,14 @@ function showScreen(screen){
   const periodSelector=document.getElementById('period-selector');
   const periodBar=document.getElementById('period-bar');
   const exportBtn=document.getElementById('export-btn');
-  const isTouch=document.documentElement.classList.contains('touch-device');
-  layout.style.display=screen==='dashboard'?(isTouch?'block':''):'none';
+  layout.style.display=screen==='dashboard'?'':'none';
   insightsScreen.style.display=screen==='insights'?'block':'none';
   cadenceScreen.style.display=screen==='cadence'?'block':'none';
   planningScreen.style.display=screen==='planning'?'block':'none';
   markdownsScreen.style.display=screen==='markdowns'?'block':'none';
-  // On touch: period-bar handles period selection; on desktop: topbar period-selector does
-  if(isTouch){
-    periodSelector.style.display='none';
-    if(periodBar)periodBar.style.display=screen==='dashboard'?'flex':'none';
-  } else {
-    periodSelector.style.display=screen==='dashboard'?'':'none';
-    if(periodBar)periodBar.style.display='none';
-  }
+  // Period selector: topbar version for desktop, period-bar for touch — both toggled by screen
+  periodSelector.style.display=screen==='dashboard'?'':'none';
+  if(periodBar)periodBar.style.display=screen==='dashboard'?'flex':'none';
   exportBtn.style.display=screen==='dashboard'?'':'none';
   if(screen==='insights'){
     document.getElementById('insights-period-label').textContent=selectedPeriod+'d';
