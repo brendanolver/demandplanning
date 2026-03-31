@@ -1978,19 +1978,18 @@ function renderPlanning(){
   const planThStyle='cursor:pointer;user-select:none;';
 
   const monthHeaders=months.map(m=>`
-    <th class="plan-month" colspan="6" style="border-left:2px solid var(--border);">${m.label}</th>`).join('');
+    <th class="plan-month" colspan="5" style="border-left:2px solid var(--border);">${m.label}</th>`).join('');
 
   const subHeaders=months.map(()=>`
     <th style="border-left:2px solid var(--border);">Budget</th>
     <th>SOH</th>
     <th>On Order</th>
-    <th>Suggest Order</th>
     <th>To Order</th>
     <th>Variance</th>`).join('');
 
   const growthCells=months.map(m=>{
     const gVal=saved[`growth_${m.key}`]||'';
-    return`<td colspan="6" style="border-left:2px solid var(--border);padding:4px 6px;">
+    return`<td colspan="5" style="border-left:2px solid var(--border);padding:4px 6px;">
         <div style="display:flex;align-items:center;gap:4px;justify-content:center;">
           <input class="plan-input growth-input" type="number" step="1" min="-100" max="200"
             placeholder="0" value="${gVal}"
@@ -2034,9 +2033,11 @@ function renderPlanning(){
           <span class="plan-budget">${budget>0?budget.toLocaleString():'—'}</span></td>
         <td><span class="${soh>0?'plan-soh':'cell-muted'}">${soh>0?soh.toLocaleString():'—'}</span></td>
         <td><span class="${onOrder>0?'plan-onorder':'cell-muted'}">${onOrder>0?onOrder.toLocaleString():'—'}</span></td>
-        <td style="text-align:right;padding:4px 8px;"><span style="color:#f97316;font-weight:700;font-size:12px;">${suggestOrder>0?suggestOrder.toLocaleString():'—'}</span></td>
         <td style="padding:3px 5px;">
-          <input class="plan-input" type="number" min="0" step="1" placeholder="0" value="${toOrderVal}"
+          <input class="plan-input" type="number" min="0" step="1"
+            placeholder="${suggestOrder>0?suggestOrder:''}"
+            value="${toOrderVal}"
+            style="${!toOrderVal&&suggestOrder>0?'color:#f97316;':''}"
             onchange="savePlanField('to_${cat}_${m.key}',this.value);renderPlanning();"></td>
         <td><span class="${varClass}">${varLabel}</span></td>`;
     }).join('');
@@ -2073,8 +2074,7 @@ function renderPlanning(){
       <td style="border-left:2px solid var(--border);font-weight:700;">${tb>0?tb.toLocaleString():'—'}</td>
       <td style="font-weight:700;color:var(--text-secondary);">${tsoh>0?tsoh.toLocaleString():'—'}</td>
       <td style="font-weight:700;color:var(--purple);">${too>0?too.toLocaleString():'—'}</td>
-      <td style="font-weight:700;color:#f97316;">${tsuggestOrder>0?tsuggestOrder.toLocaleString():'—'}</td>
-      <td style="font-weight:700;">${tto>0?tto.toLocaleString():'—'}</td>
+      <td style="font-weight:700;color:${tto>0?'var(--text)':'#f97316'};">${tto>0?tto.toLocaleString():tsuggestOrder>0?tsuggestOrder.toLocaleString():'—'}</td>
       <td><span class="${varClass}" style="font-size:12px;">${tcoverage2m===0?'—':((variance>=0?'+':'')+variance.toLocaleString())}</span></td>`;
   }).join('');
 
@@ -2083,9 +2083,36 @@ function renderPlanning(){
       <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--teal)"></div>12w+ cover — healthy</div>
       <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--red)"></div>Under 12w — reorder risk</div>
       <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--purple)"></div>On Order from Apparel Magic</div>
-      <div class="plan-legend-item" style="color:var(--text-secondary);">Variance = SOH + On Order + To Order − Next 2 Months Budget | Suggest Order = Next 2 Months Budget − SOH − On Order</div>
+      <div class="plan-legend-item" style="color:var(--text-secondary);">Variance = SOH + On Order + To Order − Next 2 Months Budget | To Order pre-fills with suggested qty (orange) if nothing entered</div>
       <div class="plan-legend-item" style="color:var(--teal);">▲ Green = covered &nbsp;|&nbsp; <span style="color:var(--red);">▼ Red = short</span></div>
     </div>
+
+    <!-- Growth % input panel — tab across all months quickly -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 20px;margin-bottom:16px;box-shadow:var(--shadow-xs);">
+      <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:10px;letter-spacing:0.05em;">GROWTH % BY MONTH <span style="font-weight:400;color:var(--text-muted);">— tab across to enter, negative for decline</span></div>
+      <div style="display:flex;gap:8px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;">
+        ${months.map((m,i)=>`
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:68px;">
+            <div style="font-size:11px;font-weight:600;color:var(--text-secondary);white-space:nowrap;">${m.label}</div>
+            <div style="display:flex;align-items:center;gap:2px;">
+              <input type="number" step="1" min="-100" max="200"
+                placeholder="0" value="${saved[`growth_${m.key}`]||''}"
+                tabindex="${i+1}"
+                class="growth-quick-input"
+                style="width:56px;padding:6px 6px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:13px;font-weight:700;text-align:center;outline:none;background:var(--surface);"
+                onfocus="this.style.borderColor='var(--teal)';this.select()"
+                onblur="this.style.borderColor='var(--border)'"
+                onchange="savePlanField('growth_${m.key}',this.value);renderPlanning();"
+                onkeydown="if(event.key==='Enter'){event.preventDefault();const inputs=document.querySelectorAll('.growth-quick-input');const idx=Array.from(inputs).indexOf(this);if(inputs[idx+1])inputs[idx+1].focus();}">
+              <span style="font-size:11px;color:var(--text-muted);">%</span>
+            </div>
+            <div style="font-size:10px;color:${(parseFloat(saved[`growth_${m.key}`])||0)>0?'var(--teal)':(parseFloat(saved[`growth_${m.key}`])||0)<0?'var(--red)':'var(--text-muted)'};">
+              ${(parseFloat(saved[`growth_${m.key}`])||0)>0?'▲':(parseFloat(saved[`growth_${m.key}`])||0)<0?'▼':'—'}
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>
+
     <div class="plan-table-wrap">
       <table class="plan-table">
         <thead>
@@ -2098,10 +2125,6 @@ function renderPlanning(){
           <tr>${subHeaders}</tr>
         </thead>
         <tbody>
-          <tr class="plan-row-growth">
-            <td class="plan-cat" colspan="3" style="font-size:11px;color:var(--text-secondary);font-style:italic;">↑ Growth % (all categories)</td>
-            ${growthCells}
-          </tr>
           ${catRows}
           <tr class="plan-total-row">
             <td class="plan-cat" colspan="3">TOTAL</td>
