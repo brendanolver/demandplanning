@@ -1184,6 +1184,14 @@ th{position:relative;}
               <span style="font-size:12px;color:var(--text-muted);">%</span>
               <button onclick="mdApplyBulkPct()" style="padding:5px 12px;background:var(--teal);color:white;border:none;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">Apply to Ticked</button>
             </div>
+            <div style="display:flex;align-items:center;gap:6px;padding:4px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);">
+              <span style="font-size:12px;color:var(--text-secondary);white-space:nowrap;">Collection:</span>
+              <input type="text" id="md-bulk-collection" placeholder="e.g. BUNDLE TEES 3 FOR $150"
+                style="width:200px;padding:5px 8px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:13px;outline:none;"
+                onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'"
+                onkeydown="if(event.key==='Enter')mdApplyBulkCollection()">
+              <button onclick="mdApplyBulkCollection()" style="padding:5px 12px;background:var(--teal);color:white;border:none;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;">Apply to Visible</button>
+            </div>
             <button onclick="mdExport()" style="padding:7px 18px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">⬇ Export Selected</button>
           </div>
         </div>
@@ -3166,6 +3174,20 @@ function mdApplyBulkPct(){
     if(!d[key])d[key]={};
     d[key].pct=pct;
     d[key].checked=true; // also tick them
+  });
+  saveMdData(d);
+  renderMarkdowns();
+}
+
+function mdApplyBulkCollection(){
+  const collection=(document.getElementById('md-bulk-collection')?.value||'').trim();
+  if(!collection){alert('Please enter a collection name first.');return;}
+  const d=getMdData();
+  const visibleKeys=window._mdVisibleKeys||[];
+  if(!visibleKeys.length){alert('No products visible to apply to.');return;}
+  visibleKeys.forEach(key=>{
+    if(!d[key])d[key]={};
+    d[key].collection=collection;
   });
   saveMdData(d);
   renderMarkdowns();
