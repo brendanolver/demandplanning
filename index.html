@@ -458,6 +458,7 @@ th{position:relative;}
 .sw-result-item:hover{background:var(--surface2);}
 /* Touch devices detected via JS — force hamburger regardless of screen width */
 .touch-device .hamburger{display:flex !important;align-items:center;}
+.touch-device #period-selector{display:none !important;}
 .touch-device .layout{display:block !important;}
 .touch-device .sidebar{
   position:fixed !important;top:54px !important;bottom:0 !important;left:0 !important;
@@ -510,7 +511,8 @@ th{position:relative;}
   .topbar-brand{font-size:12px;}
   .topbar-pill{display:none;}
   #nav-count{display:none;}
-  /* Period selector in topbar hidden — shown in period-bar below instead */
+  /* Hide topbar period selector — period-bar below topbar used instead */
+  #period-selector{display:none !important;}
   /* Screen nav scrolls horizontally */
   .screen-nav{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;max-width:380px;}
   .screen-btn{white-space:nowrap;font-size:11px;padding:5px 8px;flex-shrink:0;}
@@ -1421,16 +1423,11 @@ function showScreen(screen){
   cadenceScreen.style.display=screen==='cadence'?'block':'none';
   planningScreen.style.display=screen==='planning'?'block':'none';
   markdownsScreen.style.display=screen==='markdowns'?'block':'none';
-  // Period selector: topbar version for desktop, period-bar for touch — both toggled by screen
-  const isTouch=document.documentElement.classList.contains('touch-device');
-  // Desktop: show topbar period-selector; Touch: show period-bar below topbar
-  if(isTouch){
-    periodSelector.style.display='none';
-    if(periodBar)periodBar.style.display=screen==='dashboard'?'flex':'none';
-  } else {
-    periodSelector.style.display=screen==='dashboard'?'flex':'none';
-    if(periodBar)periodBar.style.display='none';
-  }
+  // Period selector: CSS hides #period-selector on touch via media query / touch-device class
+  // JS manages period-bar (below topbar) — only show on dashboard on touch devices
+  const isTouch=document.documentElement.classList.contains('touch-device')||window.matchMedia('(max-width:1024px)').matches;
+  periodSelector.style.display=(!isTouch&&screen==='dashboard')?'flex':'none';
+  if(periodBar)periodBar.style.display=(isTouch&&screen==='dashboard')?'flex':'none';
   exportBtn.style.display=screen==='dashboard'?'':'none';
   if(screen==='insights'){
     document.getElementById('insights-period-label').textContent=selectedPeriod+'d';
@@ -2030,9 +2027,19 @@ function renderPlanning(){
       const toOrder=parseInt(toOrderVal)||0;
 
       // Variable months cover (set by user)
+      // For future month columns: always include prorated current month + coverMonths forward
+      // For the current month column itself: just coverMonths forward from current
       let coverage2m=0;
+      const startIdx=m.isCurrent?mi:mi; // start from this column
+      // If this is a future month, first add the prorated current month
+      if(!m.isCurrent&&months[0]?.isCurrent){
+        const cm=months[0];
+        const cfg=parseFloat(saved[`growth_${cm.key}`]||0)||0;
+        const cfly=Math.round(lyData[cat]?.[cm.key]||0);
+        coverage2m+=Math.round(cfly*(1+cfg/100)); // already prorated via lyData
+      }
       for(let j=0;j<coverMonths;j++){
-        const fm=months[mi+j];
+        const fm=months[m.isCurrent?mi+j:mi+j];
         if(!fm)break;
         const fg=parseFloat(saved[`growth_${fm.key}`]||0)||0;
         const fly=Math.round(lyData[cat]?.[fm.key]||0);
@@ -2076,7 +2083,14 @@ function renderPlanning(){
       too+=Math.round(onOrderData[cat]?.[m.key]||0);
       tto+=parseInt(saved[`to_${cat}_${m.key}`]||0)||0;
     }
-    // Variable months cover for totals
+    // Variable months cover for totals — include prorated current month for future columns
+    if(!m.isCurrent&&months[0]?.isCurrent){
+      const cm=months[0];
+      const cfg=parseFloat(saved[`growth_${cm.key}`]||0)||0;
+      for(const cat of sortedCats){
+        tcoverage2m+=Math.round((lyData[cat]?.[cm.key]||0)*(1+cfg/100));
+      }
+    }
     for(let j=0;j<coverMonths;j++){
       const fm=months[mi+j];
       if(!fm)break;
