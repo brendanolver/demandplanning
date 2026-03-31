@@ -786,7 +786,7 @@ th{position:relative;}
     </div>
   </header>
   <!-- Period selector bar — sits below topbar, only shows on dashboard -->
-  <div id="period-bar" style="display:flex;align-items:center;gap:6px;padding:6px 16px;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;">
+  <div id="period-bar" style="display:none;align-items:center;gap:6px;padding:6px 16px;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;">
     <span class="period-label" style="flex-shrink:0;">Period:</span>
     <div class="period-selector" id="period-selector" style="display:flex;gap:4px;flex-wrap:nowrap;">
       <button class="period-btn active" data-days="7" onclick="setPeriod(7)">7d</button>
@@ -1412,13 +1412,20 @@ function showScreen(screen){
   const periodSelector=document.getElementById('period-selector');
   const periodBar=document.getElementById('period-bar');
   const exportBtn=document.getElementById('export-btn');
-  layout.style.display=screen==='dashboard'?'':'none';
+  const isTouch=document.documentElement.classList.contains('touch-device');
+  layout.style.display=screen==='dashboard'?(isTouch?'block':''):'none';
   insightsScreen.style.display=screen==='insights'?'block':'none';
   cadenceScreen.style.display=screen==='cadence'?'block':'none';
   planningScreen.style.display=screen==='planning'?'block':'none';
   markdownsScreen.style.display=screen==='markdowns'?'block':'none';
-  periodSelector.style.display=screen==='dashboard'?'':'none';
-  if(periodBar)periodBar.style.display=screen==='dashboard'?'flex':'none';
+  // On touch: period-bar handles period selection; on desktop: topbar period-selector does
+  if(isTouch){
+    periodSelector.style.display='none';
+    if(periodBar)periodBar.style.display=screen==='dashboard'?'flex':'none';
+  } else {
+    periodSelector.style.display=screen==='dashboard'?'':'none';
+    if(periodBar)periodBar.style.display='none';
+  }
   exportBtn.style.display=screen==='dashboard'?'':'none';
   if(screen==='insights'){
     document.getElementById('insights-period-label').textContent=selectedPeriod+'d';
