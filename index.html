@@ -3612,6 +3612,7 @@ async function gdriveFetchFiles(){
       'All Products Sizes Sold Out':{loader:'soldout',exact:false,sheet:false},
       'Variants 0 inventory by Product':{loader:'variantssoldout',exact:false,sheet:false},
       'Core Styles':{loader:'corestyles',exact:false,sheet:false},
+        'All Products List':{loader:'allproductslist',exact:false,sheet:false},
       'Current Bundle Styles':{loader:'bundlestyles',exact:false,sheet:false},
       'Order Item Analysis':{loader:'am',exact:false,sheet:false},
     };
@@ -3648,6 +3649,7 @@ async function gdriveFetchFiles(){
       else if(config.loader==='soldout'){soldOutData=parsed;_cachedSoldOutData=null;document.getElementById('soldout-card').classList.add('loaded');document.getElementById('soldout-fname').textContent=filename;}
       else if(config.loader==='variantssoldout'){variantsSoldOutData=parsed;_cachedSoldOutData=null;document.getElementById('variants-soldout-card')?.classList.add('loaded');}
       else if(config.loader==='corestyles'){coreStylesData=parsed;}
+        else if(config.loader==='allproductslist'){allProductsListData=parsed;}
       else if(config.loader==='bundlestyles'){bundleStylesData=parsed;}
       else if(config.loader==='am'){amData=parsed;_cachedAMData=null;document.getElementById('am-card').classList.add('loaded');document.getElementById('am-fname').textContent=match.name;}
       loaded++;
@@ -3817,6 +3819,7 @@ async function autoSyncFetch(){
       'All Products Sizes Sold Out':{loader:'soldout',exact:false,sheet:false},
       'Variants 0 inventory by Product':{loader:'variantssoldout',exact:false,sheet:false},
       'Core Styles':{loader:'corestyles',exact:false,sheet:false},
+        'All Products List':{loader:'allproductslist',exact:false,sheet:false},
       'Current Bundle Styles':{loader:'bundlestyles',exact:false,sheet:false},
       'Order Item Analysis':{loader:'am',exact:false,sheet:false},
     };
@@ -3844,6 +3847,7 @@ async function autoSyncFetch(){
       else if(config.loader==='soldout'){soldOutData=parsed;_cachedSoldOutData=null;}
       else if(config.loader==='variantssoldout'){variantsSoldOutData=parsed;_cachedSoldOutData=null;}
       else if(config.loader==='corestyles'){coreStylesData=parsed;}
+        else if(config.loader==='allproductslist'){allProductsListData=parsed;}
       else if(config.loader==='bundlestyles'){bundleStylesData=parsed;}
       else if(config.loader==='am'){amData=parsed;_cachedAMData=null;}
       loaded++;
@@ -3894,7 +3898,7 @@ function togglePwVisibility(e){
 
 /* ── STATE ── */
 let shopifyInvData=null, shopifySalesData=null, amData=null, soldOutData=null, variantsSoldOutData=null;
-let coreStylesData=null, bundleStylesData=null;
+let coreStylesData=null, bundleStylesData=null, allProductsListData=null;
 let currentView='category', sortCol='days', sortDir='asc', currentPage=1;
 let selectedPeriod=7;
 const PAGE_SIZE=50;
@@ -4267,7 +4271,7 @@ function getFlag(days,stock,onOrder,vendor,discountPct){
 }
 
 /* ── PROCESS ── */
-function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap,coreSet=new Set(),bundleSet=new Set()){
+function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap,coreSet=new Set(),bundleSet=new Set(),draftSet=new Set()){
   const rows=[];
 
   // Build SOH lookup from inventory file: {sku: stock}
@@ -4290,7 +4294,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
           let size=sizeParts.length>1?sizeParts[sizeParts.length-1].trim():variantTitle.trim();
           if(size.toUpperCase()===colour.toUpperCase())size='OS';
           invMetaMap[sku]={productName,colour,size,vendor,category,
-            price:0,compareAt:0,day:'',status:'ACTIVE'};
+            price:0,compareAt:0,day:'',status:''};
         }
       }
     }
@@ -4310,8 +4314,9 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const stock=sohMap[sku]||0;
     const{productName,colour,size,vendor,category}=pm;
 
-    // Skip DRAFT products unless they have AM on-order data OR have stock on hand
-    const isDraft=(pm.status||'')==='DRAFT';
+    // isDraft: check draftSet (from All Products List CSV) first, then pm.status from sales CSV
+    const fullTitleUpper=(productName+(colour?' - '+colour:'')).toUpperCase();
+    const isDraft=draftSet.has(fullTitleUpper)||(pm.status||'').toUpperCase()==='DRAFT';
     if(isDraft){
       // Skip excluded categories entirely
       const excludedDraftCats=['GWP','MYSTERY BOX','INSURANCE','GIVEAWAY'];
@@ -4614,10 +4619,11 @@ function buildVariantRows(){
   if(!_cachedAMData) _cachedAMData=buildAMData();
   if(!_cachedSoldOutData) _cachedSoldOutData=buildSoldOutMap();
 
-  // Build CORE and BUNDLE sets from CSV files — these are source of truth
+  // Build CORE, BUNDLE and DRAFT sets from CSV/priceMap
   // Format: "PRODUCT NAME - COLOUR" (uppercase)
   const coreSet=new Set();
   const bundleSet=new Set();
+  const draftSet=new Set(); // products known to be DRAFT from sales history
   if(coreStylesData){
     for(const row of coreStylesData){
       const name=(row['Product name']||'').trim().toUpperCase();
@@ -4630,11 +4636,31 @@ function buildVariantRows(){
       if(name)bundleSet.add(name);
     }
   }
+  // Build draftSet — All Products List CSV is primary source of truth for draft status
+  const draftSet=new Set();
+  if(allProductsListData){
+    for(const row of allProductsListData){
+      const status=(row['Product Status']||'').toLowerCase().trim();
+      if(status==='draft'){
+        const title=(row['Product Title']||'').trim().toUpperCase();
+        if(title)draftSet.add(title);
+      }
+    }
+  } else {
+    // Fallback: use priceMap for products with sales history that are DRAFT
+    const{priceMap}=_cachedSalesMaps;
+    for(const[sku,pm] of Object.entries(priceMap)){
+      if((pm.status||'').toUpperCase()==='DRAFT'){
+        const fullTitle=(pm.productName+(pm.colour?' - '+pm.colour:'')).toUpperCase();
+        draftSet.add(fullTitle);
+      }
+    }
+  }
 
   const{salesBySkuDay,priceMap}=_cachedSalesMaps;
   const{variantMap:amVariantMap,productMap:amProductMap,products:amProducts}=_cachedAMData;
   const{soMap,plMap}=_cachedSoldOutData;
-  allVariantRows=processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap,coreSet,bundleSet);
+  allVariantRows=processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap,coreSet,bundleSet,draftSet);
   document.getElementById('nav-count').textContent=allVariantRows.length.toLocaleString()+' SKUs';
 
   // Build counts based on aggregated product rows (matches what Product view shows)
@@ -5562,7 +5588,7 @@ function exportCSV(){
 /* ── RESET ── */
 function resetApp(){
   shopifyInvData=null;shopifySalesData=null;amData=null;soldOutData=null;variantsSoldOutData=null;
-  coreStylesData=null;bundleStylesData=null;
+  coreStylesData=null;bundleStylesData=null;allProductsListData=null;
   _cachedSalesMaps=null;_cachedAMData=null;_cachedSoldOutData=null;
   allVariantRows=[];
   document.getElementById('upload-screen').style.display='flex';
