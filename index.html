@@ -455,11 +455,53 @@ th{position:relative;}
 .sw-product-title{font-size:17px;font-weight:700;color:var(--text);margin-bottom:16px;letter-spacing:-0.3px;}
 .sw-result-item{padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;}
 .sw-result-item:hover{background:var(--surface2);}
+/* Touch devices detected via JS — force hamburger regardless of screen width */
+.touch-device .hamburger{display:flex !important;align-items:center;}
+.touch-device .layout{display:block !important;}
+.touch-device .sidebar{
+  position:fixed !important;top:54px !important;bottom:0 !important;left:0 !important;
+  width:240px !important;z-index:500 !important;
+  transform:translateX(-260px) !important;
+  transition:transform 0.28s ease !important;
+  box-shadow:4px 0 24px rgba(0,0,0,0.4) !important;
+  overflow-y:auto !important;
+}
+.touch-device .sidebar.open{transform:translateX(0) !important;}
+.touch-device .sidebar-overlay{display:block;opacity:0;pointer-events:none;transition:opacity 0.28s ease;}
+.touch-device .sidebar-overlay.open{opacity:1;pointer-events:auto;}
+.touch-device #period-selector{display:none !important;}
+.touch-device #period-bar{display:flex !important;}
+.touch-device .topbar-pill{display:none;}
+.touch-device #nav-count{display:none;}
+
 /* ── RESPONSIVE ── */
 .hamburger{display:none;background:none;border:none;cursor:pointer;padding:8px;color:white;font-size:22px;line-height:1;flex-shrink:0;}
 .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:490;}
 /* Period bar below topbar - desktop hides it, tablet/mobile shows it */
 #period-bar{display:none;}
+
+/* Touch devices (including landscape iPad/iPhone) always show hamburger */
+@media(pointer:coarse){
+  .hamburger{display:flex !important;align-items:center;}
+  .layout{display:block !important;}
+  .sidebar{
+    position:fixed !important;
+    top:54px !important;bottom:0 !important;
+    left:0 !important;width:240px !important;
+    z-index:500 !important;
+    transform:translateX(-260px) !important;
+    transition:transform 0.28s ease !important;
+    box-shadow:4px 0 24px rgba(0,0,0,0.4) !important;
+    overflow-y:auto !important;
+  }
+  .sidebar.open{transform:translateX(0) !important;}
+  .sidebar-overlay{display:block;opacity:0;pointer-events:none;transition:opacity 0.28s ease;}
+  .sidebar-overlay.open{opacity:1;pointer-events:auto;}
+  #period-selector{display:none !important;}
+  #period-bar{display:flex !important;}
+  .topbar-pill{display:none;}
+  #nav-count{display:none;}
+}
 
 /* ── TABLET & MOBILE (≤1024px) ── */
 @media(max-width:1024px){
@@ -1310,6 +1352,11 @@ th{position:relative;}
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
+  // Force hamburger mode on any touch-capable device (catches landscape iPad etc)
+  const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
+  if(isTouch){
+    document.documentElement.classList.add('touch-device');
+  }
   let startX=0,startY=0;
   document.addEventListener('touchstart',e=>{
     startX=e.touches[0].clientX;
