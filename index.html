@@ -470,7 +470,6 @@ th{position:relative;}
 .touch-device .sidebar.open{transform:translateX(0) !important;}
 .touch-device .sidebar-overlay{display:block;opacity:0;pointer-events:none;transition:opacity 0.28s ease;}
 .touch-device .sidebar-overlay.open{opacity:1;pointer-events:auto;}
-.touch-device #period-bar{display:flex !important;}
 .touch-device .topbar-pill{display:none;}
 .touch-device #nav-count{display:none;}
 
@@ -479,7 +478,6 @@ th{position:relative;}
 .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:490;}
 /* Period bar below topbar - desktop hides it, tablet/mobile shows it */
 #period-bar{display:none;}
-@media(min-width:1025px) and (pointer:fine){#period-bar{display:none !important;}}
 
 /* Touch devices (including landscape iPad/iPhone) always show hamburger */
 @media(pointer:coarse){
@@ -498,7 +496,6 @@ th{position:relative;}
   .sidebar.open{transform:translateX(0) !important;}
   .sidebar-overlay{display:block;opacity:0;pointer-events:none;transition:opacity 0.28s ease;}
   .sidebar-overlay.open{opacity:1;pointer-events:auto;}
-  #period-bar{display:flex !important;}
   .topbar-pill{display:none;}
   #nav-count{display:none;}
 }
@@ -514,7 +511,6 @@ th{position:relative;}
   .topbar-pill{display:none;}
   #nav-count{display:none;}
   /* Period selector in topbar hidden — shown in period-bar below instead */
-  #period-bar{display:flex !important;}
   /* Screen nav scrolls horizontally */
   .screen-nav{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;max-width:380px;}
   .screen-btn{white-space:nowrap;font-size:11px;padding:5px 8px;flex-shrink:0;}
@@ -1888,13 +1884,25 @@ function clearPlanningData(){
 function getPlanMonths(){
   const months=[];
   const today=new Date();
+
+  // Add current month first — prorated by days remaining (including today)
+  const daysInCurrentMonth=new Date(today.getFullYear(),today.getMonth()+1,0).getDate();
+  const daysRemaining=daysInCurrentMonth-today.getDate()+1; // include today
+  const prorateRatio=daysRemaining/daysInCurrentMonth;
+  const curLabel=today.toLocaleString('en-AU',{month:'short',year:'2-digit'})+' ★';
+  const curKey=`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`;
+  const curLyStart=new Date(today.getFullYear()-1,today.getMonth(),1);
+  const curLyEnd=new Date(today.getFullYear()-1,today.getMonth()+1,0);
+  months.push({label:curLabel,key:curKey,lyStart:curLyStart,lyEnd:curLyEnd,d:today,prorateRatio,isCurrent:true});
+
+  // Next 12 months as before
   for(let i=1;i<=12;i++){
     const d=new Date(today.getFullYear(),today.getMonth()+i,1);
     const label=d.toLocaleString('en-AU',{month:'short',year:'2-digit'});
     const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
     const lyStart=new Date(d.getFullYear()-1,d.getMonth(),1);
     const lyEnd=new Date(d.getFullYear()-1,d.getMonth()+1,0);
-    months.push({label,key,lyStart,lyEnd,d});
+    months.push({label,key,lyStart,lyEnd,d,prorateRatio:1,isCurrent:false});
   }
   return months;
 }
@@ -1902,7 +1910,6 @@ function getPlanMonths(){
 function getLYSalesByCategory(months){
   const result={};
   if(!window._salesBySkuDay||!window._skuCategoryMap)return result;
-  // Use ALL SKUs including DRAFT for accurate LY totals (same as Cadence)
   for(const[sku,cat] of Object.entries(window._skuCategoryMap)){
     const dayData=window._salesBySkuDay[sku]||{};
     if(!result[cat])result[cat]={};
@@ -1910,9 +1917,16 @@ function getLYSalesByCategory(months){
       const dt=new Date(day);dt.setHours(0,0,0,0);
       for(const m of months){
         if(dt>=m.lyStart&&dt<=m.lyEnd){
-          result[cat][m.key]=(result[cat][m.key]||0)+d.qty;
+          const qty=m.prorateRatio<1?d.qty*m.prorateRatio:d.qty;
+          result[cat][m.key]=(result[cat][m.key]||0)+qty;
         }
       }
+    }
+  }
+  // Round after accumulation
+  for(const cat of Object.keys(result)){
+    for(const key of Object.keys(result[cat])){
+      result[cat][key]=Math.round(result[cat][key]);
     }
   }
   return result;
@@ -1980,7 +1994,7 @@ function renderPlanning(){
   const planThStyle='cursor:pointer;user-select:none;';
 
   const monthHeaders=months.map(m=>`
-    <th class="plan-month" colspan="5" style="border-left:2px solid var(--border);">${m.label}</th>`).join('');
+    <th class="plan-month" colspan="5" style="border-left:2px solid var(--border);${m.isCurrent?'background:rgba(14,165,160,0.12);color:var(--teal);':''}">${m.label}${m.isCurrent?` <span style="font-size:9px;opacity:0.8;">(${Math.round(m.prorateRatio*100)}% of month)</span>`:''}</th>`).join('');
 
   const subHeaders=months.map(()=>`
     <th style="border-left:2px solid var(--border);">Budget</th>
@@ -2030,17 +2044,20 @@ function renderPlanning(){
       const varClass=coverage2m===0?'':variance>=0?'plan-variance-ok':'plan-variance-warn';
       const varLabel=coverage2m===0?'—':(variance>=0?'+':'')+variance.toLocaleString();
       return`
-        <td style="border-left:2px solid var(--border);">
+        <td style="border-left:2px solid var(--border);${m.isCurrent?'background:rgba(14,165,160,0.04);':''}">
           <span class="plan-budget">${budget>0?budget.toLocaleString():'—'}</span></td>
-        <td><span class="${soh>0?'plan-soh':'cell-muted'}">${soh>0?soh.toLocaleString():'—'}</span></td>
-        <td><span class="${onOrder>0?'plan-onorder':'cell-muted'}">${onOrder>0?onOrder.toLocaleString():'—'}</span></td>
-        <td style="padding:3px 5px;">
-          <input class="plan-input" type="number" min="0" step="1"
-            placeholder="${suggestOrder>0?suggestOrder:''}"
-            value="${toOrderVal}"
-            style="${!toOrderVal&&suggestOrder>0?'color:#f97316;':''}"
-            onchange="savePlanField('to_${cat}_${m.key}',this.value);renderPlanning();"></td>
-        <td><span class="${varClass}">${varLabel}</span></td>`;
+        <td style="${m.isCurrent?'background:rgba(14,165,160,0.04);':''}"><span class="${soh>0?'plan-soh':'cell-muted'}">${soh>0?soh.toLocaleString():'—'}</span></td>
+        <td style="${m.isCurrent?'background:rgba(14,165,160,0.04);':''}"><span class="${onOrder>0?'plan-onorder':'cell-muted'}">${onOrder>0?onOrder.toLocaleString():'—'}</span></td>
+        <td style="padding:3px 5px;${m.isCurrent?'background:rgba(14,165,160,0.04);':''}">
+          ${m.isCurrent
+            ? `<span style="font-size:11px;color:var(--text-muted);font-style:italic;">current</span>`
+            : `<input class="plan-input" type="number" min="0" step="1"
+                placeholder="${suggestOrder>0?suggestOrder:''}"
+                value="${toOrderVal}"
+                style="${!toOrderVal&&suggestOrder>0?'color:#f97316;':''}"
+                onchange="savePlanField('to_${cat}_${m.key}',this.value);renderPlanning();">`}
+        </td>
+        <td style="${m.isCurrent?'background:rgba(14,165,160,0.04);':''}"><span class="${varClass}">${varLabel}</span></td>`;
     }).join('');
 
     return`<tr>
