@@ -4325,7 +4325,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
 
     // OLD — delivered more than 3 months ago, no on order, not CORE
     // Also applies to CLEARANCE and BUNDLE (isCore already declared above)
-    const isBundle=!isCore&&((vendor||'').toUpperCase()==='BUNDLE'||bundleSet.has(productName+' - '+colour));
+    const isBundle=!isCore&&bundleSet.has(productName+' - '+colour);
     const isClearance=(vendor||'').toUpperCase()==='CLEARANCE';
     const hasNoOrder=(onOrder||0)+(productOnOrder||0)===0;
     const isOldStyle=skuDeliveryDate&&skuDeliveryDate<threeMonthsAgo;
