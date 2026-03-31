@@ -468,18 +468,23 @@ th{position:relative;}
   .topbar-left{width:auto;padding:0 12px;}
   .topbar-brand{font-size:13px;}
   .topbar-pill{display:none;}
-  .screen-nav{gap:1px;}
-  .screen-btn{font-size:11px;padding:5px 8px;}
+  /* Period selector scrolls horizontally instead of wrapping off-screen */
+  #period-selector{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;max-width:260px;}
+  .period-btn{flex-shrink:0;}
+  .screen-nav{gap:1px;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;}
+  .screen-btn{white-space:nowrap;font-size:11px;padding:5px 8px;}
   .kpi-row{grid-template-columns:repeat(3,1fr);gap:8px;}
-  /* Sidebar becomes slide-over on iPad too */
+  /* Sidebar: fixed slide-over, hidden off-screen by default */
   .layout{grid-template-columns:1fr;}
   .sidebar{
-    position:fixed;left:0;top:54px;bottom:0;width:240px;
-    z-index:200;transform:translateX(-100%);
+    position:fixed !important;
+    left:0;top:54px;bottom:0;width:240px;
+    z-index:200;
+    transform:translateX(-100%) !important;
     transition:transform 0.25s ease;
     box-shadow:4px 0 20px rgba(0,0,0,0.3);
   }
-  .sidebar.open{transform:translateX(0);}
+  .sidebar.open{transform:translateX(0) !important;}
   .sidebar-overlay{display:block;opacity:0;pointer-events:none;transition:opacity 0.25s ease;}
   .sidebar-overlay.open{opacity:1;pointer-events:auto;}
   .tbl-wrap-dashboard{max-height:calc(100vh - 320px);}
@@ -494,7 +499,8 @@ th{position:relative;}
   .topbar-brand{font-size:12px;}
   .topbar-pill{display:none;}
   #nav-count{display:none;}
-  .period-selector{display:none !important;}
+  .period-selector{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;max-width:220px;}
+  .period-btn{flex-shrink:0;font-size:11px;padding:4px 8px;}
 
   /* Sidebar becomes a slide-over panel */
   .layout{grid-template-columns:1fr;}
