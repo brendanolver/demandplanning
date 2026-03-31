@@ -248,7 +248,7 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .plan-table{width:100%;border-collapse:collapse;font-size:12px;}
 .plan-table th{background:var(--navy);color:var(--navy-text);padding:8px 10px;text-align:center;font-weight:600;font-size:11px;white-space:nowrap;border:1px solid var(--navy-border);}
 .plan-table th.plan-th-left{text-align:left;}
-.plan-table th.plan-month{background:var(--navy);color:white;border-bottom:2px solid var(--teal);}
+.plan-table th.plan-month{background:var(--surface2);color:var(--text);border-bottom:2px solid var(--teal);}
 .plan-table td{padding:6px 8px;border:1px solid var(--border);text-align:center;white-space:nowrap;vertical-align:middle;}
 .plan-table td.plan-cat{text-align:left;font-weight:600;color:var(--text);background:var(--surface2);position:sticky;left:0;z-index:1;min-width:160px;}
 .plan-table td.plan-soh{font-weight:600;color:var(--text);}
@@ -1978,18 +1978,19 @@ function renderPlanning(){
   const planThStyle='cursor:pointer;user-select:none;';
 
   const monthHeaders=months.map(m=>`
-    <th class="plan-month" colspan="5" style="border-left:2px solid rgba(255,255,255,0.15);">${m.label}</th>`).join('');
+    <th class="plan-month" colspan="6" style="border-left:2px solid var(--border);">${m.label}</th>`).join('');
 
   const subHeaders=months.map(()=>`
     <th style="border-left:2px solid var(--border);">Budget</th>
     <th>SOH</th>
     <th>On Order</th>
+    <th>Suggest Order</th>
     <th>To Order</th>
     <th>Variance</th>`).join('');
 
   const growthCells=months.map(m=>{
     const gVal=saved[`growth_${m.key}`]||'';
-    return`<td colspan="5" style="border-left:2px solid var(--border);padding:4px 6px;">
+    return`<td colspan="6" style="border-left:2px solid var(--border);padding:4px 6px;">
         <div style="display:flex;align-items:center;gap:4px;justify-content:center;">
           <input class="plan-input growth-input" type="number" step="1" min="-100" max="200"
             placeholder="0" value="${gVal}"
@@ -2013,24 +2014,27 @@ function renderPlanning(){
       const toOrderVal=saved[`to_${cat}_${m.key}`]||'';
       const toOrder=parseInt(toOrderVal)||0;
 
-      // 3-month forward coverage: sum budgets for this month + next 2 months
-      let coverage3m=0;
-      for(let j=0;j<3;j++){
+      // 2-month forward coverage: current month + next month
+      let coverage2m=0;
+      const suggestOrder_raw=0;
+      for(let j=0;j<2;j++){
         const fm=months[mi+j];
         if(!fm)break;
         const fg=parseFloat(saved[`growth_${fm.key}`]||0)||0;
         const fly=Math.round(lyData[cat]?.[fm.key]||0);
-        coverage3m+=Math.round(fly*(1+fg/100));
+        coverage2m+=Math.round(fly*(1+fg/100));
       }
 
-      const variance=(soh+onOrder+toOrder)-coverage3m;
-      const varClass=coverage3m===0?'':variance>=0?'plan-variance-ok':'plan-variance-warn';
-      const varLabel=coverage3m===0?'—':(variance>=0?'+':'')+variance.toLocaleString();
+      const suggestOrder=coverage2m>0?Math.max(0,coverage2m-(soh+onOrder)):0;
+      const variance=(soh+onOrder+toOrder)-coverage2m;
+      const varClass=coverage2m===0?'':variance>=0?'plan-variance-ok':'plan-variance-warn';
+      const varLabel=coverage2m===0?'—':(variance>=0?'+':'')+variance.toLocaleString();
       return`
         <td style="border-left:2px solid var(--border);">
           <span class="plan-budget">${budget>0?budget.toLocaleString():'—'}</span></td>
         <td><span class="${soh>0?'plan-soh':'cell-muted'}">${soh>0?soh.toLocaleString():'—'}</span></td>
         <td><span class="${onOrder>0?'plan-onorder':'cell-muted'}">${onOrder>0?onOrder.toLocaleString():'—'}</span></td>
+        <td style="text-align:right;padding:4px 8px;"><span style="color:#f97316;font-weight:700;font-size:12px;">${suggestOrder>0?suggestOrder.toLocaleString():'—'}</span></td>
         <td style="padding:3px 5px;">
           <input class="plan-input" type="number" min="0" step="1" placeholder="0" value="${toOrderVal}"
             onchange="savePlanField('to_${cat}_${m.key}',this.value);renderPlanning();"></td>
@@ -2046,30 +2050,32 @@ function renderPlanning(){
 
   const totalCells=months.map((m,mi)=>{
     const growth=parseFloat(saved[`growth_${m.key}`]||0)||0;
-    let tb=0,tsoh=0,too=0,tto=0,tcoverage3m=0;
+    let tb=0,tsoh=0,too=0,tto=0,tcoverage2m=0;
     for(const cat of sortedCats){
       tb+=Math.round((lyData[cat]?.[m.key]||0)*(1+growth/100));
       tsoh+=catSoh[cat]||0;
       too+=Math.round(onOrderData[cat]?.[m.key]||0);
       tto+=parseInt(saved[`to_${cat}_${m.key}`]||0)||0;
     }
-    // 3-month forward coverage for totals
-    for(let j=0;j<3;j++){
+    // 2-month forward coverage for totals
+    for(let j=0;j<2;j++){
       const fm=months[mi+j];
       if(!fm)break;
       const fg=parseFloat(saved[`growth_${fm.key}`]||0)||0;
       for(const cat of sortedCats){
-        tcoverage3m+=Math.round((lyData[cat]?.[fm.key]||0)*(1+fg/100));
+        tcoverage2m+=Math.round((lyData[cat]?.[fm.key]||0)*(1+fg/100));
       }
     }
-    const variance=(tsoh+too+tto)-tcoverage3m;
-    const varClass=tcoverage3m===0?'':variance>=0?'plan-variance-ok':'plan-variance-warn';
+    const tsuggestOrder=tcoverage2m>0?Math.max(0,tcoverage2m-(tsoh+too)):0;
+    const variance=(tsoh+too+tto)-tcoverage2m;
+    const varClass=tcoverage2m===0?'':variance>=0?'plan-variance-ok':'plan-variance-warn';
     return`
       <td style="border-left:2px solid var(--border);font-weight:700;">${tb>0?tb.toLocaleString():'—'}</td>
       <td style="font-weight:700;color:var(--text-secondary);">${tsoh>0?tsoh.toLocaleString():'—'}</td>
       <td style="font-weight:700;color:var(--purple);">${too>0?too.toLocaleString():'—'}</td>
+      <td style="font-weight:700;color:#f97316;">${tsuggestOrder>0?tsuggestOrder.toLocaleString():'—'}</td>
       <td style="font-weight:700;">${tto>0?tto.toLocaleString():'—'}</td>
-      <td><span class="${varClass}" style="font-size:12px;">${tcoverage3m===0?'—':((variance>=0?'+':'')+variance.toLocaleString())}</span></td>`;
+      <td><span class="${varClass}" style="font-size:12px;">${tcoverage2m===0?'—':((variance>=0?'+':'')+variance.toLocaleString())}</span></td>`;
   }).join('');
 
   document.getElementById('planning-body').innerHTML=`
@@ -2077,7 +2083,7 @@ function renderPlanning(){
       <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--teal)"></div>12w+ cover — healthy</div>
       <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--red)"></div>Under 12w — reorder risk</div>
       <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--purple)"></div>On Order from Apparel Magic</div>
-      <div class="plan-legend-item" style="color:var(--text-secondary);">Variance = SOH + On Order + To Order − Next 3 Months Budget</div>
+      <div class="plan-legend-item" style="color:var(--text-secondary);">Variance = SOH + On Order + To Order − Next 2 Months Budget | Suggest Order = Next 2 Months Budget − SOH − On Order</div>
       <div class="plan-legend-item" style="color:var(--teal);">▲ Green = covered &nbsp;|&nbsp; <span style="color:var(--red);">▼ Red = short</span></div>
     </div>
     <div class="plan-table-wrap">
