@@ -4316,12 +4316,13 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const stock=sohMap[sku]||0;
     const{productName,colour,size,vendor,category}=pm;
 
-    // isDraft: check draftSet (from All Products List CSV) first, then pm.status from sales CSV
+    // isDraft: product is draft only if flagged AND has no sales history
+    // priceMap[sku] = appeared in sales CSV = definitely live, overrides any draft flag
     const fullTitleUpper=(productName+(colour?' - '+colour:'')).toUpperCase();
-    const isDraft=draftSet.has(fullTitleUpper)||(pm.status||'').toUpperCase()==='DRAFT'||
-      // Fallback: if All Products List not loaded, treat invMetaMap-only products (no sales history)
-      // with zero status as draft candidates — use pm source to detect
+    const hasSalesHistory=!!priceMap[sku];
+    const isDraftFlagged=draftSet.has(fullTitleUpper)||(pm.status||'').toUpperCase()==='DRAFT'||
       (!allProductsListData&&!priceMap[sku]&&invMetaMap[sku]&&(pm.status||'')==='');
+    const isDraft=isDraftFlagged&&!hasSalesHistory;
     if(isDraft){
       // Skip excluded categories entirely
       const excludedDraftCats=['GWP','MYSTERY BOX','INSURANCE','GIVEAWAY'];
