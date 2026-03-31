@@ -2893,14 +2893,14 @@ function roExport(){
   );
   const selected=filteredProds.filter(p=>d[p.fullTitle]?.checked||d[p.fullTitle]?.qty);
   if(!selected.length){alert('No styles selected in the current view — tick a checkbox or enter a re-order qty first.');return;}
-  const headers=['Product','Colour','Category','Status','Month Del','SOH','On Order','Suggest Order','Re-Order Qty','Wks Cover (incl. RO)','Stock Status'];
+  const headers=['Product','Category','Status','Month Del','SOH','On Order','Suggest Order','Re-Order Qty','Wks Cover (incl. RO)','Stock Status'];
   const SL={ok:'OK','on-order':'On Order',oos:'Out of Stock',reorder:'Re-Order',reduce:'Reduce',clearance:'Clearance'};
   const csvRows=selected.map(p=>{
     const roQty=parseInt(d[p.fullTitle]?.qty)||0;
     const onOrder=(p.onOrder||0)+(p.productOnOrder||0);
     const totalUnits=p.stock+onOrder+roQty;
     const recalcWks=p.velocity>0?+(totalUnits/(p.velocity*7)).toFixed(1):'—';
-    return[p.productName,p.colour,p.category,p.vendor,p.deliveryMonth||'',p.stock,onOrder||'',p.suggestedOrder||'',roQty||'',recalcWks,SL[p.flag]||p.flag];
+    return[p.productName+(p.colour?' - '+p.colour:''),p.category,p.vendor,p.deliveryMonth||'',p.stock,onOrder||'',p.suggestedOrder||'',roQty||'',recalcWks,SL[p.flag]||p.flag];
   });
   const csv=[headers,...csvRows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob=new Blob([csv],{type:'text/csv'});
@@ -5357,8 +5357,8 @@ function exportCSV(){
   const h=currentView==='category'
     ?['Category','Products',stLabel,'Margin%','SOH','SOH Value','Sell Value','Today','Yest',soldLabel,'On Order','Month Due','Weeks Cover','OOS','Re-Order','Stock Status']
     :currentView==='product'
-    ?['Product','Colour','Category','Status','Month Del',stLabel,'SOH','SOH Value','Sell Value','Today','Yest',soldLabel,'On Order','Month Due','Sizes Sold Out','Price','RRP','Disc%','Margin%','Weeks Cover','Stock Status']
-    :['Product','Colour','Size','SKU','Category','Status','Month Del',stLabel,'SOH',soldLabel,'On Order','Month Due','Price','RRP','Disc%','Margin%','Weeks Cover','Stock Status'];
+    ?['Product','Category','Status','Month Del',stLabel,'SOH','SOH Value','Sell Value','Today','Yest',soldLabel,'On Order','Month Due','Sizes Sold Out','Price','RRP','Disc%','Margin%','Weeks Cover','Stock Status']
+    :['Product','Size','SKU','Category','Status','Month Del',stLabel,'SOH',soldLabel,'On Order','Month Due','Price','RRP','Disc%','Margin%','Weeks Cover','Stock Status'];
   const lines=[h.join(',')];
   for(const r of rows){
     let v;
@@ -5372,9 +5372,9 @@ function exportCSV(){
     if(currentView==='category')
       v=[r.category,r.products,st7,r.margin!=null?r.margin.toFixed(1):'',r.stock,sohVal,sellVal,r.soldToday||'',r.soldYesterday||'',r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.daysDisplay,r.oosCount,r.critCount,SL[r.flag]||r.flag];
     else if(currentView==='product')
-      v=[r.productName,r.colour,r.category,r.vendor,r.deliveryMonth||'',st7,r.stock,sohVal,sellVal,r.soldToday||'',r.soldYesterday||'',r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.soldOutSizes||'',r.price??'',r.compareAt??'',disc,mg,r.daysDisplay,SL[r.flag]||r.flag];
+      v=[r.productName+(r.colour?' - '+r.colour:''),r.category,r.vendor,r.deliveryMonth||'',st7,r.stock,sohVal,sellVal,r.soldToday||'',r.soldYesterday||'',r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.soldOutSizes||'',r.price??'',r.compareAt??'',disc,mg,r.daysDisplay,SL[r.flag]||r.flag];
     else
-      v=[r.productName,r.colour,r.size,r.sku,r.category,r.vendor,r.deliveryMonth||'',st7,r.stock,r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.price??'',r.compareAt??'',disc,mg,r.daysDisplay,SL[r.flag]||r.flag];
+      v=[r.productName+(r.colour?' - '+r.colour:''),r.size,r.sku,r.category,r.vendor,r.deliveryMonth||'',st7,r.stock,r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.price??'',r.compareAt??'',disc,mg,r.daysDisplay,SL[r.flag]||r.flag];
     lines.push(v.map(x=>`"${x??''}"`).join(','));
   }
   const a=document.createElement('a');
