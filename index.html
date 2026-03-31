@@ -234,6 +234,7 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .range-pill{display:inline-flex;padding:3px 8px;border-radius:var(--r-sm);font-size:11px;font-weight:600;}
 .rp-core{background:var(--blue-light);color:var(--blue);}
 .rp-reduced{background:#fff7ed;color:#ea580c;}
+.rp-draft{background:#f3e8ff;color:#7c3aed;}
 .rp-indent{background:var(--amber-light);color:var(--amber);}
 .rp-clearance{background:var(--red-light);color:var(--red);}
 .rp-bundle{background:var(--purple-light);color:var(--purple);}
@@ -459,6 +460,11 @@ th{position:relative;}
 /* Touch devices detected via JS — force hamburger regardless of screen width */
 .touch-device .hamburger{display:flex !important;align-items:center;}
 .touch-device #period-selector{display:none !important;}
+/* Also catch via CSS pointer media query (iPad landscape etc) */
+@media(pointer:coarse){
+  .hamburger{display:flex !important;align-items:center;}
+  #period-selector{display:none !important;}
+}
 .touch-device .layout{display:block !important;}
 .touch-device .sidebar{
   position:fixed !important;top:54px !important;bottom:0 !important;left:0 !important;
@@ -1425,7 +1431,10 @@ function showScreen(screen){
   markdownsScreen.style.display=screen==='markdowns'?'block':'none';
   // Period selector: CSS hides #period-selector on touch via media query / touch-device class
   // JS manages period-bar (below topbar) — only show on dashboard on touch devices
-  const isTouch=document.documentElement.classList.contains('touch-device')||window.matchMedia('(max-width:1024px)').matches;
+  const isTouch=document.documentElement.classList.contains('touch-device')||
+    ('ontouchstart' in window)||navigator.maxTouchPoints>0||
+    window.matchMedia('(max-width:1024px)').matches||
+    window.matchMedia('(pointer:coarse)').matches;
   periodSelector.style.display=(!isTouch&&screen==='dashboard')?'flex':'none';
   if(periodBar)periodBar.style.display=(isTouch&&screen==='dashboard')?'flex':'none';
   exportBtn.style.display=screen==='dashboard'?'':'none';
@@ -2828,7 +2837,7 @@ function renderReorders(){
 
   const SL={ok:'OK','on-order':'On Order',oos:'Out of Stock',reorder:'Re-Order',reduce:'Reduce',clearance:'Clearance'};
   const flagPillCls={ok:'sp-ok',reorder:'sp-reorder','on-order':'sp-onorder',oos:'sp-oos',reduce:'sp-reduce',clearance:'sp-clearance'};
-  const vendorCls=v=>v==='CORE'?'rp-core':v==='NEW'?'rp-new':v==='CURRENT'?'rp-current':v==='OLD'?'rp-old':v==='REDUCED'?'rp-reduced':'rp-other';
+  const vendorCls=v=>v==='CORE'?'rp-core':v==='NEW'?'rp-new':v==='CURRENT'?'rp-current':v==='OLD'?'rp-old':v==='REDUCED'?'rp-reduced':v==='DRAFT'?'rp-draft':'rp-other';
 
   const soldLabel=`Sold (${roPeriod}d)`;
   const getSoldRo=p=>{if(roPeriod===7)return p.sold7||0;if(roPeriod===14)return Math.round((p.sold7||0)/7*14);if(roPeriod===30)return p.sold30||0;if(roPeriod===60)return p.sold60||0;if(roPeriod===90)return p.sold90||0;if(roPeriod===365)return p.sold365||0;return p.sold7||0;};
@@ -3449,7 +3458,7 @@ function renderMarkdowns(){
     const disc=p.discountPct!=null?p.discountPct.toFixed(1)+'%':'—';
     const mg=p.margin!=null?p.margin.toFixed(1)+'%':'—';
     const proposedPrice=p.compareAt>0&&pct?(p.compareAt*(1-parseFloat(pct)/100)).toFixed(2):'';
-    const vendorCls=p.vendor==='CORE'?'rp-core':p.vendor==='NEW'?'rp-new':p.vendor==='CURRENT'?'rp-current':p.vendor==='OLD'?'rp-old':p.vendor==='REDUCED'?'rp-reduced':'rp-other';
+    const vendorCls=p.vendor==='CORE'?'rp-core':p.vendor==='NEW'?'rp-new':p.vendor==='CURRENT'?'rp-current':p.vendor==='OLD'?'rp-old':p.vendor==='REDUCED'?'rp-reduced':p.vendor==='DRAFT'?'rp-draft':'rp-other';
     const safeKey=key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     const onOrder=(p.onOrder||0)+(p.productOnOrder||0);
     const collection=saved[key]?.collection||'';
@@ -4301,14 +4310,38 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const stock=sohMap[sku]||0;
     const{productName,colour,size,vendor,category}=pm;
 
-    // Skip DRAFT products unless they have AM on-order data
+    // Skip DRAFT products unless they have AM on-order data OR have stock on hand
     const isDraft=(pm.status||'')==='DRAFT';
     if(isDraft){
+      // Skip excluded categories entirely
+      const excludedDraftCats=['GWP','MYSTERY BOX','INSURANCE','GIVEAWAY'];
+      if(excludedDraftCats.includes((category||'').toUpperCase().trim()))continue;
+
       const vKey=productName+'||'+colour+'||'+size;
       const vKeyOS=productName+'||'+colour+'||OS';
       const pKey=productName+'||'+colour;
       const hasOnOrder=(amVariantMap[vKey]||amVariantMap[vKeyOS]||amProductMap[pKey]);
-      if(!hasOnOrder||(hasOnOrder.qtyOpen||0)===0)continue;
+      const hasOnOrderQty=hasOnOrder&&(hasOnOrder.qtyOpen||0)>0;
+      const hasStock=stock>0;
+      if(!hasOnOrderQty&&!hasStock)continue; // skip if no stock and no on-order
+
+      // Skip if it would qualify as OLD (delivered 3+ months ago, no on order)
+      const skuDecodedForDraft=decodeSkuDelivery(sku);
+      if(skuDecodedForDraft){
+        const parts=skuDecodedForDraft.split(' - ');
+        if(parts.length>=2){
+          const MONTHS_D={january:0,february:1,march:2,april:3,may:4,june:5,july:6,august:7,september:8,october:9,november:10,december:11};
+          const yr=parseInt(parts[0]);
+          const mo=MONTHS_D[(parts[1]||'').toLowerCase().trim()];
+          if(!isNaN(yr)&&mo!==undefined){
+            const draftDelivery=new Date(yr,mo,1);
+            const threeMonthsAgoDraft=new Date();
+            threeMonthsAgoDraft.setMonth(threeMonthsAgoDraft.getMonth()-3);
+            threeMonthsAgoDraft.setDate(1);
+            if(draftDelivery<threeMonthsAgoDraft&&!hasOnOrderQty)continue;
+          }
+        }
+      }
     }
 
     // Use price list if uploaded (matched by product title), fall back to sales file prices
@@ -4481,11 +4514,11 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     // CURRENT — delivered within last 3 months (but not this month), not CORE/CLEARANCE/BUNDLE
     const isCurrent=skuDeliveryDate&&skuDeliveryDate>=threeMonthsAgo&&!isCurrentMonth&&!isFutureWithStock&&!isCore&&!isClearance&&!isBundle;
 
-    const isNew=(isCurrentMonth||isFutureWithStock)&&!isCore&&!isClearance&&!isBundle;
+    const isNew=(isCurrentMonth||isFutureWithStock)&&!isCore&&!isClearance&&!isBundle&&!isDraft;
     // CORE/BUNDLE from CSV take precedence — then age-based status
-    const isReduced=!isCore&&!isBundle&&!isClearance&&(discountPct>0);
-    const effectiveVendor=isCore?'CORE':isBundle?'BUNDLE':isClearance?'CLEARANCE':isNew?'NEW':isReduced?'REDUCED':isEnd?'OLD':isCurrent?'CURRENT':vendor;
-    if(isEnd&&!discountPct&&!isNew)flag='reduce';
+    const isReduced=!isCore&&!isBundle&&!isClearance&&!isDraft&&(discountPct>0);
+    const effectiveVendor=isCore?'CORE':isDraft?'DRAFT':isBundle?'BUNDLE':isClearance?'CLEARANCE':isNew?'NEW':isReduced?'REDUCED':isEnd?'OLD':isCurrent?'CURRENT':vendor;
+    if(isEnd&&!discountPct&&!isNew&&!isDraft)flag='reduce';
 
     rows.push({
       fullTitle:productName+' - '+colour,productName,colour,size,variant:size,sku,
@@ -4531,7 +4564,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
             rows.push({
               fullTitle:desc+' - '+colour,productName:desc,colour,
               size:se.size,variant:se.size,sku:amStyle||'—',
-              category,vendor:'INDENT',
+              category,vendor:'ON ORDER',
               stock:0,price:null,compareAt:null,discountPct:null,margin:null,
               velocity:0,vel7:null,vel30:null,
               sold7:0,sold30:0,sold90:0,sold365:0,sold:0,sellThru7:null,
@@ -4546,7 +4579,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
         } else {
           rows.push({
             fullTitle:desc+' - '+colour,productName:desc,colour,size:'—',variant:'—',sku:amStyle||'—',
-            category,vendor:'INDENT',
+            category,vendor:'ON ORDER',
             stock:0,price:null,compareAt:null,discountPct:null,margin:null,
             velocity:0,vel7:null,vel30:null,
             sold7:0,sold30:0,sold90:0,sold365:0,sold:0,sellThru7:null,
@@ -5379,7 +5412,7 @@ function renderRow(row,headers){
       const displayVal=(val||'');
       const isEnd=displayVal==='OLD';
       const v=displayVal.toLowerCase();
-      const cls=isEnd?'rp-old':v==='new'?'rp-new':v==='current'?'rp-current':v==='core'?'rp-core':v==='old'?'rp-old':v==='reduced'?'rp-reduced':'rp-other';
+      const cls=isEnd?'rp-old':v==='new'?'rp-new':v==='current'?'rp-current':v==='core'?'rp-core':v==='old'?'rp-old':v==='reduced'?'rp-reduced':v==='draft'?'rp-draft':'rp-other';
       return`<td><span class="range-pill ${cls}">${displayVal||'—'}</span></td>`;
     }
     if(h.k==='soldToday'){
