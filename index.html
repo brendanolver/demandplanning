@@ -2964,6 +2964,9 @@ function mdToggle(key,checked){
   renderMarkdowns();
 }
 
+function mdSaveCollection(key,val){
+  const d=getMdData();if(!d[key])d[key]={};d[key].collection=val;saveMdData(d);
+}
 function mdSavePct(key,val){
   const d=getMdData();if(!d[key])d[key]={};d[key].pct=val;saveMdData(d);
 }
@@ -2984,13 +2987,14 @@ function mdExport(){
   );
   const selected=filteredProds.filter(p=>d[p.fullTitle]?.checked||d[p.fullTitle]?.pct);
   if(!selected.length){alert('No styles selected in the current view — tick a checkbox or enter a proposed % first.');return;}
-  const headers=['Product','Category','Status','Month Del','Month Due','ST%','SOH','SOH Value','Sell Value','Today','Yest','Sold','On Order','Sizes S/O','Price','RRP','Curr Disc%','Margin%','Proposed Markdown %','Proposed New Price','Wks Cover','Stock Status'];
+  const headers=['Product','New Collection','Category','Status','Month Del','Month Due','ST%','SOH','SOH Value','Sell Value','Today','Yest','Sold','On Order','Sizes S/O','Price','RRP','Curr Disc%','Margin%','Proposed Markdown %','Proposed New Price','Wks Cover','Stock Status'];
   const SL={ok:'OK','on-order':'On Order',oos:'Out of Stock',reorder:'Re-Order',reduce:'Reduce',clearance:'Clearance'};
   const csvRows=selected.map(p=>{
     const pct=d[p.fullTitle]?.pct||'';
     const proposedPrice=p.compareAt>0&&pct?(p.compareAt*(1-parseFloat(pct)/100)).toFixed(2):'';
     const productLabel=p.productName+(p.colour?' - '+p.colour:'');
-    return[productLabel,p.category,p.vendor,p.deliveryMonth||'',p.monthDue||'',
+    const collectionVal=d[p.fullTitle]?.collection||'';
+    return[productLabel,collectionVal,p.category,p.vendor,p.deliveryMonth||'',p.monthDue||'',
       p.sellThru7!=null?p.sellThru7.toFixed(1):'',p.stock,
       p.sohValue?Math.round(p.sohValue):'',p.sellValue?Math.round(p.sellValue):'',
       p.soldToday||'',p.soldYesterday||'',p.sold||'',
@@ -3122,7 +3126,8 @@ function mdClearAll(){
     [...toProduct(allVariantRows.filter(r=>((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)))].map(p=>p.fullTitle);
   keysToReset.forEach(key=>{
     if(d[key]){d[key].checked=false;delete d[key].pct;}
-    if(d[key]&&!d[key].checked&&!d[key].pct)delete d[key];
+    // Only delete the whole entry if collection is also empty
+    if(d[key]&&!d[key].checked&&!d[key].pct&&!d[key].collection)delete d[key];
   });
   saveMdData(d);
   renderMarkdowns();
@@ -3318,9 +3323,17 @@ function renderMarkdowns(){
     const vendorCls=p.vendor==='CORE'?'rp-core':p.vendor==='NEW'?'rp-new':p.vendor==='CURRENT'?'rp-current':p.vendor==='OLD'?'rp-old':p.vendor==='REDUCED'?'rp-reduced':'rp-other';
     const safeKey=key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     const onOrder=(p.onOrder||0)+(p.productOnOrder||0);
+    const collection=saved[key]?.collection||'';
+    const safeCollection=collection.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     return`<tr style="background:${isChecked?'rgba(20,184,166,0.05)':''};">
       <td style="padding:6px 8px;text-align:center;"><input type="checkbox" ${isChecked?'checked':''} style="width:16px;height:16px;accent-color:var(--teal);cursor:pointer;" onchange="mdToggle('${safeKey}',this.checked)"></td>
       <td class="cell-product"><div class="prod-name">${p.productName}${p.colour?" - "+p.colour:""}</div></td>
+      <td style="padding:5px 8px;">
+        <input type="text" placeholder="e.g. BUNDLE TEES 3 FOR $150" value="${collection}"
+          style="width:180px;padding:6px 9px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;outline:none;background:var(--surface);"
+          oninput="mdSaveCollection('${safeKey}',this.value)"
+          onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
+      </td>
       <td class="cell-muted">${p.category||'—'}</td>
       <td style="padding:6px 8px;font-size:12px;color:${(p.discountPct||0)>0?'var(--red)':'var(--text-secondary)'};">${disc}</td>
       <td style="padding:6px 8px;"><span class="range-pill ${vendorCls}">${p.vendor||'—'}</span></td>
@@ -3357,6 +3370,7 @@ function renderMarkdowns(){
     <thead><tr>
       <th style="width:36px;text-align:center;padding:8px 6px;"><input type="checkbox" id="md-select-all-chk" ${allTicked?'checked':''} style="width:15px;height:15px;accent-color:var(--teal);" onchange="mdSelectAll(this.checked)"></th>
       <th style="${thS}" onclick="setMdSort('productName')">Product${mdArrow('productName')}</th>
+      <th style="min-width:180px;white-space:nowrap;">New Collection</th>
       <th style="${thS}" onclick="setMdSort('category')">Category${mdArrow('category')}</th>
       <th style="${thS}" onclick="setMdSort('discountPct')">Disc%${mdArrow('discountPct')}</th>
       <th style="${thS}" onclick="setMdSort('vendor')">Status${mdArrow('vendor')}</th>
