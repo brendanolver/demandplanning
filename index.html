@@ -3612,6 +3612,7 @@ async function gdriveFetchFiles(){
       'All Products Sizes Sold Out':{loader:'soldout',exact:false,sheet:false},
       'Variants 0 inventory by Product':{loader:'variantssoldout',exact:false,sheet:false},
       'Core Styles':{loader:'corestyles',exact:false,sheet:false},
+        'All_Products_List':{loader:'allproductslist',exact:false,sheet:false},
         'All Products List':{loader:'allproductslist',exact:false,sheet:false},
       'Current Bundle Styles':{loader:'bundlestyles',exact:false,sheet:false},
       'Order Item Analysis':{loader:'am',exact:false,sheet:false},
@@ -3819,6 +3820,7 @@ async function autoSyncFetch(){
       'All Products Sizes Sold Out':{loader:'soldout',exact:false,sheet:false},
       'Variants 0 inventory by Product':{loader:'variantssoldout',exact:false,sheet:false},
       'Core Styles':{loader:'corestyles',exact:false,sheet:false},
+        'All_Products_List':{loader:'allproductslist',exact:false,sheet:false},
         'All Products List':{loader:'allproductslist',exact:false,sheet:false},
       'Current Bundle Styles':{loader:'bundlestyles',exact:false,sheet:false},
       'Order Item Analysis':{loader:'am',exact:false,sheet:false},
@@ -4316,7 +4318,10 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
 
     // isDraft: check draftSet (from All Products List CSV) first, then pm.status from sales CSV
     const fullTitleUpper=(productName+(colour?' - '+colour:'')).toUpperCase();
-    const isDraft=draftSet.has(fullTitleUpper)||(pm.status||'').toUpperCase()==='DRAFT';
+    const isDraft=draftSet.has(fullTitleUpper)||(pm.status||'').toUpperCase()==='DRAFT'||
+      // Fallback: if All Products List not loaded, treat invMetaMap-only products (no sales history)
+      // with zero status as draft candidates — use pm source to detect
+      (!allProductsListData&&!priceMap[sku]&&invMetaMap[sku]&&(pm.status||'')==='');
     if(isDraft){
       // Skip excluded categories entirely
       const excludedDraftCats=['GWP','MYSTERY BOX','INSURANCE','GIVEAWAY'];
