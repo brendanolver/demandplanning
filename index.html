@@ -4623,7 +4623,6 @@ function buildVariantRows(){
   // Format: "PRODUCT NAME - COLOUR" (uppercase)
   const coreSet=new Set();
   const bundleSet=new Set();
-  const draftSet=new Set(); // products known to be DRAFT from sales history
   if(coreStylesData){
     for(const row of coreStylesData){
       const name=(row['Product name']||'').trim().toUpperCase();
