@@ -105,7 +105,7 @@ input[type="file"]{display:none;}
 /* ── APP ──────────────────────────────────────── */
 #app{display:none;flex-direction:column;height:100vh;overflow:hidden;}
 .topbar{flex-shrink:0;height:54px;background:var(--navy);display:flex;align-items:center;justify-content:space-between;padding:0 20px 0 0;border-bottom:1px solid var(--navy-border);}
-.layout{display:grid;grid-template-columns:180px 1fr;flex:1;min-height:0;overflow:hidden;}
+.layout{display:flex;flex:1;min-height:0;overflow:hidden;}
 
 /* TOPBAR */
 .topbar-left{width:180px;flex-shrink:0;padding:0 16px;display:flex;align-items:center;gap:8px;}
@@ -122,7 +122,7 @@ input[type="file"]{display:none;}
 .tb-btn.accent:hover{background:var(--teal-dark);}
 
 /* SIDEBAR */
-.sidebar{background:var(--navy);border-right:1px solid var(--navy-border);padding:16px 12px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;min-height:0;}
+.sidebar{width:180px;flex-shrink:0;background:var(--navy);border-right:1px solid var(--navy-border);padding:16px 12px;overflow-y:auto;display:flex;flex-direction:column;gap:2px;}
 .sb-section{font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--navy-text);font-weight:700;padding:10px 6px 4px;margin-top:4px;}
 .sb-section:first-child{margin-top:0;}
 .sb-item{display:flex;align-items:center;gap:7px;padding:7px 8px;border-radius:var(--r);cursor:pointer;font-size:12px;font-weight:500;color:var(--navy-text);transition:all 0.12s;border:1px solid transparent;}
@@ -456,112 +456,70 @@ th{position:relative;}
 .sw-result-item{padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;}
 .sw-result-item:hover{background:var(--surface2);}
 /* ── RESPONSIVE ── */
-/* Hamburger button */
-.hamburger{display:none;background:none;border:none;cursor:pointer;padding:8px;color:white;font-size:20px;line-height:1;}
-.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:150;}
-.sidebar-overlay.open{display:block;}
-/* Period bar below topbar - only visible on tablet/mobile */
+.hamburger{display:none;background:none;border:none;cursor:pointer;padding:8px;color:white;font-size:22px;line-height:1;flex-shrink:0;}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:490;}
+/* Period bar below topbar - desktop hides it, tablet/mobile shows it */
 #period-bar{display:none;}
 
-/* iPad & mobile (≤1024px) — sidebar becomes hidden overlay */
+/* ── TABLET & MOBILE (≤1024px) ── */
 @media(max-width:1024px){
   /* Show hamburger */
-  .hamburger{display:block !important;}
+  .hamburger{display:flex !important;align-items:center;}
   /* Topbar */
   .topbar{padding:0 10px 0 0;}
-  .topbar-left{width:auto;padding:0 8px;}
-  .topbar-brand{font-size:13px;}
-  .topbar-pill{display:none;}
-  /* Hide period selector from topbar on tablet — shown in period-bar below instead */
-  #period-selector{display:none !important;}
-  #period-bar{display:flex !important;}
-  /* Screen nav scrolls */
-  .screen-nav{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;max-width:300px;}
-  .screen-btn{white-space:nowrap;font-size:11px;padding:5px 8px;flex-shrink:0;}
-  /* KPI 3-col */
-  .kpi-row{grid-template-columns:repeat(3,1fr);gap:8px;}
-  /* Layout: full width, sidebar removed from grid flow */
-  .layout{grid-template-columns:1fr !important;}
-  /* Sidebar: hidden by default, slides in as overlay */
-  .sidebar{
-    display:block !important;
-    position:fixed !important;
-    left:0 !important;top:54px !important;bottom:0 !important;
-    width:240px !important;
-    z-index:500 !important;
-    transform:translateX(-260px) !important;
-    transition:transform 0.3s ease !important;
-    box-shadow:4px 0 24px rgba(0,0,0,0.35) !important;
-  }
-  .sidebar.open{transform:translateX(0) !important;}
-  .sidebar-overlay{display:block !important;opacity:0;pointer-events:none;transition:opacity 0.3s ease;}
-  .sidebar-overlay.open{opacity:1 !important;pointer-events:auto !important;}
-  .tbl-wrap-dashboard{max-height:calc(100vh - 360px);}
-}
-
-/* Mobile (≤768px) */
-@media(max-width:768px){
-  .hamburger{display:block;}
-  .topbar{padding:0 8px;}
-  .topbar-left{width:auto;padding:0 8px;flex:1;}
-  .topbar-right{gap:4px;}
+  .topbar-left{width:auto;padding:0 4px;}
   .topbar-brand{font-size:12px;}
   .topbar-pill{display:none;}
   #nav-count{display:none;}
-  .period-selector{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;max-width:220px;}
-  .period-btn{flex-shrink:0;font-size:11px;padding:4px 8px;}
-
-  /* Sidebar becomes a slide-over panel */
-  .layout{grid-template-columns:1fr;}
-  .sidebar{
-    position:fixed;
-    left:0;top:54px;bottom:0;
-    width:240px;
-    z-index:200;
-    transform:translateX(-100%);
-    transition:transform 0.25s ease;
-    box-shadow:4px 0 20px rgba(0,0,0,0.3);
-  }
-  .sidebar.open{transform:translateX(0);}
-  .sidebar-overlay{display:block;opacity:0;pointer-events:none;transition:opacity 0.25s ease;}
-  .sidebar-overlay.open{opacity:1;pointer-events:auto;}
-
+  /* Period selector in topbar hidden — shown in period-bar below instead */
+  #period-selector{display:none !important;}
+  #period-bar{display:flex !important;}
   /* Screen nav scrolls horizontally */
-  .screen-nav{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;}
-  .screen-btn{white-space:nowrap;font-size:11px;padding:5px 8px;}
-
-  /* KPI cards: 2 columns */
-  .kpi-row{grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px;}
-  .kpi-card{padding:12px 14px;}
-  .kpi-val{font-size:22px;}
-
-  /* Filters wrap and shrink */
-  .filter-row{gap:6px;}
-  .ms-btn{font-size:11px;padding:5px 10px;}
-  .search-wrap{min-width:160px !important;}
-
-  /* Tables: full-width horizontal scroll */
-  .tbl-wrap,.tbl-wrap-dashboard{max-height:calc(100vh - 300px);overflow-x:auto;-webkit-overflow-scrolling:touch;}
-  .main{padding:12px 10px;}
-
-  /* Working tab */
-  .insights-title{font-size:18px;}
-  .view-btn{font-size:11px;padding:6px 10px;}
-
-  /* Period buttons compact */
-  .period-btn{font-size:11px;padding:4px 8px;}
-
-  /* Size workings table */
-  .sw-table th,.sw-table td{padding:7px 10px;font-size:12px;}
+  .screen-nav{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;max-width:380px;}
+  .screen-btn{white-space:nowrap;font-size:11px;padding:5px 8px;flex-shrink:0;}
+  /* KPI: 3 columns on tablet, 2 on phone */
+  .kpi-row{grid-template-columns:repeat(3,1fr);gap:8px;}
+  /* SIDEBAR: completely removed from layout, hidden off-screen */
+  .layout{grid-template-columns:1fr !important;display:block !important;}
+  .sidebar{
+    position:fixed !important;
+    top:54px !important;bottom:0 !important;
+    left:0 !important;
+    width:240px !important;
+    z-index:500 !important;
+    transform:translateX(-260px) !important;
+    transition:transform 0.28s ease !important;
+    box-shadow:4px 0 24px rgba(0,0,0,0.4) !important;
+    overflow-y:auto !important;
+  }
+  .sidebar.open{transform:translateX(0) !important;}
+  .sidebar-overlay{display:block;opacity:0;pointer-events:none;transition:opacity 0.28s ease;}
+  .sidebar-overlay.open{opacity:1;pointer-events:auto;}
+  /* Main content takes full width */
+  .main{overflow-y:auto;height:calc(100vh - 54px);}
+  .tbl-wrap-dashboard{max-height:calc(100vh - 340px);}
 }
 
-/* Small phones (≤480px) */
+/* ── MOBILE ONLY (≤768px) ── */
+@media(max-width:768px){
+  .kpi-row{grid-template-columns:repeat(2,1fr);gap:8px;}
+  .kpi-card{padding:12px 14px;}
+  .kpi-val{font-size:20px;}
+  .filter-row{gap:6px;}
+  .ms-btn{font-size:11px;padding:5px 10px;}
+  .search-wrap{min-width:140px !important;}
+  .tbl-wrap,.tbl-wrap-dashboard{max-height:calc(100vh - 280px);}
+  .main{padding:10px 8px;}
+  .insights-title{font-size:17px;}
+  .view-btn{font-size:11px;padding:6px 10px;}
+  .screen-nav{max-width:260px;}
+}
+
+/* ── SMALL PHONES (≤480px) ── */
 @media(max-width:480px){
-  .kpi-row{grid-template-columns:repeat(2,1fr);}
   .screen-btn{font-size:10px;padding:4px 6px;}
   .topbar-brand span{display:none;}
 }
-
 </style>
 </head>
 <body>
@@ -2619,7 +2577,8 @@ function roClearAll(){
     if(d[key]&&!d[key].checked&&d[key].qty===undefined)delete d[key];
   });
   saveRoData(d);
-  renderReorders();
+  const s=document.getElementById('ro-search');if(s)s.value='';
+  roClearFilters();
 }
 function roSelectAll(checked){
   const d=getRoData();
@@ -3134,11 +3093,13 @@ function mdClearAll(){
     [...toProduct(allVariantRows.filter(r=>((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)))].map(p=>p.fullTitle);
   keysToReset.forEach(key=>{
     if(d[key]){d[key].checked=false;delete d[key].pct;}
-    // Only delete the whole entry if collection is also empty
     if(d[key]&&!d[key].checked&&!d[key].pct&&!d[key].collection)delete d[key];
   });
   saveMdData(d);
-  renderMarkdowns();
+  const s=document.getElementById('md-search');if(s)s.value='';
+  // Reset view-selected if active
+  if(mdViewSelectedOnly){mdToggleViewSelected();}
+  mdClearFilters();
 }
 
 function mdSelectAll(checked){
