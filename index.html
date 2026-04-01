@@ -4933,8 +4933,9 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
 
     const isNew=(isCurrentMonth||isFutureWithStock)&&!isCore&&!isClearance&&!isBundle&&!isDraft;
     // CORE/BUNDLE from CSV take precedence — then age-based status
-    const isReduced=!isCore&&!isBundle&&!isClearance&&!isDraft&&(discountPct>0);
-    const effectiveVendor=isCore?'CORE':isDraft?'DRAFT':isBundle?'BUNDLE':isClearance?'CLEARANCE':isNew?'NEW':isReduced?'REDUCED':isEnd?'OLD':isCurrent?'CURRENT':vendor;
+    const isReduced=!isCore&&!isBundle&&!isDraft&&(discountPct>0);
+    // REDUCED takes priority over CLEARANCE when product has an active discount
+    const effectiveVendor=isCore?'CORE':isDraft?'DRAFT':isBundle?'BUNDLE':isReduced?'REDUCED':isClearance?'CLEARANCE':isNew?'NEW':isEnd?'OLD':isCurrent?'CURRENT':vendor;
     // Re-run flag with effectiveVendor so CORE/NEW/CURRENT/ON ORDER status is respected
     flag=getFlag(recalcDays,stock,onOrder,effectiveVendor,discountPct);
     if(isEnd&&!discountPct&&!isNew&&!isDraft)flag='reduce';
