@@ -4641,10 +4641,22 @@ function shortMonth(monthDue){
 }
 
 function getFlag(days,stock,onOrder,vendor,discountPct){
-  const isCore=(vendor||'').toUpperCase()==='CORE';
+  const v=(vendor||'').toUpperCase();
+  const isCore=v==='CORE';
   const isReduced=(discountPct||0)>0;
-  // CORE products always show as OK regardless of stock level
+  // CORE products always OK
   if(isCore)return'ok';
+  // NEW and CURRENT — never reduce, reorder logic still applies
+  if(v==='NEW'||v==='CURRENT'||v==='ON ORDER'){
+    if(stock===0&&onOrder>0)return'on-order';
+    if(stock===0)return'oos';
+    if(days===null||days===undefined)return'ok';
+    const d=parseFloat(days);
+    if(isNaN(d)||d===0)return'oos';
+    const weeks=d/7;
+    if(weeks<=14)return isReduced?'ok':'reorder';
+    return'ok'; // never reduce for NEW/CURRENT/ON ORDER
+  }
   if(stock===0&&onOrder>0)return'on-order';
   if(stock===0)return'oos';
   if(days===null||days===undefined)return'oos';
@@ -4923,13 +4935,14 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     // CORE/BUNDLE from CSV take precedence — then age-based status
     const isReduced=!isCore&&!isBundle&&!isClearance&&!isDraft&&(discountPct>0);
     const effectiveVendor=isCore?'CORE':isDraft?'DRAFT':isBundle?'BUNDLE':isClearance?'CLEARANCE':isNew?'NEW':isReduced?'REDUCED':isEnd?'OLD':isCurrent?'CURRENT':vendor;
+    // Re-run flag with effectiveVendor so CORE/NEW/CURRENT/ON ORDER status is respected
+    flag=getFlag(recalcDays,stock,onOrder,effectiveVendor,discountPct);
     if(isEnd&&!discountPct&&!isNew&&!isDraft)flag='reduce';
-    // Never flag NEW, CURRENT or ON ORDER products as reduce
-    if(flag==='reduce'&&(isNew||isCurrent||effectiveVendor==='ON ORDER'))flag='ok';
-    // Never flag OLD, CLEARANCE, BUNDLE (non-CORE) as reorder
-    // Also clear reorder if suggested order is below 70 unit MOQ
+    // Never flag NEW, CURRENT, ON ORDER or BUNDLE products as reduce
+    if(flag==='reduce'&&(effectiveVendor==='NEW'||effectiveVendor==='CURRENT'||effectiveVendor==='ON ORDER'||isBundle))flag='ok';
+    // Never flag OLD, CLEARANCE, BUNDLE (non-CORE) as reorder at variant level
     if(flag==='reorder'&&(isEnd||isClearance||(isBundle&&!isCore)))flag='ok';
-    if(flag==='reorder'&&suggestedOrder===0)flag='ok';
+    // Note: MOQ (70 unit) check is done at product level in toProduct, not per-variant
 
     rows.push({
       fullTitle:productName+' - '+colour,productName,colour,size,variant:size,sku,
@@ -5435,11 +5448,28 @@ function toProduct(vr){
         days=Math.round((p.stock+onOrder)/velocity);
       }
     }
+    const prodFlag=(()=>{
+      let f=getFlag(days,p.stock,onOrder,p.vendor,p.discountPct);
+      const ev=p.vendor; // effectiveVendor already set on p
+      const pIsBundle=ev==='BUNDLE';
+      const pIsClearance=ev==='CLEARANCE';
+      const pIsOld=ev==='OLD';
+      const pIsNew=ev==='NEW';
+      const pIsCurrent=ev==='CURRENT';
+      const pIsOnOrder=ev==='ON ORDER';
+      const pIsCore=ev==='CORE';
+      // Reduce exclusions: NEW, CURRENT, ON ORDER, BUNDLE
+      if(f==='reduce'&&(pIsNew||pIsCurrent||pIsOnOrder||pIsBundle))f='ok';
+      // Reorder exclusions: OLD, CLEARANCE, BUNDLE (non-CORE), below MOQ
+      if(f==='reorder'&&(pIsOld||pIsClearance||(pIsBundle&&!pIsCore)))f='ok';
+      if(f==='reorder'&&(p.suggestedOrder||0)<70)f='ok';
+      return f;
+    })();
     return{...p,velocity,onOrder,monthDue,
       sellThru7:(p.sold>0&&(p.stock+p.sold)>0)?+(p.sold/(p.stock+p.sold)*100).toFixed(2):null,
       days:days===null?9999:days,
       daysDisplay:days===null?'—':+(days/7).toFixed(1),
-      flag:getFlag(days,p.stock,onOrder,p.vendor,p.discountPct),
+      flag:prodFlag,
       sizes:[...new Set(p.sizes)].join(', '),
       soldOutSizes:p.soldOutSizes||null,
       deliveryMonth:p.deliveryMonth||'',
