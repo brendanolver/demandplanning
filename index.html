@@ -1368,6 +1368,14 @@ th{position:relative;}
 
         <!-- CATEGORY TAB -->
         <div id="sw-tab-category-body" style="display:none;">
+          <!-- Product search — contains filter across all colours -->
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+            <div class="search-wrap" style="min-width:280px;max-width:420px;flex:1;">
+              <span class="search-ico">🔍</span>
+              <input type="text" id="swc-product-search" placeholder="Search product name (e.g. OFFCUT COURT SHORT)..." oninput="renderSwCategory()" style="width:100%;">
+            </div>
+            <span style="font-size:11px;color:var(--text-muted);">Aggregates all colours matching your search</span>
+          </div>
           <!-- Filter bar -->
           <div class="filter-row" style="margin-bottom:12px;flex-wrap:wrap;">
             <div class="ms-wrap" id="ms-swc-cat">
@@ -1801,15 +1809,15 @@ function renderCadence(){
   const thStyle='cursor:pointer;user-select:none;white-space:nowrap;';
 
   // Table
-  // Build LY MTD data — same days 1..today's date in the equivalent month last year
-  const lyMtdLabel='LY MTD';
-  const todayDate=today.getDate(); // day of month e.g. 2 for April 2
+  // LY MTD column — only shown in Category 12-month view
+  const showLyMtd=cadenceView==='cat'&&cadenceMode==='12m';
+  const todayDate=today.getDate();
   const lyMtdStart=new Date(today.getFullYear()-1,today.getMonth(),1);
   const lyMtdEnd=new Date(today.getFullYear()-1,today.getMonth(),todayDate);
-  const lyMtdData={}; // {rowKey: qty}
+  const lyMtdData={};
   let lyMtdTotal=0;
   const skuCatMap=window._skuCategoryMap||{};
-  if(window._salesBySkuDay){
+  if(showLyMtd&&window._salesBySkuDay){
     const lyS=`${lyMtdStart.getFullYear()}-${String(lyMtdStart.getMonth()+1).padStart(2,'0')}-${String(lyMtdStart.getDate()).padStart(2,'0')}`;
     const lyE=`${lyMtdEnd.getFullYear()}-${String(lyMtdEnd.getMonth()+1).padStart(2,'0')}-${String(lyMtdEnd.getDate()).padStart(2,'0')}`;
     for(const[sku,dayData] of Object.entries(window._salesBySkuDay)){
@@ -1839,15 +1847,15 @@ function renderCadence(){
       }
       return`<td>${v>0?`<span class="cadence-cell-val" style="${color}">${v.toLocaleString()}</span>`:`<span class="cadence-cell-zero">—</span>`}</td>`;
     }).join('');
-    // LY MTD cell + vs% — inserted before current month (periods[0] = most recent)
+    // LY MTD cell — category 12m view only
     const curMtd=Math.round(data[k][periods[0].label]||0);
     const lyMtd=Math.round(lyMtdData[k]||0);
     const vsPct=lyMtd>0?((curMtd-lyMtd)/lyMtd*100):null;
     const vsColor=vsPct===null?'':vsPct>0?'color:#16a34a;font-weight:700;':'color:var(--red);font-weight:600;';
-    const lyMtdCell=`<td style="background:#f8f9fa;border-left:2px solid var(--border);">
+    const lyMtdCell=showLyMtd?`<td style="background:#f0fdf4;border-left:2px solid var(--border);">
       <div style="font-size:13px;color:var(--text-secondary);font-weight:500;">${lyMtd>0?lyMtd.toLocaleString():'—'}</div>
       ${vsPct!==null?`<div style="font-size:10px;${vsColor}">${vsPct>=0?'+':''}${vsPct.toFixed(1)}%</div>`:'<div style="font-size:10px;color:var(--text-muted);">—</div>'}
-    </td>`;
+    </td>`:'';
     return`<tr>
       <td>${displayLabel(k)}</td>
       <td class="cell-num" style="font-weight:500;">${soh>0?soh.toLocaleString():'—'}</td>
@@ -1883,7 +1891,7 @@ function renderCadence(){
         <thead><tr>
           <th style="${thStyle}" onclick="setCadenceSort('label')">${rowLabel}${sortArrow('label')}</th>
           <th style="${thStyle};min-width:60px;" onclick="setCadenceSort('soh')">SOH${sortArrow('soh')}</th>
-          <th style="background:#f0fdf4;border-left:2px solid var(--border);min-width:80px;white-space:nowrap;">LY MTD<div style="font-size:9px;font-weight:400;opacity:0.8;">vs this MTD</div></th>
+          ${showLyMtd?`<th style="background:#f0fdf4;border-left:2px solid var(--border);min-width:80px;white-space:nowrap;">LY MTD<div style="font-size:9px;font-weight:400;opacity:0.8;">vs this MTD</div></th>`:''}
           ${headers}
         </tr></thead>
         <tbody>
@@ -1891,10 +1899,10 @@ function renderCadence(){
           <tr class="cadence-total">
             <td>TOTAL</td>
             <td style="font-weight:700;">${totalSoh>0?totalSoh.toLocaleString():"—"}</td>
-            <td style="background:#f0fdf4;border-left:2px solid var(--border);">
+            ${showLyMtd?`<td style="background:#f0fdf4;border-left:2px solid var(--border);">
               <div style="font-weight:700;">${lyMtdTotal>0?lyMtdTotal.toLocaleString():'—'}</div>
               ${lyMtdVsPct!==null?`<div style="font-size:10px;${lyMtdTotalVsColor}">${lyMtdVsPct>=0?'+':''}${lyMtdVsPct.toFixed(1)}%</div>`:''}
-            </td>
+            </td>`:''}
             ${totalCells}
           </tr>
         </tbody>
@@ -2699,6 +2707,10 @@ function renderSwCategory(){
     return;
   }
 
+  // Product search — when active, group by product name instead of category
+  const productSearch=(document.getElementById('swc-product-search')?.value||'').trim().toUpperCase();
+  const searchMode=productSearch.length>=2;
+
   // Apply filters
   const cats=swcGetSelected('cat');
   const vendors=swcGetSelected('vendor');
@@ -2716,6 +2728,8 @@ function renderSwCategory(){
     if(flags.length&&!flags.includes(r.flag||''))return false;
     if(discs.length){const d=Math.round(r.discountPct||0);const band=!r.discountPct||d===0?'none':String(d);if(!discs.some(b=>b===band))return false;}
     if(delmonths.length&&!delmonths.includes(r.deliveryMonth||''))return false;
+    // Product search filter — contains match on product name
+    if(searchMode&&!r.productName.toUpperCase().includes(productSearch))return false;
     return true;
   });
 
@@ -2728,17 +2742,19 @@ function renderSwCategory(){
   const sizeOrder=['XXS','XS','S','M','L','XL','XXL','XXXL','XXXXL','28','30','32','34','36','38','40','42','44','46','48','50','OS'];
   const soldKey=swcPeriod===7?'sold7':swcPeriod===14?'sold14':swcPeriod===30?'sold30':swcPeriod===60?'sold60':swcPeriod===90?'sold90':'sold365';
 
-  // Aggregate by category → size
-  const catData={}; // {cat: {size: {sold, soh}}}
+  // Aggregate by group key → size
+  // In search mode: group by product name (all colours aggregated)
+  // In normal mode: group by category
+  const catData={}; // {groupKey: {size: {sold, soh, products}}}
   for(const r of filtered){
-    const cat=r.category||'UNCATEGORISED';
+    const groupKey=searchMode?r.productName:(r.category||'UNCATEGORISED');
     const sz=(r.size||'OS').toUpperCase().trim();
-    if(!catData[cat])catData[cat]={};
-    if(!catData[cat][sz])catData[cat][sz]={sold:0,soh:0,products:new Set()};
+    if(!catData[groupKey])catData[groupKey]={};
+    if(!catData[groupKey][sz])catData[groupKey][sz]={sold:0,soh:0,products:new Set()};
     const soldVal=r[soldKey]||0;
-    catData[cat][sz].sold+=soldVal;
-    catData[cat][sz].soh+=r.stock||0;
-    catData[cat][sz].products.add(r.productName+' - '+r.colour);
+    catData[groupKey][sz].sold+=soldVal;
+    catData[groupKey][sz].soh+=r.stock||0;
+    catData[groupKey][sz].products.add(r.productName+' - '+r.colour);
   }
 
   const sortedCats=Object.keys(catData).sort();
@@ -2867,7 +2883,7 @@ function renderSwCategory(){
       <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;flex-wrap:wrap;">
         <div style="font-size:15px;font-weight:700;color:var(--text);">${cat}</div>
         ${sizeRange?`<div style="font-size:12px;color:var(--teal);font-weight:600;">${sizeRange}</div>`:''}
-        <div style="font-size:12px;color:var(--text-muted);">${numProducts} products · ${swcPeriod}d sold: ${totalSold.toLocaleString()} · SOH: ${totalSoh.toLocaleString()}</div>
+        <div style="font-size:12px;color:var(--text-muted);">${searchMode?`${numProducts} colour${numProducts!==1?'s':''} aggregated`:`${numProducts} products`} · ${swcPeriod}d sold: ${totalSold.toLocaleString()} · SOH: ${totalSoh.toLocaleString()}</div>
       </div>
       ${buildSection(alphaSizes,hasBoth?'ALPHA SIZES':'',catKey+'__alpha')}
       ${buildSection(numericSizes,hasBoth?'NUMERIC SIZES':'',catKey+'__numeric')}
