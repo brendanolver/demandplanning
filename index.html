@@ -1283,8 +1283,12 @@ th{position:relative;}
       <div id="working-sizeworkings" style="display:none;">
         <!-- Product / Category toggle -->
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
-          <button id="sw-tab-product" class="view-btn active" onclick="setSwTab('product')" style="font-size:12px;padding:6px 14px;">📦 Product</button>
-          <button id="sw-tab-category" class="view-btn" onclick="setSwTab('category')" style="font-size:12px;padding:6px 14px;">🗂 Category</button>
+          <div style="display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:3px;gap:2px;">
+            <button id="sw-tab-category" onclick="setSwTab('category')"
+              style="border:none;cursor:pointer;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;padding:6px 18px;border-radius:999px;transition:all 0.15s;background:var(--teal);color:white;">🗂 Category</button>
+            <button id="sw-tab-product" onclick="setSwTab('product')"
+              style="border:none;cursor:pointer;font-family:'Inter',sans-serif;font-size:13px;font-weight:500;padding:6px 18px;border-radius:999px;transition:all 0.15s;background:transparent;color:var(--text-secondary);">📦 Product</button>
+          </div>
         </div>
 
         <!-- PRODUCT TAB -->
@@ -2561,8 +2565,11 @@ function setSwTab(tab){
   swTab=tab;
   document.getElementById('sw-tab-product-body').style.display=tab==='product'?'':'none';
   document.getElementById('sw-tab-category-body').style.display=tab==='category'?'':'none';
-  document.getElementById('sw-tab-product').classList.toggle('active',tab==='product');
-  document.getElementById('sw-tab-category').classList.toggle('active',tab==='category');
+  // Style pill toggle buttons
+  const catBtn=document.getElementById('sw-tab-category');
+  const prodBtn=document.getElementById('sw-tab-product');
+  if(catBtn){catBtn.style.background=tab==='category'?'var(--teal)':'transparent';catBtn.style.color=tab==='category'?'white':'var(--text-secondary)';catBtn.style.fontWeight=tab==='category'?'600':'500';}
+  if(prodBtn){prodBtn.style.background=tab==='product'?'var(--teal)':'transparent';prodBtn.style.color=tab==='product'?'white':'var(--text-secondary)';prodBtn.style.fontWeight=tab==='product'?'600':'500';}
   if(tab==='category'){
     if(!document.getElementById('ms-swc-cat-options').children.length) swcPopulateFilters();
     renderSwCategory();
@@ -2699,56 +2706,85 @@ function renderSwCategory(){
       if(ai>=0)return-1;if(bi>=0)return 1;
       return a.localeCompare(b);
     });
+
+    // Split into alpha sizes and numeric sizes
+    const alphaSizes=sizes.filter(sz=>isNaN(parseInt(sz))||sz==='OS');
+    const numericSizes=sizes.filter(sz=>!isNaN(parseInt(sz))&&sz!=='OS');
+
     const totalSold=sizes.reduce((s,sz)=>s+catData[cat][sz].sold,0);
     const totalSoh=sizes.reduce((s,sz)=>s+catData[cat][sz].soh,0);
     const numProducts=new Set(sizes.flatMap(sz=>[...catData[cat][sz].products])).size;
 
-    const sizeHeaders=sizes.map(sz=>`<th style="background:var(--teal);color:white;padding:8px 14px;text-align:center;font-size:11px;font-weight:700;letter-spacing:0.05em;min-width:70px;">${sz}</th>`).join('');
-    const soldCells=sizes.map(sz=>{
-      const s=catData[cat][sz].sold;
-      const pct=totalSold>0?Math.round(s/totalSold*100):0;
-      return`<td style="text-align:center;padding:8px 10px;">
-        <div style="font-weight:700;font-size:14px;color:${s>0?'var(--text)':'var(--text-muted)'};">${s>0?s:'—'}</div>
-        <div style="font-size:10px;color:var(--text-muted);">${s>0?pct+'%':''}</div>
-      </td>`;
-    }).join('');
-    const sohCells=sizes.map(sz=>{
-      const s=catData[cat][sz].soh;
-      const pct=totalSoh>0?Math.round(s/totalSoh*100):0;
-      return`<td style="text-align:center;padding:8px 10px;">
-        <div style="font-weight:600;font-size:13px;color:${s>0?'var(--teal)':'var(--text-muted)'};">${s>0?s:'—'}</div>
-        <div style="font-size:10px;color:var(--text-muted);">${s>0?pct+'%':''}</div>
-      </td>`;
-    }).join('');
+    // Build size range label
+    const sizeRangeLabel=sz=>{
+      if(!sz.length)return'';
+      if(sz.length===1)return sz[0];
+      return`${sz[0]} — ${sz[sz.length-1]}`;
+    };
+    const alphaRange=sizeRangeLabel(alphaSizes);
+    const numericRange=numericSizes.length?`${numericSizes[0]}–${numericSizes[numericSizes.length-1]}`:'';
+    const sizeRange=[alphaRange,numericRange].filter(Boolean).join(' · ');
+
+    // Build a table section for a given size group
+    const buildSection=(szGroup,label)=>{
+      if(!szGroup.length)return'';
+      const groupTotalSold=szGroup.reduce((s,sz)=>s+catData[cat][sz].sold,0);
+      const groupTotalSoh=szGroup.reduce((s,sz)=>s+catData[cat][sz].soh,0);
+      const hdrs=szGroup.map(sz=>`<th style="background:var(--teal);color:white;padding:8px 14px;text-align:center;font-size:11px;font-weight:700;letter-spacing:0.05em;min-width:70px;">${sz}</th>`).join('');
+      const soldCells=szGroup.map(sz=>{
+        const s=catData[cat][sz].sold;
+        const pct=groupTotalSold>0?Math.round(s/groupTotalSold*100):0;
+        return`<td style="text-align:center;padding:8px 10px;">
+          <div style="font-weight:700;font-size:14px;color:${s>0?'var(--text)':'var(--text-muted)'};">${s>0?s:'—'}</div>
+          <div style="font-size:10px;color:var(--text-muted);">${s>0?pct+'%':''}</div>
+        </td>`;
+      }).join('');
+      const sohCells=szGroup.map(sz=>{
+        const s=catData[cat][sz].soh;
+        const pct=groupTotalSoh>0?Math.round(s/groupTotalSoh*100):0;
+        return`<td style="text-align:center;padding:8px 10px;">
+          <div style="font-weight:600;font-size:13px;color:${s>0?'var(--teal)':'var(--text-muted)'};">${s>0?s:'—'}</div>
+          <div style="font-size:10px;color:var(--text-muted);">${s>0?pct+'%':''}</div>
+        </td>`;
+      }).join('');
+      return`
+        ${label?`<div style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:0.05em;margin:10px 0 4px;">${label}</div>`:''}
+        <div style="overflow-x:auto;">
+          <table style="border-collapse:collapse;width:100%;min-width:400px;">
+            <thead>
+              <tr>
+                <th style="background:var(--navy);color:var(--navy-text);padding:8px 14px;text-align:left;font-size:11px;font-weight:700;min-width:120px;">SIZE</th>
+                ${hdrs}
+                <th style="background:var(--navy);color:var(--navy-text);padding:8px 14px;text-align:center;font-size:11px;font-weight:700;">TOTAL</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="background:var(--surface);">
+                <td style="padding:8px 14px;font-weight:600;font-size:13px;color:var(--text-secondary);">Sold (${swcPeriod}d)</td>
+                ${soldCells}
+                <td style="text-align:center;padding:8px 10px;font-weight:700;color:var(--teal);">${groupTotalSold>0?groupTotalSold.toLocaleString():'—'}</td>
+              </tr>
+              <tr style="background:var(--surface2);">
+                <td style="padding:8px 14px;font-weight:600;font-size:13px;color:var(--text-secondary);">SOH</td>
+                ${sohCells}
+                <td style="text-align:center;padding:8px 10px;font-weight:700;color:var(--teal);">${groupTotalSoh>0?groupTotalSoh.toLocaleString():'—'}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>`;
+    };
+
+    // Only show section labels if both groups exist
+    const hasBoth=alphaSizes.length>0&&numericSizes.length>0;
 
     return`<div style="margin-bottom:28px;">
-      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;">
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;flex-wrap:wrap;">
         <div style="font-size:15px;font-weight:700;color:var(--text);">${cat}</div>
+        ${sizeRange?`<div style="font-size:12px;color:var(--teal);font-weight:600;">${sizeRange}</div>`:''}
         <div style="font-size:12px;color:var(--text-muted);">${numProducts} products · ${swcPeriod}d sold: ${totalSold.toLocaleString()} · SOH: ${totalSoh.toLocaleString()}</div>
       </div>
-      <div style="overflow-x:auto;">
-        <table style="border-collapse:collapse;width:100%;min-width:400px;">
-          <thead>
-            <tr>
-              <th style="background:var(--navy);color:var(--navy-text);padding:8px 14px;text-align:left;font-size:11px;font-weight:700;min-width:120px;">SIZE</th>
-              ${sizeHeaders}
-              <th style="background:var(--navy);color:var(--navy-text);padding:8px 14px;text-align:center;font-size:11px;font-weight:700;">TOTAL</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr style="background:var(--surface);">
-              <td style="padding:8px 14px;font-weight:600;font-size:13px;color:var(--text-secondary);">Sold (${swcPeriod}d)</td>
-              ${soldCells}
-              <td style="text-align:center;padding:8px 10px;font-weight:700;color:var(--teal);">${totalSold>0?totalSold.toLocaleString():'—'}</td>
-            </tr>
-            <tr style="background:var(--surface2);">
-              <td style="padding:8px 14px;font-weight:600;font-size:13px;color:var(--text-secondary);">SOH</td>
-              ${sohCells}
-              <td style="text-align:center;padding:8px 10px;font-weight:700;color:var(--teal);">${totalSoh>0?totalSoh.toLocaleString():'—'}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      ${buildSection(alphaSizes,hasBoth?'ALPHA SIZES':'')}
+      ${buildSection(numericSizes,hasBoth?'NUMERIC SIZES':'')}
     </div>`;
   }).join('');
 
