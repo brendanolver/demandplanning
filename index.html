@@ -4924,6 +4924,12 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const isReduced=!isCore&&!isBundle&&!isClearance&&!isDraft&&(discountPct>0);
     const effectiveVendor=isCore?'CORE':isDraft?'DRAFT':isBundle?'BUNDLE':isClearance?'CLEARANCE':isNew?'NEW':isReduced?'REDUCED':isEnd?'OLD':isCurrent?'CURRENT':vendor;
     if(isEnd&&!discountPct&&!isNew&&!isDraft)flag='reduce';
+    // Never flag NEW, CURRENT or ON ORDER products as reduce
+    if(flag==='reduce'&&(isNew||isCurrent||effectiveVendor==='ON ORDER'))flag='ok';
+    // Never flag OLD, CLEARANCE, BUNDLE (non-CORE) as reorder
+    // Also clear reorder if suggested order is below 70 unit MOQ
+    if(flag==='reorder'&&(isEnd||isClearance||(isBundle&&!isCore)))flag='ok';
+    if(flag==='reorder'&&suggestedOrder===0)flag='ok';
 
     rows.push({
       fullTitle:productName+' - '+colour,productName,colour,size,variant:size,sku,
