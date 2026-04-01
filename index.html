@@ -4316,17 +4316,16 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const stock=sohMap[sku]||0;
     const{productName,colour,size,vendor,category}=pm;
 
-    // isDraft: product is draft only if flagged AND has no sales history AND no significant stock
-    // priceMap[sku] = appeared in sales CSV = definitely live, overrides any draft flag
-    // Products with stock > 0 that were in All_Products_List as draft may just have stale data
-    // — only treat as DRAFT if ALL sizes have zero SOH (truly pre-launch) OR has explicit sales history
+    // isDraft determination — simplified and reliable:
+    // A product is DRAFT only if ALL of these are true:
+    // 1. It's flagged as draft (from All_Products_List CSV or sales history status)
+    // 2. It has NO sales history (not in priceMap)  
+    // 3. It has ZERO stock on hand (truly pre-launch, not just stale CSV data)
     const fullTitleUpper=(productName+(colour?' - '+colour:'')).toUpperCase();
     const hasSalesHistory=!!priceMap[sku];
     const isDraftFlagged=draftSet.has(fullTitleUpper)||(pm.status||'').toUpperCase()==='DRAFT'||
       (!allProductsListData&&!priceMap[sku]&&invMetaMap[sku]&&(pm.status||'')==='');
-    // Don't mark as DRAFT if it has sales history OR if it has stock and came from All_Products_List
-    // (stale list data) — only trust draft flag for products with zero sales AND zero stock
-    const isDraft=isDraftFlagged&&!hasSalesHistory&&!(allProductsListData&&stock>0);
+    const isDraft=isDraftFlagged&&!hasSalesHistory&&stock===0;
     if(isDraft){
       // Skip excluded categories entirely
       const excludedDraftCats=['GWP','MYSTERY BOX','INSURANCE','GIVEAWAY'];
