@@ -2558,6 +2558,21 @@ function renderSizeWorkings(){
   const variants=allVariantRows.filter(r=>r.productName===productName&&r.colour===colour);
   if(!variants.length){body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No data found</div></div>`;return;}
 
+  // Extract style+colour code from SKU by stripping size suffix
+  // e.g. W26BA021BLKL → W26BA021BLK, W26DJ013BKGM → W26DJ013BKG
+  const sampleSku=variants[0]?.sku||'';
+  const sizeSuffixes=['XXXXL','XXXL','XXL','XL','XXS','XS','OS','S','M','L'];
+  // Also handle numeric sizes
+  let styleCode=sampleSku;
+  for(const sz of sizeSuffixes){
+    if(sampleSku.toUpperCase().endsWith(sz)){
+      styleCode=sampleSku.slice(0,sampleSku.length-sz.length);
+      break;
+    }
+  }
+  // Handle numeric sizes (28,30,32 etc)
+  if(styleCode===sampleSku) styleCode=sampleSku.replace(/\d{2}$/, '');
+
   // Size order
   const sizeOrder=['XXS','XS','S','M','L','XL','XXL','XXXL','XXXXL','28','30','32','34','36','38','40','42','44','46','48','50','OS'];
   const sorted=variants.sort((a,b)=>{
@@ -2650,7 +2665,7 @@ function renderSizeWorkings(){
   </tr>`;
 
   body.innerHTML=`
-    <div class="sw-product-title">${productName} <span style="color:var(--teal);">— ${colour}</span></div>
+    <div class="sw-product-title">${styleCode?`<span style="color:var(--text-muted);font-size:13px;font-weight:500;letter-spacing:0.05em;">${styleCode}</span> `:''}${productName} <span style="color:var(--teal);">— ${colour}</span></div>
     <div style="overflow-x:auto;">
       <table class="sw-table">
         <thead><tr><th class="sw-row-label">Size</th>${thCols}<th>TOTAL</th></tr></thead>
