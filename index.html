@@ -1283,11 +1283,9 @@ th{position:relative;}
       <div id="working-sizeworkings" style="display:none;">
         <!-- Product / Category toggle -->
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
-          <div style="display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:3px;gap:2px;">
-            <button id="sw-tab-category" onclick="setSwTab('category')"
-              style="border:none;cursor:pointer;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;padding:6px 18px;border-radius:999px;transition:all 0.15s;background:var(--teal);color:white;">🗂 Category</button>
-            <button id="sw-tab-product" onclick="setSwTab('product')"
-              style="border:none;cursor:pointer;font-family:'Inter',sans-serif;font-size:13px;font-weight:500;padding:6px 18px;border-radius:999px;transition:all 0.15s;background:transparent;color:var(--text-secondary);">📦 Product</button>
+          <div style="display:flex;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:4px;">
+            <button id="sw-tab-category" class="view-btn active" onclick="setSwTab('category')">🗂 Category</button>
+            <button id="sw-tab-product" class="view-btn" onclick="setSwTab('product')">📦 Product</button>
           </div>
         </div>
 
@@ -2568,8 +2566,8 @@ function setSwTab(tab){
   // Style pill toggle buttons
   const catBtn=document.getElementById('sw-tab-category');
   const prodBtn=document.getElementById('sw-tab-product');
-  if(catBtn){catBtn.style.background=tab==='category'?'var(--teal)':'transparent';catBtn.style.color=tab==='category'?'white':'var(--text-secondary)';catBtn.style.fontWeight=tab==='category'?'600':'500';}
-  if(prodBtn){prodBtn.style.background=tab==='product'?'var(--teal)':'transparent';prodBtn.style.color=tab==='product'?'white':'var(--text-secondary)';prodBtn.style.fontWeight=tab==='product'?'600':'500';}
+  if(catBtn){catBtn.classList.toggle('active',tab==='category');}
+  if(prodBtn){prodBtn.classList.toggle('active',tab==='product');}
   if(tab==='category'){
     if(!document.getElementById('ms-swc-cat-options').children.length) swcPopulateFilters();
     renderSwCategory();
@@ -2664,9 +2662,11 @@ function renderSwCategory(){
   const discs=swcGetSelected('disc');
   const delmonths=swcGetSelected('delmonth');
 
-  // Filter rows
+  // Filter rows — exclude ACCESSORIES (one size, not useful for size analysis)
+  const EXCLUDED_SW_CATS=['ACCESSORIES'];
   const filtered=allVariantRows.filter(r=>{
     if(r.amOnly)return false;
+    if(EXCLUDED_SW_CATS.includes((r.category||'').toUpperCase().trim()))return false;
     if(cats.length&&!cats.includes(r.category||''))return false;
     if(vendors.length&&!vendors.includes(r.vendor||''))return false;
     if(flags.length&&!flags.includes(r.flag||''))return false;
