@@ -1801,6 +1801,30 @@ function renderCadence(){
   const thStyle='cursor:pointer;user-select:none;white-space:nowrap;';
 
   // Table
+  // Build LY MTD data — same days 1..today's date in the equivalent month last year
+  const lyMtdLabel='LY MTD';
+  const todayDate=today.getDate(); // day of month e.g. 2 for April 2
+  const lyMtdStart=new Date(today.getFullYear()-1,today.getMonth(),1);
+  const lyMtdEnd=new Date(today.getFullYear()-1,today.getMonth(),todayDate);
+  const lyMtdData={}; // {rowKey: qty}
+  let lyMtdTotal=0;
+  const skuCatMap=window._skuCategoryMap||{};
+  if(window._salesBySkuDay){
+    const lyS=`${lyMtdStart.getFullYear()}-${String(lyMtdStart.getMonth()+1).padStart(2,'0')}-${String(lyMtdStart.getDate()).padStart(2,'0')}`;
+    const lyE=`${lyMtdEnd.getFullYear()}-${String(lyMtdEnd.getMonth()+1).padStart(2,'0')}-${String(lyMtdEnd.getDate()).padStart(2,'0')}`;
+    for(const[sku,dayData] of Object.entries(window._salesBySkuDay)){
+      const rowKey=cadenceView==='cat'?(skuCatMap[sku]||null):(()=>{
+        const r=allVariantRows.find(r=>r.sku===sku);
+        return r?r.productName+'||'+r.colour:null;
+      })();
+      if(!rowKey||!rowKeys.includes(rowKey))continue;
+      if(!lyMtdData[rowKey])lyMtdData[rowKey]=0;
+      for(const[day,d] of Object.entries(dayData)){
+        if(day>=lyS&&day<=lyE){lyMtdData[rowKey]+=d.qty;lyMtdTotal+=d.qty;}
+      }
+    }
+  }
+
   const headers=periods.map(p=>`<th style="${thStyle}" onclick="setCadenceSort('${p.label}')">${p.label}${sortArrow(p.label)}</th>`).join('');
   const totalSoh=rowKeys.reduce((s,k)=>s+(sohByKey[k]||0),0);
   const tableRows=rowKeys.map(k=>{
@@ -1815,24 +1839,26 @@ function renderCadence(){
       }
       return`<td>${v>0?`<span class="cadence-cell-val" style="${color}">${v.toLocaleString()}</span>`:`<span class="cadence-cell-zero">—</span>`}</td>`;
     }).join('');
-    // % row — each cell as % of column total
-    const pctCells=periods.map(p=>{
-      const v=Math.round(data[k][p.label]||0);
-      const t=totals[p.label]||0;
-      const pct=t>0?((v/t)*100).toFixed(1):'0.0';
-      return`<td style="padding-top:0;padding-bottom:4px;"><span style="font-size:10px;color:var(--text-muted);">${v>0?pct+'%':'—'}</span></td>`;
-    }).join('');
+    // LY MTD cell + vs% — inserted before current month (periods[0] = most recent)
+    const curMtd=Math.round(data[k][periods[0].label]||0);
+    const lyMtd=Math.round(lyMtdData[k]||0);
+    const vsPct=lyMtd>0?((curMtd-lyMtd)/lyMtd*100):null;
+    const vsColor=vsPct===null?'':vsPct>0?'color:#16a34a;font-weight:700;':'color:var(--red);font-weight:600;';
+    const lyMtdCell=`<td style="background:#f8f9fa;border-left:2px solid var(--border);">
+      <div style="font-size:13px;color:var(--text-secondary);font-weight:500;">${lyMtd>0?lyMtd.toLocaleString():'—'}</div>
+      ${vsPct!==null?`<div style="font-size:10px;${vsColor}">${vsPct>=0?'+':''}${vsPct.toFixed(1)}%</div>`:'<div style="font-size:10px;color:var(--text-muted);">—</div>'}
+    </td>`;
     return`<tr>
       <td>${displayLabel(k)}</td>
       <td class="cell-num" style="font-weight:500;">${soh>0?soh.toLocaleString():'—'}</td>
+      ${lyMtdCell}
       ${cells}
-    </tr><tr style="border-bottom:1px solid var(--border);">
-      <td style="padding-top:0;padding-bottom:4px;"></td>
-      <td style="padding-top:0;padding-bottom:4px;"></td>
-      ${pctCells}
     </tr>`;
   }).join('');
-  // Totals row — also colour by comparison to previous period
+  // Totals row
+  const curMtdTotal=Math.round(totals[periods[0].label]||0);
+  const lyMtdVsPct=lyMtdTotal>0?((curMtdTotal-lyMtdTotal)/lyMtdTotal*100):null;
+  const lyMtdTotalVsColor=lyMtdVsPct===null?'':lyMtdVsPct>0?'color:#16a34a;font-weight:700;':'color:var(--red);font-weight:600;';
   const totalCells=periods.map((p,i)=>{
     const v=Math.round(totals[p.label]||0);
     const prev=periods[i+1]?Math.round(totals[periods[i+1].label]||0):null;
@@ -1857,11 +1883,20 @@ function renderCadence(){
         <thead><tr>
           <th style="${thStyle}" onclick="setCadenceSort('label')">${rowLabel}${sortArrow('label')}</th>
           <th style="${thStyle};min-width:60px;" onclick="setCadenceSort('soh')">SOH${sortArrow('soh')}</th>
+          <th style="background:#f0fdf4;border-left:2px solid var(--border);min-width:80px;white-space:nowrap;">LY MTD<div style="font-size:9px;font-weight:400;opacity:0.8;">vs this MTD</div></th>
           ${headers}
         </tr></thead>
         <tbody>
           ${tableRows}
-          <tr class="cadence-total"><td>TOTAL</td><td style="font-weight:700;">${totalSoh>0?totalSoh.toLocaleString():"—"}</td>${totalCells}</tr>
+          <tr class="cadence-total">
+            <td>TOTAL</td>
+            <td style="font-weight:700;">${totalSoh>0?totalSoh.toLocaleString():"—"}</td>
+            <td style="background:#f0fdf4;border-left:2px solid var(--border);">
+              <div style="font-weight:700;">${lyMtdTotal>0?lyMtdTotal.toLocaleString():'—'}</div>
+              ${lyMtdVsPct!==null?`<div style="font-size:10px;${lyMtdTotalVsColor}">${lyMtdVsPct>=0?'+':''}${lyMtdVsPct.toFixed(1)}%</div>`:''}
+            </td>
+            ${totalCells}
+          </tr>
         </tbody>
       </table>
     </div>
@@ -4936,6 +4971,8 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const isReduced=!isCore&&!isBundle&&!isDraft&&(discountPct>0);
     // REDUCED takes priority over CLEARANCE when product has an active discount
     const effectiveVendor=isCore?'CORE':isDraft?'DRAFT':isBundle?'BUNDLE':isReduced?'REDUCED':isClearance?'CLEARANCE':isNew?'NEW':isEnd?'OLD':isCurrent?'CURRENT':vendor;
+    // No suggested orders for BUNDLE (non-CORE) or REDUCED — these shouldn't be restocked at full price
+    const finalSuggestedOrder=(isBundle&&!isCore)||isReduced?0:suggestedOrder;
     // Re-run flag with effectiveVendor so CORE/NEW/CURRENT/ON ORDER status is respected
     flag=getFlag(recalcDays,stock,onOrder,effectiveVendor,discountPct);
     if(isEnd&&!discountPct&&!isNew&&!isDraft)flag='reduce';
@@ -4956,7 +4993,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
       days:recalcDays===null?9999:recalcDays,
       daysDisplay:recalcWeeks===null?'—':recalcWeeks===0?'0':recalcWeeks,
       onOrder,productOnOrder,monthDue,flag,amOnly:false,
-      suggestedOrder,
+      suggestedOrder:finalSuggestedOrder,
       soldOutSizes:soMap[productName+'||'+colour]||null,
       deliveryMonth,sohValue,sellValue
     });
@@ -5199,24 +5236,15 @@ function buildDashboard(){
 
 function renderKPIs(){
   const rows=allVariantRows;
-  // Aggregate to product level (unique productName+colour)
-  const productMap=new Map();
-  for(const r of rows){
-    const k=r.productName+'||'+r.colour;
-    if(!productMap.has(k))productMap.set(k,{stock:0,onOrder:0,sold:0,flags:new Set()});
-    const p=productMap.get(k);
-    p.stock+=r.stock||0;
-    p.onOrder+=(r.onOrder||0)+(r.productOnOrder||0);
-    p.sold+=r.sold||0;
-    if(r.flag)p.flags.add(r.flag);
-  }
-  const products=[...productMap.values()];
-  const totalProducts=products.length;
   const totalSoh=rows.reduce((s,r)=>s+(r.stock||0),0);
   const totalSold=rows.reduce((s,r)=>s+(r.sold||0),0);
   const onOrder=rows.reduce((s,r)=>s+(r.onOrder||0),0);
-  const reorder=products.filter(p=>p.flags.has('reorder')).length;
-  const reduce=products.filter(p=>p.flags.has('reduce')).length;
+
+  // Use toProduct() so all flag overrides (MOQ, status exclusions) are correctly applied
+  const productRows=toProduct(rows.filter(r=>!r.amOnly));
+  const totalProducts=productRows.length;
+  const reorder=productRows.filter(p=>p.flag==='reorder').length;
+  const reduce=productRows.filter(p=>p.flag==='reduce').length;
 
   const kpis=[
     {name:'Total Products',val:totalProducts.toLocaleString(),sub:'Unique styles',ico:'📊',bg:'#eef1fe',ic:'#4f6ef7'},
@@ -5776,21 +5804,21 @@ function renderTable(){
   const prodHeaders=[
     {k:'productName',l:'Product'},{k:'category',l:'Category'},{k:'discountPct',l:'Disc%'},{k:'vendor',l:'Status'},
     {k:'deliveryMonth',l:'Month Del'},
-    {k:'sellThru7',l:stLabel},{k:'stock',l:'SOH'},{k:'sohValue',l:'SOH Value'},{k:'sellValue',l:'Sell Value'},
+    {k:'sellThru7',l:stLabel},{k:'margin',l:'Margin%'},{k:'stock',l:'SOH'},{k:'sohValue',l:'SOH Value'},{k:'sellValue',l:'Sell Value'},
     {k:'soldToday',l:'Today'},{k:'soldYesterday',l:'Yest'},
     {k:'sold',l:soldLabel},
     {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},
     {k:'soldOutSizes',l:'Sizes Sold Out'},
-    {k:'price',l:'Price'},{k:'compareAt',l:'RRP'},{k:'margin',l:'Margin%'},
+    {k:'price',l:'Price'},{k:'compareAt',l:'RRP'},
     {k:'days',l:'Weeks Cover'},{k:'suggestedOrder',l:'Suggest Order'},{k:'flag',l:'Stock Status'}
   ];
   const varHeaders=[
     {k:'productName',l:'Product'},{k:'size',l:'Size'},{k:'sku',l:'SKU'},
     {k:'category',l:'Category'},{k:'discountPct',l:'Disc%'},{k:'vendor',l:'Status'},
     {k:'deliveryMonth',l:'Month Del'},
-    {k:'sellThru7',l:stLabel},{k:'stock',l:'SOH'},{k:'soldToday',l:'Today'},{k:'soldYesterday',l:'Yest'},{k:'sold',l:soldLabel},
+    {k:'sellThru7',l:stLabel},{k:'margin',l:'Margin%'},{k:'stock',l:'SOH'},{k:'soldToday',l:'Today'},{k:'soldYesterday',l:'Yest'},{k:'sold',l:soldLabel},
     {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},
-    {k:'price',l:'Price'},{k:'compareAt',l:'RRP'},{k:'margin',l:'Margin%'},
+    {k:'price',l:'Price'},{k:'compareAt',l:'RRP'},
     {k:'days',l:'Weeks Cover'},{k:'suggestedOrder',l:'Suggest Order'},{k:'flag',l:'Stock Status'}
   ];
 
@@ -6014,8 +6042,8 @@ function exportCSV(){
   const h=currentView==='category'
     ?['Category','Products',stLabel,'Margin%','SOH','SOH Value','Sell Value','Today','Yest',soldLabel,'On Order','Month Due','Weeks Cover','OOS','Re-Order','Stock Status']
     :currentView==='product'
-    ?['Product','Category','Status','Month Del',stLabel,'SOH','SOH Value','Sell Value','Today','Yest',soldLabel,'On Order','Month Due','Sizes Sold Out','Price','RRP','Disc%','Margin%','Weeks Cover','Stock Status']
-    :['Product','Size','SKU','Category','Status','Month Del',stLabel,'SOH',soldLabel,'On Order','Month Due','Price','RRP','Disc%','Margin%','Weeks Cover','Stock Status'];
+    ?['Product','Category','Status','Month Del',stLabel,'Margin%','SOH','SOH Value','Sell Value','Today','Yest',soldLabel,'On Order','Month Due','Sizes Sold Out','Price','RRP','Disc%','Weeks Cover','Stock Status']
+    :['Product','Size','SKU','Category','Status','Month Del',stLabel,'Margin%','SOH',soldLabel,'On Order','Month Due','Price','RRP','Disc%','Weeks Cover','Stock Status'];
   const lines=[h.join(',')];
   for(const r of rows){
     let v;
