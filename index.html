@@ -5179,13 +5179,32 @@ function buildDashboard(){
 
 function renderKPIs(){
   const rows=allVariantRows;
+  // Aggregate to product level (unique productName+colour)
+  const productMap=new Map();
+  for(const r of rows){
+    const k=r.productName+'||'+r.colour;
+    if(!productMap.has(k))productMap.set(k,{stock:0,onOrder:0,sold:0,flags:new Set()});
+    const p=productMap.get(k);
+    p.stock+=r.stock||0;
+    p.onOrder+=(r.onOrder||0)+(r.productOnOrder||0);
+    p.sold+=r.sold||0;
+    if(r.flag)p.flags.add(r.flag);
+  }
+  const products=[...productMap.values()];
+  const totalProducts=products.length;
+  const totalSoh=rows.reduce((s,r)=>s+(r.stock||0),0);
+  const totalSold=rows.reduce((s,r)=>s+(r.sold||0),0);
+  const onOrder=rows.reduce((s,r)=>s+(r.onOrder||0),0);
+  const reorder=products.filter(p=>p.flags.has('reorder')).length;
+  const reduce=products.filter(p=>p.flags.has('reduce')).length;
+
   const kpis=[
-    {name:'Total SKUs',val:rows.length.toLocaleString(),sub:'All variants',ico:'📊',bg:'#eef1fe',ic:'#4f6ef7'},
-    {name:'SOH',val:rows.reduce((s,r)=>s+r.stock,0).toLocaleString(),sub:'Units on hand',ico:'📦',bg:'#e6f7f7',ic:'var(--teal)'},
-    {name:`Units Sold (${selectedPeriod}d)`,val:rows.reduce((s,r)=>s+(r.sold||0),0).toLocaleString(),sub:`Last ${selectedPeriod} days`,ico:'🛍️',bg:'#dcfce7',ic:'var(--green)'},
-    {name:'Out of Stock',val:rows.filter(r=>r.flag==='oos').length.toLocaleString(),sub:'Zero stock, no order',ico:'🚫',bg:'#fee2e2',ic:'var(--red)'},
-    {name:'Re-Order',val:rows.filter(r=>r.flag==='reorder').length.toLocaleString(),sub:'≤14 weeks cover',ico:'⚠️',bg:'#fef9c3',ic:'#854d0e'},
-    {name:'Reduce',val:rows.filter(r=>r.flag==='reduce').length.toLocaleString(),sub:'26w+ cover, no order',ico:'📦',bg:'#fee2e2',ic:'var(--red)'},
+    {name:'Total Products',val:totalProducts.toLocaleString(),sub:'Unique styles',ico:'📊',bg:'#eef1fe',ic:'#4f6ef7'},
+    {name:'SOH',val:totalSoh.toLocaleString(),sub:'Units on hand',ico:'📦',bg:'#e6f7f7',ic:'var(--teal)'},
+    {name:`Units Sold (${selectedPeriod}d)`,val:totalSold.toLocaleString(),sub:`Last ${selectedPeriod} days`,ico:'🛍️',bg:'#dcfce7',ic:'var(--green)'},
+    {name:'On Order',val:onOrder.toLocaleString(),sub:'Total units on order',ico:'🚚',bg:'#f3e8ff',ic:'#7c3aed'},
+    {name:'Re-Order',val:reorder.toLocaleString(),sub:'≤14 weeks cover',ico:'⚠️',bg:'#fef9c3',ic:'#854d0e'},
+    {name:'Reduce',val:reduce.toLocaleString(),sub:'26w+ cover, no order',ico:'🏷️',bg:'#fee2e2',ic:'var(--red)'},
   ];
   document.getElementById('kpi-row').innerHTML=kpis.map(k=>`
     <div class="kpi-card">
