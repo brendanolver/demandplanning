@@ -2663,7 +2663,7 @@ function renderSwCategory(){
   const delmonths=swcGetSelected('delmonth');
 
   // Filter rows — exclude ACCESSORIES (one size, not useful for size analysis)
-  const EXCLUDED_SW_CATS=['ACCESSORIES'];
+  const EXCLUDED_SW_CATS=['ACCESSORIES','CUSTOM FIT TEES'];
   const filtered=allVariantRows.filter(r=>{
     if(r.amOnly)return false;
     if(EXCLUDED_SW_CATS.includes((r.category||'').toUpperCase().trim()))return false;
@@ -2682,7 +2682,7 @@ function renderSwCategory(){
 
   // Size order
   const sizeOrder=['XXS','XS','S','M','L','XL','XXL','XXXL','XXXXL','28','30','32','34','36','38','40','42','44','46','48','50','OS'];
-  const soldKey=swcPeriod===7?'sold7':swcPeriod===14?'sold7':swcPeriod===30?'sold30':swcPeriod===60?'sold60':swcPeriod===90?'sold90':'sold365';
+  const soldKey=swcPeriod===7?'sold7':swcPeriod===14?'sold14':swcPeriod===30?'sold30':swcPeriod===60?'sold60':swcPeriod===90?'sold90':'sold365';
 
   // Aggregate by category → size
   const catData={}; // {cat: {size: {sold, soh}}}
@@ -2691,7 +2691,7 @@ function renderSwCategory(){
     const sz=(r.size||'OS').toUpperCase().trim();
     if(!catData[cat])catData[cat]={};
     if(!catData[cat][sz])catData[cat][sz]={sold:0,soh:0,products:new Set()};
-    const soldVal=swcPeriod===14?(r.sold7||0)*2:r[soldKey]||0;
+    const soldVal=r[soldKey]||0;
     catData[cat][sz].sold+=soldVal;
     catData[cat][sz].soh+=r.stock||0;
     catData[cat][sz].products.add(r.productName+' - '+r.colour);
@@ -2905,10 +2905,12 @@ function renderSizeWorkings(){
   // Per-size data
   const sizes=sorted.map(r=>r.size);
   const soldBySize=sorted.map(r=>{
-    const days=swPeriod===14?14:swPeriod===30?30:swPeriod===60?60:swPeriod===90?90:swPeriod===365?365:7;
-    const field=days===7?'sold7':days===14?Math.round((r.sold7||0)/7*14):days===30?'sold30':days===60?'sold60':days===90?'sold90':'sold365';
-    if(typeof field==='string')return r[field]||0;
-    return field; // 14d approximation
+    if(swPeriod===7)return r.sold7||0;
+    if(swPeriod===14)return r.sold14||0;
+    if(swPeriod===30)return r.sold30||0;
+    if(swPeriod===60)return r.sold60||0;
+    if(swPeriod===90)return r.sold90||0;
+    return r.sold365||0;
   });
   const soldTotal=soldBySize.reduce((s,v)=>s+v,0);
   const soldPct=soldBySize.map(v=>soldTotal>0?v/soldTotal:0);
@@ -4728,6 +4730,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
 
     // Sold in each standard period
     const s7=getSoldInPeriod(salesBySkuDay,sku,7);
+    const s14=getSoldInPeriod(salesBySkuDay,sku,14);
     const s30=getSoldInPeriod(salesBySkuDay,sku,30);
     const s60=getSoldInPeriod(salesBySkuDay,sku,60);
     const s90=getSoldInPeriod(salesBySkuDay,sku,90);
@@ -4874,7 +4877,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
       category,vendor:effectiveVendor,stock,
       price,compareAt,discountPct,margin,
       velocity,vel7,vel30,
-      sold7:s7.qty,sold30:s30.qty,sold60:s60.qty,sold90:s90.qty,sold365:s365.qty,
+      sold7:s7.qty,sold14:s14.qty,sold30:s30.qty,sold60:s60.qty,sold90:s90.qty,sold365:s365.qty,
       soldToday,soldYesterday,
       sold,sellThru7:sellThru,
       days:recalcDays===null?9999:recalcDays,
