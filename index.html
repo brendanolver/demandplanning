@@ -2482,9 +2482,18 @@ let swcPeriod=7;
 let swTab='product'; // 'product' or 'category'
 let swProduct=null; // {productName, colour}
 const SW_STORAGE_KEY='wndrr_sizeworkings_v1';
+const SWC_ORDER_KEY='wndrr_swc_orders_v1';
 
 function getSwData(){try{return JSON.parse(localStorage.getItem(SW_STORAGE_KEY)||'{}');}catch(e){return{};}}
 function saveSwData(d){try{localStorage.setItem(SW_STORAGE_KEY,JSON.stringify(d));}catch(e){}}
+function getSwcOrderData(){try{return JSON.parse(localStorage.getItem(SWC_ORDER_KEY)||'{}');}catch(e){return{};}}
+function saveSwcOrder(key,val){
+  const d=getSwcOrderData();
+  if(!val||val==='')delete d[key];
+  else d[key]=val;
+  try{localStorage.setItem(SWC_ORDER_KEY,JSON.stringify(d));}catch(e){}
+  renderSwCategory();
+}
 
 function swGetSelected(type){
   const boxes=[...document.querySelectorAll(`#ms-sw-${type}-options input[type="checkbox"]`)];
@@ -2726,10 +2735,29 @@ function renderSwCategory(){
     const sizeRange=[alphaRange,numericRange].filter(Boolean).join(' · ');
 
     // Build a table section for a given size group
-    const buildSection=(szGroup,label)=>{
+    const buildSection=(szGroup,label,groupKey)=>{
       if(!szGroup.length)return'';
       const groupTotalSold=szGroup.reduce((s,sz)=>s+catData[cat][sz].sold,0);
       const groupTotalSoh=szGroup.reduce((s,sz)=>s+catData[cat][sz].soh,0);
+
+      // Saved order total for this group
+      const swcData=getSwcOrderData();
+      const savedTotal=swcData[groupKey]||'';
+      const orderTotal=parseInt(savedTotal)||0;
+
+      // Largest remainder distribution by sales %
+      let suggestedOrder=szGroup.map(()=>0);
+      if(orderTotal>0&&groupTotalSold>0){
+        const raw=szGroup.map(sz=>orderTotal*(catData[cat][sz].sold/groupTotalSold));
+        const floored=raw.map(v=>Math.floor(v));
+        const remainders=raw.map((v,i)=>v-floored[i]);
+        let leftover=orderTotal-floored.reduce((a,b)=>a+b,0);
+        const indices=[...remainders.keys()].sort((a,b)=>remainders[b]-remainders[a]);
+        indices.forEach(i=>{if(leftover>0){floored[i]++;leftover--;}});
+        suggestedOrder=floored;
+      }
+      const sugTotal=suggestedOrder.reduce((a,b)=>a+b,0);
+
       const hdrs=szGroup.map(sz=>`<th style="background:var(--teal);color:white;padding:8px 14px;text-align:center;font-size:11px;font-weight:700;letter-spacing:0.05em;min-width:70px;">${sz}</th>`).join('');
       const soldCells=szGroup.map(sz=>{
         const s=catData[cat][sz].sold;
@@ -2747,15 +2775,24 @@ function renderSwCategory(){
           <div style="font-size:10px;color:var(--text-muted);">${s>0?pct+'%':''}</div>
         </td>`;
       }).join('');
+      const sugCells=szGroup.map((sz,i)=>{
+        const v=suggestedOrder[i];
+        const pct=sugTotal>0?Math.round(v/sugTotal*100):0;
+        return`<td style="text-align:center;padding:8px 10px;">
+          <div style="font-weight:700;font-size:14px;color:${v>0?'#f97316':'var(--text-muted)'};">${v>0?v:'—'}</div>
+          <div style="font-size:10px;color:var(--text-muted);">${v>0?pct+'%':''}</div>
+        </td>`;
+      }).join('');
+
       return`
         ${label?`<div style="font-size:11px;font-weight:600;color:var(--text-muted);letter-spacing:0.05em;margin:10px 0 4px;">${label}</div>`:''}
         <div style="overflow-x:auto;">
           <table style="border-collapse:collapse;width:100%;min-width:400px;">
             <thead>
               <tr>
-                <th style="background:var(--navy);color:var(--navy-text);padding:8px 14px;text-align:left;font-size:11px;font-weight:700;min-width:120px;">SIZE</th>
+                <th style="background:var(--navy);color:var(--navy-text);padding:8px 14px;text-align:left;font-size:11px;font-weight:700;min-width:140px;">SIZE</th>
                 ${hdrs}
-                <th style="background:var(--navy);color:var(--navy-text);padding:8px 14px;text-align:center;font-size:11px;font-weight:700;">TOTAL</th>
+                <th style="background:var(--navy);color:var(--navy-text);padding:8px 14px;text-align:center;font-size:11px;font-weight:700;min-width:110px;">TOTAL</th>
               </tr>
             </thead>
             <tbody>
@@ -2769,6 +2806,19 @@ function renderSwCategory(){
                 ${sohCells}
                 <td style="text-align:center;padding:8px 10px;font-weight:700;color:var(--teal);">${groupTotalSoh>0?groupTotalSoh.toLocaleString():'—'}</td>
               </tr>
+              <tr style="background:#fff7ed;border-top:2px solid #fed7aa;">
+                <td style="padding:8px 14px;font-weight:600;font-size:13px;color:#92400e;">
+                  Units to Order
+                  <input type="number" min="0" step="1" placeholder="Enter total..."
+                    value="${savedTotal}"
+                    style="display:block;margin-top:4px;width:100px;padding:5px 8px;border:1.5px solid #f97316;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:13px;font-weight:700;text-align:center;outline:none;color:#f97316;background:white;"
+                    onfocus="this.style.borderColor='#ea580c';this.select()"
+                    onblur="this.style.borderColor='#f97316'"
+                    onchange="saveSwcOrder('${groupKey.replace(/'/g,"\\'") }',this.value)">
+                </td>
+                ${sugCells}
+                <td style="text-align:center;padding:8px 10px;font-weight:700;color:#f97316;">${sugTotal>0?sugTotal:'—'}</td>
+              </tr>
             </tbody>
           </table>
         </div>`;
@@ -2776,6 +2826,7 @@ function renderSwCategory(){
 
     // Only show section labels if both groups exist
     const hasBoth=alphaSizes.length>0&&numericSizes.length>0;
+    const catKey=cat.replace(/[^a-z0-9]/gi,'_');
 
     return`<div style="margin-bottom:28px;">
       <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;flex-wrap:wrap;">
@@ -2783,8 +2834,8 @@ function renderSwCategory(){
         ${sizeRange?`<div style="font-size:12px;color:var(--teal);font-weight:600;">${sizeRange}</div>`:''}
         <div style="font-size:12px;color:var(--text-muted);">${numProducts} products · ${swcPeriod}d sold: ${totalSold.toLocaleString()} · SOH: ${totalSoh.toLocaleString()}</div>
       </div>
-      ${buildSection(alphaSizes,hasBoth?'ALPHA SIZES':'')}
-      ${buildSection(numericSizes,hasBoth?'NUMERIC SIZES':'')}
+      ${buildSection(alphaSizes,hasBoth?'ALPHA SIZES':'',catKey+'__alpha')}
+      ${buildSection(numericSizes,hasBoth?'NUMERIC SIZES':'',catKey+'__numeric')}
     </div>`;
   }).join('');
 
