@@ -4842,17 +4842,18 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const vel7=s7.qty>0?s7.qty/7*7:null;   // weekly rate from 7d
     const vel30=s30.qty>0?s30.qty/30*7:null; // weekly rate from 30d
 
-    // Margin — (price - avg cost per unit) ÷ price
+    // Margin — uses ex-GST sell price (price ÷ 1.1 to remove 10% GST)
     // Cost priority: 1) Better Reports, 2) AM, 3) 365-day COGS/qty
     const salesCost=s365.qty>0?s365.cogs/s365.qty:(sold>0?cogs/sold:0);
     const avgCostPerUnit=brCost||amCost||salesCost;
-    const margin=(price>0&&avgCostPerUnit>0)?+((price-avgCostPerUnit)/price*100).toFixed(2):null;
+    const exGstPrice=price>0?price/1.1:0;
+    const margin=(exGstPrice>0&&avgCostPerUnit>0)?+((exGstPrice-avgCostPerUnit)/exGstPrice*100).toFixed(2):null;
 
     // SOH Value at cost
     const sohValue=stock>0&&avgCostPerUnit>0?+(stock*avgCostPerUnit).toFixed(2):null;
 
-    // SOH Value at sell price
-    const sellValue=stock>0&&price>0?+(stock*price).toFixed(2):null;
+    // SOH Sell Value at ex-GST retail price
+    const sellValue=stock>0&&exGstPrice>0?+(stock*exGstPrice).toFixed(2):null;
 
     // Sell through % — sold in period / (soh + sold in period)
     const sellThru=sPrimary.qty>0&&(stock+sPrimary.qty)>0?+(sPrimary.qty/(stock+sPrimary.qty)*100).toFixed(2):null;
