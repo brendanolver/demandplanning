@@ -1281,6 +1281,14 @@ th{position:relative;}
 
       <!-- SIZE WORKINGS SUB-VIEW -->
       <div id="working-sizeworkings" style="display:none;">
+        <!-- Product / Category toggle -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+          <button id="sw-tab-product" class="view-btn active" onclick="setSwTab('product')" style="font-size:12px;padding:6px 14px;">📦 Product</button>
+          <button id="sw-tab-category" class="view-btn" onclick="setSwTab('category')" style="font-size:12px;padding:6px 14px;">🗂 Category</button>
+        </div>
+
+        <!-- PRODUCT TAB -->
+        <div id="sw-tab-product-body">
         <!-- Toolbar -->
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
           <div class="search-wrap" style="min-width:280px;max-width:420px;">
@@ -1354,6 +1362,70 @@ th{position:relative;}
             <div class="insights-empty-sub">Search for a product above to begin size planning.</div>
           </div>
         </div>
+        </div><!-- end sw-tab-product-body -->
+
+        <!-- CATEGORY TAB -->
+        <div id="sw-tab-category-body" style="display:none;">
+          <!-- Filter bar -->
+          <div class="filter-row" style="margin-bottom:12px;flex-wrap:wrap;">
+            <div class="ms-wrap" id="ms-swc-cat">
+              <button class="ms-btn" onclick="toggleDropdown('ms-swc-cat')"><span id="ms-swc-cat-label">All Categories</span><span class="ms-arrow">▾</span></button>
+              <div class="ms-dropdown" id="ms-swc-cat-dropdown">
+                <label class="ms-item ms-all"><input type="checkbox" checked onchange="swcToggleAll('cat',this)"> All Categories</label>
+                <div id="ms-swc-cat-options"></div>
+              </div>
+            </div>
+            <div class="ms-wrap" id="ms-swc-vendor">
+              <button class="ms-btn" onclick="toggleDropdown('ms-swc-vendor')"><span id="ms-swc-vendor-label">All Statuses</span><span class="ms-arrow">▾</span></button>
+              <div class="ms-dropdown" id="ms-swc-vendor-dropdown">
+                <label class="ms-item ms-all"><input type="checkbox" checked onchange="swcToggleAll('vendor',this)"> All Statuses</label>
+                <div id="ms-swc-vendor-options"></div>
+              </div>
+            </div>
+            <div class="ms-wrap" id="ms-swc-flag">
+              <button class="ms-btn" onclick="toggleDropdown('ms-swc-flag')"><span id="ms-swc-flag-label">All Stock Status</span><span class="ms-arrow">▾</span></button>
+              <div class="ms-dropdown" id="ms-swc-flag-dropdown">
+                <label class="ms-item ms-all"><input type="checkbox" checked onchange="swcToggleAll('flag',this)"> All Stock Status</label>
+                <div id="ms-swc-flag-options"></div>
+              </div>
+            </div>
+            <div class="ms-wrap" id="ms-swc-disc">
+              <button class="ms-btn" onclick="toggleDropdown('ms-swc-disc')"><span id="ms-swc-disc-label">Discount %</span><span class="ms-arrow">▾</span></button>
+              <div class="ms-dropdown" id="ms-swc-disc-dropdown">
+                <label class="ms-item ms-all"><input type="checkbox" checked onchange="swcToggleAll('disc',this)"> All</label>
+                <div id="ms-swc-disc-options"></div>
+              </div>
+            </div>
+            <div class="ms-wrap" id="ms-swc-delmonth">
+              <button class="ms-btn" onclick="toggleDropdown('ms-swc-delmonth')"><span id="ms-swc-delmonth-label">Month Del</span><span class="ms-arrow">▾</span></button>
+              <div class="ms-dropdown" id="ms-swc-delmonth-dropdown">
+                <label class="ms-item ms-all"><input type="checkbox" checked onchange="swcToggleAll('delmonth',this)"> All</label>
+                <div id="ms-swc-delmonth-options"></div>
+              </div>
+            </div>
+            <button class="clear-btn" onclick="swcClearFilters()">✕ Clear Filters</button>
+          </div>
+          <!-- Period selector -->
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+            <span style="font-size:12px;color:var(--text-muted);font-weight:500;">Period:</span>
+            <div class="period-selector" style="display:flex;gap:4px;">
+              <button class="period-btn active" data-swc-days="7" onclick="setSwcPeriod(7)">7d</button>
+              <button class="period-btn" data-swc-days="14" onclick="setSwcPeriod(14)">14d</button>
+              <button class="period-btn" data-swc-days="30" onclick="setSwcPeriod(30)">30d</button>
+              <button class="period-btn" data-swc-days="60" onclick="setSwcPeriod(60)">60d</button>
+              <button class="period-btn" data-swc-days="90" onclick="setSwcPeriod(90)">90d</button>
+              <button class="period-btn" data-swc-days="365" onclick="setSwcPeriod(365)">365d</button>
+            </div>
+          </div>
+          <div id="swc-body">
+            <div class="insights-empty" style="margin-top:40px;">
+              <div class="insights-empty-ico">🗂</div>
+              <div class="insights-empty-title">Category Size Curve</div>
+              <div class="insights-empty-sub">Select filters above to view aggregated sales by size across categories.</div>
+            </div>
+          </div>
+        </div><!-- end sw-tab-category-body -->
+
       </div>
 
     </div>
@@ -1733,17 +1805,30 @@ function renderCadence(){
     const soh=sohByKey[k]||0;
     const cells=periods.map((p,i)=>{
       const v=Math.round(data[k][p.label]||0);
-      // Compare to next period (older) — periods are newest first
       const prev=periods[i+1]?Math.round(data[k][periods[i+1].label]||0):null;
       let color='';
       if(v>0&&prev!==null){
         if(v>prev)color='color:#16a34a;font-weight:700;';
         else if(v<prev)color='color:var(--red);font-weight:600;';
-        // same = no colour
       }
       return`<td>${v>0?`<span class="cadence-cell-val" style="${color}">${v.toLocaleString()}</span>`:`<span class="cadence-cell-zero">—</span>`}</td>`;
     }).join('');
-    return`<tr><td>${displayLabel(k)}</td><td class="cell-num" style="font-weight:500;">${soh>0?soh.toLocaleString():'—'}</td>${cells}</tr>`;
+    // % row — each cell as % of column total
+    const pctCells=periods.map(p=>{
+      const v=Math.round(data[k][p.label]||0);
+      const t=totals[p.label]||0;
+      const pct=t>0?((v/t)*100).toFixed(1):'0.0';
+      return`<td style="padding-top:0;padding-bottom:4px;"><span style="font-size:10px;color:var(--text-muted);">${v>0?pct+'%':'—'}</span></td>`;
+    }).join('');
+    return`<tr>
+      <td>${displayLabel(k)}</td>
+      <td class="cell-num" style="font-weight:500;">${soh>0?soh.toLocaleString():'—'}</td>
+      ${cells}
+    </tr><tr style="border-bottom:1px solid var(--border);">
+      <td style="padding-top:0;padding-bottom:4px;"></td>
+      <td style="padding-top:0;padding-bottom:4px;"></td>
+      ${pctCells}
+    </tr>`;
   }).join('');
   // Totals row — also colour by comparison to previous period
   const totalCells=periods.map((p,i)=>{
@@ -2391,6 +2476,8 @@ function renderInsights(data){
 /* ── WORKING SCREEN ── */
 /* Size Workings table styles */
 let swPeriod=7;
+let swcPeriod=7;
+let swTab='product'; // 'product' or 'category'
 let swProduct=null; // {productName, colour}
 const SW_STORAGE_KEY='wndrr_sizeworkings_v1';
 
@@ -2468,6 +2555,204 @@ function swClearAll(){
   swClearFilters();
   document.getElementById('sw-results').style.display='none';
   document.getElementById('sw-body').innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">📐</div><div class="insights-empty-title">Size Workings</div><div class="insights-empty-sub">Search for a product above to begin size planning.</div></div>`;
+}
+
+function setSwTab(tab){
+  swTab=tab;
+  document.getElementById('sw-tab-product-body').style.display=tab==='product'?'':'none';
+  document.getElementById('sw-tab-category-body').style.display=tab==='category'?'':'none';
+  document.getElementById('sw-tab-product').classList.toggle('active',tab==='product');
+  document.getElementById('sw-tab-category').classList.toggle('active',tab==='category');
+  if(tab==='category'){
+    if(!document.getElementById('ms-swc-cat-options').children.length) swcPopulateFilters();
+    renderSwCategory();
+  }
+}
+
+function setSwcPeriod(days){
+  swcPeriod=days;
+  document.querySelectorAll('[data-swc-days]').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.swcDays)===days));
+  renderSwCategory();
+}
+
+function swcGetSelected(type){
+  const boxes=[...document.querySelectorAll(`#ms-swc-${type}-options input[type="checkbox"]`)];
+  if(!boxes.length)return[];
+  const checked=boxes.filter(b=>b.checked).map(b=>b.value);
+  if(checked.length===0||checked.length===boxes.length)return[];
+  return checked;
+}
+function swcToggleAll(type,allCheckbox){
+  document.querySelectorAll(`#ms-swc-${type}-options input`).forEach(b=>b.checked=allCheckbox.checked);
+  swcUpdateLabel(type);
+  renderSwCategory();
+}
+function swcUpdateLabel(type){
+  const defaults={cat:'All Categories',vendor:'All Statuses',flag:'All Stock Status',disc:'Discount %',delmonth:'Month Del'};
+  const boxes=[...document.querySelectorAll(`#ms-swc-${type}-options input`)];
+  const checked=boxes.filter(b=>b.checked);
+  const label=document.getElementById(`ms-swc-${type}-label`);
+  const btn=document.querySelector(`#ms-swc-${type} .ms-btn`);
+  const allBox=document.querySelector(`#ms-swc-${type} .ms-all input`);
+  if(allBox)allBox.checked=checked.length===boxes.length;
+  if(label){
+    if(checked.length===0||checked.length===boxes.length){label.textContent=defaults[type];if(btn)btn.classList.remove('filtered');}
+    else{label.textContent=checked.length===1?checked[0].value:`${checked.length} selected`;if(btn)btn.classList.add('filtered');}
+  }
+  renderSwCategory();
+}
+function swcClearFilters(){
+  ['cat','vendor','flag','disc','delmonth'].forEach(type=>{
+    document.querySelectorAll(`#ms-swc-${type}-options input`).forEach(b=>b.checked=true);
+    const allBox=document.querySelector(`#ms-swc-${type} .ms-all input`);
+    if(allBox)allBox.checked=true;
+    swcUpdateLabel(type);
+  });
+  renderSwCategory();
+}
+function swcPopulateFilters(){
+  if(!allVariantRows||!allVariantRows.length)return;
+  const products=[...toProduct(allVariantRows.filter(r=>!r.amOnly&&((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)))];
+  const countBy=fn=>{const m={};products.forEach(p=>{const k=fn(p);if(k!=null)m[k]=(m[k]||0)+1;});return m;};
+  const catCounts=countBy(p=>p.category);
+  const cats=[...new Set(products.map(p=>p.category).filter(Boolean))].sort();
+  document.getElementById('ms-swc-cat-options').innerHTML=cats.map(v=>
+    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="swcUpdateLabel('cat')"> ${v} <span class="ms-count">(${catCounts[v]||0})</span></label>`).join('');
+  const vendorCounts=countBy(p=>p.vendor);
+  const vendors=[...new Set(products.map(p=>p.vendor).filter(Boolean))].sort();
+  document.getElementById('ms-swc-vendor-options').innerHTML=vendors.map(v=>
+    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="swcUpdateLabel('vendor')"> ${v} <span class="ms-count">(${vendorCounts[v]||0})</span></label>`).join('');
+  const flagLabels={'on-order':'On Order','oos':'Out of Stock','reorder':'Re-Order ≤14w','ok':'OK 14–26w','reduce':'Reduce 26w+'};
+  const flagCounts=countBy(p=>p.flag);
+  const flags=[...new Set(products.map(p=>p.flag).filter(Boolean))];
+  document.getElementById('ms-swc-flag-options').innerHTML=flags.map(v=>
+    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="swcUpdateLabel('flag')"> ${flagLabels[v]||v} <span class="ms-count">(${flagCounts[v]||0})</span></label>`).join('');
+  const discBands=['none','20','30','40','50','60','70'];
+  const discLabels={'none':'No Discount','20':'20% off','30':'30% off','40':'40% off','50':'50% off','60':'60% off','70':'70% off'};
+  const discCounts={};
+  products.forEach(p=>{const d=Math.round(p.discountPct||0);const band=!p.discountPct||d===0?'none':['20','30','40','50','60','70'].includes(String(d))?String(d):null;if(band)discCounts[band]=(discCounts[band]||0)+1;});
+  document.getElementById('ms-swc-disc-options').innerHTML=discBands.map(v=>
+    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="swcUpdateLabel('disc')"> ${discLabels[v]} <span class="ms-count">(${discCounts[v]||0})</span></label>`).join('');
+  const monthOrder={Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
+  const delCounts=countBy(p=>p.deliveryMonth||null);
+  const months=[...new Set(products.map(p=>p.deliveryMonth).filter(d=>d&&d!=='CORE'))];
+  months.sort((a,b)=>{const[am,ay]=a.split('-');const[bm,by]=b.split('-');const ayF=parseInt(ay)<50?2000+parseInt(ay):1900+parseInt(ay);const byF=parseInt(by)<50?2000+parseInt(by):1900+parseInt(by);if(ayF!==byF)return byF-ayF;return(monthOrder[bm]||0)-(monthOrder[am]||0);});
+  const coreCount=delCounts['CORE']||0;
+  document.getElementById('ms-swc-delmonth-options').innerHTML=
+    `<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="swcUpdateLabel('delmonth')"> CORE <span class="ms-count">(${coreCount})</span></label>`+
+    months.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="swcUpdateLabel('delmonth')"> ${m} <span class="ms-count">(${delCounts[m]||0})</span></label>`).join('');
+}
+
+function renderSwCategory(){
+  const body=document.getElementById('swc-body');
+  if(!allVariantRows||!allVariantRows.length){
+    body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">🗂</div><div class="insights-empty-title">No data loaded</div></div>`;
+    return;
+  }
+
+  // Apply filters
+  const cats=swcGetSelected('cat');
+  const vendors=swcGetSelected('vendor');
+  const flags=swcGetSelected('flag');
+  const discs=swcGetSelected('disc');
+  const delmonths=swcGetSelected('delmonth');
+
+  // Filter rows
+  const filtered=allVariantRows.filter(r=>{
+    if(r.amOnly)return false;
+    if(cats.length&&!cats.includes(r.category||''))return false;
+    if(vendors.length&&!vendors.includes(r.vendor||''))return false;
+    if(flags.length&&!flags.includes(r.flag||''))return false;
+    if(discs.length){const d=Math.round(r.discountPct||0);const band=!r.discountPct||d===0?'none':String(d);if(!discs.some(b=>b===band))return false;}
+    if(delmonths.length&&!delmonths.includes(r.deliveryMonth||''))return false;
+    return true;
+  });
+
+  if(!filtered.length){
+    body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">🗂</div><div class="insights-empty-title">No products match filters</div></div>`;
+    return;
+  }
+
+  // Size order
+  const sizeOrder=['XXS','XS','S','M','L','XL','XXL','XXXL','XXXXL','28','30','32','34','36','38','40','42','44','46','48','50','OS'];
+  const soldKey=swcPeriod===7?'sold7':swcPeriod===14?'sold7':swcPeriod===30?'sold30':swcPeriod===60?'sold60':swcPeriod===90?'sold90':'sold365';
+
+  // Aggregate by category → size
+  const catData={}; // {cat: {size: {sold, soh}}}
+  for(const r of filtered){
+    const cat=r.category||'UNCATEGORISED';
+    const sz=(r.size||'OS').toUpperCase().trim();
+    if(!catData[cat])catData[cat]={};
+    if(!catData[cat][sz])catData[cat][sz]={sold:0,soh:0,products:new Set()};
+    const soldVal=swcPeriod===14?(r.sold7||0)*2:r[soldKey]||0;
+    catData[cat][sz].sold+=soldVal;
+    catData[cat][sz].soh+=r.stock||0;
+    catData[cat][sz].products.add(r.productName+' - '+r.colour);
+  }
+
+  const sortedCats=Object.keys(catData).sort();
+
+  const tables=sortedCats.map(cat=>{
+    const sizes=Object.keys(catData[cat]).sort((a,b)=>{
+      const ai=sizeOrder.indexOf(a);const bi=sizeOrder.indexOf(b);
+      if(ai>=0&&bi>=0)return ai-bi;
+      if(ai>=0)return-1;if(bi>=0)return 1;
+      return a.localeCompare(b);
+    });
+    const totalSold=sizes.reduce((s,sz)=>s+catData[cat][sz].sold,0);
+    const totalSoh=sizes.reduce((s,sz)=>s+catData[cat][sz].soh,0);
+    const numProducts=new Set(sizes.flatMap(sz=>[...catData[cat][sz].products])).size;
+
+    const sizeHeaders=sizes.map(sz=>`<th style="background:var(--teal);color:white;padding:8px 14px;text-align:center;font-size:11px;font-weight:700;letter-spacing:0.05em;min-width:70px;">${sz}</th>`).join('');
+    const soldCells=sizes.map(sz=>{
+      const s=catData[cat][sz].sold;
+      const pct=totalSold>0?Math.round(s/totalSold*100):0;
+      return`<td style="text-align:center;padding:8px 10px;">
+        <div style="font-weight:700;font-size:14px;color:${s>0?'var(--text)':'var(--text-muted)'};">${s>0?s:'—'}</div>
+        <div style="font-size:10px;color:var(--text-muted);">${s>0?pct+'%':''}</div>
+      </td>`;
+    }).join('');
+    const sohCells=sizes.map(sz=>{
+      const s=catData[cat][sz].soh;
+      const pct=totalSoh>0?Math.round(s/totalSoh*100):0;
+      return`<td style="text-align:center;padding:8px 10px;">
+        <div style="font-weight:600;font-size:13px;color:${s>0?'var(--teal)':'var(--text-muted)'};">${s>0?s:'—'}</div>
+        <div style="font-size:10px;color:var(--text-muted);">${s>0?pct+'%':''}</div>
+      </td>`;
+    }).join('');
+
+    return`<div style="margin-bottom:28px;">
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;">
+        <div style="font-size:15px;font-weight:700;color:var(--text);">${cat}</div>
+        <div style="font-size:12px;color:var(--text-muted);">${numProducts} products · ${swcPeriod}d sold: ${totalSold.toLocaleString()} · SOH: ${totalSoh.toLocaleString()}</div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="border-collapse:collapse;width:100%;min-width:400px;">
+          <thead>
+            <tr>
+              <th style="background:var(--navy);color:var(--navy-text);padding:8px 14px;text-align:left;font-size:11px;font-weight:700;min-width:120px;">SIZE</th>
+              ${sizeHeaders}
+              <th style="background:var(--navy);color:var(--navy-text);padding:8px 14px;text-align:center;font-size:11px;font-weight:700;">TOTAL</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="background:var(--surface);">
+              <td style="padding:8px 14px;font-weight:600;font-size:13px;color:var(--text-secondary);">Sold (${swcPeriod}d)</td>
+              ${soldCells}
+              <td style="text-align:center;padding:8px 10px;font-weight:700;color:var(--teal);">${totalSold>0?totalSold.toLocaleString():'—'}</td>
+            </tr>
+            <tr style="background:var(--surface2);">
+              <td style="padding:8px 14px;font-weight:600;font-size:13px;color:var(--text-secondary);">SOH</td>
+              ${sohCells}
+              <td style="text-align:center;padding:8px 10px;font-weight:700;color:var(--teal);">${totalSoh>0?totalSoh.toLocaleString():'—'}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+  }).join('');
+
+  body.innerHTML=tables;
 }
 
 function setSwPeriod(days){
