@@ -2559,10 +2559,9 @@ function renderSizeWorkings(){
   if(!variants.length){body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No data found</div></div>`;return;}
 
   // Extract style+colour code from SKU by stripping size suffix
-  // e.g. W26BA021BLKL → W26BA021BLK, W26DJ013BKGM → W26DJ013BKG
-  const sampleSku=variants[0]?.sku||'';
+  // e.g. W26BA021BLKL → W26BA021BLK — find first variant with a real SKU
+  const sampleSku=(variants.find(r=>r.sku&&r.sku!=='—'&&r.sku.length>6)?.sku)||'';
   const sizeSuffixes=['XXXXL','XXXL','XXL','XL','XXS','XS','OS','S','M','L'];
-  // Also handle numeric sizes
   let styleCode=sampleSku;
   for(const sz of sizeSuffixes){
     if(sampleSku.toUpperCase().endsWith(sz)){
@@ -2571,7 +2570,7 @@ function renderSizeWorkings(){
     }
   }
   // Handle numeric sizes (28,30,32 etc)
-  if(styleCode===sampleSku) styleCode=sampleSku.replace(/\d{2}$/, '');
+  if(styleCode===sampleSku&&sampleSku) styleCode=sampleSku.replace(/\d{2}$/, '');
 
   // Size order
   const sizeOrder=['XXS','XS','S','M','L','XL','XXL','XXXL','XXXXL','28','30','32','34','36','38','40','42','44','46','48','50','OS'];
