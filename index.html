@@ -1510,8 +1510,8 @@ th{position:relative;}
               1. In your spreadsheet or email, select and copy your rows (Ctrl+C / Cmd+C)<br>
               2. Click inside the box below and paste (Ctrl+V / Cmd+V)<br>
               3. Click <strong>Import Rows</strong><br><br>
-              <strong>Expected column order:</strong> Style &nbsp;|&nbsp; Description &nbsp;|&nbsp; RRP &nbsp;|&nbsp; Old USD &nbsp;|&nbsp; New USD &nbsp;|&nbsp; Prop USD<br>
-              <span style="color:#3b82f6;font-size:11px;">Tip: You can paste just Style + Description + RRP + Old USD and leave the rest blank — any missing columns default to 0.</span>
+              <strong>Expected column order:</strong> Style &nbsp;|&nbsp; Description &nbsp;|&nbsp; RRP &nbsp;|&nbsp; Old USD<br>
+              <span style="color:#3b82f6;font-size:11px;">Tip: New USD and Prop USD can be entered manually after import.</span>
             </div>
             <textarea id="mg-paste-input" rows="8" placeholder="Paste your copied data here..."
               style="width:100%;padding:10px;border:1.5px solid #93c5fd;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;resize:vertical;outline:none;background:white;box-sizing:border-box;"
@@ -3457,10 +3457,10 @@ function mgProcessPaste(){
     const sep=line.includes('\t')?'\t':',';
     const cols=line.split(sep).map(c=>c.trim().replace(/^"|"$/g,''));
     if(cols[0].toUpperCase()==='STYLE'||cols[0].toUpperCase()==='STYLE CODE')return;
-    rows.push({style:cols[0]||'',desc:cols[1]||'',rrp:toNum(cols[2]),oldUsd:toNum(cols[3]),newUsd:toNum(cols[4]),propUsd:toNum(cols[5])});
+    rows.push({style:cols[0]||'',desc:cols[1]||'',rrp:toNum(cols[2]),oldUsd:toNum(cols[3]),newUsd:0,propUsd:0});
     added++;
   });
-  if(!added){alert('Could not parse any rows. Make sure columns are: Style, Description, RRP, Old USD, New USD, Prop USD');return;}
+  if(!added){alert('Could not parse any rows. Make sure columns are: Style, Description, RRP, Old USD');return;}
   saveMgCostData(rows);
   ta.value='';
   mgTogglePasteArea();
