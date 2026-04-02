@@ -2743,11 +2743,11 @@ function renderSwCategory(){
   const soldKey=swcPeriod===7?'sold7':swcPeriod===14?'sold14':swcPeriod===30?'sold30':swcPeriod===60?'sold60':swcPeriod===90?'sold90':'sold365';
 
   // Aggregate by group key → size
-  // In search mode: group by product name (all colours aggregated)
+  // In search mode: ALL matching products roll into ONE table (grouped by search term)
   // In normal mode: group by category
   const catData={}; // {groupKey: {size: {sold, soh, products}}}
   for(const r of filtered){
-    const groupKey=searchMode?r.productName:(r.category||'UNCATEGORISED');
+    const groupKey=searchMode?productSearch:(r.category||'UNCATEGORISED');
     const sz=(r.size||'OS').toUpperCase().trim();
     if(!catData[groupKey])catData[groupKey]={};
     if(!catData[groupKey][sz])catData[groupKey][sz]={sold:0,soh:0,products:new Set()};
@@ -2881,9 +2881,11 @@ function renderSwCategory(){
 
     return`<div style="margin-bottom:28px;">
       <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;flex-wrap:wrap;">
-        <div style="font-size:15px;font-weight:700;color:var(--text);">${cat}</div>
+        <div style="font-size:15px;font-weight:700;color:var(--text);">${searchMode?`<span style="color:var(--teal);">${cat}</span> <span style="font-size:12px;font-weight:500;color:var(--text-muted);">— all styles containing this term</span>`:cat}</div>
         ${sizeRange?`<div style="font-size:12px;color:var(--teal);font-weight:600;">${sizeRange}</div>`:''}
-        <div style="font-size:12px;color:var(--text-muted);">${searchMode?`${numProducts} colour${numProducts!==1?'s':''} aggregated`:`${numProducts} products`} · ${swcPeriod}d sold: ${totalSold.toLocaleString()} · SOH: ${totalSoh.toLocaleString()}</div>
+        <div style="font-size:12px;color:var(--text-muted);">${searchMode?`${numProducts} style${numProducts!==1?'s':''} / colour${numProducts!==1?'s':''} matched`:`${numProducts} products`} · ${swcPeriod}d sold: ${totalSold.toLocaleString()} · SOH: ${totalSoh.toLocaleString()}</div>
+        ${searchMode?`<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${[...new Set(filtered.filter(r=>r.productName.toUpperCase().includes(productSearch)).map(r=>r.productName))].sort().join(' · ')}</div>`:''}
+
       </div>
       ${buildSection(alphaSizes,hasBoth?'ALPHA SIZES':'',catKey+'__alpha')}
       ${buildSection(numericSizes,hasBoth?'NUMERIC SIZES':'',catKey+'__numeric')}
