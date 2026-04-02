@@ -1453,15 +1453,17 @@ th{position:relative;}
           <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px;align-items:flex-end;">
             <div>
               <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">RRP (AUD incl. GST)</div>
-              <input type="number" id="mg-rrp" placeholder="e.g. 89.95" min="0" step="0.01"
-                style="width:120px;padding:8px 10px;border:2px solid #3b82f6;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:15px;font-weight:700;background:#eff6ff;outline:none;"
-                oninput="renderMargins()" onfocus="this.select()">
+<div style="display:flex;align-items:center;gap:4px;"><span style="font-size:16px;font-weight:700;color:var(--text-secondary);">$</span>
+              <input type="number" id="mg-rrp" placeholder="89.95" min="0" step="0.01"
+                style="width:110px;padding:8px 10px;border:2px solid #3b82f6;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:15px;font-weight:700;background:#eff6ff;outline:none;"
+                oninput="renderMargins()" onfocus="this.select()"></div>
             </div>
             <div>
               <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">USD Cost</div>
-              <input type="number" id="mg-usd" placeholder="e.g. 10.50" min="0" step="0.01"
-                style="width:110px;padding:8px 10px;border:2px solid #f59e0b;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:15px;font-weight:700;background:#fffbeb;outline:none;"
-                oninput="renderMargins()" onfocus="this.select()">
+<div style="display:flex;align-items:center;gap:4px;"><span style="font-size:16px;font-weight:700;color:var(--text-secondary);">$</span>
+              <input type="number" id="mg-usd" placeholder="10.50" min="0" step="0.01"
+                style="width:100px;padding:8px 10px;border:2px solid #f59e0b;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:15px;font-weight:700;background:#fffbeb;outline:none;"
+                oninput="renderMargins()" onfocus="this.select()"></div>
             </div>
             <div>
               <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">USD→AUD Rate</div>
@@ -3308,7 +3310,7 @@ function renderMargins(){
 
   wrap.innerHTML=`<table style="border-collapse:collapse;width:100%;min-width:600px;font-size:13px;">
     <thead>
-      <tr style="background:var(--navy);color:var(--navy-text);">
+      <tr style="background:var(--teal);color:white;">
         <th style="padding:8px 12px;text-align:left;">Pricing</th>
         <th style="padding:8px 12px;text-align:right;">RRP</th>
         <th style="padding:8px 12px;text-align:right;">Ex GST</th>
@@ -3354,11 +3356,14 @@ function renderMgCostTable(){
       onchange="mgUpdateRow(${i},'${field}',this.value)"
       onfocus="this.style.borderColor='#1d4ed8'" onblur="this.style.borderColor='#3b82f6'">`;
     // Number inputs — no arrows via CSS class, tab moves to next
-    const numInp=(field,val,tabIdx)=>`<input type="number" min="0" step="0.01" value="${val||''}" placeholder="0.00" tabindex="${tabIdx}"
-      class="mg-num-inp"
-      style="width:90px;${baseInpStyle}text-align:right;"
-      onchange="mgUpdateRow(${i},'${field}',this.value);renderMgCostTable();"
-      onfocus="this.style.borderColor='#1d4ed8';this.select()" onblur="this.style.borderColor='#3b82f6'">`;
+    const numInp=(field,val,tabIdx)=>`<div style="display:flex;align-items:center;gap:2px;">
+      <span style="font-size:12px;color:var(--text-muted);font-weight:600;">$</span>
+      <input type="number" min="0" step="0.01" value="${val||''}" placeholder="0.00" tabindex="${tabIdx}"
+        class="mg-num-inp"
+        style="width:82px;${baseInpStyle}text-align:right;"
+        onchange="mgUpdateRow(${i},'${field}',this.value);renderMgCostTable();"
+        onfocus="this.style.borderColor='#1d4ed8';this.select()" onblur="this.style.borderColor='#3b82f6'">
+      </div>`;
     const base=i*10;
     return`<tr style="border-bottom:1px solid var(--border);">
       <td style="padding:5px 6px;">${txtInp('style',r.style,'120px')}</td>
