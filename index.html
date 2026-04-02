@@ -480,6 +480,8 @@ th{position:relative;}
 .touch-device .topbar-pill{display:none;}
 .touch-device #nav-count{display:none;}
 
+.mg-num-inp::-webkit-outer-spin-button,.mg-num-inp::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+.mg-num-inp{-moz-appearance:textfield;}
 /* ── RESPONSIVE ── */
 .hamburger{display:none;background:none;border:none;cursor:pointer;padding:8px;color:white;font-size:22px;line-height:1;flex-shrink:0;}
 .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:490;}
@@ -1468,10 +1470,13 @@ th{position:relative;}
                 oninput="renderMargins()" onfocus="this.select()">
             </div>
             <div>
-              <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">AUD Freight</div>
-              <input type="number" id="mg-freight" placeholder="0.49" min="0" step="0.01" value="0.49"
-                style="width:90px;padding:8px 10px;border:2px solid #3b82f6;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:15px;font-weight:700;background:#eff6ff;outline:none;"
-                oninput="renderMargins()" onfocus="this.select()">
+              <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">Freight %</div>
+              <div style="display:flex;align-items:center;gap:4px;">
+                <input type="number" id="mg-freight" placeholder="3" min="0" step="0.1" value="3"
+                  style="width:70px;padding:8px 10px;border:2px solid #3b82f6;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:15px;font-weight:700;background:#eff6ff;outline:none;"
+                  oninput="renderMargins()" onfocus="this.select()">
+                <span style="font-size:14px;color:var(--text-muted);">%</span>
+              </div>
             </div>
           </div>
 
@@ -1489,6 +1494,7 @@ th{position:relative;}
             </div>
             <div style="display:flex;gap:8px;">
               <button onclick="mgAddRow()" style="padding:6px 14px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">+ Add Row</button>
+              <button onclick="mgAddRow()" title="Add a row then paste copied spreadsheet data (Style, Desc, Old USD, New USD, Prop USD, RRP)" style="padding:6px 14px;background:#eff6ff;border:1.5px solid #3b82f6;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;color:#1d4ed8;">📋 Paste Rows</button>
               <button onclick="mgClearRows()" style="padding:6px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✕ Clear All</button>
               <button onclick="mgExport()" style="padding:6px 14px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">⬇ Export</button>
             </div>
@@ -1503,26 +1509,29 @@ th{position:relative;}
                 oninput="renderMgCostTable()" onfocus="this.select()">
             </div>
             <div>
-              <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">AUD Freight (per unit)</div>
-              <input type="number" id="mgc-freight" placeholder="0.49" min="0" step="0.01" value="0.49"
-                style="width:90px;padding:6px 10px;border:2px solid #3b82f6;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:14px;font-weight:700;background:#eff6ff;outline:none;"
-                oninput="renderMgCostTable()" onfocus="this.select()">
+              <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">Freight %</div>
+              <div style="display:flex;align-items:center;gap:4px;">
+                <input type="number" id="mgc-freight" placeholder="3" min="0" step="0.1" value="3"
+                  style="width:70px;padding:6px 10px;border:2px solid #3b82f6;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:14px;font-weight:700;background:#eff6ff;outline:none;"
+                  oninput="renderMgCostTable()" onfocus="this.select()">
+                <span style="font-size:14px;color:var(--text-muted);">%</span>
+              </div>
             </div>
           </div>
 
           <div style="overflow-x:auto;">
             <table id="mgc-table" style="border-collapse:collapse;width:100%;min-width:900px;font-size:12px;">
               <thead>
-                <tr style="background:var(--navy);color:var(--navy-text);">
+                <tr style="background:var(--teal);color:white;">
                   <th style="padding:8px 10px;text-align:left;white-space:nowrap;">Style</th>
                   <th style="padding:8px 10px;text-align:left;white-space:nowrap;min-width:160px;">Description</th>
+                  <th style="padding:8px 10px;text-align:right;white-space:nowrap;background:rgba(0,0,0,0.15);">RRP</th>
                   <th style="padding:8px 10px;text-align:right;white-space:nowrap;">Old USD</th>
                   <th style="padding:8px 10px;text-align:right;white-space:nowrap;">Old Landed</th>
-                  <th style="padding:8px 10px;text-align:right;white-space:nowrap;background:#1e40af;">New USD</th>
+                  <th style="padding:8px 10px;text-align:right;white-space:nowrap;background:rgba(0,0,0,0.15);">New USD</th>
                   <th style="padding:8px 10px;text-align:right;white-space:nowrap;">New Landed</th>
-                  <th style="padding:8px 10px;text-align:right;white-space:nowrap;background:#1e40af;">Prop USD</th>
+                  <th style="padding:8px 10px;text-align:right;white-space:nowrap;background:rgba(0,0,0,0.15);">Prop USD</th>
                   <th style="padding:8px 10px;text-align:right;white-space:nowrap;">Prop Landed</th>
-                  <th style="padding:8px 10px;text-align:right;white-space:nowrap;background:#1e40af;">RRP</th>
                   <th style="padding:8px 10px;text-align:center;white-space:nowrap;">Old %</th>
                   <th style="padding:8px 10px;text-align:center;white-space:nowrap;">New %</th>
                   <th style="padding:8px 10px;text-align:center;white-space:nowrap;">Prop %</th>
@@ -3261,7 +3270,7 @@ function saveMgCostData(d){try{localStorage.setItem(MG_COST_KEY,JSON.stringify(d
 function gpColor(pct){
   if(!pct||isNaN(pct))return'';
   if(pct>=75)return'background:#dcfce7;color:#15803d;font-weight:700;';
-  if(pct>=65)return'background:#fef9c3;color:#854d0e;font-weight:700;';
+  if(pct>70)return'background:#fef9c3;color:#854d0e;font-weight:700;';
   return'background:#fee2e2;color:#dc2626;font-weight:700;';
 }
 
@@ -3269,12 +3278,13 @@ function renderMargins(){
   const rrp=parseFloat(document.getElementById('mg-rrp')?.value)||0;
   const usd=parseFloat(document.getElementById('mg-usd')?.value)||0;
   const fx=parseFloat(document.getElementById('mg-fx')?.value)||1.55;
-  const freight=parseFloat(document.getElementById('mg-freight')?.value)||0;
+  const freightPct=parseFloat(document.getElementById('mg-freight')?.value)||0;
   const wrap=document.getElementById('mg-table-wrap');
   if(!wrap)return;
   if(!rrp||!usd){wrap.innerHTML=`<div style="font-size:12px;color:var(--text-muted);font-style:italic;">Enter RRP and USD Cost above to calculate margins.</div>`;return;}
 
-  const audLanded=(usd*fx)+freight;
+  const audConv=usd*fx;
+  const audLanded=audConv*(1+freightPct/100);
   const discounts=[{label:'FULL',pct:0},{label:'20%',pct:20},{label:'25%',pct:25},{label:'30%',pct:30},{label:'50%',pct:50}];
 
   const rows=discounts.map(d=>{
@@ -3292,7 +3302,7 @@ function renderMargins(){
       <td style="padding:8px 12px;text-align:right;color:var(--text-muted);">$${audLanded.toFixed(2)}</td>
       <td style="padding:8px 12px;text-align:right;color:var(--text-muted);">${usd.toFixed(2)}</td>
       <td style="padding:8px 12px;text-align:right;color:var(--text-muted);">${(usd*fx).toFixed(2)}</td>
-      <td style="padding:8px 12px;text-align:right;color:var(--text-muted);">${freight.toFixed(2)}</td>
+      <td style="padding:8px 12px;text-align:right;color:var(--text-muted);">${freightPct}%</td>
     </tr>`;
   }).join('');
 
@@ -3307,7 +3317,7 @@ function renderMargins(){
         <th style="padding:8px 12px;text-align:right;">AUD Landed</th>
         <th style="padding:8px 12px;text-align:right;">USD Cost</th>
         <th style="padding:8px 12px;text-align:right;">AUD Conversion</th>
-        <th style="padding:8px 12px;text-align:right;">AUD Freight</th>
+        <th style="padding:8px 12px;text-align:right;">Freight %</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
@@ -3316,12 +3326,12 @@ function renderMargins(){
 
 function renderMgCostTable(){
   const fx=parseFloat(document.getElementById('mgc-fx')?.value)||1.55;
-  const freight=parseFloat(document.getElementById('mgc-freight')?.value)||0;
+  const freightPct=parseFloat(document.getElementById('mgc-freight')?.value)||0;
   const rows=getMgCostData();
   const tbody=document.getElementById('mgc-tbody');
   if(!tbody)return;
 
-  const calcLanded=(usd)=>usd>0?(usd*fx)+freight:0;
+  const calcLanded=(usd)=>usd>0?(usd*fx)*(1+freightPct/100):0;
   const calcGP=(landed,rrp)=>{
     if(!landed||!rrp)return null;
     const exGst=rrp/1.1;
@@ -3335,26 +3345,35 @@ function renderMgCostTable(){
     const oldGP=calcGP(oldLanded,r.rrp);
     const newGP=calcGP(newLanded,r.rrp);
     const propGP=calcGP(propLanded,r.rrp);
-    const fmt=(v,prefix='$')=>v>0?`${prefix}${v.toFixed(2)}`:'$0.00';
+    const fmt=(v)=>v>0?`$${v.toFixed(2)}`:'—';
     const fmtPct=(v)=>v!==null?`<span style="padding:3px 8px;border-radius:4px;${gpColor(v)}">${v.toFixed(0)}%</span>`:'—';
-    const inp=(field,val,w='80px')=>`<input type="number" min="0" step="0.01" value="${val||''}" placeholder="0.00"
-      style="width:${w};padding:4px 6px;border:1.5px solid #3b82f6;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;background:#eff6ff;outline:none;text-align:right;"
-      oninput="mgUpdateRow(${i},'${field}',this.value)"
+    const baseInpStyle='padding:7px 10px;border:1.5px solid #3b82f6;border-radius:var(--r-sm);font-family:\'Inter\',sans-serif;font-size:13px;background:#eff6ff;outline:none;';
+    // Text inputs for style & description — support pasting
+    const txtInp=(field,val,w)=>`<input type="text" value="${(val||'').replace(/"/g,'&quot;')}" placeholder="${field==='style'?'e.g. W26GA004':'Description'}"
+      style="width:${w};${baseInpStyle}"
+      onchange="mgUpdateRow(${i},'${field}',this.value)"
+      onfocus="this.style.borderColor='#1d4ed8'" onblur="this.style.borderColor='#3b82f6'">`;
+    // Number inputs — no arrows via CSS class, tab moves to next
+    const numInp=(field,val,tabIdx)=>`<input type="number" min="0" step="0.01" value="${val||''}" placeholder="0.00" tabindex="${tabIdx}"
+      class="mg-num-inp"
+      style="width:90px;${baseInpStyle}text-align:right;"
+      onchange="mgUpdateRow(${i},'${field}',this.value);renderMgCostTable();"
       onfocus="this.style.borderColor='#1d4ed8';this.select()" onblur="this.style.borderColor='#3b82f6'">`;
+    const base=i*10;
     return`<tr style="border-bottom:1px solid var(--border);">
-      <td style="padding:6px 8px;">${inp('style',r.style,'90px')}</td>
-      <td style="padding:6px 8px;">${inp('desc',r.desc,'150px')}</td>
-      <td style="padding:6px 8px;text-align:right;">${inp('oldUsd',r.oldUsd)}</td>
-      <td style="padding:6px 8px;text-align:right;color:var(--text-secondary);">${fmt(oldLanded)}</td>
-      <td style="padding:6px 8px;background:#eff6ff;">${inp('newUsd',r.newUsd)}</td>
-      <td style="padding:6px 8px;text-align:right;color:var(--text-secondary);">${fmt(newLanded)}</td>
-      <td style="padding:6px 8px;background:#eff6ff;">${inp('propUsd',r.propUsd)}</td>
-      <td style="padding:6px 8px;text-align:right;color:var(--text-secondary);">${fmt(propLanded)}</td>
-      <td style="padding:6px 8px;background:#eff6ff;">${inp('rrp',r.rrp)}</td>
-      <td style="padding:6px 8px;text-align:center;">${fmtPct(oldGP)}</td>
-      <td style="padding:6px 8px;text-align:center;">${fmtPct(newGP)}</td>
-      <td style="padding:6px 8px;text-align:center;">${fmtPct(propGP)}</td>
-      <td style="padding:6px 4px;text-align:center;"><button onclick="mgDeleteRow(${i})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;line-height:1;">✕</button></td>
+      <td style="padding:5px 6px;">${txtInp('style',r.style,'120px')}</td>
+      <td style="padding:5px 6px;">${txtInp('desc',r.desc,'200px')}</td>
+      <td style="padding:5px 6px;background:#eff6ff;">${numInp('rrp',r.rrp,base+1)}</td>
+      <td style="padding:5px 6px;">${numInp('oldUsd',r.oldUsd,base+2)}</td>
+      <td style="padding:5px 10px;text-align:right;color:var(--text-secondary);white-space:nowrap;">${fmt(oldLanded)}</td>
+      <td style="padding:5px 6px;background:#eff6ff;">${numInp('newUsd',r.newUsd,base+3)}</td>
+      <td style="padding:5px 10px;text-align:right;color:var(--text-secondary);white-space:nowrap;">${fmt(newLanded)}</td>
+      <td style="padding:5px 6px;background:#eff6ff;">${numInp('propUsd',r.propUsd,base+4)}</td>
+      <td style="padding:5px 10px;text-align:right;color:var(--text-secondary);white-space:nowrap;">${fmt(propLanded)}</td>
+      <td style="padding:5px 8px;text-align:center;">${fmtPct(oldGP)}</td>
+      <td style="padding:5px 8px;text-align:center;">${fmtPct(newGP)}</td>
+      <td style="padding:5px 8px;text-align:center;">${fmtPct(propGP)}</td>
+      <td style="padding:5px 4px;text-align:center;"><button onclick="mgDeleteRow(${i})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;line-height:1;">✕</button></td>
     </tr>`;
   }).join('');
 
@@ -3380,11 +3399,40 @@ function mgAddRow(){
   rows.push({style:'',desc:'',oldUsd:0,newUsd:0,propUsd:0,rrp:0});
   saveMgCostData(rows);
   renderMgCostTable();
-  // Focus the last style input
   setTimeout(()=>{
-    const inputs=document.querySelectorAll('#mgc-tbody tr:last-child input');
-    if(inputs[0])inputs[0].focus();
+    const inputs=document.querySelectorAll('#mgc-tbody tr:last-child input[type="text"]');
+    if(inputs[0]){
+      inputs[0].focus();
+      // Attach paste handler for bulk row entry from spreadsheet
+      inputs[0].addEventListener('paste',mgHandlePaste,{once:true});
+    }
   },50);
+}
+
+function mgHandlePaste(e){
+  const text=(e.clipboardData||window.clipboardData).getData('text');
+  if(!text||!text.includes('\n')&&!text.includes('\t'))return; // single value, let default handle
+  e.preventDefault();
+  const lines=text.trim().split('\n').filter(l=>l.trim());
+  if(lines.length<=1)return;
+  // Multi-line paste — each line is a row, tab-separated columns: style, desc, oldUsd, newUsd, propUsd, rrp
+  const rows=getMgCostData();
+  // Remove the empty row that was added for this paste
+  if(rows.length&&!rows[rows.length-1].style&&!rows[rows.length-1].desc&&!rows[rows.length-1].oldUsd)rows.pop();
+  lines.forEach(line=>{
+    const cols=line.split('\t').map(c=>c.trim());
+    const toNum=v=>parseFloat((v||'').replace(/[$,]/g,''))||0;
+    rows.push({
+      style:cols[0]||'',
+      desc:cols[1]||'',
+      rrp:toNum(cols[2]),
+      oldUsd:toNum(cols[3]),
+      newUsd:toNum(cols[4]),
+      propUsd:toNum(cols[5])
+    });
+  });
+  saveMgCostData(rows);
+  renderMgCostTable();
 }
 
 function mgDeleteRow(i){
@@ -3402,9 +3450,9 @@ function mgClearRows(){
 
 function mgExport(){
   const fx=parseFloat(document.getElementById('mgc-fx')?.value)||1.55;
-  const freight=parseFloat(document.getElementById('mgc-freight')?.value)||0;
+  const freightPct=parseFloat(document.getElementById('mgc-freight')?.value)||0;
   const rows=getMgCostData();
-  const calcLanded=(usd)=>usd>0?(usd*fx)+freight:0;
+  const calcLanded=(usd)=>usd>0?(usd*fx)*(1+freightPct/100):0;
   const calcGP=(landed,rrp)=>{if(!landed||!rrp)return'';const exGst=rrp/1.1;return exGst>0?((exGst-landed)/exGst*100).toFixed(1)+'%':'';}
   const headers=['Style','Description','Old USD','Old Landed','New USD','New Landed','Prop USD','Prop Landed','RRP','Old %','New %','Prop %'];
   const lines=[headers.join(','),...rows.map(r=>{
