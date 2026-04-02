@@ -1092,6 +1092,7 @@ th{position:relative;}
           <button id="working-btn-reorders" class="view-btn active" onclick="setWorkingView('reorders')" style="font-size:13px;padding:8px 16px;">🔄 Re-Orders</button>
           <button id="working-btn-markdowns" class="view-btn" onclick="setWorkingView('markdowns')" style="font-size:13px;padding:8px 16px;">🏷️ Markdowns</button>
           <button id="working-btn-sizeworkings" class="view-btn" onclick="setWorkingView('sizeworkings')" style="font-size:13px;padding:8px 16px;">📐 Size Workings</button>
+          <button id="working-btn-margins" class="view-btn" onclick="setWorkingView('margins')" style="font-size:13px;padding:8px 16px;">💰 Margins</button>
         </div>
       </div>
 
@@ -1413,7 +1414,7 @@ th{position:relative;}
                 <div id="ms-swc-delmonth-options"></div>
               </div>
             </div>
-            <button class="clear-btn" onclick="swcClearFilters()">✕ Clear Filters</button>
+            <button class="clear-btn" onclick="swcClearAll()" style="background:var(--red);color:white;border-color:var(--red);">✕ Clear All</button>
           </div>
           <!-- Period selector -->
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
@@ -1438,10 +1439,102 @@ th{position:relative;}
 
       </div>
 
-    </div>
-  </div>
+      <!-- MARGINS SUB-VIEW -->
+      <div id="working-margins" style="display:none;">
 
-</div>
+        <!-- Section 1: Margin Calculator -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:20px 24px;margin-bottom:28px;box-shadow:var(--shadow-xs);">
+          <div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:4px;">Margin Calculator</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">Enter RRP & USD cost to calculate GP% at various discount levels</div>
+
+          <!-- Global inputs -->
+          <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px;align-items:flex-end;">
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">RRP (AUD incl. GST)</div>
+              <input type="number" id="mg-rrp" placeholder="e.g. 89.95" min="0" step="0.01"
+                style="width:120px;padding:8px 10px;border:2px solid #3b82f6;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:15px;font-weight:700;background:#eff6ff;outline:none;"
+                oninput="renderMargins()" onfocus="this.select()">
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">USD Cost</div>
+              <input type="number" id="mg-usd" placeholder="e.g. 10.50" min="0" step="0.01"
+                style="width:110px;padding:8px 10px;border:2px solid #f59e0b;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:15px;font-weight:700;background:#fffbeb;outline:none;"
+                oninput="renderMargins()" onfocus="this.select()">
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">USD→AUD Rate</div>
+              <input type="number" id="mg-fx" placeholder="1.55" min="0" step="0.01" value="1.55"
+                style="width:90px;padding:8px 10px;border:2px solid #3b82f6;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:15px;font-weight:700;background:#eff6ff;outline:none;"
+                oninput="renderMargins()" onfocus="this.select()">
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">AUD Freight</div>
+              <input type="number" id="mg-freight" placeholder="0.49" min="0" step="0.01" value="0.49"
+                style="width:90px;padding:8px 10px;border:2px solid #3b82f6;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:15px;font-weight:700;background:#eff6ff;outline:none;"
+                oninput="renderMargins()" onfocus="this.select()">
+            </div>
+          </div>
+
+          <div id="mg-table-wrap" style="overflow-x:auto;">
+            <div style="font-size:12px;color:var(--text-muted);font-style:italic;">Enter RRP and USD Cost above to calculate margins.</div>
+          </div>
+        </div>
+
+        <!-- Section 2: New Product Margin Cost Calculator -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:20px 24px;box-shadow:var(--shadow-xs);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:8px;">
+            <div>
+              <div style="font-size:15px;font-weight:700;color:var(--text);">New Product Margin Cost Calculator</div>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Compare old vs new vs proposed USD costs — blue cells are inputs</div>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button onclick="mgAddRow()" style="padding:6px 14px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">+ Add Row</button>
+              <button onclick="mgClearRows()" style="padding:6px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✕ Clear All</button>
+              <button onclick="mgExport()" style="padding:6px 14px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">⬇ Export</button>
+            </div>
+          </div>
+
+          <!-- Global FX rate for cost calc table -->
+          <div style="display:flex;gap:12px;align-items:flex-end;margin:12px 0 16px;flex-wrap:wrap;">
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">USD→AUD Rate</div>
+              <input type="number" id="mgc-fx" placeholder="1.55" min="0" step="0.01" value="1.55"
+                style="width:90px;padding:6px 10px;border:2px solid #3b82f6;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:14px;font-weight:700;background:#eff6ff;outline:none;"
+                oninput="renderMgCostTable()" onfocus="this.select()">
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">AUD Freight (per unit)</div>
+              <input type="number" id="mgc-freight" placeholder="0.49" min="0" step="0.01" value="0.49"
+                style="width:90px;padding:6px 10px;border:2px solid #3b82f6;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:14px;font-weight:700;background:#eff6ff;outline:none;"
+                oninput="renderMgCostTable()" onfocus="this.select()">
+            </div>
+          </div>
+
+          <div style="overflow-x:auto;">
+            <table id="mgc-table" style="border-collapse:collapse;width:100%;min-width:900px;font-size:12px;">
+              <thead>
+                <tr style="background:var(--navy);color:var(--navy-text);">
+                  <th style="padding:8px 10px;text-align:left;white-space:nowrap;">Style</th>
+                  <th style="padding:8px 10px;text-align:left;white-space:nowrap;min-width:160px;">Description</th>
+                  <th style="padding:8px 10px;text-align:right;white-space:nowrap;">Old USD</th>
+                  <th style="padding:8px 10px;text-align:right;white-space:nowrap;">Old Landed</th>
+                  <th style="padding:8px 10px;text-align:right;white-space:nowrap;background:#1e40af;">New USD</th>
+                  <th style="padding:8px 10px;text-align:right;white-space:nowrap;">New Landed</th>
+                  <th style="padding:8px 10px;text-align:right;white-space:nowrap;background:#1e40af;">Prop USD</th>
+                  <th style="padding:8px 10px;text-align:right;white-space:nowrap;">Prop Landed</th>
+                  <th style="padding:8px 10px;text-align:right;white-space:nowrap;background:#1e40af;">RRP</th>
+                  <th style="padding:8px 10px;text-align:center;white-space:nowrap;">Old %</th>
+                  <th style="padding:8px 10px;text-align:center;white-space:nowrap;">New %</th>
+                  <th style="padding:8px 10px;text-align:center;white-space:nowrap;">Prop %</th>
+                  <th style="padding:8px 6px;text-align:center;">✕</th>
+                </tr>
+              </thead>
+              <tbody id="mgc-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div><!-- end working-margins -->
 
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
@@ -2658,6 +2751,15 @@ function swcUpdateLabel(type){
   }
   renderSwCategory();
 }
+function swcClearAll(){
+  // Clear all filters
+  swcClearFilters();
+  // Clear search bar
+  const s=document.getElementById('swc-product-search');if(s)s.value='';
+  // Clear all stored Units to Order quantities
+  try{localStorage.removeItem(SWC_ORDER_KEY);}catch(e){}
+  renderSwCategory();
+}
 function swcClearFilters(){
   ['cat','vendor','flag','disc','delmonth'].forEach(type=>{
     document.querySelectorAll(`#ms-swc-${type}-options input`).forEach(b=>b.checked=true);
@@ -3140,18 +3242,180 @@ let roSortCol='productName';let roSortDir='asc';
 
 function setWorkingView(v){
   workingView=v;
-  ['reorders','markdowns','sizeworkings'].forEach(s=>{
+  ['reorders','markdowns','sizeworkings','margins'].forEach(s=>{
     document.getElementById('working-'+s).style.display=s===v?'block':'none';
     document.getElementById('working-btn-'+s)?.classList.toggle('active',s===v);
   });
-  const subs={reorders:'Tick styles & enter re-order quantities — export to CSV',markdowns:'Tick styles & set proposed markdown % — export selected to CSV',sizeworkings:'Size-level analysis and buy planning'};
+  const subs={reorders:'Tick styles & enter re-order quantities — export to CSV',markdowns:'Tick styles & set proposed markdown % — export selected to CSV',sizeworkings:'Size-level analysis and buy planning',margins:'Margin calculator & cost price analysis'};
   document.getElementById('working-sub').textContent=subs[v]||'';
   if(v==='reorders')renderReorders();
   if(v==='markdowns')renderMarkdowns();
   if(v==='sizeworkings')swPopulateFilters();
+  if(v==='margins'){renderMargins();renderMgCostTable();}
 }
 
-function getRoData(){try{return JSON.parse(localStorage.getItem(RO_STORAGE_KEY)||'{}');}catch(e){return{};}}
+const MG_COST_KEY='wndrr_mg_cost_v1';
+function getMgCostData(){try{return JSON.parse(localStorage.getItem(MG_COST_KEY)||'[]');}catch(e){return[];}}
+function saveMgCostData(d){try{localStorage.setItem(MG_COST_KEY,JSON.stringify(d));}catch(e){}}
+
+function gpColor(pct){
+  if(!pct||isNaN(pct))return'';
+  if(pct>=75)return'background:#dcfce7;color:#15803d;font-weight:700;';
+  if(pct>=65)return'background:#fef9c3;color:#854d0e;font-weight:700;';
+  return'background:#fee2e2;color:#dc2626;font-weight:700;';
+}
+
+function renderMargins(){
+  const rrp=parseFloat(document.getElementById('mg-rrp')?.value)||0;
+  const usd=parseFloat(document.getElementById('mg-usd')?.value)||0;
+  const fx=parseFloat(document.getElementById('mg-fx')?.value)||1.55;
+  const freight=parseFloat(document.getElementById('mg-freight')?.value)||0;
+  const wrap=document.getElementById('mg-table-wrap');
+  if(!wrap)return;
+  if(!rrp||!usd){wrap.innerHTML=`<div style="font-size:12px;color:var(--text-muted);font-style:italic;">Enter RRP and USD Cost above to calculate margins.</div>`;return;}
+
+  const audLanded=(usd*fx)+freight;
+  const discounts=[{label:'FULL',pct:0},{label:'20%',pct:20},{label:'25%',pct:25},{label:'30%',pct:30},{label:'50%',pct:50}];
+
+  const rows=discounts.map(d=>{
+    const sellRRP=rrp*(1-d.pct/100);
+    const exGst=sellRRP/1.1;
+    const profit=exGst-audLanded;
+    const gp=exGst>0?profit/exGst*100:0;
+    const isFull=d.pct===0;
+    return`<tr style="${isFull?'background:#f0fdf4;font-weight:700;':''}">
+      <td style="padding:8px 12px;font-weight:600;color:var(--text-secondary);width:60px;">${d.label}</td>
+      <td style="padding:8px 12px;text-align:right;">$${sellRRP.toFixed(2)}</td>
+      <td style="padding:8px 12px;text-align:right;">$${exGst.toFixed(2)}</td>
+      <td style="padding:8px 12px;text-align:right;">$${profit.toFixed(2)}</td>
+      <td style="padding:8px 12px;text-align:center;${gpColor(gp)}">${gp.toFixed(0)}%</td>
+      <td style="padding:8px 12px;text-align:right;color:var(--text-muted);">$${audLanded.toFixed(2)}</td>
+      <td style="padding:8px 12px;text-align:right;color:var(--text-muted);">${usd.toFixed(2)}</td>
+      <td style="padding:8px 12px;text-align:right;color:var(--text-muted);">${(usd*fx).toFixed(2)}</td>
+      <td style="padding:8px 12px;text-align:right;color:var(--text-muted);">${freight.toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+
+  wrap.innerHTML=`<table style="border-collapse:collapse;width:100%;min-width:600px;font-size:13px;">
+    <thead>
+      <tr style="background:var(--navy);color:var(--navy-text);">
+        <th style="padding:8px 12px;text-align:left;">Pricing</th>
+        <th style="padding:8px 12px;text-align:right;">RRP</th>
+        <th style="padding:8px 12px;text-align:right;">Ex GST</th>
+        <th style="padding:8px 12px;text-align:right;">Profit</th>
+        <th style="padding:8px 12px;text-align:center;">GP %</th>
+        <th style="padding:8px 12px;text-align:right;">AUD Landed</th>
+        <th style="padding:8px 12px;text-align:right;">USD Cost</th>
+        <th style="padding:8px 12px;text-align:right;">AUD Conversion</th>
+        <th style="padding:8px 12px;text-align:right;">AUD Freight</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function renderMgCostTable(){
+  const fx=parseFloat(document.getElementById('mgc-fx')?.value)||1.55;
+  const freight=parseFloat(document.getElementById('mgc-freight')?.value)||0;
+  const rows=getMgCostData();
+  const tbody=document.getElementById('mgc-tbody');
+  if(!tbody)return;
+
+  const calcLanded=(usd)=>usd>0?(usd*fx)+freight:0;
+  const calcGP=(landed,rrp)=>{
+    if(!landed||!rrp)return null;
+    const exGst=rrp/1.1;
+    return exGst>0?(exGst-landed)/exGst*100:null;
+  };
+
+  tbody.innerHTML=rows.map((r,i)=>{
+    const oldLanded=calcLanded(r.oldUsd||0);
+    const newLanded=calcLanded(r.newUsd||0);
+    const propLanded=calcLanded(r.propUsd||0);
+    const oldGP=calcGP(oldLanded,r.rrp);
+    const newGP=calcGP(newLanded,r.rrp);
+    const propGP=calcGP(propLanded,r.rrp);
+    const fmt=(v,prefix='$')=>v>0?`${prefix}${v.toFixed(2)}`:'$0.00';
+    const fmtPct=(v)=>v!==null?`<span style="padding:3px 8px;border-radius:4px;${gpColor(v)}">${v.toFixed(0)}%</span>`:'—';
+    const inp=(field,val,w='80px')=>`<input type="number" min="0" step="0.01" value="${val||''}" placeholder="0.00"
+      style="width:${w};padding:4px 6px;border:1.5px solid #3b82f6;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;background:#eff6ff;outline:none;text-align:right;"
+      oninput="mgUpdateRow(${i},'${field}',this.value)"
+      onfocus="this.style.borderColor='#1d4ed8';this.select()" onblur="this.style.borderColor='#3b82f6'">`;
+    return`<tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:6px 8px;">${inp('style',r.style,'90px')}</td>
+      <td style="padding:6px 8px;">${inp('desc',r.desc,'150px')}</td>
+      <td style="padding:6px 8px;text-align:right;">${inp('oldUsd',r.oldUsd)}</td>
+      <td style="padding:6px 8px;text-align:right;color:var(--text-secondary);">${fmt(oldLanded)}</td>
+      <td style="padding:6px 8px;background:#eff6ff;">${inp('newUsd',r.newUsd)}</td>
+      <td style="padding:6px 8px;text-align:right;color:var(--text-secondary);">${fmt(newLanded)}</td>
+      <td style="padding:6px 8px;background:#eff6ff;">${inp('propUsd',r.propUsd)}</td>
+      <td style="padding:6px 8px;text-align:right;color:var(--text-secondary);">${fmt(propLanded)}</td>
+      <td style="padding:6px 8px;background:#eff6ff;">${inp('rrp',r.rrp)}</td>
+      <td style="padding:6px 8px;text-align:center;">${fmtPct(oldGP)}</td>
+      <td style="padding:6px 8px;text-align:center;">${fmtPct(newGP)}</td>
+      <td style="padding:6px 8px;text-align:center;">${fmtPct(propGP)}</td>
+      <td style="padding:6px 4px;text-align:center;"><button onclick="mgDeleteRow(${i})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;line-height:1;">✕</button></td>
+    </tr>`;
+  }).join('');
+
+  if(!rows.length){
+    tbody.innerHTML=`<tr><td colspan="13" style="padding:20px;text-align:center;color:var(--text-muted);font-style:italic;">Click "+ Add Row" to begin</td></tr>`;
+  }
+}
+
+function mgUpdateRow(i,field,val){
+  const rows=getMgCostData();
+  if(!rows[i])return;
+  if(field==='style'||field==='desc')rows[i][field]=val;
+  else rows[i][field]=parseFloat(val)||0;
+  saveMgCostData(rows);
+  // Re-render only the computed cells (landed + GP%) without disrupting inputs
+  const fx=parseFloat(document.getElementById('mgc-fx')?.value)||1.55;
+  const freight=parseFloat(document.getElementById('mgc-freight')?.value)||0;
+  renderMgCostTable();
+}
+
+function mgAddRow(){
+  const rows=getMgCostData();
+  rows.push({style:'',desc:'',oldUsd:0,newUsd:0,propUsd:0,rrp:0});
+  saveMgCostData(rows);
+  renderMgCostTable();
+  // Focus the last style input
+  setTimeout(()=>{
+    const inputs=document.querySelectorAll('#mgc-tbody tr:last-child input');
+    if(inputs[0])inputs[0].focus();
+  },50);
+}
+
+function mgDeleteRow(i){
+  const rows=getMgCostData();
+  rows.splice(i,1);
+  saveMgCostData(rows);
+  renderMgCostTable();
+}
+
+function mgClearRows(){
+  if(!confirm('Clear all rows?'))return;
+  saveMgCostData([]);
+  renderMgCostTable();
+}
+
+function mgExport(){
+  const fx=parseFloat(document.getElementById('mgc-fx')?.value)||1.55;
+  const freight=parseFloat(document.getElementById('mgc-freight')?.value)||0;
+  const rows=getMgCostData();
+  const calcLanded=(usd)=>usd>0?(usd*fx)+freight:0;
+  const calcGP=(landed,rrp)=>{if(!landed||!rrp)return'';const exGst=rrp/1.1;return exGst>0?((exGst-landed)/exGst*100).toFixed(1)+'%':'';}
+  const headers=['Style','Description','Old USD','Old Landed','New USD','New Landed','Prop USD','Prop Landed','RRP','Old %','New %','Prop %'];
+  const lines=[headers.join(','),...rows.map(r=>{
+    const ol=calcLanded(r.oldUsd||0),nl=calcLanded(r.newUsd||0),pl=calcLanded(r.propUsd||0);
+    return[r.style,`"${r.desc}"`,r.oldUsd||'',ol.toFixed(2),r.newUsd||'',nl.toFixed(2),r.propUsd||'',pl.toFixed(2),r.rrp||'',calcGP(ol,r.rrp),calcGP(nl,r.rrp),calcGP(pl,r.rrp)].join(',');
+  })];
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(lines.join('\n'));
+  a.download='margin_cost_calculator.csv';a.click();
+}
+
 function saveRoData(d){try{localStorage.setItem(RO_STORAGE_KEY,JSON.stringify(d));}catch(e){}}
 
 function roToggle(key,checked){
