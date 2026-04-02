@@ -1496,13 +1496,35 @@ th{position:relative;}
             </div>
             <div style="display:flex;gap:8px;">
               <button onclick="mgAddRow()" style="padding:6px 14px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">+ Add Row</button>
-              <button onclick="mgAddRow()" title="Add a row then paste copied spreadsheet data (Style, Desc, Old USD, New USD, Prop USD, RRP)" style="padding:6px 14px;background:#eff6ff;border:1.5px solid #3b82f6;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;color:#1d4ed8;">📋 Paste Rows</button>
+              <button onclick="mgTogglePasteArea()" id="mg-paste-btn" title="Paste data copied from a spreadsheet or email" style="padding:6px 14px;background:#eff6ff;border:1.5px solid #3b82f6;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;color:#1d4ed8;">📋 Paste from Spreadsheet</button>
               <button onclick="mgClearRows()" style="padding:6px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✕ Clear All</button>
               <button onclick="mgExport()" style="padding:6px 14px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">⬇ Export</button>
             </div>
           </div>
 
-          <!-- Global FX rate for cost calc table -->
+          <!-- Paste area — hidden until toggled -->
+          <div id="mg-paste-area" style="display:none;background:#eff6ff;border:2px solid #3b82f6;border-radius:var(--r);padding:16px 18px;margin:12px 0 16px;">
+            <div style="font-size:13px;font-weight:700;color:#1d4ed8;margin-bottom:8px;">📋 Paste from Spreadsheet or Email</div>
+            <div style="font-size:12px;color:#1e40af;margin-bottom:6px;line-height:1.6;">
+              <strong>How to use:</strong><br>
+              1. In your spreadsheet or email, select and copy your rows (Ctrl+C / Cmd+C)<br>
+              2. Click inside the box below and paste (Ctrl+V / Cmd+V)<br>
+              3. Click <strong>Import Rows</strong><br><br>
+              <strong>Expected column order:</strong> Style &nbsp;|&nbsp; Description &nbsp;|&nbsp; RRP &nbsp;|&nbsp; Old USD &nbsp;|&nbsp; New USD &nbsp;|&nbsp; Prop USD<br>
+              <span style="color:#3b82f6;font-size:11px;">Tip: You can paste just Style + Description + RRP + Old USD and leave the rest blank — any missing columns default to 0.</span>
+            </div>
+            <textarea id="mg-paste-input" rows="8" placeholder="Paste your copied data here..."
+              style="width:100%;padding:10px;border:1.5px solid #93c5fd;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;resize:vertical;outline:none;background:white;box-sizing:border-box;"
+              onfocus="this.style.borderColor='#1d4ed8'" onblur="this.style.borderColor='#93c5fd'"
+              onpaste="setTimeout(()=>document.getElementById('mg-import-preview').textContent='Ready to import — click Import Rows',10)"></textarea>
+            <div id="mg-import-preview" style="font-size:11px;color:#3b82f6;min-height:16px;margin-top:4px;"></div>
+            <div style="display:flex;gap:8px;margin-top:10px;align-items:center;">
+              <button onclick="mgProcessPaste()" style="padding:7px 18px;background:#1d4ed8;color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">✓ Import Rows</button>
+              <button onclick="mgTogglePasteArea()" style="padding:7px 14px;background:transparent;border:1px solid #93c5fd;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:#3b82f6;">Cancel</button>
+            </div>
+          </div>
+
+          <!-- FX rate inputs -->
           <div style="display:flex;gap:12px;align-items:flex-end;margin:12px 0 16px;flex-wrap:wrap;">
             <div>
               <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:4px;">USD→AUD Rate</div>
@@ -3401,43 +3423,50 @@ function mgUpdateRow(i,field,val){
 
 function mgAddRow(){
   const rows=getMgCostData();
-  rows.push({style:'',desc:'',oldUsd:0,newUsd:0,propUsd:0,rrp:0});
+  rows.push({style:'',desc:'',rrp:0,oldUsd:0,newUsd:0,propUsd:0});
   saveMgCostData(rows);
   renderMgCostTable();
   setTimeout(()=>{
     const inputs=document.querySelectorAll('#mgc-tbody tr:last-child input[type="text"]');
-    if(inputs[0]){
-      inputs[0].focus();
-      // Attach paste handler for bulk row entry from spreadsheet
-      inputs[0].addEventListener('paste',mgHandlePaste,{once:true});
-    }
+    if(inputs[0])inputs[0].focus();
   },50);
 }
 
-function mgHandlePaste(e){
-  const text=(e.clipboardData||window.clipboardData).getData('text');
-  if(!text||!text.includes('\n')&&!text.includes('\t'))return; // single value, let default handle
-  e.preventDefault();
-  const lines=text.trim().split('\n').filter(l=>l.trim());
-  if(lines.length<=1)return;
-  // Multi-line paste — each line is a row, tab-separated columns: style, desc, oldUsd, newUsd, propUsd, rrp
+function mgTogglePasteArea(){
+  const area=document.getElementById('mg-paste-area');
+  if(!area)return;
+  const isVisible=area.style.display!=='none';
+  area.style.display=isVisible?'none':'block';
+  if(!isVisible){
+    const ta=document.getElementById('mg-paste-input');
+    if(ta){ta.value='';setTimeout(()=>ta.focus(),50);}
+  }
+}
+
+function mgProcessPaste(){
+  const ta=document.getElementById('mg-paste-input');
+  if(!ta)return;
+  const text=ta.value.trim();
+  if(!text){alert('No data to import — paste your spreadsheet data first.');return;}
+  const lines=text.split('\n').filter(l=>l.trim());
+  if(!lines.length)return;
+  const toNum=v=>parseFloat((v||'').replace(/[$,\s]/g,''))||0;
   const rows=getMgCostData();
-  // Remove the empty row that was added for this paste
-  if(rows.length&&!rows[rows.length-1].style&&!rows[rows.length-1].desc&&!rows[rows.length-1].oldUsd)rows.pop();
+  let added=0;
   lines.forEach(line=>{
-    const cols=line.split('\t').map(c=>c.trim());
-    const toNum=v=>parseFloat((v||'').replace(/[$,]/g,''))||0;
-    rows.push({
-      style:cols[0]||'',
-      desc:cols[1]||'',
-      rrp:toNum(cols[2]),
-      oldUsd:toNum(cols[3]),
-      newUsd:toNum(cols[4]),
-      propUsd:toNum(cols[5])
-    });
+    const sep=line.includes('\t')?'\t':',';
+    const cols=line.split(sep).map(c=>c.trim().replace(/^"|"$/g,''));
+    if(cols[0].toUpperCase()==='STYLE'||cols[0].toUpperCase()==='STYLE CODE')return;
+    rows.push({style:cols[0]||'',desc:cols[1]||'',rrp:toNum(cols[2]),oldUsd:toNum(cols[3]),newUsd:toNum(cols[4]),propUsd:toNum(cols[5])});
+    added++;
   });
+  if(!added){alert('Could not parse any rows. Make sure columns are: Style, Description, RRP, Old USD, New USD, Prop USD');return;}
   saveMgCostData(rows);
+  ta.value='';
+  mgTogglePasteArea();
   renderMgCostTable();
+  const btn=document.getElementById('mg-paste-btn');
+  if(btn){const orig=btn.textContent;btn.textContent=`✓ ${added} row${added!==1?'s':''} added`;setTimeout(()=>btn.textContent=orig,2500);}
 }
 
 function mgDeleteRow(i){
