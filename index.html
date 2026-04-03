@@ -5489,6 +5489,25 @@ function buildVariantRows(){
   const{variantMap:amVariantMap,productMap:amProductMap,products:amProducts}=_cachedAMData;
   const{soMap,plMap}=_cachedSoldOutData;
   allVariantRows=processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap,coreSet,bundleSet,draftSet);
+
+  // DEBUG: Check PRIVACY PANEL HOOD SWEAT
+  const debugPrivacy=allVariantRows.filter(r=>r.productName&&r.productName.toUpperCase().includes('PRIVACY'));
+  if(debugPrivacy.length){
+    console.log('PRIVACY rows found:',debugPrivacy.length,debugPrivacy[0]);
+  } else {
+    // Check if SKU is in sohMap
+    const{priceMap:pm2}=_cachedSalesMaps;
+    const sohKeys=Object.keys(_cachedSalesMaps.salesBySkuDay||{});
+    const privacyInSales=sohKeys.filter(k=>k.includes('W26DE012'));
+    console.warn('PRIVACY NOT in allVariantRows. In salesBySkuDay:',privacyInSales.length);
+    // Check draftSet
+    console.warn('PRIVACY in draftSet:',draftSet.has('PRIVACY PANEL HOOD SWEAT - GREY/BLACK'));
+    console.warn('allProductsListData loaded:',!!allProductsListData);
+    console.warn('shopifyInvData rows:',shopifyInvData?.length||0);
+    // Check if inv has it
+    const invPrivacy=(shopifyInvData||[]).filter(r=>(r['Product title']||'').toUpperCase().includes('PRIVACY PANEL HOOD SWEAT - GREY'));
+    console.warn('PRIVACY in shopifyInvData:',invPrivacy.length);
+  }
   document.getElementById('nav-count').textContent=allVariantRows.length.toLocaleString()+' SKUs';
 
   // Build counts based on aggregated product rows (matches what Product view shows)
