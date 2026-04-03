@@ -1937,7 +1937,7 @@ function renderCadence(){
 
   // Table
   // LY MTD column — only shown in Category 12-month view
-  const showLyMtd=cadenceView==='cat'&&cadenceMode==='12m';
+  const showLyMtd=(cadenceView==='cat'||cadenceView==='prod')&&cadenceMode==='12m';
   const todayDate=today.getDate();
   const lyMtdStart=new Date(today.getFullYear()-1,today.getMonth(),1);
   const lyMtdEnd=new Date(today.getFullYear()-1,today.getMonth(),todayDate);
@@ -4816,7 +4816,7 @@ function buildSoldOutMap(){
       const soKey=productName+'||'+colour;
       // Only use Better Reports for soMap if no dedicated variants file uploaded
       if(!variantsSoldOutData&&variants>0)soMap[soKey]=variants;
-      if(price>0)plMap[title]={price,compareAt:compareAt||price,deliveryMonth,cost:parseFloat(row['Cost']||0)||0,status:(row['Product Status']||'').toLowerCase().trim()};
+      if(price>0)plMap[title]={price,compareAt:compareAt||price,deliveryMonth,cost:parseFloat(row['Cost']||0)||0,status:(row['Product Status']||'').toLowerCase().trim(),totalQty:parseInt(row['Total quantity']||row['Total quantity (in stock)']||0)||0};
     }
   }
 
@@ -5114,14 +5114,21 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const pm=priceMap[sku]||invMetaMap[sku];
     if(!pm)continue; // need at minimum a sales or inventory record for meta info
 
-    const stock=sohMap[sku]||0;
     const{productName,colour,size,vendor,category}=pm;
-
-    // isDraft determination — simplified and reliable:
-    // A product is DRAFT only if ALL of these are true:
-    // 1. It's flagged as draft (from All_Products_List CSV or sales history status)
-    // 2. It has NO sales history (not in priceMap)  
-    // 3. It has ZERO stock on hand (truly pre-launch, not just stale CSV data)
+    const plKey=(productName+' - '+colour).toUpperCase();
+    const plEntry=plKey in plMap?plMap[plKey]:plMap[productName.toUpperCase()];
+    // SOH fallback: if product has sales history but missing from inventory file,
+    // use Better Reports total qty distributed equally across sizes
+    let stock=sohMap[sku]||0;
+    if(stock===0&&priceMap[sku]&&plEntry?.totalQty>0){
+      // Count how many SKUs this product has in priceMap to distribute qty
+      const productSkus=Object.keys(priceMap).filter(s=>{
+        const p=priceMap[s];
+        return p.productName===productName&&p.colour===colour;
+      });
+      const sizeCount=productSkus.length||1;
+      stock=Math.round(plEntry.totalQty/sizeCount);
+    }
     const fullTitleUpper=(productName+(colour?' - '+colour:'')).toUpperCase();
     const hasSalesHistory=!!priceMap[sku];
     // isDraftFlagged: ONLY from explicit sources (All_Products_List CSV or sales CSV status)
@@ -5184,8 +5191,6 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     }
 
     // Use price list if uploaded (matched by product title), fall back to sales file prices
-    const plKey=(productName+' - '+colour).toUpperCase();
-    const plEntry=plKey in plMap?plMap[plKey]:plMap[productName.toUpperCase()];
     const price=plEntry?plEntry.price:(pm.price||0);
     const compareAt=plEntry?plEntry.compareAt:(pm.compareAt||pm.price||0);
     const isCore=(vendor||'').toUpperCase()==='CORE'||coreSet.has(productName+' - '+colour);
