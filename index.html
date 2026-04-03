@@ -140,7 +140,8 @@ input[type="file"]{display:none;}
 /* KPI GRID */
 .kpi-row{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:20px;}
 .kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 18px;box-shadow:var(--shadow-xs);transition:box-shadow 0.15s;}
-.kpi-card:hover{box-shadow:var(--shadow-sm);}
+.kpi-card.kpi-clickable:hover{box-shadow:var(--shadow-md);transform:translateY(-1px);}
+.kpi-card.kpi-clickable{transition:box-shadow 0.15s,transform 0.15s;}
 .kpi-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
 .kpi-name{font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;}
 .kpi-ico{width:30px;height:30px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;font-size:14px;}
@@ -5655,17 +5656,17 @@ function renderKPIs(){
   const reduce=productRows.filter(p=>p.flag==='reduce').length;
 
   const kpis=[
-    {name:'Total Products',val:totalProducts.toLocaleString(),sub:'Unique styles',ico:'📊',bg:'#eef1fe',ic:'#4f6ef7'},
-    {name:'SOH',val:totalSoh.toLocaleString(),sub:'Units on hand',ico:'📦',bg:'#e6f7f7',ic:'var(--teal)'},
-    {name:`Units Sold (${selectedPeriod}d)`,val:totalSold.toLocaleString(),sub:`Last ${selectedPeriod} days`,ico:'🛍️',bg:'#dcfce7',ic:'var(--green)'},
-    {name:'On Order',val:onOrder.toLocaleString(),sub:'Total units on order',ico:'🚚',bg:'#f3e8ff',ic:'#7c3aed'},
-    {name:'Re-Order',val:reorder.toLocaleString(),sub:'≤14 weeks cover',ico:'⚠️',bg:'#fef9c3',ic:'#854d0e'},
-    {name:'Reduce',val:reduce.toLocaleString(),sub:'26w+ cover, no order',ico:'🏷️',bg:'#fee2e2',ic:'var(--red)'},
+    {name:'Total Products',val:totalProducts.toLocaleString(),sub:'Unique styles',ico:'📊',bg:'#eef1fe',ic:'#4f6ef7',click:null},
+    {name:'SOH',val:totalSoh.toLocaleString(),sub:'Units on hand',ico:'📦',bg:'#e6f7f7',ic:'var(--teal)',click:null},
+    {name:`Units Sold (${selectedPeriod}d)`,val:totalSold.toLocaleString(),sub:`Last ${selectedPeriod} days`,ico:'🛍️',bg:'#dcfce7',ic:'var(--green)',click:null},
+    {name:'On Order',val:onOrder.toLocaleString(),sub:'Total units on order',ico:'🚚',bg:'#f3e8ff',ic:'#7c3aed',click:null},
+    {name:'Re-Order',val:reorder.toLocaleString(),sub:'≤14 weeks cover',ico:'⚠️',bg:'#fef9c3',ic:'#854d0e',click:"kpiDrillDown('reorder')"},
+    {name:'Reduce',val:reduce.toLocaleString(),sub:'26w+ cover, no order',ico:'🏷️',bg:'#fee2e2',ic:'var(--red)',click:"kpiDrillDown('reduce')"},
   ];
   document.getElementById('kpi-row').innerHTML=kpis.map(k=>`
-    <div class="kpi-card">
+    <div class="kpi-card${k.click?` kpi-clickable`:''}" ${k.click?`onclick="${k.click}" title="Click to view products"`:''} style="${k.click?'cursor:pointer;':''}" >
       <div class="kpi-top">
-        <div class="kpi-name">${k.name}</div>
+        <div class="kpi-name">${k.name}${k.click?` <span style="font-size:10px;color:var(--text-muted);font-weight:400;">↗</span>`:''}</div>
         <div class="kpi-ico" style="background:${k.bg};color:${k.ic}">${k.ico}</div>
       </div>
       <div class="kpi-val">${k.val}</div>
@@ -5741,6 +5742,15 @@ function populateMultiSelect(type,values,countMap){
     const labelText=count!==''?`${v} (${count})`:v;
     return`<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="applyFilters()"> ${labelText}</label>`;
   }).join('');
+}
+
+function kpiDrillDown(flag){
+  // Switch to product view and filter by the given stock status flag
+  setView('product');
+  // Clear all flag checkboxes then check only the target flag
+  quickFlag(flag);
+  // Scroll to table
+  document.querySelector('.main')?.scrollTo({top:0,behavior:'smooth'});
 }
 
 function quickFlag(f){
