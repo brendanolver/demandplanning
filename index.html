@@ -4816,7 +4816,7 @@ function buildSoldOutMap(){
       const soKey=productName+'||'+colour;
       // Only use Better Reports for soMap if no dedicated variants file uploaded
       if(!variantsSoldOutData&&variants>0)soMap[soKey]=variants;
-      if(price>0)plMap[title]={price,compareAt:compareAt||price,deliveryMonth,cost:parseFloat(row['Cost']||0)||0};
+      if(price>0)plMap[title]={price,compareAt:compareAt||price,deliveryMonth,cost:parseFloat(row['Cost']||0)||0,status:(row['Product Status']||'').toLowerCase().trim()};
     }
   }
 
@@ -5074,7 +5074,7 @@ function getFlag(days,stock,onOrder,vendor,discountPct){
 }
 
 /* ── PROCESS ── */
-function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap,coreSet=new Set(),bundleSet=new Set(),draftSet=new Set()){
+function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap,coreSet=new Set(),bundleSet=new Set(),draftSet=new Set(),activeSet=new Set()){
   const rows=[];
 
   // Build SOH lookup from inventory file: {sku: stock}
@@ -5148,7 +5148,9 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const vKeyPR=productName+'||'+colour+'||'+size;
     const vKeyOSPR=productName+'||'+colour+'||OS';
     const onOrderPR=(amVariantMap[vKeyPR]||amVariantMap[vKeyOSPR])?.qtyOpen||0;
-    const isPreRelease=isDraftSignal&&stock>0&&isCurrentMonthDelivery&&!hasSalesHistory&&onOrderPR===0;
+    // isActive: definitively live if in Better Reports soldout with status='active'
+    const isActive=activeSet.has(fullTitleUpper)||hasSalesHistory;
+    const isPreRelease=isDraftSignal&&stock>0&&isCurrentMonthDelivery&&!hasSalesHistory&&onOrderPR===0&&!isActive;
     if(isDraft){
       // Skip excluded categories entirely
       const excludedDraftCats=['GWP','MYSTERY BOX','INSURANCE','GIVEAWAY'];
@@ -5486,6 +5488,13 @@ function buildVariantRows(){
   }
   // Build draftSet — All Products List CSV is primary source of truth for draft status
   const draftSet=new Set();
+  // Build activeSet from Better Reports soldOutData — products with status='active' are definitively live
+  const activeSet=new Set();
+  const{plMap}=_cachedSoldOutData;
+  for(const[title,entry] of Object.entries(plMap)){
+    if((entry.status||'')==='active')activeSet.add(title.toUpperCase());
+    else if((entry.status||'')==='draft')draftSet.add(title.toUpperCase());
+  }
   if(allProductsListData){
     for(const row of allProductsListData){
       const status=(row['Product Status']||'').toLowerCase().trim();
@@ -5507,27 +5516,10 @@ function buildVariantRows(){
 
   const{salesBySkuDay,priceMap}=_cachedSalesMaps;
   const{variantMap:amVariantMap,productMap:amProductMap,products:amProducts}=_cachedAMData;
-  const{soMap,plMap}=_cachedSoldOutData;
-  allVariantRows=processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap,coreSet,bundleSet,draftSet);
+  const{soMap}=_cachedSoldOutData;
+  allVariantRows=processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap,coreSet,bundleSet,draftSet,activeSet);
 
-  // DEBUG: Check PRIVACY PANEL HOOD SWEAT
-  const debugPrivacy=allVariantRows.filter(r=>r.productName&&r.productName.toUpperCase().includes('PRIVACY'));
-  if(debugPrivacy.length){
-    console.log('PRIVACY rows found:',debugPrivacy.length,debugPrivacy[0]);
-  } else {
-    // Check if SKU is in sohMap
-    const{priceMap:pm2}=_cachedSalesMaps;
-    const sohKeys=Object.keys(_cachedSalesMaps.salesBySkuDay||{});
-    const privacyInSales=sohKeys.filter(k=>k.includes('W26DE012'));
-    console.warn('PRIVACY NOT in allVariantRows. In salesBySkuDay:',privacyInSales.length);
-    // Check draftSet
-    console.warn('PRIVACY in draftSet:',draftSet.has('PRIVACY PANEL HOOD SWEAT - GREY/BLACK'));
-    console.warn('allProductsListData loaded:',!!allProductsListData);
-    console.warn('shopifyInvData rows:',shopifyInvData?.length||0);
-    // Check if inv has it
-    const invPrivacy=(shopifyInvData||[]).filter(r=>(r['Product title']||'').toUpperCase().includes('PRIVACY PANEL HOOD SWEAT - GREY'));
-    console.warn('PRIVACY in shopifyInvData:',invPrivacy.length);
-  }
+
   document.getElementById('nav-count').textContent=allVariantRows.length.toLocaleString()+' SKUs';
 
   // Build counts based on aggregated product rows (matches what Product view shows)
