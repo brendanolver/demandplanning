@@ -235,6 +235,7 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .rp-core{background:var(--blue-light);color:var(--blue);}
 .rp-reduced{background:#fff7ed;color:#ea580c;}
 .rp-draft{background:#f3e8ff;color:#7c3aed;}
+.rp-prerelease{background:#fff1f2;color:#e11d48;}
 .rp-indent{background:var(--amber-light);color:var(--amber);}
 .rp-clearance{background:var(--red-light);color:var(--red);}
 .rp-bundle{background:var(--purple-light);color:var(--purple);}
@@ -3624,7 +3625,7 @@ function renderReorders(){
 
   const SL={ok:'OK','on-order':'On Order',oos:'Out of Stock',reorder:'Re-Order',reduce:'Reduce',clearance:'Clearance'};
   const flagPillCls={ok:'sp-ok',reorder:'sp-reorder','on-order':'sp-onorder',oos:'sp-oos',reduce:'sp-reduce',clearance:'sp-clearance'};
-  const vendorCls=v=>v==='CORE'?'rp-core':v==='NEW'?'rp-new':v==='CURRENT'?'rp-current':v==='OLD'?'rp-old':v==='REDUCED'?'rp-reduced':v==='DRAFT'?'rp-draft':'rp-other';
+  const vendorCls=v=>v==='CORE'?'rp-core':v==='NEW'?'rp-new':v==='CURRENT'?'rp-current':v==='OLD'?'rp-old':v==='REDUCED'?'rp-reduced':v==='DRAFT'?'rp-draft':v==='PRE-RELEASE'?'rp-prerelease':'rp-other';
 
   const soldLabel=`Sold (${roPeriod}d)`;
   const getSoldRo=p=>{if(roPeriod===7)return p.sold7||0;if(roPeriod===14)return Math.round((p.sold7||0)/7*14);if(roPeriod===30)return p.sold30||0;if(roPeriod===60)return p.sold60||0;if(roPeriod===90)return p.sold90||0;if(roPeriod===365)return p.sold365||0;return p.sold7||0;};
@@ -4245,7 +4246,7 @@ function renderMarkdowns(){
     const disc=p.discountPct!=null?p.discountPct.toFixed(1)+'%':'—';
     const mg=p.margin!=null?p.margin.toFixed(1)+'%':'—';
     const proposedPrice=p.compareAt>0&&pct?(p.compareAt*(1-parseFloat(pct)/100)).toFixed(2):'';
-    const vendorCls=p.vendor==='CORE'?'rp-core':p.vendor==='NEW'?'rp-new':p.vendor==='CURRENT'?'rp-current':p.vendor==='OLD'?'rp-old':p.vendor==='REDUCED'?'rp-reduced':p.vendor==='DRAFT'?'rp-draft':'rp-other';
+    const vendorCls=p.vendor==='CORE'?'rp-core':p.vendor==='NEW'?'rp-new':p.vendor==='CURRENT'?'rp-current':p.vendor==='OLD'?'rp-old':p.vendor==='REDUCED'?'rp-reduced':p.vendor==='DRAFT'?'rp-draft':p.vendor==='PRE-RELEASE'?'rp-prerelease':'rp-other';
     const safeKey=key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     const onOrder=(p.onOrder||0)+(p.productOnOrder||0);
     const collection=saved[key]?.collection||'';
@@ -5126,6 +5127,8 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const isDraftFlagged=draftSet.has(fullTitleUpper)||(pm.status||'').toUpperCase()==='DRAFT'||
       (!allProductsListData&&!priceMap[sku]&&invMetaMap[sku]&&(pm.status||'')==='');
     const isDraft=isDraftFlagged&&!hasSalesHistory&&stock===0;
+    // PRE-RELEASE: draft-flagged, no sales history, but HAS stock — ready to drop
+    const isPreRelease=isDraftFlagged&&!hasSalesHistory&&stock>0;
     if(isDraft){
       // Skip excluded categories entirely
       const excludedDraftCats=['GWP','MYSTERY BOX','INSURANCE','GIVEAWAY'];
@@ -5330,22 +5333,23 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     // CURRENT — delivered within last 3 months (but not this month), not CORE/CLEARANCE/BUNDLE
     const isCurrent=skuDeliveryDate&&skuDeliveryDate>=threeMonthsAgo&&!isCurrentMonth&&!isFutureWithStock&&!isCore&&!isClearance&&!isBundle;
 
-    const isNew=(isCurrentMonth||isFutureWithStock)&&!isCore&&!isClearance&&!isBundle&&!isDraft;
+    const isNew=(isCurrentMonth||isFutureWithStock)&&!isCore&&!isClearance&&!isBundle&&!isDraft&&!isPreRelease;
     // Draft products with current or future delivery month AND stock/on-order should show as NEW
     const isDraftButCurrent=isDraft&&(isCurrentMonth||isFutureWithStock||
       (skuDeliveryDate&&skuDeliveryDate>=new Date()))&&
       ((stock>0)||(onOrder>0)||(productOnOrder>0));
     // CORE/BUNDLE from CSV take precedence — then age-based status
-    const isReduced=!isCore&&!isBundle&&!isDraft&&(discountPct>0);
+    const isReduced=!isCore&&!isBundle&&!isDraft&&!isPreRelease&&(discountPct>0);
     // REDUCED takes priority over CLEARANCE when product has an active discount
-    const effectiveVendor=isCore?'CORE':(isDraft&&!isDraftButCurrent)?'DRAFT':isBundle?'BUNDLE':isReduced?'REDUCED':isClearance?'CLEARANCE':(isNew||isDraftButCurrent)?'NEW':isEnd?'OLD':isCurrent?'CURRENT':vendor;
+    // PRE-RELEASE: draft-flagged with stock — always shows regardless of delivery month
+    const effectiveVendor=isCore?'CORE':(isDraft&&!isDraftButCurrent)?'DRAFT':isPreRelease?'PRE-RELEASE':isBundle?'BUNDLE':isReduced?'REDUCED':isClearance?'CLEARANCE':(isNew||isDraftButCurrent)?'NEW':isEnd?'OLD':isCurrent?'CURRENT':vendor;
     // No suggested orders for BUNDLE (non-CORE) or REDUCED — these shouldn't be restocked at full price
     const finalSuggestedOrder=(isBundle&&!isCore)||isReduced?0:suggestedOrder;
     // Re-run flag with effectiveVendor so CORE/NEW/CURRENT/ON ORDER status is respected
     flag=getFlag(recalcDays,stock,onOrder,effectiveVendor,discountPct);
-    if(isEnd&&!discountPct&&!isNew&&!isDraft&&!isDraftButCurrent)flag='reduce';
+    if(isEnd&&!discountPct&&!isNew&&!isDraft&&!isDraftButCurrent&&!isPreRelease)flag='reduce';
     // Never flag NEW, CURRENT, ON ORDER or BUNDLE products as reduce
-    if(flag==='reduce'&&(effectiveVendor==='NEW'||effectiveVendor==='CURRENT'||effectiveVendor==='ON ORDER'||isBundle))flag='ok';
+    if(flag==='reduce'&&(effectiveVendor==='NEW'||effectiveVendor==='CURRENT'||effectiveVendor==='ON ORDER'||effectiveVendor==='PRE-RELEASE'||isBundle))flag='ok';
     // Never flag OLD, CLEARANCE, BUNDLE (non-CORE) as reorder at variant level
     if(flag==='reorder'&&(isEnd||isClearance||(isBundle&&!isCore)))flag='ok';
     // Note: MOQ (70 unit) check is done at product level in toProduct, not per-variant
