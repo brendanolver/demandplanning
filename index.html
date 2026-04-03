@@ -5124,11 +5124,31 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     // 3. It has ZERO stock on hand (truly pre-launch, not just stale CSV data)
     const fullTitleUpper=(productName+(colour?' - '+colour:'')).toUpperCase();
     const hasSalesHistory=!!priceMap[sku];
-    const isDraftFlagged=draftSet.has(fullTitleUpper)||(pm.status||'').toUpperCase()==='DRAFT'||
+    // isDraftFlagged: ONLY from explicit sources (All_Products_List CSV or sales CSV status)
+    // Do NOT use the broad invMetaMap fallback — that catches too many active products
+    const isDraftFlaggedExplicit=draftSet.has(fullTitleUpper)||(pm.status||'').toUpperCase()==='DRAFT';
+    const isDraftFlagged=isDraftFlaggedExplicit||
       (!allProductsListData&&!priceMap[sku]&&invMetaMap[sku]&&(pm.status||'')==='');
     const isDraft=isDraftFlagged&&!hasSalesHistory&&stock===0;
-    // PRE-RELEASE: draft-flagged, no sales history, but HAS stock — ready to drop
-    const isPreRelease=isDraftFlagged&&!hasSalesHistory&&stock>0;
+    // PRE-RELEASE: in inventory with stock, no sales history, current or future delivery month
+    // Works even without All_Products_List — inventory file + SKU decode is sufficient
+    // If All_Products_List IS loaded, also require explicit draft flag to avoid false positives
+    const invOnlyWithStock=!!invMetaMap[sku]&&!hasSalesHistory&&stock>0;
+    const skuDeliveryForPR=decodeSkuDelivery(sku);
+    const skuDateForPR=(()=>{
+      if(!skuDeliveryForPR)return null;
+      const p=skuDeliveryForPR.split(' - ');
+      if(p.length<2)return null;
+      const M={january:0,february:1,march:2,april:3,may:4,june:5,july:6,august:7,september:8,october:9,november:10,december:11};
+      const yr=parseInt(p[0]),mo=M[(p[1]||'').toLowerCase().trim()];
+      if(isNaN(yr)||mo===undefined)return null;
+      return new Date(yr,mo,1);
+    })();
+    const nowPR=new Date();
+    const threeMonthsAgoPR=new Date(nowPR.getFullYear(),nowPR.getMonth()-3,1);
+    const currentOrFutureDelivery=skuDateForPR===null||skuDateForPR>=threeMonthsAgoPR;
+    const isPreRelease=invOnlyWithStock&&currentOrFutureDelivery&&
+      (allProductsListData?isDraftFlaggedExplicit:true); // if list loaded, must be explicitly draft
     if(isDraft){
       // Skip excluded categories entirely
       const excludedDraftCats=['GWP','MYSTERY BOX','INSURANCE','GIVEAWAY'];
