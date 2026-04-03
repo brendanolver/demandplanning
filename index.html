@@ -5331,15 +5331,19 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const isCurrent=skuDeliveryDate&&skuDeliveryDate>=threeMonthsAgo&&!isCurrentMonth&&!isFutureWithStock&&!isCore&&!isClearance&&!isBundle;
 
     const isNew=(isCurrentMonth||isFutureWithStock)&&!isCore&&!isClearance&&!isBundle&&!isDraft;
+    // Draft products with current or future delivery month AND stock/on-order should show as NEW
+    const isDraftButCurrent=isDraft&&(isCurrentMonth||isFutureWithStock||
+      (skuDeliveryDate&&skuDeliveryDate>=new Date()))&&
+      ((stock>0)||(onOrder>0)||(productOnOrder>0));
     // CORE/BUNDLE from CSV take precedence — then age-based status
     const isReduced=!isCore&&!isBundle&&!isDraft&&(discountPct>0);
     // REDUCED takes priority over CLEARANCE when product has an active discount
-    const effectiveVendor=isCore?'CORE':isDraft?'DRAFT':isBundle?'BUNDLE':isReduced?'REDUCED':isClearance?'CLEARANCE':isNew?'NEW':isEnd?'OLD':isCurrent?'CURRENT':vendor;
+    const effectiveVendor=isCore?'CORE':(isDraft&&!isDraftButCurrent)?'DRAFT':isBundle?'BUNDLE':isReduced?'REDUCED':isClearance?'CLEARANCE':(isNew||isDraftButCurrent)?'NEW':isEnd?'OLD':isCurrent?'CURRENT':vendor;
     // No suggested orders for BUNDLE (non-CORE) or REDUCED — these shouldn't be restocked at full price
     const finalSuggestedOrder=(isBundle&&!isCore)||isReduced?0:suggestedOrder;
     // Re-run flag with effectiveVendor so CORE/NEW/CURRENT/ON ORDER status is respected
     flag=getFlag(recalcDays,stock,onOrder,effectiveVendor,discountPct);
-    if(isEnd&&!discountPct&&!isNew&&!isDraft)flag='reduce';
+    if(isEnd&&!discountPct&&!isNew&&!isDraft&&!isDraftButCurrent)flag='reduce';
     // Never flag NEW, CURRENT, ON ORDER or BUNDLE products as reduce
     if(flag==='reduce'&&(effectiveVendor==='NEW'||effectiveVendor==='CURRENT'||effectiveVendor==='ON ORDER'||isBundle))flag='ok';
     // Never flag OLD, CLEARANCE, BUNDLE (non-CORE) as reorder at variant level
