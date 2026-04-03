@@ -5130,25 +5130,25 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const isDraftFlagged=isDraftFlaggedExplicit||
       (!allProductsListData&&!priceMap[sku]&&invMetaMap[sku]&&(pm.status||'')==='');
     const isDraft=isDraftFlagged&&!hasSalesHistory&&stock===0;
-    // PRE-RELEASE: in inventory with stock, no sales history, current or future delivery month
-    // Works even without All_Products_List — inventory file + SKU decode is sufficient
-    // If All_Products_List IS loaded, also require explicit draft flag to avoid false positives
-    const invOnlyWithStock=!!invMetaMap[sku]&&!hasSalesHistory&&stock>0;
+    // PRE-RELEASE: Shopify draft status + stock on hand + delivery month is current calendar month
+    const nowPR=new Date();
     const skuDeliveryForPR=decodeSkuDelivery(sku);
-    const skuDateForPR=(()=>{
-      if(!skuDeliveryForPR)return null;
+    const isCurrentMonthDelivery=(()=>{
+      if(!skuDeliveryForPR)return false;
       const p=skuDeliveryForPR.split(' - ');
-      if(p.length<2)return null;
+      if(p.length<2)return false;
       const M={january:0,february:1,march:2,april:3,may:4,june:5,july:6,august:7,september:8,october:9,november:10,december:11};
       const yr=parseInt(p[0]),mo=M[(p[1]||'').toLowerCase().trim()];
-      if(isNaN(yr)||mo===undefined)return null;
-      return new Date(yr,mo,1);
+      if(isNaN(yr)||mo===undefined)return false;
+      return yr===nowPR.getFullYear()&&mo===nowPR.getMonth();
     })();
-    const nowPR=new Date();
-    const threeMonthsAgoPR=new Date(nowPR.getFullYear(),nowPR.getMonth()-3,1);
-    const currentOrFutureDelivery=skuDateForPR===null||skuDateForPR>=threeMonthsAgoPR;
-    const isPreRelease=invOnlyWithStock&&currentOrFutureDelivery&&
-      (allProductsListData?isDraftFlaggedExplicit:true); // if list loaded, must be explicitly draft
+    // PRE-RELEASE: Shopify draft status + stock on hand + delivery month is current calendar month
+    // isDraftFlaggedExplicit if All_Products_List loaded, OR invMetaMap-only (no sales) as fallback
+    const isDraftSignal=isDraftFlaggedExplicit||(!hasSalesHistory&&!!invMetaMap[sku]);
+    const vKeyPR=productName+'||'+colour+'||'+size;
+    const vKeyOSPR=productName+'||'+colour+'||OS';
+    const onOrderPR=(amVariantMap[vKeyPR]||amVariantMap[vKeyOSPR])?.qtyOpen||0;
+    const isPreRelease=isDraftSignal&&stock>0&&isCurrentMonthDelivery&&!hasSalesHistory&&onOrderPR===0;
     if(isDraft){
       // Skip excluded categories entirely
       const excludedDraftCats=['GWP','MYSTERY BOX','INSURANCE','GIVEAWAY'];
