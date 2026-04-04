@@ -1068,6 +1068,13 @@ th{position:relative;}
             </div>
             <!-- Dropdown: stays open for multi-select, sticky header+footer -->
             <div id="cadence-compare-results" style="display:none;position:absolute;z-index:300;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-lg);width:100%;top:100%;margin-top:4px;">
+              <div style="padding:7px 14px;border-bottom:1px solid var(--border);background:var(--surface2);border-radius:var(--r) var(--r) 0 0;">
+                <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+                  <input type="checkbox" id="cadence-compare-select-all" onchange="cadenceCompareSelectAll(this)"
+                    style="width:15px;height:15px;flex-shrink:0;accent-color:var(--teal);cursor:pointer;">
+                  <span style="font-size:12px;font-weight:600;color:var(--text-secondary);">Select All (up to 10)</span>
+                </label>
+              </div>
               <div id="cadence-compare-list" style="max-height:260px;overflow-y:auto;"></div>
               <div style="padding:8px 12px;border-top:1px solid var(--border);background:var(--surface2);display:flex;justify-content:space-between;align-items:center;border-radius:0 0 var(--r) var(--r);">
                 <span id="cadence-compare-count-label" style="font-size:11px;color:var(--text-muted);"></span>
@@ -1767,22 +1774,49 @@ function cadenceCompareSearch(){
 
   cadenceCompareUpdateCount();
   results.style.display='block';
+  // Reset select-all state when list refreshes
+  const sa=document.getElementById('cadence-compare-select-all');
+  if(sa){sa.checked=false;sa.indeterminate=false;}
+}
+
+function cadenceCompareSelectAll(cb){
+  const slotsLeft=10-cadenceCompareProducts.length;
+  const available=document.querySelectorAll('#cadence-compare-list input[type="checkbox"]:not([disabled])');
+  let count=0;
+  available.forEach(box=>{
+    if(cb.checked){
+      // Only tick up to remaining slots
+      if(count<slotsLeft){box.checked=true;count++;}
+      else box.checked=false;
+    } else {
+      box.checked=false;
+    }
+  });
+  cadenceCompareUpdateCount();
 }
 
 function cadenceCompareUpdateCount(){
   const checked=document.querySelectorAll('#cadence-compare-list input[type="checkbox"]:checked:not([disabled])');
   const totalSelected=cadenceCompareProducts.length+checked.length;
-  const remaining=5-totalSelected;
+  const remaining=10-totalSelected;
   const label=document.getElementById('cadence-compare-count-label');
   if(label){
     if(checked.length>0)label.textContent=`${checked.length} selected — ${remaining} slot${remaining!==1?'s':''} remaining`;
-    else label.textContent=`${cadenceCompareProducts.length}/5 products added`;
+    else label.textContent=`${cadenceCompareProducts.length}/10 products added`;
   }
   document.querySelectorAll('#cadence-compare-list input[type="checkbox"]:not([disabled]):not(:checked)').forEach(cb=>{
     cb.disabled=remaining<=0;
     const lbl=cb.closest('label');
     if(lbl){lbl.style.opacity=remaining<=0?'0.4':'1';lbl.style.cursor=remaining<=0?'default':'pointer';}
   });
+  // Sync select-all checkbox state
+  const all=document.querySelectorAll('#cadence-compare-list input[type="checkbox"]:not([disabled])');
+  const allChecked=[...all].every(b=>b.checked);
+  const selectAll=document.getElementById('cadence-compare-select-all');
+  if(selectAll){
+    selectAll.checked=all.length>0&&allChecked;
+    selectAll.indeterminate=!allChecked&&checked.length>0;
+  }
 }
 
 function cadenceCompareApplyChecked(){
@@ -1791,7 +1825,7 @@ function cadenceCompareApplyChecked(){
     const key=cb.value;
     const productName=cb.dataset.product;
     const colour=cb.dataset.colour;
-    if(cadenceCompareProducts.length<5&&!cadenceCompareProducts.some(p=>p.key===key)){
+    if(cadenceCompareProducts.length<10&&!cadenceCompareProducts.some(p=>p.key===key)){
       cadenceCompareProducts.push({key,productName,colour,color:COMPARE_COLOURS[cadenceCompareProducts.length]});
     }
   });
