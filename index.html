@@ -2038,6 +2038,15 @@ function getCadenceSelectedStatuses(){
   return checked;
 }
 
+let compareSortCol=null; // null=original order, 'product','soh','total', or period label
+let compareSortDir='desc';
+
+function setCompareSort(col){
+  if(compareSortCol===col)compareSortDir=compareSortDir==='desc'?'asc':'desc';
+  else{compareSortCol=col;compareSortDir='desc';}
+  renderCadenceCompare();
+}
+
 function renderCadenceCompare(){
   const body=document.getElementById('cadence-body');
   renderCadenceCompareTags();
@@ -2049,10 +2058,9 @@ function renderCadenceCompare(){
 
   const today=new Date();today.setHours(0,0,0,0);
   const periods=buildCadencePeriods(today).reverse();
-  const thStyle='cursor:default;user-select:none;white-space:nowrap;';
 
   // Build data for each selected product
-  const productData=cadenceCompareProducts.map(cp=>{
+  let productData=cadenceCompareProducts.map(cp=>{
     const d={};
     for(const p of periods)d[p.label]=0;
     const variants=allVariantRows.filter(r=>r.productName===cp.productName&&r.colour===cp.colour);
@@ -2065,6 +2073,18 @@ function renderCadenceCompare(){
     return{...cp,data:d,soh,totalSold};
   });
 
+  // Apply sort
+  if(compareSortCol){
+    productData.sort((a,b)=>{
+      let va,vb;
+      if(compareSortCol==='product')     {va=(a.productName+' '+a.colour).toLowerCase();vb=(b.productName+' '+b.colour).toLowerCase();return compareSortDir==='asc'?va.localeCompare(vb):vb.localeCompare(va);}
+      else if(compareSortCol==='soh')    {va=a.soh;vb=b.soh;}
+      else if(compareSortCol==='total')  {va=a.totalSold;vb=b.totalSold;}
+      else                               {va=a.data[compareSortCol]||0;vb=b.data[compareSortCol]||0;}
+      return compareSortDir==='asc'?va-vb:vb-va;
+    });
+  }
+
   // Column totals
   const colTotals={};
   for(const p of periods){
@@ -2072,10 +2092,18 @@ function renderCadenceCompare(){
   }
   const grandTotal=Object.values(colTotals).reduce((s,v)=>s+v,0);
 
-  // Headers
-  const headers=periods.map(p=>`<th style="${thStyle}text-align:right;">${p.label}</th>`).join('');
+  // Sort arrow helper
+  const arrow=col=>compareSortCol===col?(compareSortDir==='asc'?' ▲':' ▼'):'';
+  const thBase='cursor:pointer;user-select:none;white-space:nowrap;';
+  const thActive='cursor:pointer;user-select:none;white-space:nowrap;color:var(--teal);';
 
-  // Rows — one per product
+  // Headers
+  const headers=periods.map(p=>{
+    const active=compareSortCol===p.label;
+    return`<th onclick="setCompareSort('${p.label}')" style="${active?thActive:thBase}text-align:right;">${p.label}${arrow(p.label)}</th>`;
+  }).join('');
+
+  // Rows
   const rows=productData.map(cp=>{
     const cells=periods.map((p,i)=>{
       const v=Math.round(cp.data[p.label]||0);
@@ -2119,9 +2147,9 @@ function renderCadenceCompare(){
   body.innerHTML=`<div class="cadence-table-wrap">
     <table class="cadence-table">
       <thead><tr>
-        <th style="${thStyle}min-width:200px;">Product</th>
-        <th style="${thStyle}text-align:right;min-width:70px;">SOH</th>
-        <th style="${thStyle}text-align:right;min-width:80px;color:var(--teal);">Total Sold</th>
+        <th onclick="setCompareSort('product')" style="${compareSortCol==='product'?thActive:thBase}min-width:200px;">Product${arrow('product')}</th>
+        <th onclick="setCompareSort('soh')" style="${compareSortCol==='soh'?thActive:thBase}text-align:right;min-width:70px;">SOH${arrow('soh')}</th>
+        <th onclick="setCompareSort('total')" style="${compareSortCol==='total'?thActive:thBase}text-align:right;min-width:80px;color:${compareSortCol==='total'?'var(--teal)':'var(--teal)'};">Total Sold${arrow('total')}</th>
         ${headers}
       </tr></thead>
       <tbody>${rows}${totalsRow}</tbody>
