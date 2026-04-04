@@ -1058,18 +1058,25 @@ th{position:relative;}
       </div>
       <!-- Compare panel -->
       <div id="cadence-compare-panel" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 18px;margin-bottom:16px;">
-        <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:10px;letter-spacing:0.05em;">COMPARE UP TO 5 PRODUCTS</div>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
-          <div style="position:relative;flex:1;min-width:240px;">
+        <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:10px;letter-spacing:0.05em;">COMPARE UP TO 10 PRODUCTS</div>
+        <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;margin-bottom:10px;">
+          <div style="position:relative;flex:1;min-width:260px;">
             <div class="search-wrap">
               <span class="search-ico">🔍</span>
-              <input type="text" id="cadence-compare-search" placeholder="Search & add a product..." oninput="cadenceCompareSearch()" autocomplete="off" style="width:100%;">
+              <input type="text" id="cadence-compare-search" placeholder="Type to search, tick to select, then click Add Selected..." oninput="cadenceCompareSearch()" autocomplete="off" style="width:100%;">
             </div>
-            <div id="cadence-compare-results" style="display:none;position:absolute;z-index:300;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-lg);max-height:220px;overflow-y:auto;width:100%;top:100%;margin-top:2px;"></div>
+            <!-- Dropdown: stays open for multi-select, sticky header+footer -->
+            <div id="cadence-compare-results" style="display:none;position:absolute;z-index:300;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-lg);width:100%;top:100%;margin-top:4px;">
+              <div id="cadence-compare-list" style="max-height:260px;overflow-y:auto;"></div>
+              <div style="padding:8px 12px;border-top:1px solid var(--border);background:var(--surface2);display:flex;justify-content:space-between;align-items:center;border-radius:0 0 var(--r) var(--r);">
+                <span id="cadence-compare-count-label" style="font-size:11px;color:var(--text-muted);"></span>
+                <button onclick="cadenceCompareApplyChecked()" style="padding:5px 16px;background:var(--teal);color:white;border:none;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">✓ Add Selected</button>
+              </div>
+            </div>
           </div>
-          <button onclick="cadenceCompareClear()" style="padding:6px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);white-space:nowrap;">✕ Clear All</button>
+          <button onclick="cadenceCompareClear()" style="padding:7px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);white-space:nowrap;margin-top:2px;">✕ Clear All</button>
         </div>
-        <div id="cadence-compare-tags" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+        <div id="cadence-compare-tags" style="display:flex;gap:6px;flex-wrap:wrap;min-height:24px;"></div>
       </div>
 
       <div id="cadence-body">
@@ -1627,6 +1634,12 @@ function toggleSidebar(){
 }
 // Close sidebar when a nav item is clicked on mobile
 document.addEventListener('click',e=>{
+  if(e.target.closest('#cadence-compare-results')||e.target.closest('#cadence-compare-search'))return;
+  const res=document.getElementById('cadence-compare-results');
+  if(res)res.style.display='none';
+});
+
+document.addEventListener('click',e=>{
   if(e.target.closest('.sb-item')||e.target.closest('.sb-section')){
     const sidebar=document.querySelector('.sidebar');
     const overlay=document.getElementById('sidebar-overlay');
@@ -1715,33 +1728,84 @@ function toggleCadenceCompare(){
 function cadenceCompareSearch(){
   const val=(document.getElementById('cadence-compare-search')?.value||'').trim().toUpperCase();
   const results=document.getElementById('cadence-compare-results');
-  if(!results)return;
+  const list=document.getElementById('cadence-compare-list');
+  if(!results||!list)return;
   if(val.length<2){results.style.display='none';return;}
-  // Get unique product+colour combos matching search, excluding already added
+
+  // Get unique product+colour combos matching search
   const matches=new Map();
   for(const r of allVariantRows){
     if(r.amOnly)continue;
     const k=r.productName+'||'+r.colour;
     if(matches.has(k))continue;
     if(!(r.productName+' - '+r.colour).toUpperCase().includes(val))continue;
-    if(cadenceCompareProducts.some(p=>p.key===k))continue; // already added
     matches.set(k,{key:k,productName:r.productName,colour:r.colour});
   }
-  const items=[...matches.values()].slice(0,10);
+  const items=[...matches.values()].slice(0,30);
   if(!items.length){results.style.display='none';return;}
-  results.innerHTML=items.map(p=>`
-    <div onclick="cadenceCompareAdd('${p.key.replace(/'/g,"\\'")}','${p.productName.replace(/'/g,"\\'")}','${p.colour.replace(/'/g,"\\'")}');document.getElementById('cadence-compare-results').style.display='none'"
-      style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);"
-      onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
-      <strong>${p.productName}</strong> <span style="color:var(--text-muted);">— ${p.colour}</span>
-    </div>`).join('');
+
+  list.innerHTML=items.map(p=>{
+    const alreadyAdded=cadenceCompareProducts.some(x=>x.key===p.key);
+    const full=!alreadyAdded&&cadenceCompareProducts.length>=10;
+    const disabled=alreadyAdded||full;
+    return`<label style="display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:${disabled?'default':'pointer'};border-bottom:1px solid var(--border);opacity:${full?0.4:1};"
+      onmouseover="if(!${disabled})this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+      <input type="checkbox" value="${p.key.replace(/"/g,'&quot;')}"
+        data-product="${p.productName.replace(/"/g,'&quot;')}"
+        data-colour="${p.colour.replace(/"/g,'&quot;')}"
+        ${alreadyAdded?'checked disabled':''}
+        onchange="cadenceCompareUpdateCount()"
+        style="width:15px;height:15px;flex-shrink:0;accent-color:var(--teal);cursor:pointer;">
+      <span style="font-size:13px;line-height:1.3;">
+        <strong>${p.productName}</strong>
+        <span style="color:var(--teal);font-weight:500;"> — ${p.colour}</span>
+      </span>
+      ${alreadyAdded?'<span style="font-size:10px;font-weight:600;color:var(--teal);margin-left:auto;white-space:nowrap;">✓ added</span>':''}
+    </label>`;
+  }).join('');
+
+  cadenceCompareUpdateCount();
   results.style.display='block';
 }
 
-const COMPARE_COLOURS=['#2dd4bf','#f97316','#8b5cf6','#ef4444','#3b82f6'];
+function cadenceCompareUpdateCount(){
+  const checked=document.querySelectorAll('#cadence-compare-list input[type="checkbox"]:checked:not([disabled])');
+  const totalSelected=cadenceCompareProducts.length+checked.length;
+  const remaining=5-totalSelected;
+  const label=document.getElementById('cadence-compare-count-label');
+  if(label){
+    if(checked.length>0)label.textContent=`${checked.length} selected — ${remaining} slot${remaining!==1?'s':''} remaining`;
+    else label.textContent=`${cadenceCompareProducts.length}/5 products added`;
+  }
+  document.querySelectorAll('#cadence-compare-list input[type="checkbox"]:not([disabled]):not(:checked)').forEach(cb=>{
+    cb.disabled=remaining<=0;
+    const lbl=cb.closest('label');
+    if(lbl){lbl.style.opacity=remaining<=0?'0.4':'1';lbl.style.cursor=remaining<=0?'default':'pointer';}
+  });
+}
+
+function cadenceCompareApplyChecked(){
+  const checked=document.querySelectorAll('#cadence-compare-list input[type="checkbox"]:checked:not([disabled])');
+  checked.forEach(cb=>{
+    const key=cb.value;
+    const productName=cb.dataset.product;
+    const colour=cb.dataset.colour;
+    if(cadenceCompareProducts.length<5&&!cadenceCompareProducts.some(p=>p.key===key)){
+      cadenceCompareProducts.push({key,productName,colour,color:COMPARE_COLOURS[cadenceCompareProducts.length]});
+    }
+  });
+  const inp=document.getElementById('cadence-compare-search');
+  if(inp)inp.value='';
+  const res=document.getElementById('cadence-compare-results');
+  if(res)res.style.display='none';
+  renderCadenceCompareTags();
+  renderCadence();
+}
+
+const COMPARE_COLOURS=['#2dd4bf','#f97316','#8b5cf6','#ef4444','#3b82f6','#eab308','#ec4899','#14b8a6','#a855f7','#f43f5e'];
 
 function cadenceCompareAdd(key,productName,colour){
-  if(cadenceCompareProducts.length>=5)return;
+  if(cadenceCompareProducts.length>=10)return;
   if(cadenceCompareProducts.some(p=>p.key===key))return;
   const idx=cadenceCompareProducts.length;
   cadenceCompareProducts.push({key,productName,colour,color:COMPARE_COLOURS[idx]});
@@ -1771,7 +1835,7 @@ function renderCadenceCompareTags(){
   const tags=document.getElementById('cadence-compare-tags');
   if(!tags)return;
   if(!cadenceCompareProducts.length){
-    tags.innerHTML=`<span style="font-size:12px;color:var(--text-muted);font-style:italic;">No products selected — search above to add up to 5</span>`;
+    tags.innerHTML=`<span style="font-size:12px;color:var(--text-muted);font-style:italic;">No products selected — search above to add up to 10</span>`;
     return;
   }
   tags.innerHTML=cadenceCompareProducts.map(p=>`
@@ -1944,7 +2008,7 @@ function renderCadenceCompare(){
   renderCadenceCompareTags();
 
   if(!cadenceCompareProducts.length){
-    body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">⚡</div><div class="insights-empty-title">Compare Mode</div><div class="insights-empty-sub">Search and add up to 5 products above to compare their sales cadence side by side.</div></div>`;
+    body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">⚡</div><div class="insights-empty-title">Compare Mode</div><div class="insights-empty-sub">Search and add up to 10 products above to compare their sales cadence side by side.</div></div>`;
     return;
   }
 
@@ -1962,10 +2026,18 @@ function renderCadenceCompare(){
       for(const p of periods)d[p.label]+=skuDays[p.label]||0;
     }
     const soh=variants.reduce((s,r)=>s+(r.stock||0),0);
-    return{...cp,data:d,soh};
+    const totalSold=Object.values(d).reduce((s,v)=>s+v,0);
+    return{...cp,data:d,soh,totalSold};
   });
 
-  // Period headers
+  // Column totals
+  const colTotals={};
+  for(const p of periods){
+    colTotals[p.label]=productData.reduce((s,cp)=>s+Math.round(cp.data[p.label]||0),0);
+  }
+  const grandTotal=Object.values(colTotals).reduce((s,v)=>s+v,0);
+
+  // Headers
   const headers=periods.map(p=>`<th style="${thStyle}text-align:right;">${p.label}</th>`).join('');
 
   // Rows — one per product
@@ -1990,19 +2062,34 @@ function renderCadenceCompare(){
           </div>
         </div>
       </td>
-      <td style="text-align:right;padding:8px 10px;font-weight:500;">${cp.soh>0?cp.soh.toLocaleString():'—'}</td>
+      <td style="text-align:right;padding:8px 10px;color:var(--text-secondary);">${cp.soh>0?cp.soh.toLocaleString():'—'}</td>
+      <td style="text-align:right;padding:8px 10px;font-weight:700;color:var(--teal);">${cp.totalSold>0?Math.round(cp.totalSold).toLocaleString():'—'}</td>
       ${cells}
     </tr>`;
   }).join('');
+
+  // Totals row
+  const totalCells=periods.map(p=>{
+    const v=colTotals[p.label]||0;
+    return`<td style="text-align:right;padding:8px 10px;font-weight:700;">${v>0?v.toLocaleString():'—'}</td>`;
+  }).join('');
+
+  const totalsRow=`<tr style="background:var(--surface2);border-top:2px solid var(--border);">
+    <td style="padding:8px 10px;font-weight:700;font-size:12px;color:var(--text-secondary);letter-spacing:0.05em;">TOTAL</td>
+    <td style="text-align:right;padding:8px 10px;font-weight:700;">—</td>
+    <td style="text-align:right;padding:8px 10px;font-weight:700;color:var(--teal);">${grandTotal>0?Math.round(grandTotal).toLocaleString():'—'}</td>
+    ${totalCells}
+  </tr>`;
 
   body.innerHTML=`<div class="cadence-table-wrap">
     <table class="cadence-table">
       <thead><tr>
         <th style="${thStyle}min-width:200px;">Product</th>
-        <th style="${thStyle}text-align:right;min-width:60px;">SOH</th>
+        <th style="${thStyle}text-align:right;min-width:70px;">SOH</th>
+        <th style="${thStyle}text-align:right;min-width:80px;color:var(--teal);">Total Sold</th>
         ${headers}
       </tr></thead>
-      <tbody>${rows}</tbody>
+      <tbody>${rows}${totalsRow}</tbody>
     </table>
   </div>`;
 }
