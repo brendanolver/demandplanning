@@ -796,7 +796,8 @@ th{position:relative;}
         <button class="period-btn" data-days="90" onclick="setPeriod(90)">90d</button>
         <button class="period-btn" data-days="365" onclick="setPeriod(365)">365d</button>
       </div>
-      <button class="tb-btn accent" id="export-btn" onclick="exportCSV()">↓ Export</button>
+      <button class="tb-btn accent" id="export-btn" onclick="exportCSV()">↓ CSV</button>
+      <button class="tb-btn accent" id="export-pdf-btn" onclick="exportPDF()" style="background:#e11d48;">↓ PDF</button>
       <button class="tb-btn" onclick="startAutoSync()" title="Re-sync from Google Drive">↻ Refresh</button>
       <button class="tb-btn" onclick="showUploadScreen()" title="Manual file upload">↑ Upload</button>
     </div>
@@ -6736,6 +6737,178 @@ function renderVel(val){
 }
 
 /* ── EXPORT ── */
+function exportPDF(){
+  const rows=getFilteredRows();
+  const viewLabel=currentView==='category'?'Category View':currentView==='product'?'Product View':'Variant View';
+  const dateStr=new Date().toLocaleDateString('en-AU',{day:'2-digit',month:'short',year:'numeric'});
+  const soldLabel=`Sold (${selectedPeriod}d)`;
+  const stLabel=`ST% (${selectedPeriod}d)`;
+
+  // Build headers & row data matching current view
+  let headers,rowFn;
+  if(currentView==='category'){
+    headers=['Category','Products',stLabel,'Margin%','SOH','SOH Value','Sell Value','Today','Yest',soldLabel,'On Order','Month Due','Wks Cover','OOS','Re-Order','Status'];
+    rowFn=r=>[
+      r.category,r.products,
+      r.sellThru7!=null?r.sellThru7.toFixed(1)+'%':'—',
+      r.margin!=null?r.margin.toFixed(1)+'%':'—',
+      (r.stock||0).toLocaleString(),
+      r.sohValue?'$'+Math.round(r.sohValue).toLocaleString():'—',
+      r.sellValue?'$'+Math.round(r.sellValue).toLocaleString():'—',
+      r.soldToday||'—',r.soldYesterday||'—',
+      r.sold!=null?r.sold:'—',
+      (r.onOrder||r.productOnOrder||0)||'—',
+      shortMonth(r.monthDue)||'—',
+      r.daysDisplay||'—',
+      r.oosCount||'—',r.critCount||'—',
+      SL[r.flag]||r.flag||'—'
+    ];
+  } else if(currentView==='product'){
+    headers=['Product','Category','Status','Month Del',stLabel,'Margin%','SOH','SOH Val','Sell Val','Today','Yest',soldLabel,'On Order','S/O','Price','RRP','Disc%','Wks Cover','Stock Status'];
+    rowFn=r=>[
+      r.productName+(r.colour?' - '+r.colour:''),
+      r.category,r.vendor,r.deliveryMonth||'—',
+      r.sellThru7!=null?r.sellThru7.toFixed(1)+'%':'—',
+      r.margin!=null?r.margin.toFixed(1)+'%':'—',
+      (r.stock||0).toLocaleString(),
+      r.sohValue?'$'+Math.round(r.sohValue).toLocaleString():'—',
+      r.sellValue?'$'+Math.round(r.sellValue).toLocaleString():'—',
+      r.soldToday||'—',r.soldYesterday||'—',
+      r.sold!=null?r.sold:'—',
+      (r.onOrder||r.productOnOrder||0)||'—',
+      r.soldOutSizes||'—',
+      r.price?'$'+r.price.toFixed(2):'—',
+      r.compareAt?'$'+r.compareAt.toFixed(2):'—',
+      r.discountPct?r.discountPct.toFixed(0)+'%':'—',
+      r.daysDisplay||'—',
+      SL[r.flag]||r.flag||'—'
+    ];
+  } else {
+    headers=['Product','Size','SKU','Category','Status','Month Del',stLabel,'Margin%','SOH',soldLabel,'On Order','Price','RRP','Disc%','Wks Cover','Stock Status'];
+    rowFn=r=>[
+      r.productName+(r.colour?' - '+r.colour:''),
+      r.size,r.sku,r.category,r.vendor,r.deliveryMonth||'—',
+      r.sellThru7!=null?r.sellThru7.toFixed(1)+'%':'—',
+      r.margin!=null?r.margin.toFixed(1)+'%':'—',
+      (r.stock||0).toLocaleString(),
+      r.sold!=null?r.sold:'—',
+      (r.onOrder||0)||'—',
+      r.price?'$'+r.price.toFixed(2):'—',
+      r.compareAt?'$'+r.compareAt.toFixed(2):'—',
+      r.discountPct?r.discountPct.toFixed(0)+'%':'—',
+      r.daysDisplay||'—',
+      SL[r.flag]||r.flag||'—'
+    ];
+  }
+
+  // Flag colour helper for status pills
+  const flagStyle=f=>({
+    reorder:'background:#fef9c3;color:#854d0e;',
+    reduce:'background:#fee2e2;color:#dc2626;',
+    oos:'background:#f3f4f6;color:#6b7280;',
+    'on-order':'background:#f3e8ff;color:#7c3aed;',
+    ok:'background:#dcfce7;color:#15803d;'
+  }[f]||'background:#f3f4f6;color:#374151;');
+
+  // Vendor/status pill colour
+  const vendorStyle=v=>({
+    'CORE':'background:#e0f2fe;color:#0369a1;',
+    'NEW':'background:#dcfce7;color:#15803d;',
+    'CURRENT':'background:#e0f2fe;color:#0284c7;',
+    'OLD':'background:#f3f4f6;color:#6b7280;',
+    'REDUCED':'background:#fff7ed;color:#c2410c;',
+    'DRAFT':'background:#f3e8ff;color:#7c3aed;',
+    'PRE-RELEASE':'background:#fff1f2;color:#e11d48;',
+    'BUNDLE':'background:#fef9c3;color:#854d0e;',
+    'CLEARANCE':'background:#fee2e2;color:#dc2626;',
+  }[v]||'');
+
+  const tableRows=rows.map(r=>{
+    const vals=rowFn(r);
+    const cells=vals.map((v,i)=>{
+      let style='';
+      // Status column styling
+      if(currentView==='product'&&i===2&&vendorStyle(v))
+        style=`style="padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700;${vendorStyle(v)}"`;
+      // Stock status column — last col
+      if(i===headers.length-1&&r.flag)
+        style=`style="padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700;${flagStyle(r.flag)}"`;
+      return`<td><span ${style}>${v??'—'}</span></td>`;
+    }).join('');
+    return`<tr>${cells}</tr>`;
+  }).join('');
+
+  // KPI snapshot
+  const productRows=toProduct(allVariantRows.filter(r=>!r.amOnly));
+  const totalSoh=allVariantRows.reduce((s,r)=>s+(r.stock||0),0);
+  const reorder=productRows.filter(p=>p.flag==='reorder').length;
+  const reduce=productRows.filter(p=>p.flag==='reduce').length;
+  const kpiHtml=`
+    <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+      ${[
+        {label:'Products',val:productRows.length.toLocaleString()},
+        {label:'SOH Units',val:totalSoh.toLocaleString()},
+        {label:'Re-Order',val:reorder,warn:reorder>0},
+        {label:'Reduce',val:reduce,warn:reduce>0},
+        {label:'Period',val:selectedPeriod+'d'},
+        {label:'Rows Shown',val:rows.length.toLocaleString()},
+      ].map(k=>`<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;min-width:90px;">
+        <div style="font-size:10px;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">${k.label}</div>
+        <div style="font-size:18px;font-weight:700;color:${k.warn?'#dc2626':'#111827'};">${k.val}</div>
+      </div>`).join('')}
+    </div>`;
+
+  const html=`<!DOCTYPE html><html><head><meta charset="utf-8">
+  <title>WNDRR Stock Demand — ${viewLabel} — ${dateStr}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Helvetica Neue',Arial,sans-serif;font-size:10px;color:#111827;padding:20px 24px;}
+    .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;padding-bottom:14px;border-bottom:2px solid #0ea5a0;}
+    .logo{background:#111827;border-radius:8px;padding:6px 10px;color:white;font-size:14px;font-weight:800;letter-spacing:-0.5px;}
+    .header-right{text-align:right;}
+    .header-title{font-size:16px;font-weight:700;color:#111827;}
+    .header-sub{font-size:10px;color:#6b7280;margin-top:2px;}
+    table{width:100%;border-collapse:collapse;font-size:9px;}
+    thead tr{background:#0ea5a0;color:white;}
+    thead th{padding:5px 6px;text-align:left;font-weight:600;white-space:nowrap;}
+    tbody tr:nth-child(even){background:#f9fafb;}
+    tbody tr:hover{background:#f0fafa;}
+    tbody td{padding:4px 6px;border-bottom:1px solid #f3f4f6;vertical-align:middle;}
+    .footer{margin-top:14px;font-size:8px;color:#9ca3af;display:flex;justify-content:space-between;}
+    @media print{
+      body{padding:10px 14px;}
+      @page{size:A3 landscape;margin:10mm;}
+    }
+  </style>
+  </head><body>
+  <div class="header">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div class="logo">wndrr</div>
+      <div>
+        <div class="header-title">Stock Demand Planning — ${viewLabel}</div>
+        <div class="header-sub">Generated ${dateStr} · ${rows.length} rows · ${selectedPeriod}d period</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div style="font-size:10px;color:#6b7280;">KOH Industries</div>
+    </div>
+  </div>
+  ${kpiHtml}
+  <table>
+    <thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
+    <tbody>${tableRows}</tbody>
+  </table>
+  <div class="footer">
+    <span>WNDRR Stock Demand Planning Tool — Confidential</span>
+    <span>${dateStr}</span>
+  </div>
+  <script>window.onload=()=>{window.print();}<\/script>
+  </body></html>`;
+
+  const w=window.open('','_blank','width=1200,height=900');
+  if(w){w.document.write(html);w.document.close();}
+}
+
 function exportCSV(){
   const rows=getFilteredRows();
   const soldLabel=`Sold (${selectedPeriod}d)`;
