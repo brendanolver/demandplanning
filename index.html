@@ -2066,6 +2066,7 @@ function renderCadenceCompare(){
       if(compareSortCol==='product')     {va=(a.productName+' '+a.colour).toLowerCase();vb=(b.productName+' '+b.colour).toLowerCase();return compareSortDir==='asc'?va.localeCompare(vb):vb.localeCompare(va);}
       else if(compareSortCol==='soh')    {va=a.soh;vb=b.soh;}
       else if(compareSortCol==='total')  {va=a.totalSold;vb=b.totalSold;}
+      else if(compareSortCol==='stpct')  {va=a.totalSold>0?a.totalSold/(a.soh+a.totalSold):0;vb=b.totalSold>0?b.totalSold/(b.soh+b.totalSold):0;}
       else                               {va=a.data[compareSortCol]||0;vb=b.data[compareSortCol]||0;}
       return compareSortDir==='asc'?va-vb:vb-va;
     });
@@ -2140,7 +2141,7 @@ function renderCadenceCompare(){
       <thead><tr>
         <th onclick="setCompareSort('product')" style="${compareSortCol==='product'?thActive:thBase}min-width:200px;">Product${arrow('product')}</th>
         <th onclick="setCompareSort('soh')" style="${compareSortCol==='soh'?thActive:thBase}text-align:right;min-width:70px;">SOH${arrow('soh')}</th>
-        <th style="text-align:right;white-space:nowrap;cursor:default;user-select:none;">ST%</th>
+        <th style="text-align:right;white-space:nowrap;cursor:pointer;user-select:none;" onclick="setCompareSort('stpct')">ST%${arrow('stpct')}</th>
         <th onclick="setCompareSort('total')" style="${compareSortCol==='total'?thActive:thBase}text-align:right;min-width:80px;color:${compareSortCol==='total'?'var(--teal)':'var(--teal)'};">Total Sold${arrow('total')}</th>
         ${headers}
       </tr></thead>
@@ -2264,6 +2265,11 @@ function renderCadence(){
       let av,bv;
       if(cadenceSortCol==='soh'){av=sohByKey[a]||0;bv=sohByKey[b]||0;}
       else if(cadenceSortCol==='__total__'){av=totalByKey[a]||0;bv=totalByKey[b]||0;}
+      else if(cadenceSortCol==='__stpct__'){
+        const ta=totalByKey[a]||0;const tb=totalByKey[b]||0;
+        av=ta>0?ta/((sohByKey[a]||0)+ta)*100:0;
+        bv=tb>0?tb/((sohByKey[b]||0)+tb)*100:0;
+      }
       else{av=data[a]?.[cadenceSortCol]||0;bv=data[b]?.[cadenceSortCol]||0;}
       return cadenceSortDir==='desc'?bv-av:av-bv;
     });
@@ -2371,7 +2377,7 @@ function renderCadence(){
     <td style="${grandStColor}">${grandStPct!==null?grandStPct.toFixed(1)+'%':'—'}</td>
     <td style="font-weight:700;color:var(--teal);">${grandTotalSold>0?grandTotalSold.toLocaleString():'—'}</td>`:'';
   const totalColsHeader=showTotals?`
-    <th style="white-space:nowrap;cursor:default;user-select:none;">ST%</th>
+    <th style="${cadenceSortCol==='__stpct__'?thStyle+';color:var(--teal);':thStyle}" onclick="setCadenceSort('__stpct__')">ST%${sortArrow('__stpct__')}</th>
     <th style="${thStyle};color:var(--teal);" onclick="setCadenceSort('__total__')">Total Sold${sortArrow('__total__')}</th>`:'';
 
   const limitNote=cadenceView==='prod'&&!search&&!cadenceSortCol&&!getCadenceSelectedStatuses().length&&!getCadenceSelectedCats().length&&!getCadenceSelectedDelMonths().length?`<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">Showing top 50 products — use search or filters to find specific products.</div>`:'';
