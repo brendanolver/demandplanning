@@ -1059,7 +1059,7 @@ th{position:relative;}
       </div>
       <!-- Compare panel -->
       <div id="cadence-compare-panel" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 18px;margin-bottom:16px;">
-        <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:10px;letter-spacing:0.05em;">COMPARE UP TO 10 PRODUCTS</div>
+        <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:10px;letter-spacing:0.05em;">COMPARE PRODUCTS</div>
         <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;margin-bottom:10px;">
           <div style="position:relative;flex:1;min-width:260px;">
             <div class="search-wrap">
@@ -1072,7 +1072,7 @@ th{position:relative;}
                 <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
                   <input type="checkbox" id="cadence-compare-select-all" onchange="cadenceCompareSelectAll(this)"
                     style="width:15px;height:15px;flex-shrink:0;accent-color:var(--teal);cursor:pointer;">
-                  <span style="font-size:12px;font-weight:600;color:var(--text-secondary);">Select All (up to 10)</span>
+                  <span style="font-size:12px;font-weight:600;color:var(--text-secondary);">Select All</span>
                 </label>
               </div>
               <div id="cadence-compare-list" style="max-height:260px;overflow-y:auto;"></div>
@@ -1754,7 +1754,7 @@ function cadenceCompareSearch(){
 
   list.innerHTML=items.map(p=>{
     const alreadyAdded=cadenceCompareProducts.some(x=>x.key===p.key);
-    const full=!alreadyAdded&&cadenceCompareProducts.length>=10;
+    const full=false; // no limit
     const disabled=alreadyAdded||full;
     return`<label style="display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:${disabled?'default':'pointer'};border-bottom:1px solid var(--border);opacity:${full?0.4:1};"
       onmouseover="if(!${disabled})this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
@@ -1780,35 +1780,20 @@ function cadenceCompareSearch(){
 }
 
 function cadenceCompareSelectAll(cb){
-  const slotsLeft=10-cadenceCompareProducts.length;
   const available=document.querySelectorAll('#cadence-compare-list input[type="checkbox"]:not([disabled])');
-  let count=0;
-  available.forEach(box=>{
-    if(cb.checked){
-      // Only tick up to remaining slots
-      if(count<slotsLeft){box.checked=true;count++;}
-      else box.checked=false;
-    } else {
-      box.checked=false;
-    }
-  });
+  available.forEach(box=>{ box.checked=cb.checked; });
   cadenceCompareUpdateCount();
 }
 
 function cadenceCompareUpdateCount(){
   const checked=document.querySelectorAll('#cadence-compare-list input[type="checkbox"]:checked:not([disabled])');
   const totalSelected=cadenceCompareProducts.length+checked.length;
-  const remaining=10-totalSelected;
   const label=document.getElementById('cadence-compare-count-label');
   if(label){
-    if(checked.length>0)label.textContent=`${checked.length} selected — ${remaining} slot${remaining!==1?'s':''} remaining`;
-    else label.textContent=`${cadenceCompareProducts.length}/10 products added`;
+    if(checked.length>0)label.textContent=`${checked.length} selected`;
+    else label.textContent=`${cadenceCompareProducts.length} product${cadenceCompareProducts.length!==1?'s':''} added`;
   }
-  document.querySelectorAll('#cadence-compare-list input[type="checkbox"]:not([disabled]):not(:checked)').forEach(cb=>{
-    cb.disabled=remaining<=0;
-    const lbl=cb.closest('label');
-    if(lbl){lbl.style.opacity=remaining<=0?'0.4':'1';lbl.style.cursor=remaining<=0?'default':'pointer';}
-  });
+  // No limit — never disable checkboxes
   // Sync select-all checkbox state
   const all=document.querySelectorAll('#cadence-compare-list input[type="checkbox"]:not([disabled])');
   const allChecked=[...all].every(b=>b.checked);
@@ -1825,8 +1810,8 @@ function cadenceCompareApplyChecked(){
     const key=cb.value;
     const productName=cb.dataset.product;
     const colour=cb.dataset.colour;
-    if(cadenceCompareProducts.length<10&&!cadenceCompareProducts.some(p=>p.key===key)){
-      cadenceCompareProducts.push({key,productName,colour,color:COMPARE_COLOURS[cadenceCompareProducts.length]});
+    if(!cadenceCompareProducts.some(p=>p.key===key)){
+      cadenceCompareProducts.push({key,productName,colour,color:getCompareColour(cadenceCompareProducts.length)});
     }
   });
   const inp=document.getElementById('cadence-compare-search');
@@ -1837,10 +1822,11 @@ function cadenceCompareApplyChecked(){
   renderCadence();
 }
 
-const COMPARE_COLOURS=['#2dd4bf','#f97316','#8b5cf6','#ef4444','#3b82f6','#eab308','#ec4899','#14b8a6','#a855f7','#f43f5e'];
+const COMPARE_COLOURS=['#2dd4bf','#f97316','#8b5cf6','#ef4444','#3b82f6','#eab308','#ec4899','#14b8a6','#a855f7','#f43f5e','#84cc16','#f43f5e','#06b6d4','#d946ef','#fb923c'];
+const getCompareColour=i=>COMPARE_COLOURS[i%COMPARE_COLOURS.length];
 
 function cadenceCompareAdd(key,productName,colour){
-  if(cadenceCompareProducts.length>=10)return;
+  // no limit
   if(cadenceCompareProducts.some(p=>p.key===key))return;
   const idx=cadenceCompareProducts.length;
   cadenceCompareProducts.push({key,productName,colour,color:COMPARE_COLOURS[idx]});
@@ -1870,7 +1856,7 @@ function renderCadenceCompareTags(){
   const tags=document.getElementById('cadence-compare-tags');
   if(!tags)return;
   if(!cadenceCompareProducts.length){
-    tags.innerHTML=`<span style="font-size:12px;color:var(--text-muted);font-style:italic;">No products selected — search above to add up to 10</span>`;
+    tags.innerHTML=`<span style="font-size:12px;color:var(--text-muted);font-style:italic;">No products selected — search above to add</span>`;
     return;
   }
   tags.innerHTML=cadenceCompareProducts.map(p=>`
@@ -2052,7 +2038,7 @@ function renderCadenceCompare(){
   renderCadenceCompareTags();
 
   if(!cadenceCompareProducts.length){
-    body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">⚡</div><div class="insights-empty-title">Compare Mode</div><div class="insights-empty-sub">Search and add up to 10 products above to compare their sales cadence side by side.</div></div>`;
+    body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">⚡</div><div class="insights-empty-title">Compare Mode</div><div class="insights-empty-sub">Search and search above and add products to compare their sales cadence side by side.</div></div>`;
     return;
   }
 
@@ -2257,6 +2243,12 @@ function renderCadence(){
   };
 
   // Apply sort to rowKeys BEFORE limiting
+  // totalByKey needed here for __total__ sort
+  const totalByKey={};
+  for(const k of rowKeys){
+    totalByKey[k]=periods.reduce((s,p)=>s+Math.round(data[k]?.[p.label]||0),0);
+  }
+
   if(cadenceSortCol){
     rowKeys.sort((a,b)=>{
       if(cadenceSortCol==='label'){
@@ -2265,6 +2257,7 @@ function renderCadence(){
       }
       let av,bv;
       if(cadenceSortCol==='soh'){av=sohByKey[a]||0;bv=sohByKey[b]||0;}
+      else if(cadenceSortCol==='__total__'){av=totalByKey[a]||0;bv=totalByKey[b]||0;}
       else{av=data[a]?.[cadenceSortCol]||0;bv=data[b]?.[cadenceSortCol]||0;}
       return cadenceSortDir==='desc'?bv-av:av-bv;
     });
@@ -2309,8 +2302,17 @@ function renderCadence(){
 
   const headers=periods.map(p=>`<th style="${thStyle}" onclick="setCadenceSort('${p.label}')">${p.label}${sortArrow(p.label)}</th>`).join('');
   const totalSoh=rowKeys.reduce((s,k)=>s+(sohByKey[k]||0),0);
+
+  // Total sold per row key (sum of all periods)
+  const grandTotalSold=Object.values(totalByKey).reduce((s,v)=>s+v,0);
+
+  // Show Total + ST% columns only in product view
+  const showTotals=cadenceView==='prod';
+
   const tableRows=rowKeys.map(k=>{
     const soh=sohByKey[k]||0;
+    const totalSold=totalByKey[k]||0;
+    const stPct=totalSold>0?totalSold/(soh+totalSold)*100:null;
     const cells=periods.map((p,i)=>{
       const v=Math.round(data[k][p.label]||0);
       const prev=periods[i+1]?Math.round(data[k][periods[i+1].label]||0):null;
@@ -2321,7 +2323,7 @@ function renderCadence(){
       }
       return`<td>${v>0?`<span class="cadence-cell-val" style="${color}">${v.toLocaleString()}</span>`:`<span class="cadence-cell-zero">—</span>`}</td>`;
     }).join('');
-    // LY MTD cell — category 12m view only
+    // LY MTD cell
     const curMtd=Math.round(data[k][periods[0].label]||0);
     const lyMtd=Math.round(lyMtdData[k]||0);
     const vsPct=lyMtd>0?((curMtd-lyMtd)/lyMtd*100):null;
@@ -2330,10 +2332,15 @@ function renderCadence(){
       <div style="font-size:13px;color:var(--text-secondary);font-weight:500;">${lyMtd>0?lyMtd.toLocaleString():'—'}</div>
       ${vsPct!==null?`<div style="font-size:10px;${vsColor}">${vsPct>=0?'+':''}${vsPct.toFixed(1)}%</div>`:'<div style="font-size:10px;color:var(--text-muted);">—</div>'}
     </td>`:'';
+    const stColor=stPct===null?'color:var(--text-muted);':stPct>=60?'color:#15803d;font-weight:700;':stPct>=30?'color:var(--amber);font-weight:600;':'color:var(--red);font-weight:600;';
+    const totalCols=showTotals?`
+      <td class="cell-num" style="font-weight:700;color:var(--teal);">${totalSold>0?totalSold.toLocaleString():'—'}</td>
+      <td class="cell-num" style="${stColor}">${stPct!==null?stPct.toFixed(1)+'%':'—'}</td>`:'';
     return`<tr>
       <td>${displayLabel(k)}</td>
       <td class="cell-num" style="font-weight:500;">${soh>0?soh.toLocaleString():'—'}</td>
       ${lyMtdCell}
+      ${totalCols}
       ${cells}
     </tr>`;
   }).join('');
@@ -2352,7 +2359,16 @@ function renderCadence(){
     return`<td style="${color}">${v.toLocaleString()}</td>`;
   }).join('');
 
-  const limitNote=cadenceView==='prod'&&!search&&!getCadenceSelectedStatuses().length&&!getCadenceSelectedCats().length&&!getCadenceSelectedDelMonths().length?`<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">Showing top 50 products — use search or filters to find specific products.</div>`:'';
+  const grandStPct=grandTotalSold>0?grandTotalSold/(totalSoh+grandTotalSold)*100:null;
+  const grandStColor=grandStPct===null?'':grandStPct>=60?'color:#15803d;font-weight:700;':grandStPct>=30?'color:var(--amber);font-weight:600;':'color:var(--red);font-weight:600;';
+  const totalColsTotal=showTotals?`
+    <td style="font-weight:700;color:var(--teal);">${grandTotalSold>0?grandTotalSold.toLocaleString():'—'}</td>
+    <td style="${grandStColor}">${grandStPct!==null?grandStPct.toFixed(1)+'%':'—'}</td>`:'';
+  const totalColsHeader=showTotals?`
+    <th style="${thStyle};color:var(--teal);" onclick="setCadenceSort('__total__')">Total${sortArrow('__total__')}</th>
+    <th style="white-space:nowrap;cursor:default;user-select:none;">ST%</th>`:'';
+
+  const limitNote=cadenceView==='prod'&&!search&&!cadenceSortCol&&!getCadenceSelectedStatuses().length&&!getCadenceSelectedCats().length&&!getCadenceSelectedDelMonths().length?`<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">Showing top 50 products — use search or filters to find specific products.</div>`:'';
   const noResults=rowKeys.length===0?`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No products found</div><div class="insights-empty-sub">Try a different search term.</div></div>`:'';
 
   // Chart (category view only)
@@ -2366,6 +2382,7 @@ function renderCadence(){
           <th style="${thStyle}" onclick="setCadenceSort('label')">${rowLabel}${sortArrow('label')}</th>
           <th style="${thStyle};min-width:60px;" onclick="setCadenceSort('soh')">SOH${sortArrow('soh')}</th>
           ${showLyMtd?`<th style="background:#f0fdf4;border-left:2px solid var(--border);min-width:80px;white-space:nowrap;">LY MTD<div style="font-size:9px;font-weight:400;opacity:0.8;">vs this MTD</div></th>`:''}
+          ${totalColsHeader}
           ${headers}
         </tr></thead>
         <tbody>
@@ -2377,6 +2394,7 @@ function renderCadence(){
               <div style="font-weight:700;">${lyMtdTotal>0?lyMtdTotal.toLocaleString():'—'}</div>
               ${lyMtdVsPct!==null?`<div style="font-size:10px;${lyMtdTotalVsColor}">${lyMtdVsPct>=0?'+':''}${lyMtdVsPct.toFixed(1)}%</div>`:''}
             </td>`:''}
+            ${totalColsTotal}
             ${totalCells}
           </tr>
         </tbody>
