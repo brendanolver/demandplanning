@@ -2141,7 +2141,7 @@ function renderCadenceCompare(){
         <th onclick="setCompareSort('product')" style="${compareSortCol==='product'?thActive:thBase}min-width:200px;">Product${arrow('product')}</th>
         <th onclick="setCompareSort('soh')" style="${compareSortCol==='soh'?thActive:thBase}text-align:right;min-width:70px;">SOH${arrow('soh')}</th>
         <th style="text-align:right;white-space:nowrap;cursor:default;user-select:none;">ST%</th>
-        <th onclick="setCompareSort('total')" style="${compareSortCol==='total'?thActive:thBase}text-align:right;min-width:80px;color:${compareSortCol==='total'?'var(--teal)':'var(--teal)'};">Total${arrow('total')}</th>
+        <th onclick="setCompareSort('total')" style="${compareSortCol==='total'?thActive:thBase}text-align:right;min-width:80px;color:${compareSortCol==='total'?'var(--teal)':'var(--teal)'};">Total Sold${arrow('total')}</th>
         ${headers}
       </tr></thead>
       <tbody>${rows}${totalsRow}</tbody>
@@ -2372,7 +2372,7 @@ function renderCadence(){
     <td style="font-weight:700;color:var(--teal);">${grandTotalSold>0?grandTotalSold.toLocaleString():'—'}</td>`:'';
   const totalColsHeader=showTotals?`
     <th style="white-space:nowrap;cursor:default;user-select:none;">ST%</th>
-    <th style="${thStyle};color:var(--teal);" onclick="setCadenceSort('__total__')">Total${sortArrow('__total__')}</th>`:'';
+    <th style="${thStyle};color:var(--teal);" onclick="setCadenceSort('__total__')">Total Sold${sortArrow('__total__')}</th>`:'';
 
   const limitNote=cadenceView==='prod'&&!search&&!cadenceSortCol&&!getCadenceSelectedStatuses().length&&!getCadenceSelectedCats().length&&!getCadenceSelectedDelMonths().length?`<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">Showing top 50 products — use search or filters to find specific products.</div>`:'';
   const noResults=rowKeys.length===0?`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No products found</div><div class="insights-empty-sub">Try a different search term.</div></div>`:'';
