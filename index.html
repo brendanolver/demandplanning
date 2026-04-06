@@ -5872,7 +5872,9 @@ function buildVariantRows(){
     }
   }
   if(!_cachedAMData) _cachedAMData=buildAMData();
-  if(!_cachedSoldOutData) _cachedSoldOutData=buildSoldOutMap();
+  // Always rebuild soldout map fresh — it merges Better Reports + All_Products_List prices
+  // and allProductsListData may load after soldOutData so caching causes stale prices
+  _cachedSoldOutData=buildSoldOutMap();
 
   // Build CORE, BUNDLE and DRAFT sets from CSV/priceMap
   // Format: "PRODUCT NAME - COLOUR" (uppercase)
