@@ -5516,6 +5516,10 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const{productName,colour,size,vendor,category}=pm;
     const plKey=(productName+' - '+colour).toUpperCase();
     const plEntry=plKey in plMap?plMap[plKey]:plMap[productName.toUpperCase()];
+    // DEBUG price source
+    if(productName==='INCLINE FOOTBALL JERSEY'&&colour==='BLUE/BLACK'){
+      console.log('DEBUG INCLINE:',{plKey,plEntryFound:!!plEntry,plEntryPrice:plEntry?.price,plEntryCompare:plEntry?.compareAt,plMapKeys:Object.keys(plMap).filter(k=>k.includes('INCLINE')),allProductsListDataLoaded:!!allProductsListData});
+    }
     // SOH fallback: if product has sales history but missing from inventory file,
     // use Better Reports total qty distributed equally across sizes
     let stock=sohMap[sku]||0;
