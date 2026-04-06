@@ -1765,10 +1765,24 @@ function cadenceCompareSearch(){
   const selectedStatuses=getCadenceSelectedStatuses();
   const selectedCats=getCadenceSelectedCats();
   const selectedDelMonths=getCadenceSelectedDelMonths();
+  const selectedDiscs=getCadenceSelectedDiscs();
+  const selectedFlags=getCadenceSelectedFlags();
   const hasFilters=selectedStatuses.length||selectedCats.length||selectedDelMonths.length||selectedDiscs.length||selectedFlags.length;
 
   // Require 2 chars OR active filters to show results
   if(val.length<2&&!hasFilters){results.style.display='none';return;}
+
+  // Build product-level disc/flag maps for filtering
+  const productDiscMap={};
+  const productFlagMap={};
+  if(selectedDiscs.length||selectedFlags.length){
+    for(const r of allVariantRows){
+      if(r.amOnly)continue;
+      const k=r.productName+'||'+r.colour;
+      if(productDiscMap[k]===undefined)productDiscMap[k]=r.discountPct||0;
+      if(productFlagMap[k]===undefined)productFlagMap[k]=r.flag||'ok';
+    }
+  }
 
   // Get unique product+colour combos matching search and filters
   const matches=new Map();
@@ -1782,6 +1796,19 @@ function cadenceCompareSearch(){
     if(selectedStatuses.length&&!selectedStatuses.includes(r.vendor))continue;
     if(selectedCats.length&&!selectedCats.includes(r.category))continue;
     if(selectedDelMonths.length&&!selectedDelMonths.includes(r.deliveryMonth||''))continue;
+    // Disc% filter
+    if(selectedDiscs.length){
+      const d=productDiscMap[k]||0;
+      const pass=selectedDiscs.some(band=>{
+        if(band==='none')return!d||d===0;
+        const pct=parseFloat(band);
+        if(band==='70')return d>=70;
+        return d>=pct&&d<pct+10;
+      });
+      if(!pass)continue;
+    }
+    // Stock status filter
+    if(selectedFlags.length&&!selectedFlags.includes(productFlagMap[k]||'ok'))continue;
     matches.set(k,{key:k,productName:r.productName,colour:r.colour});
   }
   const items=[...matches.values()].slice(0,50);
@@ -2258,10 +2285,8 @@ function renderCadence(){
   // Compare mode — render dedicated compare table
   if(cadenceCompareMode&&cadenceView==='prod'){
     renderCadenceCompare();
-    // Also refresh the search dropdown if it's open, so filter changes take effect
-    if(document.getElementById('cadence-compare-results')?.style.display!=='none'){
-      cadenceCompareSearch();
-    }
+    // Always refresh search dropdown when filters change so results appear automatically
+    cadenceCompareSearch();
     return;
   }
 
