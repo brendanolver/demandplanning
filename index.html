@@ -1055,6 +1055,28 @@ th{position:relative;}
               </div>
             </div>
           </div>
+          <div id="cadence-disc-wrap" style="display:none;">
+            <div class="ms-wrap" id="ms-cad-disc">
+              <button class="ms-btn" onclick="toggleDropdown('ms-cad-disc')">
+                <span id="ms-cad-disc-label">Discount %</span><span class="ms-arrow">▾</span>
+              </button>
+              <div class="ms-dropdown" id="ms-cad-disc-dropdown">
+                <label class="ms-item ms-all"><input type="checkbox" checked onchange="toggleCadenceDiscAll(this)"> All</label>
+                <div id="ms-cad-disc-options"></div>
+              </div>
+            </div>
+          </div>
+          <div id="cadence-flag-wrap" style="display:none;">
+            <div class="ms-wrap" id="ms-cad-flag">
+              <button class="ms-btn" onclick="toggleDropdown('ms-cad-flag')">
+                <span id="ms-cad-flag-label">All Stock Status</span><span class="ms-arrow">▾</span>
+              </button>
+              <div class="ms-dropdown" id="ms-cad-flag-dropdown">
+                <label class="ms-item ms-all"><input type="checkbox" checked onchange="toggleCadenceFlagAll(this)"> All Stock Status</label>
+                <div id="ms-cad-flag-options"></div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <!-- Compare panel -->
@@ -1738,25 +1760,41 @@ function cadenceCompareSearch(){
   const results=document.getElementById('cadence-compare-results');
   const list=document.getElementById('cadence-compare-list');
   if(!results||!list)return;
-  if(val.length<2){results.style.display='none';return;}
 
-  // Get unique product+colour combos matching search
+  // Get active filter selections
+  const selectedStatuses=getCadenceSelectedStatuses();
+  const selectedCats=getCadenceSelectedCats();
+  const selectedDelMonths=getCadenceSelectedDelMonths();
+  const hasFilters=selectedStatuses.length||selectedCats.length||selectedDelMonths.length||selectedDiscs.length||selectedFlags.length;
+
+  // Require 2 chars OR active filters to show results
+  if(val.length<2&&!hasFilters){results.style.display='none';return;}
+
+  // Get unique product+colour combos matching search and filters
   const matches=new Map();
   for(const r of allVariantRows){
     if(r.amOnly)continue;
     const k=r.productName+'||'+r.colour;
     if(matches.has(k))continue;
-    if(!(r.productName+' - '+r.colour).toUpperCase().includes(val))continue;
+    // Apply search text
+    if(val.length>=2&&!(r.productName+' - '+r.colour).toUpperCase().includes(val))continue;
+    // Apply filters
+    if(selectedStatuses.length&&!selectedStatuses.includes(r.vendor))continue;
+    if(selectedCats.length&&!selectedCats.includes(r.category))continue;
+    if(selectedDelMonths.length&&!selectedDelMonths.includes(r.deliveryMonth||''))continue;
     matches.set(k,{key:k,productName:r.productName,colour:r.colour});
   }
-  const items=[...matches.values()].slice(0,30);
-  if(!items.length){results.style.display='none';return;}
+  const items=[...matches.values()].slice(0,50);
+  if(!items.length){
+    list.innerHTML=`<div style="padding:12px 14px;font-size:13px;color:var(--text-muted);font-style:italic;">No products found</div>`;
+    results.style.display='block';
+    return;
+  }
 
   list.innerHTML=items.map(p=>{
     const alreadyAdded=cadenceCompareProducts.some(x=>x.key===p.key);
-    const full=false; // no limit
-    const disabled=alreadyAdded||full;
-    return`<label style="display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:${disabled?'default':'pointer'};border-bottom:1px solid var(--border);opacity:${full?0.4:1};"
+    const disabled=alreadyAdded;
+    return`<label style="display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:${disabled?'default':'pointer'};border-bottom:1px solid var(--border);"
       onmouseover="if(!${disabled})this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
       <input type="checkbox" value="${p.key.replace(/"/g,'&quot;')}"
         data-product="${p.productName.replace(/"/g,'&quot;')}"
@@ -1888,8 +1926,10 @@ function setCadenceView(view){
   document.getElementById('cadence-status-wrap').style.display=view==='prod'?'':'none';
   document.getElementById('cadence-cat-wrap').style.display=view==='prod'?'':'none';
   document.getElementById('cadence-delmonth-wrap').style.display=view==='prod'?'':'none';
+  document.getElementById('cadence-disc-wrap').style.display=view==='prod'?'':'none';
+  document.getElementById('cadence-flag-wrap').style.display=view==='prod'?'':'none';
   if(view==='cat'){document.getElementById('cadence-search').value='';cadenceCompareProducts=[];}
-  if(view==='prod'){populateCadenceStatusFilter();populateCadenceCatFilter();populateCadenceDelMonthFilter();}
+  if(view==='prod'){populateCadenceStatusFilter();populateCadenceCatFilter();populateCadenceDelMonthFilter();populateCadenceDiscFilter();populateCadenceFlagFilter();}
   renderCadence();
 }
 
@@ -2018,6 +2058,65 @@ function updateCadenceStatusLabel(){
 
 function getCadenceSelectedStatuses(){
   const boxes=[...document.querySelectorAll('#ms-cad-status-options input')];
+  if(!boxes.length)return[];
+  const checked=boxes.filter(b=>b.checked).map(b=>b.value);
+  if(checked.length===0||checked.length===boxes.length)return[];
+  return checked;
+}
+
+// ── Discount % filter ──
+function populateCadenceDiscFilter(){
+  const container=document.getElementById('ms-cad-disc-options');
+  if(!container)return;
+  const bands=['none','10','20','25','30','40','50','60','70'];
+  const labels={none:'No Discount','10':'10%','20':'20%','25':'25%','30':'30%','40':'40%','50':'50%','60':'60%','70':'70%+'};
+  container.innerHTML=bands.map(b=>`<label class="ms-item"><input type="checkbox" value="${b}" checked onchange="updateCadenceDiscLabel();renderCadence()"> ${labels[b]}</label>`).join('');
+}
+function toggleCadenceDiscAll(cb){
+  document.querySelectorAll('#ms-cad-disc-options input').forEach(b=>b.checked=cb.checked);
+  updateCadenceDiscLabel();renderCadence();
+}
+function updateCadenceDiscLabel(){
+  const boxes=[...document.querySelectorAll('#ms-cad-disc-options input')];
+  const checked=boxes.filter(b=>b.checked);
+  const label=document.getElementById('ms-cad-disc-label');
+  const btn=document.querySelector('#ms-cad-disc .ms-btn');
+  const allBox=document.querySelector('#ms-cad-disc .ms-all input');
+  if(allBox)allBox.checked=checked.length===boxes.length;
+  if(checked.length===0||checked.length===boxes.length){label.textContent='Discount %';if(btn)btn.classList.remove('filtered');}
+  else{label.textContent=checked.length===1?checked[0].value+'%':`${checked.length} bands`;if(btn)btn.classList.add('filtered');}
+}
+function getCadenceSelectedDiscs(){
+  const boxes=[...document.querySelectorAll('#ms-cad-disc-options input')];
+  if(!boxes.length)return[];
+  const checked=boxes.filter(b=>b.checked).map(b=>b.value);
+  if(checked.length===0||checked.length===boxes.length)return[];
+  return checked;
+}
+
+// ── Stock Status filter ──
+function populateCadenceFlagFilter(){
+  const container=document.getElementById('ms-cad-flag-options');
+  if(!container)return;
+  const flags=[{v:'reorder',l:'Re-Order'},{v:'ok',l:'OK'},{v:'oos',l:'Out of Stock'},{v:'on-order',l:'On Order'},{v:'reduce',l:'Reduce'}];
+  container.innerHTML=flags.map(f=>`<label class="ms-item"><input type="checkbox" value="${f.v}" checked onchange="updateCadenceFlagLabel();renderCadence()"> ${f.l}</label>`).join('');
+}
+function toggleCadenceFlagAll(cb){
+  document.querySelectorAll('#ms-cad-flag-options input').forEach(b=>b.checked=cb.checked);
+  updateCadenceFlagLabel();renderCadence();
+}
+function updateCadenceFlagLabel(){
+  const boxes=[...document.querySelectorAll('#ms-cad-flag-options input')];
+  const checked=boxes.filter(b=>b.checked);
+  const label=document.getElementById('ms-cad-flag-label');
+  const btn=document.querySelector('#ms-cad-flag .ms-btn');
+  const allBox=document.querySelector('#ms-cad-flag .ms-all input');
+  if(allBox)allBox.checked=checked.length===boxes.length;
+  if(checked.length===0||checked.length===boxes.length){label.textContent='All Stock Status';if(btn)btn.classList.remove('filtered');}
+  else{label.textContent=checked.length===1?({reorder:'Re-Order',ok:'OK',oos:'Out of Stock','on-order':'On Order',reduce:'Reduce'}[checked[0].value]||checked[0].value):`${checked.length} selected`;if(btn)btn.classList.add('filtered');}
+}
+function getCadenceSelectedFlags(){
+  const boxes=[...document.querySelectorAll('#ms-cad-flag-options input')];
   if(!boxes.length)return[];
   const checked=boxes.filter(b=>b.checked).map(b=>b.value);
   if(checked.length===0||checked.length===boxes.length)return[];
@@ -2159,6 +2258,10 @@ function renderCadence(){
   // Compare mode — render dedicated compare table
   if(cadenceCompareMode&&cadenceView==='prod'){
     renderCadenceCompare();
+    // Also refresh the search dropdown if it's open, so filter changes take effect
+    if(document.getElementById('cadence-compare-results')?.style.display!=='none'){
+      cadenceCompareSearch();
+    }
     return;
   }
 
@@ -2189,10 +2292,21 @@ function renderCadence(){
     }
     getKey=null; // already built above
   } else {
-    // Group by product+colour, filter by search, status, category and month del
+    // Group by product+colour, filter by search, status, category, month del, disc%, flag
     const selectedStatuses=getCadenceSelectedStatuses();
     const selectedCats=getCadenceSelectedCats();
     const selectedDelMonths=getCadenceSelectedDelMonths();
+    const selectedDiscs=getCadenceSelectedDiscs();
+    const selectedFlags=getCadenceSelectedFlags();
+    // Build product-level aggregates for disc/flag filtering
+    const productDiscMap={};   // key → discountPct
+    const productFlagMap={};   // key → flag
+    for(const r of allVariantRows){
+      if(r.amOnly)continue;
+      const k=r.productName+'||'+r.colour;
+      if(productDiscMap[k]===undefined)productDiscMap[k]=r.discountPct||0;
+      if(productFlagMap[k]===undefined)productFlagMap[k]=r.flag||'ok';
+    }
     const prodSet=new Map();
     for(const r of allVariantRows){
       if(r.amOnly)continue;
@@ -2200,7 +2314,21 @@ function renderCadence(){
       if(selectedCats.length&&!selectedCats.includes(r.category))continue;
       if(selectedDelMonths.length&&!selectedDelMonths.includes(r.deliveryMonth||''))continue;
       const k=r.productName+'||'+r.colour;
-      if(!prodSet.has(k))prodSet.set(k,r.productName+(r.colour?' — '+r.colour:''));
+      if(prodSet.has(k))continue;
+      // Disc% filter
+      if(selectedDiscs.length){
+        const d=productDiscMap[k]||0;
+        const pass=selectedDiscs.some(band=>{
+          if(band==='none')return!d||d===0;
+          const pct=parseFloat(band);
+          if(band==='70')return d>=70;
+          return d>=pct&&d<pct+10;
+        });
+        if(!pass)continue;
+      }
+      // Stock status filter
+      if(selectedFlags.length&&!selectedFlags.includes(productFlagMap[k]||'ok'))continue;
+      prodSet.set(k,r.productName+(r.colour?' — '+r.colour:''));
     }
     rowKeys=[...prodSet.keys()].filter(k=>{
       if(!search)return true;
@@ -2280,7 +2408,9 @@ function renderCadence(){
     const ss=getCadenceSelectedStatuses();
     const sc=getCadenceSelectedCats();
     const sdm=getCadenceSelectedDelMonths();
-    if(!ss.length&&!sc.length&&!sdm.length)rowKeys=rowKeys.slice(0,50);
+    const sd=getCadenceSelectedDiscs();
+    const sf=getCadenceSelectedFlags();
+    if(!ss.length&&!sc.length&&!sdm.length&&!sd.length&&!sf.length)rowKeys=rowKeys.slice(0,50);
   }
 
   // Sortable header helper
@@ -2380,7 +2510,7 @@ function renderCadence(){
     <th style="${cadenceSortCol==='__stpct__'?thStyle+';color:var(--teal);':thStyle}" onclick="setCadenceSort('__stpct__')">ST%${sortArrow('__stpct__')}</th>
     <th style="${thStyle};color:var(--teal);" onclick="setCadenceSort('__total__')">Total Sold${sortArrow('__total__')}</th>`:'';
 
-  const limitNote=cadenceView==='prod'&&!search&&!cadenceSortCol&&!getCadenceSelectedStatuses().length&&!getCadenceSelectedCats().length&&!getCadenceSelectedDelMonths().length?`<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">Showing top 50 products — use search or filters to find specific products.</div>`:'';
+  const limitNote=cadenceView==='prod'&&!search&&!cadenceSortCol&&!getCadenceSelectedStatuses().length&&!getCadenceSelectedCats().length&&!getCadenceSelectedDelMonths().length&&!getCadenceSelectedDiscs().length&&!getCadenceSelectedFlags().length?`<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">Showing top 50 products — use search or filters to find specific products.</div>`:'';
   const noResults=rowKeys.length===0?`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No products found</div><div class="insights-empty-sub">Try a different search term.</div></div>`:'';
 
   // Chart (category view only)
