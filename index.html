@@ -5179,6 +5179,8 @@ function buildSoldOutMap(){
   const plMap={};
 
   // Build price/delivery month map from Better Reports (soldOutData)
+  // NOTE: Better Reports 'Price' = base variant price (no discounts applied)
+  // We use it for deliveryMonth, cost, status, totalQty — but override price below
   if(soldOutData){
     for(const row of soldOutData){
       const title=(row['Product title']||'').trim().toUpperCase();
@@ -5191,9 +5193,29 @@ function buildSoldOutMap(){
       const productName=dashIdx>=0?title.slice(0,dashIdx):title;
       const colour=dashIdx>=0?title.slice(dashIdx+3):'';
       const soKey=productName+'||'+colour;
-      // Only use Better Reports for soMap if no dedicated variants file uploaded
       if(!variantsSoldOutData&&variants>0)soMap[soKey]=variants;
       if(price>0)plMap[title]={price,compareAt:compareAt||price,deliveryMonth,cost:parseFloat(row['Cost']||0)||0,status:(row['Product Status']||'').toLowerCase().trim(),totalQty:parseInt(row['Total quantity']||row['Total quantity (in stock)']||0)||0};
+    }
+  }
+
+  // Override price/compareAt from All_Products_List if loaded
+  // This file reflects the CURRENT Shopify price including any active discounts
+  if(allProductsListData){
+    for(const row of allProductsListData){
+      const title=(row['Product Title']||'').trim().toUpperCase();
+      if(!title)continue;
+      const price=parseFloat(row['Price']||0)||0;
+      const compareAt=parseFloat(row['Compare at price']||0)||0;
+      if(price>0&&plMap[title]){
+        // Keep delivery month, cost, status, totalQty from Better Reports
+        // but use All_Products_List for price (reflects current discounts)
+        plMap[title].price=price;
+        plMap[title].compareAt=compareAt||price;
+      } else if(price>0&&!plMap[title]){
+        // Product in All_Products_List but not in Better Reports — add it
+        plMap[title]={price,compareAt:compareAt||price,deliveryMonth:'',cost:0,
+          status:(row['Product Status']||'').toLowerCase().trim(),totalQty:0};
+      }
     }
   }
 
