@@ -3280,6 +3280,8 @@ function setSwTab(tab){
   if(catBtn){catBtn.classList.toggle('active',tab==='category');}
   if(prodBtn){prodBtn.classList.toggle('active',tab==='product');}
   if(tab==='category'){
+    // Clear ro mode when switching to category — it only applies to product tab
+    window._roToSwProducts=null;
     if(!document.getElementById('ms-swc-cat-options').children.length) swcPopulateFilters();
     renderSwCategory();
   }
@@ -3378,8 +3380,8 @@ function renderSwCategory(){
     return;
   }
 
-  // Re-orders mode — show a banner and filter to only re-order products
-  const roMode=!!(window._roToSwProducts?.length);
+  // Re-orders mode — only active on product tab
+  const roMode=swTab==='product'&&!!(window._roToSwProducts?.length);
 
   // Product search — when active, group by product name instead of category
   const productSearch=(document.getElementById('swc-product-search')?.value||'').trim().toUpperCase();
@@ -3591,7 +3593,8 @@ function renderSwCategory(){
 function setSwPeriod(days){
   swPeriod=days;
   document.querySelectorAll('[data-sw-days]').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.swDays)===days));
-  renderSizeWorkings();
+  if(window._roToSwProducts?.length) renderRoSizeWorkings();
+  else renderSizeWorkings();
 }
 
 function swSearch(){
