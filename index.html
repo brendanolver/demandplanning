@@ -1173,7 +1173,7 @@ th{position:relative;}
         <div class="filter-row" style="margin-bottom:12px;flex-wrap:wrap;">
           <div class="search-wrap" style="min-width:220px;">
             <span class="search-ico">🔍</span>
-            <input type="text" id="ro-search" placeholder="Search product, colour or SKU..." oninput="console.log('ro-search oninput fired, allVariantRows:',allVariantRows?.length, 'body:',!!document.getElementById('reorders-body'));renderReorders();" style="width:100%;">
+            <input type="text" id="ro-search" placeholder="Search product, colour or SKU..." oninput="renderReorders()" style="width:100%;">
           </div>
           <div class="ms-wrap" id="ms-ro-cat">
             <button class="ms-btn" onclick="toggleDropdown('ms-ro-cat')"><span id="ms-ro-cat-label">All Categories</span><span class="ms-arrow">▾</span></button>
@@ -4054,6 +4054,7 @@ function mgExport(){
   a.download='margin_cost_calculator.csv';a.click();
 }
 
+function getRoData(){try{return JSON.parse(localStorage.getItem(RO_STORAGE_KEY)||'{}');}catch(e){return{};}}
 function saveRoData(d){try{localStorage.setItem(RO_STORAGE_KEY,JSON.stringify(d));}catch(e){}}
 
 function roToggle(key,checked){
