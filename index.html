@@ -1166,6 +1166,7 @@ th{position:relative;}
             <button onclick="roClearAll()" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✕ Clear All</button>
             <button id="ro-view-selected-btn" onclick="roToggleViewSelected()" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">👁 View Selected</button>
             <button onclick="roExport()" style="padding:7px 18px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">⬇ Export Selected</button>
+            <button id="ro-send-sw-btn" onclick="roSendToSizeWorkings()" style="padding:7px 18px;background:#8b5cf6;color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;opacity:0.4;pointer-events:none;" title="Enter order quantities to enable">📐 Send to Size Workings</button>
           </div>
         </div>
         <!-- Re-orders filter bar -->
@@ -3375,9 +3376,12 @@ function renderSwCategory(){
     return;
   }
 
+  // Re-orders mode — show a banner and filter to only re-order products
+  const roMode=!!(window._roToSwProducts?.length);
+
   // Product search — when active, group by product name instead of category
   const productSearch=(document.getElementById('swc-product-search')?.value||'').trim().toUpperCase();
-  const searchMode=productSearch.length>=2;
+  const searchMode=productSearch.length>=2||roMode;
 
   // Apply filters
   const cats=swcGetSelected('cat');
@@ -3396,6 +3400,12 @@ function renderSwCategory(){
     if(flags.length&&!flags.includes(r.flag||''))return false;
     if(discs.length){const d=Math.round(r.discountPct||0);const band=!r.discountPct||d===0?'none':String(d);if(!discs.some(b=>b===band))return false;}
     if(delmonths.length&&!delmonths.includes(r.deliveryMonth||''))return false;
+    // Re-orders mode: only show products with qty entered
+    if(roMode){
+      const fullTitle=r.productName+' - '+r.colour;
+      if(!window._roToSwProducts.includes(fullTitle))return false;
+      return true;
+    }
     // Product search filter — contains match on product name
     if(searchMode&&!r.productName.toUpperCase().includes(productSearch))return false;
     return true;
@@ -3411,11 +3421,15 @@ function renderSwCategory(){
   const soldKey=swcPeriod===7?'sold7':swcPeriod===14?'sold14':swcPeriod===30?'sold30':swcPeriod===60?'sold60':swcPeriod===90?'sold90':'sold365';
 
   // Aggregate by group key → size
-  // In search mode: ALL matching products roll into ONE table (grouped by search term)
-  // In normal mode: group by category
+  // Re-orders mode: one table per product (fullTitle)
+  // Search mode: ALL matching products roll into ONE table
+  // Normal mode: group by category
   const catData={}; // {groupKey: {size: {sold, soh, products}}}
   for(const r of filtered){
-    const groupKey=searchMode?productSearch:(r.category||'UNCATEGORISED');
+    let groupKey;
+    if(roMode) groupKey=r.productName+' - '+r.colour;
+    else if(searchMode) groupKey=productSearch;
+    else groupKey=r.category||'UNCATEGORISED';
     const sz=(r.size||'OS').toUpperCase().trim();
     if(!catData[groupKey])catData[groupKey]={};
     if(!catData[groupKey][sz])catData[groupKey][sz]={sold:0,soh:0,products:new Set()};
@@ -3425,7 +3439,10 @@ function renderSwCategory(){
     catData[groupKey][sz].products.add(r.productName+' - '+r.colour);
   }
 
-  const sortedCats=Object.keys(catData).sort();
+  // In ro mode, sort by the original re-orders list order
+  const sortedCats=roMode
+    ? window._roToSwProducts.filter(ft=>catData[ft])
+    : Object.keys(catData).sort();
 
   const tables=sortedCats.map(cat=>{
     const sizes=Object.keys(catData[cat]).sort((a,b)=>{
@@ -3546,21 +3563,27 @@ function renderSwCategory(){
     // Only show section labels if both groups exist
     const hasBoth=alphaSizes.length>0&&numericSizes.length>0;
     const catKey=cat.replace(/[^a-z0-9]/gi,'_');
+    // Re-orders mode: show re-order qty in title
+    const roQtyForProduct=roMode&&window._roToSwData?parseInt(window._roToSwData[cat]?.qty)||0:0;
 
     return`<div style="margin-bottom:28px;">
       <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px;flex-wrap:wrap;">
-        <div style="font-size:15px;font-weight:700;color:var(--text);">${searchMode?`<span style="color:var(--teal);">${cat}</span> <span style="font-size:12px;font-weight:500;color:var(--text-muted);">— all styles containing this term</span>`:cat}</div>
+        <div style="font-size:15px;font-weight:700;color:var(--text);">${roMode?`<span style="color:var(--teal);">${cat}</span>`:searchMode?`<span style="color:var(--teal);">${cat}</span> <span style="font-size:12px;font-weight:500;color:var(--text-muted);">— all styles containing this term</span>`:cat}</div>
+        ${roMode&&roQtyForProduct?`<div style="font-size:12px;font-weight:700;color:#f97316;padding:2px 8px;background:#fff7ed;border:1px solid #fed7aa;border-radius:4px;">Re-Order: ${roQtyForProduct} units</div>`:''}
         ${sizeRange?`<div style="font-size:12px;color:var(--teal);font-weight:600;">${sizeRange}</div>`:''}
-        <div style="font-size:12px;color:var(--text-muted);">${searchMode?`${numProducts} style${numProducts!==1?'s':''} / colour${numProducts!==1?'s':''} matched`:`${numProducts} products`} · ${swcPeriod}d sold: ${totalSold.toLocaleString()} · SOH: ${totalSoh.toLocaleString()}</div>
-        ${searchMode?`<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${[...new Set(filtered.filter(r=>r.productName.toUpperCase().includes(productSearch)).map(r=>r.productName))].sort().join(' · ')}</div>`:''}
-
+        <div style="font-size:12px;color:var(--text-muted);">${roMode||searchMode?`${numProducts} style${numProducts!==1?'s':''} / colour${numProducts!==1?'s':''}`:`${numProducts} products`} · ${swcPeriod}d sold: ${totalSold.toLocaleString()} · SOH: ${totalSoh.toLocaleString()}</div>
       </div>
       ${buildSection(alphaSizes,hasBoth?'ALPHA SIZES':'',catKey+'__alpha')}
       ${buildSection(numericSizes,hasBoth?'NUMERIC SIZES':'',catKey+'__numeric')}
     </div>`;
   }).join('');
 
-  body.innerHTML=tables;
+  const roBanner=roMode?`<div style="display:flex;align-items:center;justify-content:space-between;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:var(--r);padding:10px 16px;margin-bottom:16px;">
+    <div style="font-size:13px;font-weight:600;color:#6d28d9;">📐 Showing ${window._roToSwProducts.length} re-order product${window._roToSwProducts.length!==1?'s':''} from Working → Re-Orders</div>
+    <button onclick="roSendToSwReset()" style="padding:5px 12px;background:white;border:1px solid #ddd6fe;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:#6d28d9;">✕ Clear & Return to Normal View</button>
+  </div>`:'';
+
+  body.innerHTML=roBanner+tables;
 }
 
 function setSwPeriod(days){
@@ -4077,19 +4100,21 @@ function renderReorders(){
     allVariantRows.some(r=>r.productName===p.productName&&r.colour===p.colour&&((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0))
   );
 
-  // Populate filters — preserve checked state
-  const wasPopulated={};const prevChecked={};
-  ['cat','vendor','flag','disc','delmonth'].forEach(type=>{
-    const boxes=[...document.querySelectorAll(`#ms-ro-${type}-options input`)];
-    wasPopulated[type]=boxes.length>0;
-    prevChecked[type]=new Set(boxes.filter(b=>b.checked).map(b=>b.value));
-  });
-  roPopulateFilters(allProductsRo);
-  ['cat','vendor','flag','disc','delmonth'].forEach(type=>{
-    if(!wasPopulated[type])return;
-    document.querySelectorAll(`#ms-ro-${type}-options input`).forEach(b=>{b.checked=prevChecked[type].has(b.value);});
-    roUpdateLabel(type);
-  });
+  // Only repopulate filter dropdowns when not actively searching (prevents DOM thrashing)
+  if(!search){
+    const wasPopulated={};const prevChecked={};
+    ['cat','vendor','flag','disc','delmonth'].forEach(type=>{
+      const boxes=[...document.querySelectorAll(`#ms-ro-${type}-options input`)];
+      wasPopulated[type]=boxes.length>0;
+      prevChecked[type]=new Set(boxes.filter(b=>b.checked).map(b=>b.value));
+    });
+    roPopulateFilters(allProductsRo);
+    ['cat','vendor','flag','disc','delmonth'].forEach(type=>{
+      if(!wasPopulated[type])return;
+      document.querySelectorAll(`#ms-ro-${type}-options input`).forEach(b=>{b.checked=prevChecked[type].has(b.value);});
+      roUpdateLabel(type);
+    });
+  }
 
   // Apply filters
   const cats=roGetSelected('cat');
@@ -4150,6 +4175,10 @@ function renderReorders(){
   window._roVisibleKeys=products.map(p=>p.fullTitle);
   window._roFilteredProducts=products;
   const selectedCount=products.filter(p=>saved[p.fullTitle]?.checked||saved[p.fullTitle]?.qty).length;
+  // Enable Send to Size Workings button when any qty > 0 is entered
+  const hasQty=Object.values(saved).some(v=>parseInt(v?.qty)||0>0);
+  const swBtn=document.getElementById('ro-send-sw-btn');
+  if(swBtn){swBtn.style.opacity=hasQty?'1':'0.4';swBtn.style.pointerEvents=hasQty?'auto':'none';};
   if(countEl)countEl.textContent=`${products.length} products shown — ${selectedCount} selected for re-order`;
 
   const allTicked=products.length>0&&products.every(p=>saved[p.fullTitle]?.checked);
@@ -4326,6 +4355,62 @@ function roSort(col){
     roSortDir=(col==='productName'||col==='category'||col==='vendor'||col==='deliveryMonth'||col==='flag')?'asc':'desc';
   }
   renderReorders();
+}
+
+function roSendToSizeWorkings(){
+  const saved=getRoData();
+  // Collect all products with a re-order qty entered
+  const products=Object.entries(saved)
+    .filter(([,v])=>parseInt(v?.qty)||0>0)
+    .map(([fullTitle])=>fullTitle);
+  if(!products.length){alert('No re-order quantities entered yet.');return;}
+
+  // Switch to Working → Size Workings → Category tab
+  setWorkingView('sizeworkings');
+  setSwTab('category');
+
+  // Store re-order products list for size workings to use
+  window._roToSwProducts=products;
+  window._roToSwData=saved;
+
+  // Pre-fill the category search with a sentinel that renderSwCategory will detect
+  const searchEl=document.getElementById('swc-product-search');
+  if(searchEl){
+    searchEl.value='';
+    searchEl.placeholder='Showing re-order products from Working → Re-Orders...';
+  }
+
+  // Pre-fill swcOrderData with the re-order quantities
+  const swcData=getSwcOrderData();
+  for(const [fullTitle,v] of Object.entries(saved)){
+    const qty=parseInt(v?.qty)||0;
+    if(qty>0){
+      // Parse productName from fullTitle (e.g. "PRIVACY PANEL HOOD SWEAT - GREY/BLACK")
+      const dashIdx=fullTitle.lastIndexOf(' - ');
+      const productName=dashIdx>=0?fullTitle.slice(0,dashIdx):fullTitle;
+      const colour=dashIdx>=0?fullTitle.slice(dashIdx+3):'';
+      // Find the style code from allVariantRows
+      const variants=allVariantRows.filter(r=>r.productName===productName&&r.colour===colour);
+      if(variants.length){
+        const styleCode=extractStyleCode(variants[0].sku);
+        if(styleCode&&!swcData[styleCode]){
+          swcData[styleCode]=qty;
+        }
+      }
+    }
+  }
+  saveSwcOrderData(swcData);
+
+  // Trigger render with re-order mode active
+  renderSwCategory();
+}
+
+function roSendToSwReset(){
+  window._roToSwProducts=null;
+  window._roToSwData=null;
+  const searchEl=document.getElementById('swc-product-search');
+  if(searchEl){searchEl.value='';searchEl.placeholder='Search product name (e.g. OFFCUT COURT SHORT)...';}
+  renderSwCategory();
 }
 
 function roExport(){
