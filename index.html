@@ -4095,13 +4095,18 @@ function renderReorders(){
   const saved=getRoData();
   const search=(document.getElementById('ro-search')?.value||'').trim().toUpperCase();
 
-  // Build full product list
-  const allProductsRo=[...toProduct(allVariantRows)].filter(p=>
-    allVariantRows.some(r=>r.productName===p.productName&&r.colour===p.colour&&((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0))
-  );
+  // Build full product list — include all products with stock or on order
+  const _stockSet=new Set(allVariantRows
+    .filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)
+    .map(r=>r.productName+'||'+r.colour));
+  const allProductsRo=[...toProduct(allVariantRows.filter(r=>
+    !r.amOnly&&((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)
+  ))];
 
   // Only repopulate filter dropdowns when not actively searching (prevents DOM thrashing)
-  if(!search){
+  // But always populate on first load (when no checkboxes exist yet)
+  const filtersAlreadyPopulated=document.querySelectorAll('#ms-ro-cat-options input').length>0;
+  if(!search||!filtersAlreadyPopulated){
     const wasPopulated={};const prevChecked={};
     ['cat','vendor','flag','disc','delmonth'].forEach(type=>{
       const boxes=[...document.querySelectorAll(`#ms-ro-${type}-options input`)];
