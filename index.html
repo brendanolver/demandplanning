@@ -5903,10 +5903,6 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const{productName,colour,size,vendor,category}=pm;
     const plKey=(productName+' - '+colour).toUpperCase();
     const plEntry=plKey in plMap?plMap[plKey]:plMap[productName.toUpperCase()];
-    // DEBUG price source
-    if(productName==='INCLINE FOOTBALL JERSEY'&&colour==='BLUE/BLACK'){
-      console.log('DEBUG INCLINE:',{plKey,plEntryFound:!!plEntry,plEntryPrice:plEntry?.price,plEntryCompare:plEntry?.compareAt,plMapKeys:Object.keys(plMap).filter(k=>k.includes('INCLINE')),allProductsListDataLoaded:!!allProductsListData});
-    }
     // SOH fallback: if product has sales history but missing from inventory file,
     // use Better Reports total qty distributed equally across sizes
     let stock=sohMap[sku]||0;
@@ -5947,7 +5943,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const onOrderPR=(amVariantMap[vKeyPR]||amVariantMap[vKeyOSPR])?.qtyOpen||0;
     // isActive: definitively live if in Better Reports soldout with status='active'
     const isActive=activeSet.has(fullTitleUpper)||hasSalesHistory;
-    const isPreRelease=isDraftSignal&&stock>0&&isCurrentMonthDelivery&&!hasSalesHistory&&onOrderPR===0&&!isActive;
+    const isPreRelease=isDraftSignal&&stock>0&&isCurrentMonthDelivery&&!hasSalesHistory&&!isActive;
     if(isDraft){
       // Skip excluded categories entirely
       const excludedDraftCats=['GWP','MYSTERY BOX','INSURANCE','GIVEAWAY'];
