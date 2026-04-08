@@ -2182,8 +2182,9 @@ function renderCadenceCompare(){
       for(const p of periods)d[p.label]+=skuDays[p.label]||0;
     }
     const soh=variants.reduce((s,r)=>s+(r.stock||0),0);
+    const onOrder=variants.reduce((s,r)=>s+(r.onOrder||0)+(r.productOnOrder||0),0);
     const totalSold=Object.values(d).reduce((s,v)=>s+v,0);
-    return{...cp,data:d,soh,totalSold};
+    return{...cp,data:d,soh,onOrder,totalSold};
   });
 
   // Apply sort
@@ -2192,6 +2193,7 @@ function renderCadenceCompare(){
       let va,vb;
       if(compareSortCol==='product')     {va=(a.productName+' '+a.colour).toLowerCase();vb=(b.productName+' '+b.colour).toLowerCase();return compareSortDir==='asc'?va.localeCompare(vb):vb.localeCompare(va);}
       else if(compareSortCol==='soh')    {va=a.soh;vb=b.soh;}
+      else if(compareSortCol==='onorder') {va=a.onOrder;vb=b.onOrder;}
       else if(compareSortCol==='total')  {va=a.totalSold;vb=b.totalSold;}
       else if(compareSortCol==='stpct')  {va=a.totalSold>0?a.totalSold/(a.soh+a.totalSold):0;vb=b.totalSold>0?b.totalSold/(b.soh+b.totalSold):0;}
       else                               {va=a.data[compareSortCol]||0;vb=b.data[compareSortCol]||0;}
@@ -2243,6 +2245,7 @@ function renderCadenceCompare(){
         </div>
       </td>
       <td style="text-align:right;padding:8px 10px;color:var(--text-secondary);">${cp.soh>0?cp.soh.toLocaleString():'—'}</td>
+      <td style="text-align:right;padding:8px 10px;color:var(--purple);font-weight:500;">${cp.onOrder>0?cp.onOrder.toLocaleString():'—'}</td>
       <td style="text-align:right;padding:8px 10px;${stColor}">${stPct!==null?stPct.toFixed(1)+'%':'—'}</td>
       <td style="text-align:right;padding:8px 10px;font-weight:700;color:var(--teal);">${totalSold>0?totalSold.toLocaleString():'—'}</td>
       ${cells}
@@ -2258,6 +2261,7 @@ function renderCadenceCompare(){
   const totalsRow=`<tr style="background:var(--surface2);border-top:2px solid var(--border);">
     <td style="padding:8px 10px;font-weight:700;font-size:12px;color:var(--text-secondary);letter-spacing:0.05em;">TOTAL</td>
     <td style="text-align:right;padding:8px 10px;font-weight:700;">—</td>
+    <td style="text-align:right;padding:8px 10px;font-weight:700;color:var(--purple);">—</td>
     <td style="text-align:right;padding:8px 10px;font-weight:700;">—</td>
     <td style="text-align:right;padding:8px 10px;font-weight:700;color:var(--teal);">${grandTotal>0?Math.round(grandTotal).toLocaleString():'—'}</td>
     ${totalCells}
@@ -2268,6 +2272,7 @@ function renderCadenceCompare(){
       <thead><tr>
         <th onclick="setCompareSort('product')" style="${compareSortCol==='product'?thActive:thBase}min-width:200px;">Product${arrow('product')}</th>
         <th onclick="setCompareSort('soh')" style="${compareSortCol==='soh'?thActive:thBase}text-align:right;min-width:70px;">SOH${arrow('soh')}</th>
+        <th onclick="setCompareSort('onorder')" style="${compareSortCol==='onorder'?thActive:thBase}text-align:right;min-width:70px;color:var(--purple);">On Order${arrow('onorder')}</th>
         <th style="text-align:right;white-space:nowrap;cursor:pointer;user-select:none;" onclick="setCompareSort('stpct')">ST%${arrow('stpct')}</th>
         <th onclick="setCompareSort('total')" style="${compareSortCol==='total'?thActive:thBase}text-align:right;min-width:80px;color:${compareSortCol==='total'?'var(--teal)':'var(--teal)'};">Total Sold${arrow('total')}</th>
         ${headers}
@@ -2381,18 +2386,21 @@ function renderCadence(){
     }
   }
 
-  // Build SOH map per row key — uses all allVariantRows so SOH sort works across full set
+  // Build SOH and On Order maps per row key
   const sohByKey={};
+  const onOrderByKey={};
   if(cadenceView==='cat'){
     for(const r of allVariantRows){
       const c=r.category||'UNCATEGORISED';
       sohByKey[c]=(sohByKey[c]||0)+(r.stock||0);
+      onOrderByKey[c]=(onOrderByKey[c]||0)+((r.onOrder||0)+(r.productOnOrder||0));
     }
   } else {
     for(const r of allVariantRows){
       if(r.amOnly)continue;
       const k=getKey(r);
       sohByKey[k]=(sohByKey[k]||0)+(r.stock||0);
+      onOrderByKey[k]=(onOrderByKey[k]||0)+((r.onOrder||0)+(r.productOnOrder||0));
     }
   }
 
@@ -2418,6 +2426,7 @@ function renderCadence(){
       }
       let av,bv;
       if(cadenceSortCol==='soh'){av=sohByKey[a]||0;bv=sohByKey[b]||0;}
+      else if(cadenceSortCol==='__onorder__'){av=onOrderByKey[a]||0;bv=onOrderByKey[b]||0;}
       else if(cadenceSortCol==='__total__'){av=totalByKey[a]||0;bv=totalByKey[b]||0;}
       else if(cadenceSortCol==='__stpct__'){
         const ta=totalByKey[a]||0;const tb=totalByKey[b]||0;
@@ -2479,6 +2488,7 @@ function renderCadence(){
 
   const tableRows=rowKeys.map(k=>{
     const soh=sohByKey[k]||0;
+    const onOrder=onOrderByKey[k]||0;
     const totalSold=totalByKey[k]||0;
     const stPct=totalSold>0?totalSold/(soh+totalSold)*100:null;
     const cells=periods.map((p,i)=>{
@@ -2507,6 +2517,7 @@ function renderCadence(){
     return`<tr>
       <td>${displayLabel(k)}</td>
       <td class="cell-num" style="font-weight:500;">${soh>0?soh.toLocaleString():'—'}</td>
+      <td class="cell-num" style="color:var(--purple);font-weight:500;">${onOrder>0?onOrder.toLocaleString():'—'}</td>
       ${lyMtdCell}
       ${totalCols}
       ${cells}
@@ -2542,6 +2553,8 @@ function renderCadence(){
   // Chart (category view only)
   const chartHtml=cadenceView==='cat'?buildCadenceChart(periods,rowKeys,data,totals):'';
 
+  const totalOnOrder=rowKeys.reduce((s,k)=>s+(onOrderByKey[k]||0),0);
+
   document.getElementById('cadence-body').innerHTML=`
     ${limitNote}
     ${noResults||`<div class="cadence-table-wrap">
@@ -2549,6 +2562,7 @@ function renderCadence(){
         <thead><tr>
           <th style="${thStyle}" onclick="setCadenceSort('label')">${rowLabel}${sortArrow('label')}</th>
           <th style="${thStyle};min-width:60px;" onclick="setCadenceSort('soh')">SOH${sortArrow('soh')}</th>
+          <th style="${thStyle};min-width:60px;color:var(--purple);" onclick="setCadenceSort('__onorder__')">On Order${sortArrow('__onorder__')}</th>
           ${showLyMtd?`<th style="background:#f0fdf4;border-left:2px solid var(--border);min-width:80px;white-space:nowrap;">LY MTD<div style="font-size:9px;font-weight:400;opacity:0.8;">vs this MTD</div></th>`:''}
           ${totalColsHeader}
           ${headers}
@@ -2558,6 +2572,7 @@ function renderCadence(){
           <tr class="cadence-total">
             <td>TOTAL</td>
             <td style="font-weight:700;">${totalSoh>0?totalSoh.toLocaleString():"—"}</td>
+            <td style="font-weight:700;color:var(--purple);">${totalOnOrder>0?totalOnOrder.toLocaleString():'—'}</td>
             ${showLyMtd?`<td style="background:#f0fdf4;border-left:2px solid var(--border);">
               <div style="font-weight:700;">${lyMtdTotal>0?lyMtdTotal.toLocaleString():'—'}</div>
               ${lyMtdVsPct!==null?`<div style="font-size:10px;${lyMtdTotalVsColor}">${lyMtdVsPct>=0?'+':''}${lyMtdVsPct.toFixed(1)}%</div>`:''}
