@@ -1106,7 +1106,8 @@ th{position:relative;}
           </div>
           <button onclick="cadenceCompareClear()" style="padding:7px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);white-space:nowrap;margin-top:2px;">✕ Clear All</button>
         </div>
-        <div id="cadence-compare-tags" style="display:flex;gap:6px;flex-wrap:wrap;min-height:24px;"></div>
+        <!-- Compact selected count + toggle summary -->
+        <div id="cadence-compare-tags" style="display:flex;gap:6px;flex-wrap:wrap;min-height:20px;align-items:center;"></div>
       </div>
 
       <div id="cadence-body">
@@ -1116,6 +1117,8 @@ th{position:relative;}
           <div class="insights-empty-sub">Sales cadence data will appear here once data is loaded.</div>
         </div>
       </div>
+      <!-- Compare selected styles summary — shown below the table in compare mode -->
+      <div id="cadence-compare-summary" style="display:none;margin-top:20px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 18px;"></div>
     </div>
   </div>
 
@@ -1812,7 +1815,7 @@ function cadenceCompareSearch(){
     if(selectedFlags.length&&!selectedFlags.includes(productFlagMap[k]||'ok'))continue;
     matches.set(k,{key:k,productName:r.productName,colour:r.colour});
   }
-  const items=[...matches.values()].slice(0,50);
+  const items=[...matches.values()].slice(0,100);
   if(!items.length){
     list.innerHTML=`<div style="padding:12px 14px;font-size:13px;color:var(--text-muted);font-style:italic;">No products found</div>`;
     results.style.display='block';
@@ -1920,18 +1923,50 @@ function cadenceCompareClear(){
 
 function renderCadenceCompareTags(){
   const tags=document.getElementById('cadence-compare-tags');
-  if(!tags)return;
-  if(!cadenceCompareProducts.length){
-    tags.innerHTML=`<span style="font-size:12px;color:var(--text-muted);font-style:italic;">No products selected — search above to add</span>`;
+  const summary=document.getElementById('cadence-compare-summary');
+
+  if(!cadenceCompareMode||!cadenceCompareProducts.length){
+    if(tags)tags.innerHTML=`<span style="font-size:12px;color:var(--text-muted);font-style:italic;">No products selected — search above to add</span>`;
+    if(summary)summary.style.display='none';
     return;
   }
-  tags.innerHTML=cadenceCompareProducts.map(p=>`
-    <div style="display:flex;align-items:center;gap:6px;padding:4px 10px 4px 8px;background:${p.color}18;border:1.5px solid ${p.color};border-radius:999px;">
-      <div style="width:10px;height:10px;border-radius:50%;background:${p.color};flex-shrink:0;"></div>
-      <span style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;">${p.productName}</span>
-      <span style="font-size:11px;color:var(--text-muted);">— ${p.colour}</span>
-      <button onclick="cadenceCompareRemove('${p.key.replace(/'/g,"\\'")}');event.stopPropagation()" style="background:none;border:none;cursor:pointer;color:${p.color};font-size:14px;line-height:1;padding:0 0 0 2px;">✕</button>
-    </div>`).join('');
+
+  // Compact count line in panel
+  if(tags)tags.innerHTML=`<span style="font-size:12px;color:var(--text-secondary);font-weight:600;">${cadenceCompareProducts.length} product${cadenceCompareProducts.length!==1?'s':''} selected</span>
+    <button onclick="toggleCompareTagsExpanded()" id="cadence-tags-toggle-btn" style="font-size:11px;color:var(--teal);background:none;border:none;cursor:pointer;font-family:'Inter',sans-serif;padding:0 4px;">▾ Show all</button>`;
+
+  // Bottom summary grid
+  if(summary){
+    summary.style.display='';
+    const expanded=window._compareTagsExpanded||false;
+    const showCount=expanded?cadenceCompareProducts.length:Math.min(cadenceCompareProducts.length,10);
+    const hasMore=cadenceCompareProducts.length>10;
+
+    summary.innerHTML=`
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div style="font-size:12px;font-weight:700;color:var(--text-secondary);letter-spacing:0.05em;">SELECTED PRODUCTS (${cadenceCompareProducts.length})</div>
+        <div style="display:flex;gap:8px;">
+          ${hasMore?`<button onclick="toggleCompareTagsExpanded()" style="font-size:11px;color:var(--teal);background:none;border:none;cursor:pointer;font-family:'Inter',sans-serif;">${expanded?'▴ Show less':'▾ Show all '+cadenceCompareProducts.length}</button>`:''}
+          <button onclick="cadenceCompareClear()" style="font-size:11px;color:var(--red);background:none;border:none;cursor:pointer;font-family:'Inter',sans-serif;">✕ Clear All</button>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px;">
+        ${cadenceCompareProducts.slice(0,showCount).map((p,i)=>`
+          <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:${p.color}12;border:1px solid ${p.color}40;border-radius:var(--r);min-width:0;">
+            <div style="width:8px;height:8px;border-radius:50%;background:${p.color};flex-shrink:0;"></div>
+            <div style="min-width:0;flex:1;overflow:hidden;">
+              <div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.productName}</div>
+              <div style="font-size:11px;color:var(--teal);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.colour}</div>
+            </div>
+            <button onclick="cadenceCompareRemove('${p.key.replace(/'/g,"\\'")}');event.stopPropagation()" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:13px;line-height:1;padding:0;flex-shrink:0;" title="Remove">✕</button>
+          </div>`).join('')}
+      </div>`;
+  }
+}
+
+function toggleCompareTagsExpanded(){
+  window._compareTagsExpanded=!window._compareTagsExpanded;
+  renderCadenceCompareTags();
 }
 
 function setCadenceView(view){
@@ -1950,6 +1985,8 @@ function setCadenceView(view){
     if(comparePanel)comparePanel.style.display='none';
     cadenceCompareMode=false;
     document.getElementById('cadence-compare-btn')?.classList.remove('active');
+    const summaryEl=document.getElementById('cadence-compare-summary');
+    if(summaryEl)summaryEl.style.display='none';
   }
   document.getElementById('cadence-status-wrap').style.display=view==='prod'?'':'none';
   document.getElementById('cadence-cat-wrap').style.display=view==='prod'?'':'none';
