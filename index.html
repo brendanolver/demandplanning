@@ -2219,7 +2219,8 @@ function renderCadenceCompare(){
       for(const p of periods)d[p.label]+=skuDays[p.label]||0;
     }
     const soh=variants.reduce((s,r)=>s+(r.stock||0),0);
-    const onOrder=variants.reduce((s,r)=>s+(r.onOrder||0)+(r.productOnOrder||0),0);
+    // onOrder is stored per variant but represents the product total — take from first variant only
+    const onOrder=variants.length>0?((variants[0].onOrder||0)+(variants[0].productOnOrder||0)):0;
     const totalSold=Object.values(d).reduce((s,v)=>s+v,0);
     return{...cp,data:d,soh,onOrder,totalSold};
   });
@@ -2424,20 +2425,30 @@ function renderCadence(){
   }
 
   // Build SOH and On Order maps per row key
+  // On Order must be deduplicated by product+colour — it's stored on every variant row
+  // so summing across variants would multiply it by the number of sizes
   const sohByKey={};
   const onOrderByKey={};
+  const _onOrderSeen=new Set();
   if(cadenceView==='cat'){
     for(const r of allVariantRows){
       const c=r.category||'UNCATEGORISED';
       sohByKey[c]=(sohByKey[c]||0)+(r.stock||0);
-      onOrderByKey[c]=(onOrderByKey[c]||0)+((r.onOrder||0)+(r.productOnOrder||0));
+      const dedupeKey=c+'||'+r.productName+'||'+r.colour;
+      if(!_onOrderSeen.has(dedupeKey)){
+        _onOrderSeen.add(dedupeKey);
+        onOrderByKey[c]=(onOrderByKey[c]||0)+((r.onOrder||0)+(r.productOnOrder||0));
+      }
     }
   } else {
     for(const r of allVariantRows){
       if(r.amOnly)continue;
       const k=getKey(r);
       sohByKey[k]=(sohByKey[k]||0)+(r.stock||0);
-      onOrderByKey[k]=(onOrderByKey[k]||0)+((r.onOrder||0)+(r.productOnOrder||0));
+      if(!_onOrderSeen.has(k)){
+        _onOrderSeen.add(k);
+        onOrderByKey[k]=(onOrderByKey[k]||0)+((r.onOrder||0)+(r.productOnOrder||0));
+      }
     }
   }
 
