@@ -853,18 +853,26 @@ th{position:relative;}
 
     <!-- MAIN -->
     <main class="main">
-      <div class="kpi-row" id="kpi-row"></div>
+      <div id="dashboard-collapsible" style="transition:all 0.2s;">
+        <div class="kpi-row" id="kpi-row"></div>
+      </div>
 
       <div class="toolbar">
         <div class="toolbar-top">
           <div class="toolbar-title" id="toolbar-title">Category View</div>
-          <div class="view-switch">
-            <button class="view-btn active" data-view="category" onclick="setView('category')">Category</button>
-            <button class="view-btn" data-view="product" onclick="setView('product')">Product</button>
-            <button class="view-btn" data-view="variant" onclick="setView('variant')">Variant</button>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="view-switch">
+              <button class="view-btn active" data-view="category" onclick="setView('category')">Category</button>
+              <button class="view-btn" data-view="product" onclick="setView('product')">Product</button>
+              <button class="view-btn" data-view="variant" onclick="setView('variant')">Variant</button>
+            </div>
+            <button id="dashboard-collapse-btn" onclick="toggleDashboardCollapse()" title="Toggle KPIs & filters"
+              style="padding:5px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);font-size:12px;cursor:pointer;color:var(--text-secondary);white-space:nowrap;line-height:1;">
+              ▲ Collapse
+            </button>
           </div>
         </div>
-        <div class="filter-row">
+        <div id="dashboard-filter-row" class="filter-row">
           <div class="search-wrap">
             <span class="search-ico">🔍</span>
             <input type="text" id="search-input" placeholder="Search product, colour or SKU... e.g. Halo Baggy Trackpant - Black" oninput="applyFilters()">
@@ -958,8 +966,8 @@ th{position:relative;}
             </div>
           </div>
           <button class="clear-btn" onclick="clearFilters()">✕ Clear</button>
-        </div>
-      </div>
+        </div><!-- end dashboard-filter-row -->
+      </div><!-- end toolbar -->
 
       <div class="table-card">
         <div class="tbl-wrap tbl-wrap-dashboard">
@@ -6542,7 +6550,26 @@ function populateMultiSelect(type,values,countMap){
   }).join('');
 }
 
+let dashboardCollapsed=false;
+function toggleDashboardCollapse(){
+  dashboardCollapsed=!dashboardCollapsed;
+  const collapsible=document.getElementById('dashboard-collapsible');
+  const filterRow=document.getElementById('dashboard-filter-row');
+  const btn=document.getElementById('dashboard-collapse-btn');
+  if(dashboardCollapsed){
+    if(collapsible){collapsible.style.display='none';}
+    if(filterRow){filterRow.style.display='none';}
+    if(btn){btn.textContent='▼ Expand';}
+  } else {
+    if(collapsible){collapsible.style.display='';}
+    if(filterRow){filterRow.style.display='';}
+    if(btn){btn.textContent='▲ Collapse';}
+  }
+}
+
 function kpiDrillDown(flag){
+  // Expand if collapsed so filters are visible
+  if(dashboardCollapsed)toggleDashboardCollapse();
   // Switch to product view and filter by the given stock status flag
   setView('product');
   // Clear all flag checkboxes then check only the target flag
