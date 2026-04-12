@@ -2447,15 +2447,13 @@ function renderCadence(){
       const dedupeKey=c+'||'+r.productName+'||'+r.colour;
       if(!_onOrderSeen.has(dedupeKey)){
         _onOrderSeen.add(dedupeKey);
-        // Use productOnOrder (total) if available, else variant onOrder
         const oo=(r.productOnOrder||0)||(r.onOrder||0);
         onOrderByKey[c]=(onOrderByKey[c]||0)+oo;
       }
     }
   } else {
     for(const r of allVariantRows){
-      if(r.amOnly)continue;
-      const k=getKey(r);
+      const k=r.productName+'||'+r.colour;
       sohByKey[k]=(sohByKey[k]||0)+(r.stock||0);
       if(!_onOrderSeen.has(k)){
         _onOrderSeen.add(k);
