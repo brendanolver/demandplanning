@@ -6698,9 +6698,9 @@ function toProduct(vr){
   for(const r of vr){
     const key=r.productName+'||'+r.colour;
     if(!map[key]){
-      // First variant: use productOnOrder as the product total baseline
-      // (productOnOrder = total for whole product from AM, onOrder = variant-level)
-      const baseOnOrder=(r.productOnOrder||0)||( r.onOrder||0);
+      // First variant: use productOnOrder (product total) as the single source of truth.
+      // Never add per-size variantEntry.onOrder on top — it's already included in productOnOrder.
+      const baseOnOrder=(r.productOnOrder||0)||(r.onOrder||0);
       if(r.productName==='NIMBUS HOOD SWEAT'&&r.colour==='BABY BLUE')
         console.log('NIMBUS BABY BLUE first variant:',JSON.stringify({onOrder:r.onOrder,productOnOrder:r.productOnOrder,baseOnOrder}));
       map[key]={...r,velSum:r.velocity,stock:r.stock,sold:r.sold,
@@ -6722,8 +6722,9 @@ function toProduct(vr){
       p.soldYesterday+=(r.soldYesterday||0);
       p.suggestedOrder+=(r.suggestedOrder||0);
       p.velSum+=r.velocity;p.count++;
-      // Only add variant-level onOrder (not productOnOrder which is already counted on first row)
-      if(r.onOrder!==null&&r.onOrder>0)p.onOrder+=r.onOrder;
+      // Only add variant-level onOrder if no productOnOrder exists on this row
+      // (productOnOrder is already the full product total set on first variant)
+      if(!r.productOnOrder&&r.onOrder!==null&&r.onOrder>0)p.onOrder+=r.onOrder;
       if(r.price){p.priceSum+=r.price;p.priceCount++;}
       p.sohValue+=(r.sohValue||0);
       p.sellValue+=(r.sellValue||0);
