@@ -5474,7 +5474,7 @@ let shopifyInvData=null, shopifySalesData=null, amData=null, soldOutData=null, v
 let coreStylesData=null, bundleStylesData=null, allProductsListData=null;
 let currentView='category', sortCol='days', sortDir='asc', currentPage=1;
 let selectedPeriod=7;
-const PAGE_SIZE=50;
+let PAGE_SIZE=50;
 let filteredRows=[], allVariantRows=[];
 
 /* ── PERIOD SELECTOR ── */
@@ -6557,14 +6557,16 @@ function toggleDashboardCollapse(){
   const filterRow=document.getElementById('dashboard-filter-row');
   const btn=document.getElementById('dashboard-collapse-btn');
   if(dashboardCollapsed){
-    if(collapsible){collapsible.style.display='none';}
-    if(filterRow){filterRow.style.display='none';}
-    if(btn){btn.textContent='▼ Expand';}
+    if(collapsible)collapsible.style.display='none';
+    if(filterRow)filterRow.style.display='none';
+    if(btn)btn.textContent='▼ Expand';
   } else {
-    if(collapsible){collapsible.style.display='';}
-    if(filterRow){filterRow.style.display='';}
-    if(btn){btn.textContent='▲ Collapse';}
+    if(collapsible)collapsible.style.display='';
+    if(filterRow)filterRow.style.display='';
+    if(btn)btn.textContent='▲ Collapse';
   }
+  currentPage=1;
+  renderTable();
 }
 
 function kpiDrillDown(flag){
@@ -7246,13 +7248,29 @@ function renderFoot(){
     else if(Math.abs(i-currentPage)===3)
       pgs+=`<button class="pg-btn" disabled>…</button>`;
   }
+  const pageSizes=[25,50,100,200,'All'];
+  const sizeOpts=pageSizes.map(s=>`<option value="${s}" ${PAGE_SIZE===(s==='All'?999999:s)?'selected':''}>${s}</option>`).join('');
   document.getElementById('tbl-foot').innerHTML=`
-    <div class="tbl-foot-info">Showing <strong>${start}–${end}</strong> of <strong>${total.toLocaleString()}</strong> records</div>
+    <div style="display:flex;align-items:center;gap:6px;">
+      <div class="tbl-foot-info">Showing <strong>${start}–${end}</strong> of <strong>${total.toLocaleString()}</strong> records</div>
+      <div style="display:flex;align-items:center;gap:4px;margin-left:8px;">
+        <span style="font-size:11px;color:var(--text-muted);">Rows:</span>
+        <select onchange="setPageSize(this.value)" style="padding:2px 6px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;background:var(--surface);color:var(--text);cursor:pointer;">
+          ${sizeOpts}
+        </select>
+      </div>
+    </div>
     <div class="pg-ctrl">
       <button class="pg-btn" onclick="goPage(${currentPage-1})" ${currentPage===1?'disabled':''}>‹</button>
       ${pgs}
       <button class="pg-btn" onclick="goPage(${currentPage+1})" ${currentPage===totalPages?'disabled':''}>›</button>
     </div>`;
+}
+
+function setPageSize(val){
+  PAGE_SIZE=val==='All'?999999:parseInt(val);
+  currentPage=1;
+  renderTable();
 }
 
 function goPage(p){
