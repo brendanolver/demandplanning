@@ -5770,10 +5770,11 @@ function buildAMData(){
       if(category&&!productMap[pKey].category)productMap[pKey].category=category;
     }
   }
-  return{variantMap,productMap,products};
+  const result={variantMap,productMap,products};
+  const nimbusBB=productMap['NIMBUS HOOD SWEAT||BABY BLUE'];
+  console.log('buildAMData NIMBUS HOOD SWEAT||BABY BLUE:',JSON.stringify(nimbusBB));
+  return result;
 }
-// DEBUG: log NIMBUS HOOD SWEAT productMap after build
-(function(){const orig=buildAMData;window._debugAMData=function(){const r=orig();console.log('AM productMap NIMBUS HOOD SWEAT:',Object.entries(r.productMap).filter(([k])=>k.includes('NIMBUS HOOD')).map(([k,v])=>k+'='+v.qtyOpen));return r;};})();
 
 
 /* ── HELPERS ── */
@@ -6701,7 +6702,7 @@ function toProduct(vr){
       // (productOnOrder = total for whole product from AM, onOrder = variant-level)
       const baseOnOrder=(r.productOnOrder||0)||( r.onOrder||0);
       if(r.productName==='NIMBUS HOOD SWEAT'&&r.colour==='BABY BLUE')
-        console.log('NIMBUS BABY BLUE first variant:',{onOrder:r.onOrder,productOnOrder:r.productOnOrder,baseOnOrder});
+        console.log('NIMBUS BABY BLUE first variant:',JSON.stringify({onOrder:r.onOrder,productOnOrder:r.productOnOrder,baseOnOrder}));
       map[key]={...r,velSum:r.velocity,stock:r.stock,sold:r.sold,
         sold7:r.sold7||0,sold30:r.sold30||0,sold60:r.sold60||0,sold90:r.sold90||0,sold365:r.sold365||0,
         soldToday:r.soldToday||0,soldYesterday:r.soldYesterday||0,
