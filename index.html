@@ -5755,17 +5755,22 @@ function buildAMData(){
     if(!products[desc])products[desc]={colours:new Set(),category:category||''};
     products[desc].colours.add(colour);
     if(category)products[desc].category=category;
+    const pKey=desc+'||'+colour;
     if(size){
       const vKey=desc+'||'+colour+'||'+size;
       if(!variantMap[vKey])variantMap[vKey]={qtyOpen,monthDue:monthDue||'',style,category:category||'',amCostPerUnit};
-    } else if(monthDue){
-      const pKey=desc+'||'+colour;
-      if(!productMap[pKey])productMap[pKey]={qtyOpen,monthDue:monthDue||'',style,category:category||'',amCostPerUnit};
     }
-    // Also store at product level for AM-only delivery month lookup
-    const pKey=desc+'||'+colour;
-    if(!productMap[pKey])productMap[pKey]={qtyOpen:0,monthDue:monthDue||'',style,category:category||'',amCostPerUnit:0};
-    else if(!productMap[pKey].style&&style)productMap[pKey].style=style;
+    // Always store at product level — accumulate qtyOpen (handles no-size rows)
+    // Use max rather than sum to avoid double-counting duplicate rows in the AM export
+    if(!productMap[pKey]){
+      productMap[pKey]={qtyOpen,monthDue:monthDue||'',style,category:category||'',amCostPerUnit};
+    } else {
+      // Take the larger value to handle duplicate summary rows in the AM file
+      if(qtyOpen>productMap[pKey].qtyOpen)productMap[pKey].qtyOpen=qtyOpen;
+      if(monthDue&&!productMap[pKey].monthDue)productMap[pKey].monthDue=monthDue;
+      if(style&&!productMap[pKey].style)productMap[pKey].style=style;
+      if(category&&!productMap[pKey].category)productMap[pKey].category=category;
+    }
   }
   return{variantMap,productMap,products};
 }
