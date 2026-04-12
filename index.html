@@ -2227,8 +2227,8 @@ function renderCadenceCompare(){
       for(const p of periods)d[p.label]+=skuDays[p.label]||0;
     }
     const soh=variants.reduce((s,r)=>s+(r.stock||0),0);
-    // onOrder is stored per variant but represents the product total — take from first variant only
-    const onOrder=variants.length>0?((variants[0].onOrder||0)+(variants[0].productOnOrder||0)):0;
+    // onOrder: use productOnOrder (product total) not variant-level onOrder
+    const onOrder=variants.length>0?((variants[0].productOnOrder||0)||(variants[0].onOrder||0)):0;
     const totalSold=Object.values(d).reduce((s,v)=>s+v,0);
     return{...cp,data:d,soh,onOrder,totalSold};
   });
@@ -2435,6 +2435,7 @@ function renderCadence(){
   // Build SOH and On Order maps per row key
   // On Order must be deduplicated by product+colour — it's stored on every variant row
   // so summing across variants would multiply it by the number of sizes
+  // Use productOnOrder (product-level total) as the definitive value per product+colour
   const sohByKey={};
   const onOrderByKey={};
   const _onOrderSeen=new Set();
@@ -2445,7 +2446,9 @@ function renderCadence(){
       const dedupeKey=c+'||'+r.productName+'||'+r.colour;
       if(!_onOrderSeen.has(dedupeKey)){
         _onOrderSeen.add(dedupeKey);
-        onOrderByKey[c]=(onOrderByKey[c]||0)+((r.onOrder||0)+(r.productOnOrder||0));
+        // productOnOrder is the total for the product; onOrder is variant-level
+        const oo=(r.productOnOrder||0)||(r.onOrder||0);
+        onOrderByKey[c]=(onOrderByKey[c]||0)+oo;
       }
     }
   } else {
@@ -2455,7 +2458,8 @@ function renderCadence(){
       sohByKey[k]=(sohByKey[k]||0)+(r.stock||0);
       if(!_onOrderSeen.has(k)){
         _onOrderSeen.add(k);
-        onOrderByKey[k]=(onOrderByKey[k]||0)+((r.onOrder||0)+(r.productOnOrder||0));
+        const oo=(r.productOnOrder||0)||(r.onOrder||0);
+        onOrderByKey[k]=(onOrderByKey[k]||0)+oo;
       }
     }
   }
