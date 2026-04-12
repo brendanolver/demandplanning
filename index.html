@@ -200,7 +200,7 @@ select:focus{border-color:var(--teal);background-color:var(--surface);box-shadow
     pointer-events:none;float:right;margin-left:-32px;
   }
 }
-.tbl-wrap-dashboard{max-height:calc(100vh - 310px);}
+.tbl-wrap-dashboard{max-height:var(--tbl-h, calc(100vh - 310px));}
 .tbl-wrap table thead th{position:sticky;top:0;z-index:10;background:var(--surface2);box-shadow:0 1px 0 var(--border);}
 table{width:100%;border-collapse:collapse;}
 thead tr{background:var(--surface2);border-bottom:1px solid var(--border);}
@@ -546,7 +546,7 @@ th{position:relative;}
   .sidebar-overlay.open{opacity:1;pointer-events:auto;}
   /* Main content takes full width */
   .main{overflow-y:auto;height:calc(100vh - 54px);}
-  .tbl-wrap-dashboard{max-height:calc(100vh - 340px);}
+  .tbl-wrap-dashboard{max-height:var(--tbl-h, calc(100vh - 340px));}
 }
 
 /* ── MOBILE ONLY (≤768px) ── */
@@ -6556,14 +6556,18 @@ function toggleDashboardCollapse(){
   const collapsible=document.getElementById('dashboard-collapsible');
   const filterRow=document.getElementById('dashboard-filter-row');
   const btn=document.getElementById('dashboard-collapse-btn');
+  // Adjust table height — collapsed gains ~220px (KPIs ~130px + filter row ~90px)
+  const main=document.querySelector('.main');
   if(dashboardCollapsed){
     if(collapsible)collapsible.style.display='none';
     if(filterRow)filterRow.style.display='none';
     if(btn)btn.textContent='▼ Expand';
+    if(main)main.style.setProperty('--tbl-h','calc(100vh - 90px)');
   } else {
     if(collapsible)collapsible.style.display='';
     if(filterRow)filterRow.style.display='';
     if(btn)btn.textContent='▲ Collapse';
+    if(main)main.style.removeProperty('--tbl-h');
   }
   currentPage=1;
   renderTable();
