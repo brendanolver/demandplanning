@@ -2435,7 +2435,8 @@ function renderCadence(){
   // Build SOH and On Order maps per row key
   // On Order must be deduplicated by product+colour — it's stored on every variant row
   // so summing across variants would multiply it by the number of sizes
-  // Use productOnOrder (product-level total) as the definitive value per product+colour
+  // productOnOrder = product-level total from AM; onOrder = variant-level
+  // Use productOnOrder as the single source of truth, deduplicated per product+colour
   const sohByKey={};
   const onOrderByKey={};
   const _onOrderSeen=new Set();
@@ -2446,7 +2447,7 @@ function renderCadence(){
       const dedupeKey=c+'||'+r.productName+'||'+r.colour;
       if(!_onOrderSeen.has(dedupeKey)){
         _onOrderSeen.add(dedupeKey);
-        // productOnOrder is the total for the product; onOrder is variant-level
+        // Use productOnOrder (total) if available, else variant onOrder
         const oo=(r.productOnOrder||0)||(r.onOrder||0);
         onOrderByKey[c]=(onOrderByKey[c]||0)+oo;
       }
@@ -6690,11 +6691,14 @@ function toProduct(vr){
   for(const r of vr){
     const key=r.productName+'||'+r.colour;
     if(!map[key]){
+      // First variant: use productOnOrder as the product total baseline
+      // (productOnOrder = total for whole product from AM, onOrder = variant-level)
+      const baseOnOrder=(r.productOnOrder||0)||( r.onOrder||0);
       map[key]={...r,velSum:r.velocity,stock:r.stock,sold:r.sold,
         sold7:r.sold7||0,sold30:r.sold30||0,sold60:r.sold60||0,sold90:r.sold90||0,sold365:r.sold365||0,
         soldToday:r.soldToday||0,soldYesterday:r.soldYesterday||0,
         suggestedOrder:r.suggestedOrder||0,
-        onOrder:r.onOrder!==null?(r.onOrder||0):(r.productOnOrder||0),
+        onOrder:baseOnOrder,
         sizes:r.size&&r.size!=='—'?[r.size]:[],
         earliestDue:r.monthDue,earliestKey:monthDueSortKey(r.monthDue),
         priceSum:r.price||0,priceCount:r.price?1:0,
@@ -6709,7 +6713,8 @@ function toProduct(vr){
       p.soldYesterday+=(r.soldYesterday||0);
       p.suggestedOrder+=(r.suggestedOrder||0);
       p.velSum+=r.velocity;p.count++;
-      p.onOrder+=(r.onOrder!==null?(r.onOrder||0):(r.productOnOrder||0));
+      // Only add variant-level onOrder (not productOnOrder which is already counted on first row)
+      if(r.onOrder!==null&&r.onOrder>0)p.onOrder+=r.onOrder;
       if(r.price){p.priceSum+=r.price;p.priceCount++;}
       p.sohValue+=(r.sohValue||0);
       p.sellValue+=(r.sellValue||0);
