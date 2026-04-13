@@ -6472,6 +6472,7 @@ function renderKPIs(){
     .filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0);
   const totalProducts=productRows.length;
   const reorder=productRows.filter(p=>p.flag==='reorder').length;
+  console.log('KPI reorder products:',productRows.filter(p=>p.flag==='reorder').map(p=>p.productName+' - '+p.colour+' stock:'+p.stock+' onOrder:'+p.onOrder));
   const reduce=productRows.filter(p=>p.flag==='reduce').length;
 
   const kpis=[
@@ -6985,6 +6986,7 @@ function getFilteredRows(){
     rows=[...toProduct(baseRows)];
     // Hide products with 0 SOH and nothing on order
     rows=rows.filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0);
+    console.log('TABLE reorder products:',rows.filter(r=>r.flag==='reorder').map(r=>r.productName+' - '+r.colour+' stock:'+r.stock+' onOrder:'+r.onOrder));
     // Post-aggregation filters for product view
     if(cats.length) rows=rows.filter(r=>cats.includes(r.category||''));
     if(delmonths.length) rows=rows.filter(r=>delmonths.includes(r.deliveryMonth||''));
