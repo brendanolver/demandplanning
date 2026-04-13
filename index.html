@@ -6467,7 +6467,9 @@ function renderKPIs(){
   const onOrder=rows.reduce((s,r)=>s+(r.onOrder||0),0);
 
   // Use toProduct() so all flag overrides (MOQ, status exclusions) are correctly applied
-  const productRows=toProduct(rows.filter(r=>!r.amOnly));
+  // Match the same filter the product view table uses so counts are consistent
+  const productRows=toProduct(rows.filter(r=>!r.amOnly))
+    .filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0);
   const totalProducts=productRows.length;
   const reorder=productRows.filter(p=>p.flag==='reorder').length;
   const reduce=productRows.filter(p=>p.flag==='reduce').length;
