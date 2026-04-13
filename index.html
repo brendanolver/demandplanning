@@ -5933,11 +5933,10 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const{productName,colour,size,vendor,category}=pm;
     const plKey=(productName+' - '+colour).toUpperCase();
     const plEntry=plKey in plMap?plMap[plKey]:plMap[productName.toUpperCase()];
-    // SOH fallback: if product has sales history but missing from inventory file,
-    // use Better Reports total qty distributed equally across sizes
+    // SOH fallback: ONLY if the SKU is completely absent from the inventory file
+    // (not just zero stock — zero stock is a valid real value and must not be overridden)
     let stock=sohMap[sku]||0;
-    if(stock===0&&priceMap[sku]&&plEntry?.totalQty>0){
-      // Count how many SKUs this product has in priceMap to distribute qty
+    if(!(sku in sohMap)&&priceMap[sku]&&plEntry?.totalQty>0){
       const productSkus=Object.keys(priceMap).filter(s=>{
         const p=priceMap[s];
         return p.productName===productName&&p.colour===colour;
