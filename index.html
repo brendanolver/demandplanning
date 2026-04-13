@@ -5770,10 +5770,7 @@ function buildAMData(){
       if(category&&!productMap[pKey].category)productMap[pKey].category=category;
     }
   }
-  const result={variantMap,productMap,products};
-  const nimbusBB=productMap['NIMBUS HOOD SWEAT||BABY BLUE'];
-  console.log('buildAMData NIMBUS HOOD SWEAT||BABY BLUE:',JSON.stringify(nimbusBB));
-  return result;
+  return{variantMap,productMap,products};
 }
 
 
@@ -6472,10 +6469,6 @@ function renderKPIs(){
     .filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0);
   const totalProducts=productRows.length;
   const reorder=productRows.filter(p=>p.flag==='reorder').length;
-  const kpiReorder=productRows.filter(p=>p.flag==='reorder');
-  console.log('KPI reorder products ('+kpiReorder.length+'):',kpiReorder.map(p=>p.productName+' - '+p.colour+' vendor:'+p.vendor+' stock:'+p.stock+' onOrder:'+p.onOrder+' days:'+p.days));
-  const nimbusBBProd=productRows.find(p=>p.productName==='NIMBUS HOOD SWEAT'&&p.colour==='BABY BLUE');
-  if(nimbusBBProd)console.log('NIMBUS BABY BLUE final product:',JSON.stringify({onOrder:nimbusBBProd.onOrder,stock:nimbusBBProd.stock,days:nimbusBBProd.days,flag:nimbusBBProd.flag,vendor:nimbusBBProd.vendor,monthDue:nimbusBBProd.monthDue}));
   const reduce=productRows.filter(p=>p.flag==='reduce').length;
 
   const kpis=[
@@ -6593,11 +6586,17 @@ function toggleDashboardCollapse(){
 function kpiDrillDown(flag){
   // Expand if collapsed so filters are visible
   if(dashboardCollapsed)toggleDashboardCollapse();
-  // Switch to product view and filter by the given stock status flag
+  // Switch to product view
   setView('product');
-  // Clear all flag checkboxes then check only the target flag
+  // Clear ALL filters first, then set only the flag filter
+  document.getElementById('search-input').value='';
+  // Reset all dropdowns to "all checked"
+  ['cat','vendor','disc','soldout','delmonth'].forEach(type=>{
+    document.querySelectorAll(`#ms-${type}-options input`).forEach(b=>b.checked=true);
+    updateLabel(type, type==='cat'?'All Categories':type==='vendor'?'All Statuses':type==='disc'?'Discount %':type==='soldout'?'Sizes Sold Out':'Month Del');
+  });
+  // Then apply only the flag filter
   quickFlag(flag);
-  // Scroll to table
   document.querySelector('.main')?.scrollTo({top:0,behavior:'smooth'});
 }
 
@@ -6706,8 +6705,6 @@ function toProduct(vr){
       // First variant: use productOnOrder (product total) as the single source of truth.
       // Never add per-size variantEntry.onOrder on top — it's already included in productOnOrder.
       const baseOnOrder=(r.productOnOrder||0)||(r.onOrder||0);
-      if(r.productName==='NIMBUS HOOD SWEAT'&&r.colour==='BABY BLUE')
-        console.log('NIMBUS BABY BLUE first variant:',JSON.stringify({onOrder:r.onOrder,productOnOrder:r.productOnOrder,baseOnOrder,vendor:r.vendor,flag:r.flag}));
       map[key]={...r,velSum:r.velocity,stock:r.stock,sold:r.sold,
         sold7:r.sold7||0,sold30:r.sold30||0,sold60:r.sold60||0,sold90:r.sold90||0,sold365:r.sold365||0,
         soldToday:r.soldToday||0,soldYesterday:r.soldYesterday||0,
@@ -6989,9 +6986,6 @@ function getFilteredRows(){
     rows=[...toProduct(baseRows)];
     // Hide products with 0 SOH and nothing on order
     rows=rows.filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0);
-    const tableReorder=rows.filter(r=>r.flag==='reorder');
-    console.log('TABLE reorder products ('+tableReorder.length+'):',tableReorder.map(r=>r.productName+' - '+r.colour));
-    console.log('TABLE vendors filter active:',getSelected('vendor'));
     // Post-aggregation filters for product view
     if(cats.length) rows=rows.filter(r=>cats.includes(r.category||''));
     if(delmonths.length) rows=rows.filter(r=>delmonths.includes(r.deliveryMonth||''));
