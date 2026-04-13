@@ -6473,7 +6473,9 @@ function renderKPIs(){
   const totalProducts=productRows.length;
   const reorder=productRows.filter(p=>p.flag==='reorder').length;
   const kpiReorder=productRows.filter(p=>p.flag==='reorder');
-  console.log('KPI reorder products ('+kpiReorder.length+'):',kpiReorder.map(p=>p.productName+' - '+p.colour+' vendor:'+p.vendor+' stock:'+p.stock+' onOrder:'+p.onOrder));
+  console.log('KPI reorder products ('+kpiReorder.length+'):',kpiReorder.map(p=>p.productName+' - '+p.colour+' vendor:'+p.vendor+' stock:'+p.stock+' onOrder:'+p.onOrder+' days:'+p.days));
+  const nimbusBBProd=productRows.find(p=>p.productName==='NIMBUS HOOD SWEAT'&&p.colour==='BABY BLUE');
+  if(nimbusBBProd)console.log('NIMBUS BABY BLUE final product:',JSON.stringify({onOrder:nimbusBBProd.onOrder,stock:nimbusBBProd.stock,days:nimbusBBProd.days,flag:nimbusBBProd.flag,vendor:nimbusBBProd.vendor,monthDue:nimbusBBProd.monthDue}));
   const reduce=productRows.filter(p=>p.flag==='reduce').length;
 
   const kpis=[
@@ -6705,7 +6707,7 @@ function toProduct(vr){
       // Never add per-size variantEntry.onOrder on top — it's already included in productOnOrder.
       const baseOnOrder=(r.productOnOrder||0)||(r.onOrder||0);
       if(r.productName==='NIMBUS HOOD SWEAT'&&r.colour==='BABY BLUE')
-        console.log('NIMBUS BABY BLUE first variant:',JSON.stringify({onOrder:r.onOrder,productOnOrder:r.productOnOrder,baseOnOrder}));
+        console.log('NIMBUS BABY BLUE first variant:',JSON.stringify({onOrder:r.onOrder,productOnOrder:r.productOnOrder,baseOnOrder,vendor:r.vendor,flag:r.flag}));
       map[key]={...r,velSum:r.velocity,stock:r.stock,sold:r.sold,
         sold7:r.sold7||0,sold30:r.sold30||0,sold60:r.sold60||0,sold90:r.sold90||0,sold365:r.sold365||0,
         soldToday:r.soldToday||0,soldYesterday:r.soldYesterday||0,
