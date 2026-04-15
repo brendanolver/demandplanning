@@ -3869,8 +3869,11 @@ function renderSizeWorkings(){
           ${mkRow(`Sold (${swPeriod}d)`,soldBySize,'',soldTotal)}
           ${mkPctRow(soldPct,soldTotal)}
           ${mkRow('SOH',soh,'',soh.reduce((s,v)=>s+v,0),'')}
+          <tr><td class="sw-pct"></td>${soh.map(v=>{const t=soh.reduce((s,x)=>s+x,0);return`<td class="sw-pct">${t>0?Math.round(v/t*100)+'%':'0%'}</td>`;}).join('')}<td class="sw-pct">${soh.reduce((s,v)=>s+v,0)>0?'100%':'—'}</td></tr>
           ${mkRow('PO (On Order)',po,'',po.reduce((s,v)=>s+v,0),'')}
+          <tr><td class="sw-pct"></td>${po.map(v=>{const t=po.reduce((s,x)=>s+x,0);return`<td class="sw-pct">${t>0?Math.round(v/t*100)+'%':'0%'}</td>`;}).join('')}<td class="sw-pct">${po.reduce((s,v)=>s+v,0)>0?'100%':'—'}</td></tr>
           ${mkRow('SOH / PO Total',sohPoTotal,'sw-highlight',sohPoTotal.reduce((s,v)=>s+v,0),'')}
+          <tr><td class="sw-pct"></td>${sohPoTotal.map(v=>{const t=sohPoTotal.reduce((s,x)=>s+x,0);return`<td class="sw-pct">${t>0?Math.round(v/t*100)+'%':'0%'}</td>`;}).join('')}<td class="sw-pct">${sohPoTotal.reduce((s,v)=>s+v,0)>0?'100%':'—'}</td></tr>
           ${totalInputRow}
           ${mkRow('Suggested Order',suggestedOrder,'sw-need',suggestedTotal,'sw-need')}
           <tr><td class="sw-pct"></td>${suggestedPct.map(v=>`<td class="sw-pct">${pctFmtInt(v)}</td>`).join('')}<td class="sw-pct">100%</td></tr>
@@ -4554,8 +4557,11 @@ function renderRoSizeWorkings(){
             ${mkRow(`Sold (${swPeriod}d)`,soldBySize,'',soldTotal)}
             ${mkPctRow(soldPct)}
             ${mkRow('SOH',soh,'',soh.reduce((s,v)=>s+v,0))}
+            <tr><td class="sw-pct"></td>${soh.map(v=>{const t=soh.reduce((s,x)=>s+x,0);return`<td class="sw-pct">${t>0?Math.round(v/t*100)+'%':'0%'}</td>`;}).join('')}<td class="sw-pct">${soh.reduce((s,v)=>s+v,0)>0?'100%':'—'}</td></tr>
             ${mkRow('PO (On Order)',po,'',po.reduce((s,v)=>s+v,0))}
+            <tr><td class="sw-pct"></td>${po.map(v=>{const t=po.reduce((s,x)=>s+x,0);return`<td class="sw-pct">${t>0?Math.round(v/t*100)+'%':'0%'}</td>`;}).join('')}<td class="sw-pct">${po.reduce((s,v)=>s+v,0)>0?'100%':'—'}</td></tr>
             ${mkRow('SOH / PO Total',sohPoTotal,'sw-highlight',sohPoTotal.reduce((s,v)=>s+v,0))}
+            <tr><td class="sw-pct"></td>${sohPoTotal.map(v=>{const t=sohPoTotal.reduce((s,x)=>s+x,0);return`<td class="sw-pct">${t>0?Math.round(v/t*100)+'%':'0%'}</td>`;}).join('')}<td class="sw-pct">${sohPoTotal.reduce((s,v)=>s+v,0)>0?'100%':'—'}</td></tr>
             <tr><td class="sw-row-label" style="border-top:2px solid var(--teal);">Total Units Needed</td>
               <td colspan="${sizes.length}" style="border-top:2px solid var(--teal);"></td>
               <td style="border-top:2px solid var(--teal);padding:6px;"><input class="sw-input-total" type="number" min="0" step="1" placeholder="0" value="${totalInput}"
