@@ -3818,7 +3818,7 @@ function renderSizeWorkings(){
   const swTotal=swVals.reduce((s,v)=>s+v,0);
   const swPct=swVals.map(v=>swTotal>0?Math.round(v/swTotal*100):0);
 
-  const pctFmt=v=>v>0?(v*100).toFixed(1)+'%':'0.0%';
+  const pctFmt=v=>v>0?v.toFixed(1)+'%':'0.0%';
   const pctFmtInt=v=>v>0?v+'%':'0%';
 
   const thCols=sizes.map(s=>`<th>${s}</th>`).join('');
@@ -3869,11 +3869,11 @@ function renderSizeWorkings(){
           ${mkRow(`Sold (${swPeriod}d)`,soldBySize,'',soldTotal)}
           ${mkPctRow(soldPct,soldTotal)}
           ${mkRow('SOH',soh,'',soh.reduce((s,v)=>s+v,0),'')}
-          <tr><td class="sw-pct"></td>${soh.map(v=>{const t=soh.reduce((s,x)=>s+x,0);return`<td class="sw-pct">${t>0?(v/t*100).toFixed(1)+'%':'0%'}</td>`;}).join('')}<td class="sw-pct">${soh.reduce((s,v)=>s+v,0)>0?'100%':'—'}</td></tr>
+          <tr><td class="sw-pct"></td>${soh.map(v=>{const t=soh.reduce((s,x)=>s+x,0);return`<td class="sw-pct">${t>0?Math.round(v/t*100)+'%':'0%'}</td>`;}).join('')}<td class="sw-pct">${soh.reduce((s,v)=>s+v,0)>0?'100%':'—'}</td></tr>
           ${mkRow('PO (On Order)',po,'',po.reduce((s,v)=>s+v,0),'')}
-          <tr><td class="sw-pct"></td>${po.map(v=>{const t=po.reduce((s,x)=>s+x,0);return`<td class="sw-pct">${t>0?(v/t*100).toFixed(1)+'%':'0%'}</td>`;}).join('')}<td class="sw-pct">${po.reduce((s,v)=>s+v,0)>0?'100%':'—'}</td></tr>
+          <tr><td class="sw-pct"></td>${po.map(v=>{const t=po.reduce((s,x)=>s+x,0);return`<td class="sw-pct">${t>0?Math.round(v/t*100)+'%':'0%'}</td>`;}).join('')}<td class="sw-pct">${po.reduce((s,v)=>s+v,0)>0?'100%':'—'}</td></tr>
           ${mkRow('SOH / PO Total',sohPoTotal,'sw-highlight',sohPoTotal.reduce((s,v)=>s+v,0),'')}
-          <tr><td class="sw-pct"></td>${sohPoTotal.map(v=>{const t=sohPoTotal.reduce((s,x)=>s+x,0);return`<td class="sw-pct">${t>0?(v/t*100).toFixed(1)+'%':'0%'}</td>`;}).join('')}<td class="sw-pct">${sohPoTotal.reduce((s,v)=>s+v,0)>0?'100%':'—'}</td></tr>
+          <tr><td class="sw-pct"></td>${sohPoTotal.map(v=>{const t=sohPoTotal.reduce((s,x)=>s+x,0);return`<td class="sw-pct">${t>0?Math.round(v/t*100)+'%':'0%'}</td>`;}).join('')}<td class="sw-pct">${sohPoTotal.reduce((s,v)=>s+v,0)>0?'100%':'—'}</td></tr>
           ${totalInputRow}
           ${mkRow('Suggested Order',suggestedOrder,'sw-need',suggestedTotal,'sw-need')}
           <tr><td class="sw-pct"></td>${suggestedPct.map(v=>`<td class="sw-pct">${pctFmtInt(v)}</td>`).join('')}<td class="sw-pct">100%</td></tr>
@@ -4538,7 +4538,7 @@ function renderRoSizeWorkings(){
     const swVals=sizes.map(sz=>parseInt(swManual[sz])||0);
     const swTotal=swVals.reduce((s,v)=>s+v,0);
     const swPctVals=swVals.map(v=>swTotal>0?Math.round(v/swTotal*100):0);
-    const pctFmt=v=>v>0?(v*100).toFixed(1)+'%':'0.0%';
+    const pctFmt=v=>v>0?v.toFixed(1)+'%':'0.0%';
 
     const safeKey=swKey.replace(/'/g,"\\'");
     const thCols=sizes.map(s=>`<th>${s}</th>`).join('');
@@ -4557,11 +4557,11 @@ function renderRoSizeWorkings(){
             ${mkRow(`Sold (${swPeriod}d)`,soldBySize,'',soldTotal)}
             ${mkPctRow(soldPct)}
             ${mkRow('SOH',soh,'',soh.reduce((s,v)=>s+v,0))}
-            <tr><td class="sw-pct"></td>${soh.map(v=>{const t=soh.reduce((s,x)=>s+x,0);return`<td class="sw-pct">${t>0?(v/t*100).toFixed(1)+'%':'0%'}</td>`;}).join('')}<td class="sw-pct">${soh.reduce((s,v)=>s+v,0)>0?'100%':'—'}</td></tr>
+            <tr><td class="sw-pct"></td>${soh.map(v=>{const t=soh.reduce((s,x)=>s+x,0);return`<td class="sw-pct">${t>0?Math.round(v/t*100)+'%':'0%'}</td>`;}).join('')}<td class="sw-pct">${soh.reduce((s,v)=>s+v,0)>0?'100%':'—'}</td></tr>
             ${mkRow('PO (On Order)',po,'',po.reduce((s,v)=>s+v,0))}
-            <tr><td class="sw-pct"></td>${po.map(v=>{const t=po.reduce((s,x)=>s+x,0);return`<td class="sw-pct">${t>0?(v/t*100).toFixed(1)+'%':'0%'}</td>`;}).join('')}<td class="sw-pct">${po.reduce((s,v)=>s+v,0)>0?'100%':'—'}</td></tr>
+            <tr><td class="sw-pct"></td>${po.map(v=>{const t=po.reduce((s,x)=>s+x,0);return`<td class="sw-pct">${t>0?Math.round(v/t*100)+'%':'0%'}</td>`;}).join('')}<td class="sw-pct">${po.reduce((s,v)=>s+v,0)>0?'100%':'—'}</td></tr>
             ${mkRow('SOH / PO Total',sohPoTotal,'sw-highlight',sohPoTotal.reduce((s,v)=>s+v,0))}
-            <tr><td class="sw-pct"></td>${sohPoTotal.map(v=>{const t=sohPoTotal.reduce((s,x)=>s+x,0);return`<td class="sw-pct">${t>0?(v/t*100).toFixed(1)+'%':'0%'}</td>`;}).join('')}<td class="sw-pct">${sohPoTotal.reduce((s,v)=>s+v,0)>0?'100%':'—'}</td></tr>
+            <tr><td class="sw-pct"></td>${sohPoTotal.map(v=>{const t=sohPoTotal.reduce((s,x)=>s+x,0);return`<td class="sw-pct">${t>0?Math.round(v/t*100)+'%':'0%'}</td>`;}).join('')}<td class="sw-pct">${sohPoTotal.reduce((s,v)=>s+v,0)>0?'100%':'—'}</td></tr>
             <tr><td class="sw-row-label" style="border-top:2px solid var(--teal);">Total Units Needed</td>
               <td colspan="${sizes.length}" style="border-top:2px solid var(--teal);"></td>
               <td style="border-top:2px solid var(--teal);padding:6px;"><input class="sw-input-total" type="number" min="0" step="1" placeholder="0" value="${totalInput}"
@@ -5052,6 +5052,16 @@ function renderMarkdowns(){
           oninput="mdSaveCollection('${safeKey}',this.value)"
           onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
       </td>
+      <td style="padding:5px 8px;text-align:center;">
+        <div style="display:flex;align-items:center;gap:3px;justify-content:center;">
+          <input type="number" min="0" max="90" step="5" placeholder="%" value="${pct}"
+            style="width:72px;padding:6px 8px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:14px;font-weight:600;text-align:center;outline:none;"
+            oninput="mdSavePct('${safeKey}',this.value)" onblur="renderMarkdowns()" onkeydown="if(event.key==='Enter'){renderMarkdowns();this.blur();}"
+            onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
+          <span style="font-size:11px;color:var(--text-muted);">%</span>
+        </div>
+      </td>
+      <td class="cell-num">${proposedPrice?`<span style="color:var(--red);font-weight:700;">$${proposedPrice}</span>`:'—'}</td>
       <td class="cell-muted">${p.category||'—'}</td>
       <td style="padding:6px 8px;font-size:12px;color:${(p.discountPct||0)>0?'var(--red)':'var(--text-secondary)'};">${disc}</td>
       <td style="padding:6px 8px;"><span class="range-pill ${vendorCls}">${p.vendor||'—'}</span></td>
@@ -5071,16 +5081,6 @@ function renderMarkdowns(){
       <td class="cell-num">${mg}</td>
       <td class="cell-num">${p.daysDisplay&&p.daysDisplay!=='—'&&p.daysDisplay!==9999?p.daysDisplay+'w':'—'}</td>
       <td style="padding:6px 8px;"><span class="stock-pill ${flagPillCls[p.flag]||''}">${SL[p.flag]||p.flag||'—'}</span></td>
-      <td style="padding:5px 8px;text-align:center;">
-        <div style="display:flex;align-items:center;gap:3px;justify-content:center;">
-          <input type="number" min="0" max="90" step="5" placeholder="%" value="${pct}"
-            style="width:72px;padding:6px 8px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:14px;font-weight:600;text-align:center;outline:none;"
-            oninput="mdSavePct('${safeKey}',this.value)" onblur="renderMarkdowns()" onkeydown="if(event.key==='Enter'){renderMarkdowns();this.blur();}"
-            onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
-          <span style="font-size:11px;color:var(--text-muted);">%</span>
-        </div>
-      </td>
-      <td class="cell-num">${proposedPrice?`<span style="color:var(--red);font-weight:700;">$${proposedPrice}</span>`:'—'}</td>
     </tr>`;
   }).join('');
 
@@ -5089,6 +5089,8 @@ function renderMarkdowns(){
       <th style="width:36px;text-align:center;padding:8px 6px;"><input type="checkbox" id="md-select-all-chk" ${allTicked?'checked':''} style="width:15px;height:15px;accent-color:var(--teal);" onchange="mdSelectAll(this.checked)"></th>
       <th style="${thS}" onclick="setMdSort('productName')">Product${mdArrow('productName')}</th>
       <th style="min-width:180px;white-space:nowrap;">New Collection</th>
+      <th style="text-align:center;min-width:100px;">Proposed %</th>
+      <th style="text-align:right;">New Price</th>
       <th style="${thS}" onclick="setMdSort('category')">Category${mdArrow('category')}</th>
       <th style="${thS}" onclick="setMdSort('discountPct')">Disc%${mdArrow('discountPct')}</th>
       <th style="${thS}" onclick="setMdSort('vendor')">Status${mdArrow('vendor')}</th>
@@ -5108,8 +5110,6 @@ function renderMarkdowns(){
       <th style="${thS}text-align:right;" onclick="setMdSort('margin')">Margin%${mdArrow('margin')}</th>
       <th style="${thS}text-align:right;" onclick="setMdSort('days')">Wks Cover${mdArrow('days')}</th>
       <th style="${thS}" onclick="setMdSort('flag')">Stock Status${mdArrow('flag')}</th>
-      <th style="text-align:center;min-width:100px;">Proposed %</th>
-      <th style="text-align:right;">New Price</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
