@@ -1367,16 +1367,19 @@ th{position:relative;}
         <div id="sw-tab-product-body">
         <!-- Toolbar -->
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
-          <div class="search-wrap" style="min-width:280px;max-width:420px;">
-            <span class="search-ico">🔍</span>
-            <input type="text" id="sw-search" placeholder="Search product name..." oninput="swSearch()" style="width:100%;">
-          </div>
-          <div id="sw-colour-wrap" style="display:none;">
-            <select id="sw-colour-select" onchange="renderSizeWorkings()" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;background:var(--surface);color:var(--text);outline:none;cursor:pointer;"></select>
+          <div style="position:relative;">
+            <div class="search-wrap" style="min-width:280px;max-width:420px;">
+              <span class="search-ico">🔍</span>
+              <input type="text" id="sw-search" placeholder="Search & add products..." oninput="swSearch()" style="width:100%;">
+            </div>
+            <!-- Search results dropdown -->
+            <div id="sw-results" style="display:none;position:absolute;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-lg);max-height:260px;overflow-y:auto;min-width:320px;top:100%;left:0;margin-top:4px;"></div>
           </div>
           <button onclick="swClearAll()" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✕ Clear All</button>
           <button onclick="swExport()" style="padding:7px 16px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">⬇ Export</button>
         </div>
+        <!-- Selected product pills -->
+        <div id="sw-pills" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;min-height:0;"></div>
         <!-- Filter bar -->
         <div class="filter-row" style="margin-bottom:12px;flex-wrap:wrap;">
           <div class="ms-wrap" id="ms-sw-cat">
@@ -1428,8 +1431,6 @@ th{position:relative;}
             <button class="period-btn" data-sw-days="365" onclick="setSwPeriod(365)">365d</button>
           </div>
         </div>
-        <!-- Search results dropdown -->
-        <div id="sw-results" style="display:none;position:absolute;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-lg);max-height:260px;overflow-y:auto;min-width:320px;"></div>
         <!-- Size workings table -->
         <div id="sw-body">
           <div class="insights-empty" style="margin-top:40px;">
@@ -3257,7 +3258,7 @@ function renderInsights(data){
 let swPeriod=7;
 let swcPeriod=7;
 let swTab='product'; // 'product' or 'category'
-let swProduct=null; // {productName, colour}
+let swProducts=[]; // [{productName, colour}, ...]
 const SW_STORAGE_KEY='wndrr_sizeworkings_v1';
 const SWC_ORDER_KEY='wndrr_swc_orders_v1';
 
@@ -3337,12 +3338,12 @@ function swPopulateFilters(){
     months.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="swUpdateLabel('delmonth')"> ${m} <span class="ms-count">(${delCounts[m]||0})</span></label>`).join('');
 }
 function swClearAll(){
-  // Clear search, filters and current table
   const s=document.getElementById('sw-search');if(s)s.value='';
-  swProduct=null;
+  swProducts=[];
+  swRenderPills();
   swClearFilters();
   document.getElementById('sw-results').style.display='none';
-  document.getElementById('sw-body').innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">📐</div><div class="insights-empty-title">Size Workings</div><div class="insights-empty-sub">Search for a product above to begin size planning.</div></div>`;
+  document.getElementById('sw-body').innerHTML=`<div class="insights-empty" style="margin-top:40px;"><div class="insights-empty-ico">📐</div><div class="insights-empty-title">Size Workings</div><div class="insights-empty-sub">Search for a product above to begin size planning.</div></div>`;
 }
 
 function setSwTab(tab){
@@ -3688,12 +3689,14 @@ function swSearch(){
   const delmonths=swGetSelected('delmonth');
 
   // Get unique product+colour combinations matching search and filters
+  const selected=new Set(swProducts.map(p=>p.productName+'||'+p.colour));
   const matches=new Map();
   for(const r of allVariantRows){
     if(r.amOnly)continue;
     const key=r.productName+'||'+r.colour;
     if(matches.has(key))continue;
-    if(!(r.productName.includes(val)||(r.productName+' - '+r.colour).includes(val)))continue;
+    if(selected.has(key))continue; // already added
+    if(!(r.productName.toUpperCase().includes(val)||(r.productName+' - '+r.colour).toUpperCase().includes(val)))continue;
     if(cats.length&&!cats.includes(r.category||''))continue;
     if(vendors.length&&!vendors.includes(r.vendor||''))continue;
     if(flags.length&&!flags.includes(r.flag||''))continue;
@@ -3712,10 +3715,12 @@ function swSearch(){
 }
 
 function swSelectProduct(productName,colour){
-  document.getElementById('sw-search').value=productName+' - '+colour;
+  document.getElementById('sw-search').value='';
   document.getElementById('sw-results').style.display='none';
-  swProduct={productName,colour};
-  document.getElementById('sw-colour-wrap').style.display='none';
+
+  // Avoid duplicates
+  if(swProducts.some(p=>p.productName===productName&&p.colour===colour))return;
+  swProducts.push({productName,colour});
 
   // Pre-fill Total Units Needed from Re-Orders qty if SW total not already set
   const swKey=`${productName}||${colour}`;
@@ -3731,7 +3736,28 @@ function swSelectProduct(productName,colour){
     }
   }
 
+  swRenderPills();
   renderSizeWorkings();
+}
+
+function swRemoveProduct(productName,colour){
+  swProducts=swProducts.filter(p=>!(p.productName===productName&&p.colour===colour));
+  swRenderPills();
+  renderSizeWorkings();
+}
+
+function swRenderPills(){
+  const pillsEl=document.getElementById('sw-pills');
+  if(!pillsEl)return;
+  if(!swProducts.length){pillsEl.style.display='none';pillsEl.innerHTML='';return;}
+  pillsEl.style.display='flex';
+  pillsEl.innerHTML=swProducts.map(p=>{
+    const safe=`'${p.productName.replace(/'/g,"\\'")}','${p.colour.replace(/'/g,"\\'")}'`;
+    return`<div style="display:flex;align-items:center;gap:5px;background:var(--teal-light);border:1px solid var(--teal);border-radius:var(--r-pill);padding:4px 10px;font-size:12px;font-weight:500;color:var(--teal);">
+      <span>${p.productName} — ${p.colour}</span>
+      <span onclick="swRemoveProduct(${safe})" style="cursor:pointer;font-size:14px;line-height:1;color:var(--teal);opacity:0.7;margin-left:2px;" title="Remove">×</span>
+    </div>`;
+  }).join('');
 }
 
 document.addEventListener('click',e=>{
@@ -3741,146 +3767,138 @@ document.addEventListener('click',e=>{
 
 function renderSizeWorkings(){
   const body=document.getElementById('sw-body');
-  if(!swProduct||!allVariantRows.length){return;}
-  const colour=swProduct.colour;
-  const{productName}=swProduct;
-  const saved=getSwData();
-  const swKey=`${productName}||${colour}`;
-  const totalInput=saved[swKey]?.total||'';
-  const swManual=saved[swKey]?.manual||{};
-
-  // Get all variant rows for this product+colour
-  const variants=allVariantRows.filter(r=>r.productName===productName&&r.colour===colour);
-  if(!variants.length){body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No data found</div></div>`;return;}
-
-  // Extract style+colour code from SKU by stripping size suffix
-  // e.g. W26BA021BLKL → W26BA021BLK — find first variant with a real SKU
-  const sampleSku=(variants.find(r=>r.sku&&r.sku!=='—'&&r.sku.length>6)?.sku)||'';
-  const sizeSuffixes=['XXXXL','XXXL','XXL','XL','XXS','XS','OS','S','M','L'];
-  let styleCode=sampleSku;
-  for(const sz of sizeSuffixes){
-    if(sampleSku.toUpperCase().endsWith(sz)){
-      styleCode=sampleSku.slice(0,sampleSku.length-sz.length);
-      break;
-    }
+  if(!body)return;
+  if(!swProducts.length||!allVariantRows.length){
+    body.innerHTML=`<div class="insights-empty" style="margin-top:40px;"><div class="insights-empty-ico">📐</div><div class="insights-empty-title">Size Workings</div><div class="insights-empty-sub">Search for a product above to begin size planning.</div></div>`;
+    return;
   }
-  // Handle numeric sizes (28,30,32 etc)
-  if(styleCode===sampleSku&&sampleSku) styleCode=sampleSku.replace(/\d{2}$/, '');
 
-  // Size order
   const sizeOrder=['XXS','XS','S','M','L','XL','XXL','XXXL','XXXXL','28','30','32','34','36','38','40','42','44','46','48','50','OS'];
-  const sorted=variants.sort((a,b)=>{
-    const ai=sizeOrder.indexOf(a.size);const bi=sizeOrder.indexOf(b.size);
-    if(ai>=0&&bi>=0)return ai-bi;
-    if(ai>=0)return-1;if(bi>=0)return 1;
-    return a.size.localeCompare(b.size);
-  });
-
-  // Per-size data
-  const sizes=sorted.map(r=>r.size);
-  const soldBySize=sorted.map(r=>{
-    if(swPeriod===7)return r.sold7||0;
-    if(swPeriod===14)return r.sold14||0;
-    if(swPeriod===30)return r.sold30||0;
-    if(swPeriod===60)return r.sold60||0;
-    if(swPeriod===90)return r.sold90||0;
-    return r.sold365||0;
-  });
-  const soldTotal=soldBySize.reduce((s,v)=>s+v,0);
-  const soldPct=soldBySize.map(v=>soldTotal>0?v/soldTotal:0);
-  const soh=sorted.map(r=>r.stock||0);
-  const po=sorted.map(r=>(r.onOrder||0));
-  const sohPoTotal=sorted.map((r,i)=>soh[i]+po[i]);
-
-  // Calculations — Suggested Order = total × sold% per size using largest remainder rounding
-  // so sizes always sum to exactly the entered total
-  const total=parseInt(totalInput)||0;
-
-  // Largest remainder method to distribute total across sizes by sold%
-  let suggestedOrder;
-  if(total>0&&soldTotal>0){
-    const exact=soldPct.map(pct=>pct*total);
-    const floored=exact.map(v=>Math.floor(v));
-    const remainders=exact.map((v,i)=>v-floored[i]);
-    const remainder=total-floored.reduce((s,v)=>s+v,0);
-    // Distribute remaining units to sizes with largest remainders
-    const indices=[...Array(sizes.length).keys()].sort((a,b)=>remainders[b]-remainders[a]);
-    suggestedOrder=[...floored];
-    for(let i=0;i<remainder;i++)suggestedOrder[indices[i]]++;
-  } else {
-    suggestedOrder=sizes.map(()=>0);
-  }
-  const suggestedTotal=suggestedOrder.reduce((s,v)=>s+v,0);
-  const suggestedPct=suggestedOrder.map(v=>suggestedTotal>0?Math.round(v/suggestedTotal*100):0);
-
-  // Size workings (manual overrides)
-  const swVals=sizes.map(sz=>parseInt(swManual[sz])||0);
-  const swTotal=swVals.reduce((s,v)=>s+v,0);
-  const swPct=swVals.map(v=>swTotal>0?Math.round(v/swTotal*100):0);
-
+  const sizeSuffixes=['XXXXL','XXXL','XXL','XL','XXS','XS','OS','S','M','L'];
   const pctFmt=v=>v>0?v.toFixed(1)+'%':'0.0%';
   const pctFmtInt=v=>v>0?v+'%':'0%';
-
-  const thCols=sizes.map(s=>`<th>${s}</th>`).join('');
   const mkRow=(label,vals,cls,totalVal,totalCls='')=>
     `<tr><td class="sw-row-label">${label}</td>${vals.map((v,i)=>`<td class="${cls}${v===0?' sw-need-zero':''}">${v}</td>`).join('')}<td class="sw-total ${totalCls}">${totalVal}</td></tr>`;
   const mkPctRow=(vals,total)=>
-    `<tr>${'<td class="sw-pct"></td>'}${vals.map(v=>`<td class="sw-pct">${pctFmt(v)}</td>`).join('')}<td class="sw-pct">${total>0?'100.0%':'0.0%'}</td></tr>`;
+    `<tr><td class="sw-pct"></td>${vals.map(v=>`<td class="sw-pct">${pctFmt(v)}</td>`).join('')}<td class="sw-pct">${total>0?'100.0%':'0.0%'}</td></tr>`;
 
-  // Total needed input row
-  const totalInputRow=`<tr>
-    <td class="sw-row-label" style="border-top:2px solid var(--teal);">Total Units Needed</td>
-    <td colspan="${sizes.length}" style="border-top:2px solid var(--teal);"></td>
-    <td style="border-top:2px solid var(--teal);padding:6px;">
-      <input class="sw-input-total" type="number" min="0" step="1" placeholder="0" value="${totalInput}"
-        oninput="swSaveTotal('${swKey.replace(/'/g,"\\'")}',this.value)"
-        onblur="renderSizeWorkings()" onkeydown="if(event.key==='Enter'){renderSizeWorkings();this.blur();}">
-    </td>
-  </tr>
-  <tr>
-    <td class="sw-row-label" style="color:var(--text-muted);font-size:11px;font-weight:400;">Suggested Order by Size</td>
-    <td colspan="${sizes.length}"></td>
-    <td class="sw-total">${total.toLocaleString()}</td>
-  </tr>`;
+  const sections=swProducts.map(({productName,colour})=>{
+    const swKey=`${productName}||${colour}`;
+    const saved=getSwData();
+    const totalInput=saved[swKey]?.total||'';
+    const swManual=saved[swKey]?.manual||{};
 
-  // Size workings input row
-  const swInputRow=`<tr style="background:#fafafa;">
-    <td class="sw-row-label" style="border-top:2px solid var(--border);">Size Workings</td>
-    ${sizes.map(sz=>`<td style="padding:5px 6px;border-top:2px solid var(--border);">
-      <input class="sw-input-size" type="number" min="0" step="1" placeholder="0"
-        value="${swManual[sz]||''}"
-        oninput="swSaveManual('${swKey.replace(/'/g,"\\'")}','${sz}',this.value)"
-        onblur="renderSizeWorkings()" onkeydown="if(event.key==='Enter'){renderSizeWorkings();this.blur();}">
-    </td>`).join('')}
-    <td class="sw-total" style="border-top:2px solid var(--border);">${swTotal>0?swTotal.toLocaleString():'—'}</td>
-  </tr>
-  <tr>
-    <td class="sw-pct"></td>
-    ${swPct.map(v=>`<td class="sw-pct">${pctFmtInt(v)}</td>`).join('')}
-    <td class="sw-pct">${swTotal>0?'100%':'—'}</td>
-  </tr>`;
+    const variants=allVariantRows.filter(r=>r.productName===productName&&r.colour===colour);
+    if(!variants.length)return`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No data for ${productName} — ${colour}</div></div>`;
 
-  body.innerHTML=`
-    <div class="sw-product-title">${styleCode?`<span style="color:var(--text-muted);font-size:13px;font-weight:500;letter-spacing:0.05em;">${styleCode}</span> `:''}${productName} <span style="color:var(--teal);">— ${colour}</span></div>
-    <div style="overflow-x:auto;">
-      <table class="sw-table">
-        <thead><tr><th class="sw-row-label">Size</th>${thCols}<th>TOTAL</th></tr></thead>
-        <tbody>
-          ${mkRow(`Sold (${swPeriod}d)`,soldBySize,'',soldTotal)}
-          ${mkPctRow(soldPct,soldTotal)}
-          ${mkRow('SOH',soh,'',soh.reduce((s,v)=>s+v,0),'')}
-          <tr><td class="sw-pct"></td>${soh.map(v=>{const t=soh.reduce((s,x)=>s+x,0);return`<td class="sw-pct">${t>0?Math.round(v/t*100)+'%':'0%'}</td>`;}).join('')}<td class="sw-pct">${soh.reduce((s,v)=>s+v,0)>0?'100%':'—'}</td></tr>
-          ${mkRow('PO (On Order)',po,'',po.reduce((s,v)=>s+v,0),'')}
-          <tr><td class="sw-pct"></td>${po.map(v=>{const t=po.reduce((s,x)=>s+x,0);return`<td class="sw-pct">${t>0?Math.round(v/t*100)+'%':'0%'}</td>`;}).join('')}<td class="sw-pct">${po.reduce((s,v)=>s+v,0)>0?'100%':'—'}</td></tr>
-          ${mkRow('SOH / PO Total',sohPoTotal,'sw-highlight',sohPoTotal.reduce((s,v)=>s+v,0),'')}
-          <tr><td class="sw-pct"></td>${sohPoTotal.map(v=>{const t=sohPoTotal.reduce((s,x)=>s+x,0);return`<td class="sw-pct">${t>0?Math.round(v/t*100)+'%':'0%'}</td>`;}).join('')}<td class="sw-pct">${sohPoTotal.reduce((s,v)=>s+v,0)>0?'100%':'—'}</td></tr>
-          ${totalInputRow}
-          ${mkRow('Suggested Order',suggestedOrder,'sw-need',suggestedTotal,'sw-need')}
-          <tr><td class="sw-pct"></td>${suggestedPct.map(v=>`<td class="sw-pct">${pctFmtInt(v)}</td>`).join('')}<td class="sw-pct">100%</td></tr>
-          ${swInputRow}
-        </tbody>
-      </table>
+    const sampleSku=(variants.find(r=>r.sku&&r.sku!=='—'&&r.sku.length>6)?.sku)||'';
+    let styleCode=sampleSku;
+    for(const sz of sizeSuffixes){
+      if(sampleSku.toUpperCase().endsWith(sz)){styleCode=sampleSku.slice(0,sampleSku.length-sz.length);break;}
+    }
+    if(styleCode===sampleSku&&sampleSku)styleCode=sampleSku.replace(/\d{2}$/,'');
+
+    const sorted=variants.sort((a,b)=>{
+      const ai=sizeOrder.indexOf(a.size);const bi=sizeOrder.indexOf(b.size);
+      if(ai>=0&&bi>=0)return ai-bi;
+      if(ai>=0)return-1;if(bi>=0)return 1;
+      return a.size.localeCompare(b.size);
+    });
+
+    const sizes=sorted.map(r=>r.size);
+    const soldBySize=sorted.map(r=>{
+      if(swPeriod===7)return r.sold7||0;
+      if(swPeriod===14)return r.sold14||0;
+      if(swPeriod===30)return r.sold30||0;
+      if(swPeriod===60)return r.sold60||0;
+      if(swPeriod===90)return r.sold90||0;
+      return r.sold365||0;
+    });
+    const soldTotal=soldBySize.reduce((s,v)=>s+v,0);
+    const soldPct=soldBySize.map(v=>soldTotal>0?v/soldTotal:0);
+    const soh=sorted.map(r=>r.stock||0);
+    const po=sorted.map(r=>(r.onOrder||0));
+    const sohPoTotal=sorted.map((r,i)=>soh[i]+po[i]);
+
+    const total=parseInt(totalInput)||0;
+    let suggestedOrder;
+    if(total>0&&soldTotal>0){
+      const exact=soldPct.map(pct=>pct*total);
+      const floored=exact.map(v=>Math.floor(v));
+      const remainders=exact.map((v,i)=>v-floored[i]);
+      const remainder=total-floored.reduce((s,v)=>s+v,0);
+      const indices=[...Array(sizes.length).keys()].sort((a,b)=>remainders[b]-remainders[a]);
+      suggestedOrder=[...floored];
+      for(let i=0;i<remainder;i++)suggestedOrder[indices[i]]++;
+    } else {
+      suggestedOrder=sizes.map(()=>0);
+    }
+    const suggestedTotal=suggestedOrder.reduce((s,v)=>s+v,0);
+    const suggestedPct=suggestedOrder.map(v=>suggestedTotal>0?Math.round(v/suggestedTotal*100):0);
+
+    const swVals=sizes.map(sz=>parseInt(swManual[sz])||0);
+    const swTotal=swVals.reduce((s,v)=>s+v,0);
+    const swPct=swVals.map(v=>swTotal>0?Math.round(v/swTotal*100):0);
+
+    const safeKey=swKey.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    const thCols=sizes.map(s=>`<th>${s}</th>`).join('');
+
+    const totalInputRow=`<tr>
+      <td class="sw-row-label" style="border-top:2px solid var(--teal);">Total Units Needed</td>
+      <td colspan="${sizes.length}" style="border-top:2px solid var(--teal);"></td>
+      <td style="border-top:2px solid var(--teal);padding:6px;">
+        <input class="sw-input-total" type="number" min="0" step="1" placeholder="0" value="${totalInput}"
+          oninput="swSaveTotal('${safeKey}',this.value)"
+          onblur="renderSizeWorkings()" onkeydown="if(event.key==='Enter'){renderSizeWorkings();this.blur();}">
+      </td>
+    </tr>
+    <tr>
+      <td class="sw-row-label" style="color:var(--text-muted);font-size:11px;font-weight:400;">Suggested Order by Size</td>
+      <td colspan="${sizes.length}"></td>
+      <td class="sw-total">${total.toLocaleString()}</td>
+    </tr>`;
+
+    const swInputRow=`<tr style="background:#fafafa;">
+      <td class="sw-row-label" style="border-top:2px solid var(--border);">Size Workings</td>
+      ${sizes.map(sz=>`<td style="padding:5px 6px;border-top:2px solid var(--border);">
+        <input class="sw-input-size" type="number" min="0" step="1" placeholder="0"
+          value="${swManual[sz]||''}"
+          oninput="swSaveManual('${safeKey}','${sz}',this.value)"
+          onblur="renderSizeWorkings()" onkeydown="if(event.key==='Enter'){renderSizeWorkings();this.blur();}">
+      </td>`).join('')}
+      <td class="sw-total" style="border-top:2px solid var(--border);">${swTotal>0?swTotal.toLocaleString():'—'}</td>
+    </tr>
+    <tr>
+      <td class="sw-pct"></td>
+      ${swPct.map(v=>`<td class="sw-pct">${pctFmtInt(v)}</td>`).join('')}
+      <td class="sw-pct">${swTotal>0?'100%':'—'}</td>
+    </tr>`;
+
+    return`<div style="margin-bottom:32px;">
+      <div class="sw-product-title">${styleCode?`<span style="color:var(--text-muted);font-size:13px;font-weight:500;letter-spacing:0.05em;">${styleCode}</span> `:''}${productName} <span style="color:var(--teal);">— ${colour}</span></div>
+      <div style="overflow-x:auto;">
+        <table class="sw-table">
+          <thead><tr><th class="sw-row-label">Size</th>${thCols}<th>TOTAL</th></tr></thead>
+          <tbody>
+            ${mkRow(`Sold (${swPeriod}d)`,soldBySize,'',soldTotal)}
+            ${mkPctRow(soldPct,soldTotal)}
+            ${mkRow('SOH',soh,'',soh.reduce((s,v)=>s+v,0),'')}
+            <tr><td class="sw-pct"></td>${soh.map(v=>{const t=soh.reduce((s,x)=>s+x,0);return`<td class="sw-pct">${t>0?Math.round(v/t*100)+'%':'0%'}</td>`;}).join('')}<td class="sw-pct">${soh.reduce((s,v)=>s+v,0)>0?'100%':'—'}</td></tr>
+            ${mkRow('PO (On Order)',po,'',po.reduce((s,v)=>s+v,0),'')}
+            <tr><td class="sw-pct"></td>${po.map(v=>{const t=po.reduce((s,x)=>s+x,0);return`<td class="sw-pct">${t>0?Math.round(v/t*100)+'%':'0%'}</td>`;}).join('')}<td class="sw-pct">${po.reduce((s,v)=>s+v,0)>0?'100%':'—'}</td></tr>
+            ${mkRow('SOH / PO Total',sohPoTotal,'sw-highlight',sohPoTotal.reduce((s,v)=>s+v,0),'')}
+            <tr><td class="sw-pct"></td>${sohPoTotal.map(v=>{const t=sohPoTotal.reduce((s,x)=>s+x,0);return`<td class="sw-pct">${t>0?Math.round(v/t*100)+'%':'0%'}</td>`;}).join('')}<td class="sw-pct">${sohPoTotal.reduce((s,v)=>s+v,0)>0?'100%':'—'}</td></tr>
+            ${totalInputRow}
+            ${mkRow('Suggested Order',suggestedOrder,'sw-need',suggestedTotal,'sw-need')}
+            <tr><td class="sw-pct"></td>${suggestedPct.map(v=>`<td class="sw-pct">${pctFmtInt(v)}</td>`).join('')}<td class="sw-pct">100%</td></tr>
+            ${swInputRow}
+          </tbody>
+        </table>
+      </div>
     </div>`;
+  });
+
+  body.innerHTML=sections.join('');
 }
 
 function swSaveTotal(key,val){
@@ -3891,18 +3909,21 @@ function swSaveManual(key,size,val){
   d[key].manual[size]=val;saveSwData(d);
 }
 function swExport(){
-  if(!swProduct)return;
-  const colour=swProduct.colour;
-  const table=document.querySelector('.sw-table');
-  if(!table){alert('No data to export.');return;}
-  const rows=[...table.querySelectorAll('tr')].map(tr=>
-    [...tr.querySelectorAll('th,td')].map(td=>`"${(td.querySelector('input')?td.querySelector('input').value:td.textContent).trim().replace(/"/g,'""')}"`)
-    .join(',')
-  ).join('\n');
-  const blob=new Blob([rows],{type:'text/csv'});
+  if(!swProducts.length&&!window._roToSwProducts?.length)return;
+  const tables=[...document.querySelectorAll('.sw-table')];
+  if(!tables.length){alert('No data to export.');return;}
+  const csvParts=tables.map(table=>
+    [...table.querySelectorAll('tr')].map(tr=>
+      [...tr.querySelectorAll('th,td')].map(td=>`"${(td.querySelector('input')?td.querySelector('input').value:td.textContent).trim().replace(/"/g,'""')}"`)
+      .join(',')
+    ).join('\n')
+  );
+  const csv=csvParts.join('\n\n');
+  const blob=new Blob([csv],{type:'text/csv'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;
-  a.download=`size_workings_${swProduct.productName.replace(/[^a-z0-9]/gi,'_')}_${colour}.csv`;
+  const label=swProducts.length===1?swProducts[0].productName.replace(/[^a-z0-9]/gi,'_'):`${swProducts.length}_products`;
+  a.download=`size_workings_${label}.csv`;
   a.click();URL.revokeObjectURL(url);
 }
 
