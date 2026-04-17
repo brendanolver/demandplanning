@@ -1375,7 +1375,7 @@ th{position:relative;}
         <div class="filter-row" style="margin-bottom:12px;flex-wrap:wrap;">
           <div class="search-wrap" style="min-width:220px;max-width:340px;">
             <span class="search-ico">🔍</span>
-            <input type="text" id="sw-search" placeholder="Search product name..." oninput="swRenderProductList()" style="width:100%;">
+            <input type="text" id="sw-search" placeholder="Type to search, tick to select, then click Add Selected..." oninput="swCompareSearch()" autocomplete="off" style="width:100%;">
           </div>
           <div class="ms-wrap" id="ms-sw-cat">
             <button class="ms-btn" onclick="toggleDropdown('ms-sw-cat')"><span id="ms-sw-cat-label">All Categories</span><span class="ms-arrow">▾</span></button>
@@ -1426,25 +1426,39 @@ th{position:relative;}
             <button class="period-btn" data-sw-days="365" onclick="setSwPeriod(365)">365d</button>
           </div>
         </div>
-        <!-- Two-panel layout: product list left, size tables right -->
-        <div style="display:flex;gap:16px;align-items:flex-start;">
-          <!-- Left: checkbox product list -->
-          <div style="flex-shrink:0;width:280px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">
-            <div style="padding:8px 12px;border-bottom:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:space-between;">
-              <span id="sw-list-count" style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;">Products</span>
-              <button onclick="swDeselectAll()" style="padding:2px 8px;background:transparent;border:1px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:11px;cursor:pointer;color:var(--text-muted);">Deselect All</button>
-            </div>
-            <div id="sw-product-list" style="max-height:calc(100vh - 340px);overflow-y:auto;"></div>
-          </div>
-          <!-- Right: size workings tables -->
-          <div style="flex:1;min-width:0;">
-            <div id="sw-body">
-              <div class="insights-empty" style="margin-top:40px;">
-                <div class="insights-empty-ico">📐</div>
-                <div class="insights-empty-title">Size Workings</div>
-                <div class="insights-empty-sub">Tick products on the left to begin size planning.</div>
+        <!-- Compare-style product selector panel -->
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 18px;margin-bottom:16px;">
+          <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:10px;letter-spacing:0.05em;">SELECT PRODUCTS</div>
+          <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;margin-bottom:10px;">
+            <div style="position:relative;flex:1;min-width:260px;">
+              <div class="search-wrap">
+                <span class="search-ico">🔍</span>
+                <input type="text" id="sw-search" placeholder="Type to search, tick to select, then click Add Selected..." oninput="swCompareSearch()" autocomplete="off" style="width:100%;">
+              </div>
+              <div id="sw-compare-results" style="display:none;position:absolute;z-index:300;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-lg);width:100%;top:100%;margin-top:4px;">
+                <div style="padding:7px 14px;border-bottom:1px solid var(--border);background:var(--surface2);border-radius:var(--r) var(--r) 0 0;">
+                  <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+                    <input type="checkbox" id="sw-compare-select-all" onchange="swCompareSelectAll(this)" style="width:15px;height:15px;flex-shrink:0;accent-color:var(--teal);cursor:pointer;">
+                    <span style="font-size:12px;font-weight:600;color:var(--text-secondary);">Select All</span>
+                  </label>
+                </div>
+                <div id="sw-compare-list" style="max-height:260px;overflow-y:auto;"></div>
+                <div style="padding:8px 12px;border-top:1px solid var(--border);background:var(--surface2);display:flex;justify-content:space-between;align-items:center;border-radius:0 0 var(--r) var(--r);">
+                  <span id="sw-compare-count-label" style="font-size:11px;color:var(--text-muted);"></span>
+                  <button onclick="swCompareApplyChecked()" style="padding:5px 16px;background:var(--teal);color:white;border:none;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">✓ Add Selected</button>
+                </div>
               </div>
             </div>
+            <button onclick="swDeselectAll()" style="padding:7px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);white-space:nowrap;margin-top:2px;">✕ Clear All</button>
+          </div>
+          <div id="sw-compare-tags" style="display:flex;gap:6px;flex-wrap:wrap;min-height:20px;align-items:center;"></div>
+        </div>
+        <!-- Size workings tables -->
+        <div id="sw-body">
+          <div class="insights-empty" style="margin-top:40px;">
+            <div class="insights-empty-ico">📐</div>
+            <div class="insights-empty-title">Size Workings</div>
+            <div class="insights-empty-sub">Search for a product above to begin size planning.</div>
           </div>
         </div>
         </div><!-- end sw-tab-product-body -->
@@ -1687,6 +1701,12 @@ function toggleSidebar(){
 document.addEventListener('click',e=>{
   if(e.target.closest('#cadence-compare-results')||e.target.closest('#cadence-compare-search'))return;
   const res=document.getElementById('cadence-compare-results');
+  if(res)res.style.display='none';
+});
+
+document.addEventListener('click',e=>{
+  if(e.target.closest('#sw-compare-results')||e.target.closest('#sw-search'))return;
+  const res=document.getElementById('sw-compare-results');
   if(res)res.style.display='none';
 });
 
@@ -3354,8 +3374,9 @@ function swClearAll(){
   swProduct=null;
   swSelectedProducts=new Set();
   swClearFilters();
-  swRenderProductList();
-  document.getElementById('sw-body').innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">📐</div><div class="insights-empty-title">Size Workings</div><div class="insights-empty-sub">Tick products on the left to begin size planning.</div></div>`;
+  const res=document.getElementById('sw-compare-results');if(res)res.style.display='none';
+  swRenderCompareTags();
+  document.getElementById('sw-body').innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">📐</div><div class="insights-empty-title">Size Workings</div><div class="insights-empty-sub">Search for a product above to begin size planning.</div></div>`;
 }
 
 function setSwTab(tab){
@@ -3376,7 +3397,7 @@ function setSwTab(tab){
     if(window._roToSwProducts?.length){
       renderRoSizeWorkings();
     } else {
-      swRenderProductList();
+      swRenderCompareTags();
     }
   }
 }
@@ -3688,70 +3709,145 @@ function setSwPeriod(days){
   else renderSwSelectedProducts();
 }
 
-// Render the left-panel checkbox product list
-function swRenderProductList(){
-  const listEl=document.getElementById('sw-product-list');
-  const countEl=document.getElementById('sw-list-count');
-  if(!listEl||!allVariantRows||!allVariantRows.length)return;
+// Search-dropdown functions (cadence-style)
+function swCompareSearch(){
+  const val=(document.getElementById('sw-search')?.value||'').trim().toUpperCase();
+  const results=document.getElementById('sw-compare-results');
+  const list=document.getElementById('sw-compare-list');
+  if(!results||!list)return;
 
   // Populate filters on first use
   if(!document.getElementById('ms-sw-cat-options').children.length) swPopulateFilters();
 
-  const searchVal=(document.getElementById('sw-search')?.value||'').trim().toUpperCase();
   const cats=swGetSelected('cat');
   const vendors=swGetSelected('vendor');
   const flags=swGetSelected('flag');
   const discs=swGetSelected('disc');
   const delmonths=swGetSelected('delmonth');
+  const hasFilters=cats.length||vendors.length||flags.length||discs.length||delmonths.length;
 
-  // Get unique product+colour pairs matching filters and search
-  const seen=new Map();
+  if(val.length<2&&!hasFilters){results.style.display='none';return;}
+
+  const matches=new Map();
   for(const r of allVariantRows){
     if(r.amOnly)continue;
-    const key=r.productName+'||'+r.colour;
-    if(seen.has(key))continue;
-    if(searchVal.length>=2&&!(r.productName.toUpperCase().includes(searchVal)||(r.productName+' - '+r.colour).toUpperCase().includes(searchVal)))continue;
+    const k=r.productName+'||'+r.colour;
+    if(matches.has(k))continue;
+    if(val.length>=2&&!(r.productName+' - '+r.colour).toUpperCase().includes(val))continue;
     if(cats.length&&!cats.includes(r.category||''))continue;
     if(vendors.length&&!vendors.includes(r.vendor||''))continue;
     if(flags.length&&!flags.includes(r.flag||''))continue;
     if(discs.length){const d=Math.round(r.discountPct||0);const band=!r.discountPct||d===0?'none':String(d);if(!discs.some(b=>b===band))continue;}
     if(delmonths.length&&!delmonths.includes(r.deliveryMonth||''))continue;
-    seen.set(key,{productName:r.productName,colour:r.colour,fullTitle:r.productName+' - '+r.colour});
+    matches.set(k,{key:k,productName:r.productName,colour:r.colour});
   }
 
-  const items=[...seen.values()];
-  if(countEl)countEl.textContent=`${items.length} product${items.length!==1?'s':''}`;
-
+  const items=[...matches.values()].slice(0,100);
   if(!items.length){
-    listEl.innerHTML=`<div style="padding:16px;text-align:center;color:var(--text-muted);font-size:12px;">No products match filters</div>`;
+    list.innerHTML=`<div style="padding:12px 14px;font-size:13px;color:var(--text-muted);font-style:italic;">No products found</div>`;
+    results.style.display='block';
     return;
   }
 
-  listEl.innerHTML=items.map(p=>{
-    const checked=swSelectedProducts.has(p.fullTitle);
-    const safeTitle=p.fullTitle.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    return`<label style="display:flex;align-items:center;gap:9px;padding:8px 12px;border-bottom:1px solid var(--border-light);cursor:pointer;font-size:12.5px;background:${checked?'rgba(14,165,160,0.06)':'transparent'};transition:background 0.1s;" onmouseenter="this.style.background='${checked?'rgba(14,165,160,0.08)':'var(--surface2)'}'" onmouseleave="this.style.background='${checked?'rgba(14,165,160,0.06)':'transparent'}'">
-      <input type="checkbox" ${checked?'checked':''} style="width:14px;height:14px;accent-color:var(--teal);flex-shrink:0;cursor:pointer;" onchange="swToggleProduct('${safeTitle}',this.checked)">
-      <span style="flex:1;min-width:0;"><strong style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.productName}</strong><span style="color:var(--text-muted);font-size:11px;">${p.colour}</span></span>
+  list.innerHTML=items.map(p=>{
+    const fullTitle=p.productName+' - '+p.colour;
+    const alreadyAdded=swSelectedProducts.has(fullTitle);
+    return`<label style="display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:${alreadyAdded?'default':'pointer'};border-bottom:1px solid var(--border);"
+      onmouseover="if(!${alreadyAdded})this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+      <input type="checkbox" value="${p.key.replace(/"/g,'&quot;')}"
+        data-product="${p.productName.replace(/"/g,'&quot;')}"
+        data-colour="${p.colour.replace(/"/g,'&quot;')}"
+        ${alreadyAdded?'checked disabled':''}
+        onchange="swCompareUpdateCount()"
+        style="width:15px;height:15px;flex-shrink:0;accent-color:var(--teal);cursor:pointer;">
+      <span style="font-size:13px;line-height:1.3;">
+        <strong>${p.productName}</strong>
+        <span style="color:var(--teal);font-weight:500;"> — ${p.colour}</span>
+      </span>
+      ${alreadyAdded?'<span style="font-size:10px;font-weight:600;color:var(--teal);margin-left:auto;white-space:nowrap;">✓ added</span>':''}
     </label>`;
   }).join('');
+
+  swCompareUpdateCount();
+  results.style.display='block';
+  const sa=document.getElementById('sw-compare-select-all');
+  if(sa){sa.checked=false;sa.indeterminate=false;}
 }
 
-// Toggle a product in/out of the selected set and re-render
-function swToggleProduct(fullTitle,checked){
-  if(checked) swSelectedProducts.add(fullTitle);
-  else swSelectedProducts.delete(fullTitle);
-  // Update row highlight without full re-render
-  swRenderProductList();
+function swCompareSelectAll(cb){
+  document.querySelectorAll('#sw-compare-list input[type="checkbox"]:not([disabled])').forEach(b=>b.checked=cb.checked);
+  swCompareUpdateCount();
+}
+
+function swCompareUpdateCount(){
+  const checked=document.querySelectorAll('#sw-compare-list input[type="checkbox"]:checked:not([disabled])');
+  const label=document.getElementById('sw-compare-count-label');
+  if(label){
+    if(checked.length>0)label.textContent=`${checked.length} selected`;
+    else label.textContent=`${swSelectedProducts.size} product${swSelectedProducts.size!==1?'s':''} added`;
+  }
+  const all=document.querySelectorAll('#sw-compare-list input[type="checkbox"]:not([disabled])');
+  const allChecked=[...all].every(b=>b.checked);
+  const selectAll=document.getElementById('sw-compare-select-all');
+  if(selectAll){
+    selectAll.checked=all.length>0&&allChecked;
+    selectAll.indeterminate=!allChecked&&checked.length>0;
+  }
+}
+
+function swCompareApplyChecked(){
+  document.querySelectorAll('#sw-compare-list input[type="checkbox"]:checked:not([disabled])').forEach(cb=>{
+    const productName=cb.dataset.product;
+    const colour=cb.dataset.colour;
+    const fullTitle=productName+' - '+colour;
+    if(!swSelectedProducts.has(fullTitle)){
+      // Pre-fill from RO qty if available
+      const swData=getSwData();
+      const swKey=`${productName}||${colour}`;
+      if(!swData[swKey]?.total){
+        const roQty=getRoData()[fullTitle]?.qty||'';
+        if(roQty){if(!swData[swKey])swData[swKey]={};swData[swKey].total=roQty;saveSwData(swData);}
+      }
+      swSelectedProducts.add(fullTitle);
+    }
+  });
+  const inp=document.getElementById('sw-search');
+  if(inp)inp.value='';
+  const res=document.getElementById('sw-compare-results');
+  if(res)res.style.display='none';
+  swRenderCompareTags();
+  renderSwSelectedProducts();
+}
+
+function swRenderCompareTags(){
+  const tags=document.getElementById('sw-compare-tags');
+  if(!tags)return;
+  if(!swSelectedProducts.size){
+    tags.innerHTML=`<span style="font-size:12px;color:var(--text-muted);font-style:italic;">No products selected — search above to add</span>`;
+    return;
+  }
+  tags.innerHTML=`<span style="font-size:12px;color:var(--text-secondary);font-weight:600;">${swSelectedProducts.size} product${swSelectedProducts.size!==1?'s':''} selected</span>`+
+    [...swSelectedProducts].map(ft=>`<span style="display:inline-flex;align-items:center;gap:5px;padding:3px 8px 3px 10px;background:var(--teal-light);border:1px solid rgba(14,165,160,0.25);border-radius:var(--r-pill);font-size:12px;font-weight:500;color:var(--teal-dark);">${ft}<button onclick="swCompareRemove('${ft.replace(/'/g,"\\'")}',event)" style="background:none;border:none;cursor:pointer;color:var(--teal);font-size:14px;line-height:1;padding:0;margin-left:2px;">×</button></span>`).join('');
+}
+
+function swCompareRemove(fullTitle,e){
+  if(e)e.stopPropagation();
+  swSelectedProducts.delete(fullTitle);
+  swRenderCompareTags();
   renderSwSelectedProducts();
 }
 
 // Deselect all products
 function swDeselectAll(){
   swSelectedProducts.clear();
-  swRenderProductList();
+  const inp=document.getElementById('sw-search');if(inp)inp.value='';
+  const res=document.getElementById('sw-compare-results');if(res)res.style.display='none';
+  swRenderCompareTags();
   renderSwSelectedProducts();
 }
+
+// Stub kept so filter-change calls don't error
+function swRenderProductList(){swRenderCompareTags();}
 
 // Render stacked size tables for all selected products
 function renderSwSelectedProducts(){
@@ -4069,7 +4165,7 @@ function setWorkingView(v){
   document.getElementById('working-sub').textContent=subs[v]||'';
   if(v==='reorders')renderReorders();
   if(v==='markdowns')renderMarkdowns();
-  if(v==='sizeworkings'){swPopulateFilters();swRenderProductList();}
+  if(v==='sizeworkings'){swPopulateFilters();swRenderCompareTags();}
   if(v==='margins'){renderMargins();renderMgCostTable();}
 }
 
