@@ -787,6 +787,10 @@ th{position:relative;}
         <button class="screen-btn" id="btn-planning" onclick="showScreen('planning')">📋 Planning</button>
         <button class="screen-btn" id="btn-markdowns" onclick="showScreen('markdowns')">📝 Working</button>
       </div>
+      <div id="global-core-toggle" style="display:none;background:var(--surface);border:1px solid var(--navy-border);border-radius:var(--r);overflow:hidden;flex-shrink:0;">
+        <button id="gcf-all" onclick="setGlobalCoreFilter('all')" style="padding:5px 12px;font-size:11.5px;font-weight:600;font-family:'Inter',sans-serif;border:none;cursor:pointer;background:var(--teal);color:white;transition:all 0.15s;">All</button>
+        <button id="gcf-core" onclick="setGlobalCoreFilter('core')" style="padding:5px 12px;font-size:11.5px;font-weight:600;font-family:'Inter',sans-serif;border:none;cursor:pointer;background:transparent;color:var(--navy-text);transition:all 0.15s;">Core</button>
+      </div>
       <div class="period-selector" id="period-selector" style="display:none;">
         <span class="period-label">Period:</span>
         <button class="period-btn active" data-days="7" onclick="setPeriod(7)">7d</button>
@@ -1729,6 +1733,8 @@ function showScreen(screen){
   periodSelector.style.display=(!isTouch&&screen==='dashboard')?'flex':'none';
   if(periodBar)periodBar.style.display=(isTouch&&screen==='dashboard')?'flex':'none';
   exportBtn.style.display=screen==='dashboard'?'':'none';
+  const globalToggle=document.getElementById('global-core-toggle');
+  if(globalToggle) globalToggle.style.display=['dashboard','cadence','planning','markdowns'].includes(screen)?'flex':'none';
   if(screen==='insights'){
     document.getElementById('insights-period-label').textContent=selectedPeriod+'d';
     document.getElementById('insights-sku-count').textContent=allVariantRows.length.toLocaleString();
@@ -1745,6 +1751,7 @@ let cadenceSortDir='desc';
 let planSortCol='category';
 let planSortDir='asc';
 let planCoreFilter='all'; // 'core' | 'all'
+let globalCoreFilter='all'; // 'core' | 'all' — global toggle across all views
 let mdSortCol='productName';
 let mdSortDir='asc';
 let cadenceView='cat';
@@ -1794,8 +1801,9 @@ function cadenceCompareSearch(){
   // Build product-level disc/flag maps for filtering
   const productDiscMap={};
   const productFlagMap={};
+  const _activeRows=getActiveRows();
   if(selectedDiscs.length||selectedFlags.length){
-    for(const r of allVariantRows){
+    for(const r of _activeRows){
       if(r.amOnly)continue;
       const k=r.productName+'||'+r.colour;
       if(productDiscMap[k]===undefined)productDiscMap[k]=r.discountPct||0;
@@ -1805,7 +1813,7 @@ function cadenceCompareSearch(){
 
   // Get unique product+colour combos matching search and filters
   const matches=new Map();
-  for(const r of allVariantRows){
+  for(const r of _activeRows){
     if(r.amOnly)continue;
     const k=r.productName+'||'+r.colour;
     if(matches.has(k))continue;
@@ -2359,14 +2367,21 @@ function renderCadence(){
   const totals={};
   for(const p of periods)totals[p.label]=0;
 
+  const activeRows=getActiveRows();
+  const activeSKUs=globalCoreFilter==='core'?new Set(activeRows.map(r=>r.sku)):null;
+
   let rowKeys, rowLabel, getKey;
   if(cadenceView==='cat'){
     // Use ALL SKUs including draft for accurate historical category totals
+    // When core filter active, restrict to core SKUs only
     const skuCatMap=window._skuCategoryMap||{};
-    rowKeys=[...new Set(Object.values(skuCatMap).filter(Boolean))].sort();
+    const filteredSkuCatMap=activeSKUs
+      ?Object.fromEntries(Object.entries(skuCatMap).filter(([sku])=>activeSKUs.has(sku)))
+      :skuCatMap;
+    rowKeys=[...new Set(Object.values(filteredSkuCatMap).filter(Boolean))].sort();
     rowLabel='Category';
     // For category view, sum directly from _salesBySkuDay using skuCatMap
-    for(const[sku,cat] of Object.entries(skuCatMap)){
+    for(const[sku,cat] of Object.entries(filteredSkuCatMap)){
       if(!data[cat])data[cat]={};
       const skuDays=getSoldInPeriodBreakdown(sku,periods);
       for(const p of periods){
@@ -2385,14 +2400,14 @@ function renderCadence(){
     // Build product-level aggregates for disc/flag filtering
     const productDiscMap={};   // key → discountPct
     const productFlagMap={};   // key → flag
-    for(const r of allVariantRows){
+    for(const r of activeRows){
       if(r.amOnly)continue;
       const k=r.productName+'||'+r.colour;
       if(productDiscMap[k]===undefined)productDiscMap[k]=r.discountPct||0;
       if(productFlagMap[k]===undefined)productFlagMap[k]=r.flag||'ok';
     }
     const prodSet=new Map();
-    for(const r of allVariantRows){
+    for(const r of activeRows){
       if(r.amOnly)continue;
       if(selectedStatuses.length&&!selectedStatuses.includes(r.vendor))continue;
       if(selectedCats.length&&!selectedCats.includes(r.category))continue;
@@ -2427,7 +2442,7 @@ function renderCadence(){
     for(const k of rowKeys)data[k]={};
     for(const p of periods)totals[p.label]=0;
 
-    for(const row of allVariantRows){
+    for(const row of activeRows){
       if(row.amOnly)continue;
       const k=getKey(row);
       if(!data[k])continue;
@@ -2440,15 +2455,11 @@ function renderCadence(){
   }
 
   // Build SOH and On Order maps per row key
-  // On Order must be deduplicated by product+colour — it's stored on every variant row
-  // so summing across variants would multiply it by the number of sizes
-  // productOnOrder = product-level total from AM; onOrder = variant-level
-  // Use productOnOrder as the single source of truth, deduplicated per product+colour
   const sohByKey={};
   const onOrderByKey={};
   const _onOrderSeen=new Set();
   if(cadenceView==='cat'){
-    for(const r of allVariantRows){
+    for(const r of activeRows){
       const c=r.category||'UNCATEGORISED';
       sohByKey[c]=(sohByKey[c]||0)+(r.stock||0);
       const dedupeKey=c+'||'+r.productName+'||'+r.colour;
@@ -2459,7 +2470,7 @@ function renderCadence(){
       }
     }
   } else {
-    for(const r of allVariantRows){
+    for(const r of activeRows){
       const k=r.productName+'||'+r.colour;
       sohByKey[k]=(sohByKey[k]||0)+(r.stock||0);
       if(!_onOrderSeen.has(k)){
@@ -2836,12 +2847,41 @@ function setPlanSort(col){
   renderPlanning();
 }
 
+function setGlobalCoreFilter(val){
+  globalCoreFilter=val;
+  const allBtn=document.getElementById('gcf-all');
+  const coreBtn=document.getElementById('gcf-core');
+  if(allBtn){allBtn.style.background=val==='all'?'var(--teal)':'transparent';allBtn.style.color=val==='all'?'white':'var(--navy-text)';}
+  if(coreBtn){coreBtn.style.background=val==='core'?'var(--teal)':'transparent';coreBtn.style.color=val==='core'?'white':'var(--navy-text)';}
+  // Also sync the planning tab's local toggle
+  planCoreFilter=val;
+  const planAllBtn=document.getElementById('plan-filter-all');
+  const planCoreBtn=document.getElementById('plan-filter-core');
+  if(planAllBtn){planAllBtn.style.background=val==='all'?'var(--teal)':'var(--surface)';planAllBtn.style.color=val==='all'?'white':'var(--text-secondary)';}
+  if(planCoreBtn){planCoreBtn.style.background=val==='core'?'var(--teal)':'var(--surface)';planCoreBtn.style.color=val==='core'?'white':'var(--text-secondary)';}
+  // Re-render current screen
+  if(currentScreen==='dashboard') renderTable();
+  else if(currentScreen==='cadence') renderCadence();
+  else if(currentScreen==='planning') renderPlanning();
+  else if(currentScreen==='markdowns') setWorkingView(workingView);
+}
+
+function getActiveRows(){
+  return globalCoreFilter==='core'?allVariantRows.filter(r=>r.vendor==='CORE'):allVariantRows;
+}
+
 function setPlanCoreFilter(val){
   planCoreFilter=val;
+  globalCoreFilter=val;
   const allBtn=document.getElementById('plan-filter-all');
   const coreBtn=document.getElementById('plan-filter-core');
   if(allBtn){allBtn.style.background=val==='all'?'var(--teal)':'var(--surface)';allBtn.style.color=val==='all'?'white':'var(--text-secondary)';}
   if(coreBtn){coreBtn.style.background=val==='core'?'var(--teal)':'var(--surface)';coreBtn.style.color=val==='core'?'white':'var(--text-secondary)';}
+  // Sync topbar toggle
+  const gcfAll=document.getElementById('gcf-all');
+  const gcfCore=document.getElementById('gcf-core');
+  if(gcfAll){gcfAll.style.background=val==='all'?'var(--teal)':'transparent';gcfAll.style.color=val==='all'?'white':'var(--navy-text)';}
+  if(gcfCore){gcfCore.style.background=val==='core'?'var(--teal)':'transparent';gcfCore.style.color=val==='core'?'white':'var(--navy-text)';}
   renderPlanning();
 }
 
@@ -2852,7 +2892,8 @@ function renderPlanning(){
   }
 
   const months=getPlanMonths();
-  const planRows=planCoreFilter==='core'?allVariantRows.filter(r=>r.vendor==='CORE'):allVariantRows;
+  const _basePlanRows=getActiveRows();
+  const planRows=planCoreFilter==='core'?_basePlanRows.filter(r=>r.vendor==='CORE'):_basePlanRows;
   const allowedSkus=planCoreFilter==='core'?new Set(planRows.map(r=>r.sku)):null;
   const cats=[...new Set(planRows.filter(r=>!r.amOnly).map(r=>r.category||'UNCATEGORISED'))].sort();
   const lyData=getLYSalesByCategory(months,allowedSkus);
@@ -4198,11 +4239,12 @@ function renderReorders(){
   const saved=getRoData();
   const search=(document.getElementById('ro-search')?.value||'').trim().toUpperCase();
 
+  const _roActiveRows=getActiveRows();
   // Build full product list — include all products with stock or on order
-  const _stockSet=new Set(allVariantRows
+  const _stockSet=new Set(_roActiveRows
     .filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)
     .map(r=>r.productName+'||'+r.colour));
-  const allProductsRo=[...toProduct(allVariantRows.filter(r=>
+  const allProductsRo=[...toProduct(_roActiveRows.filter(r=>
     !r.amOnly&&((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)
   ))];
 
@@ -4926,12 +4968,12 @@ function renderMarkdowns(){
   const saved=getMdData();
   const search=(document.getElementById('md-search')?.value||'').trim().toUpperCase();
 
-  // Get all products
-  // Build product list — use ALL variants for sold figures (so OOS sizes contribute to sold totals)
+  const _mdActiveRows=getActiveRows();
+  // Build product list — use active rows for sold figures
   // but only show products that have stock or on order
-  const allProductsFullSales=[...toProduct(allVariantRows)];
+  const allProductsFullSales=[...toProduct(_mdActiveRows)];
   const hasStockOrOrder=new Set(
-    allVariantRows.filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)
+    _mdActiveRows.filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)
       .map(r=>r.productName+'||'+r.colour)
   );
   const allProducts=allProductsFullSales.filter(p=>hasStockOrOrder.has(p.productName+'||'+p.colour));
@@ -6031,7 +6073,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     // Use price list if uploaded (matched by product title), fall back to sales file prices
     const price=plEntry?plEntry.price:(pm.price||0);
     const compareAt=plEntry?plEntry.compareAt:(pm.compareAt||pm.price||0);
-    const isCore=(vendor||'').toUpperCase()==='CORE'||coreSet.has(productName+' - '+colour);
+    const isCore=coreSet.has(productName+' - '+colour);
 
     // Delivery month: SKU decode is authoritative; Better Reports as fallback; CORE always shows CORE; AM as last resort
     let deliveryMonth='';
@@ -6093,7 +6135,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     // - Not discounted (no markdown applied)
     // - CORE, OR delivered within last 2 months, OR 30d sell-through >= 30%
     const isDiscounted=(compareAt>0&&price>0&&price<compareAt);
-    const isCoreSku=(vendor||'').toUpperCase()==='CORE'||coreSet.has(productName+' - '+colour);
+    const isCoreSku=coreSet.has(productName+' - '+colour);
     // Delivered within last 2 months — check SKU decode
     const skuDeliveryRaw=decodeSkuDelivery(sku);
     let deliveredRecently=false;
@@ -6484,7 +6526,7 @@ function buildDashboard(){
 }
 
 function renderKPIs(){
-  const rows=allVariantRows;
+  const rows=getActiveRows();
   const totalSoh=rows.reduce((s,r)=>s+(r.stock||0),0);
   const totalSold=rows.reduce((s,r)=>s+(r.sold||0),0);
   const onOrder=rows.reduce((s,r)=>s+(r.onOrder||0),0);
@@ -6975,7 +7017,7 @@ function getFilteredRows(){
   const search=document.getElementById('search-input').value.trim().toUpperCase();
 
   // Filter at variant level for variant view; post-aggregation for product view
-  let baseRows=[...allVariantRows];
+  let baseRows=[...getActiveRows()];
   // Vendor/status filter applied at variant level for all views
   if(vendors.length) baseRows=baseRows.filter(r=>vendors.includes(r.vendor||''));
   if(currentView==='variant'){
