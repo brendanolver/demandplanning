@@ -6539,6 +6539,14 @@ function renderKPIs(){
   const reorder=productRows.filter(p=>p.flag==='reorder').length;
   const reduce=productRows.filter(p=>p.flag==='reduce').length;
 
+  // Today's margin — weighted average GP% across units sold today
+  let todayMarginNum=0,todayMarginDen=0;
+  for(const r of rows){
+    const st=r.soldToday||0;
+    if(st>0&&r.margin!=null){todayMarginNum+=st*r.margin;todayMarginDen+=st;}
+  }
+  const todayMargin=todayMarginDen>0?(todayMarginNum/todayMarginDen).toFixed(2)+'%':'—';
+
   const kpis=[
     {name:'Total Products',val:totalProducts.toLocaleString(),sub:'Unique styles',ico:'📊',bg:'#eef1fe',ic:'#4f6ef7',click:null},
     {name:'SOH',val:totalSoh.toLocaleString(),sub:'Units on hand',ico:'📦',bg:'#e6f7f7',ic:'var(--teal)',click:null},
@@ -6546,6 +6554,7 @@ function renderKPIs(){
     {name:'On Order',val:onOrder.toLocaleString(),sub:'Total units on order',ico:'🚚',bg:'#f3e8ff',ic:'#7c3aed',click:null},
     {name:'Re-Order',val:reorder.toLocaleString(),sub:'≤14 weeks cover',ico:'⚠️',bg:'#fef9c3',ic:'#854d0e',click:"kpiDrillDown('reorder')"},
     {name:'Reduce',val:reduce.toLocaleString(),sub:'26w+ cover, no order',ico:'🏷️',bg:'#fee2e2',ic:'var(--red)',click:"kpiDrillDown('reduce')"},
+    {name:"Today's Margin",val:todayMargin,sub:'Wtd avg GP% on today\'s sales',ico:'💹',bg:'#ecfdf5',ic:'var(--green)',click:null},
   ];
   document.getElementById('kpi-row').innerHTML=kpis.map(k=>`
     <div class="kpi-card${k.click?` kpi-clickable`:''}" ${k.click?`onclick="${k.click}" title="Click to view products"`:''} style="${k.click?'cursor:pointer;':''}" >
