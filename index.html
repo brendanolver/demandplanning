@@ -2784,10 +2784,11 @@ function getPlanMonths(){
   return months;
 }
 
-function getLYSalesByCategory(months){
+function getLYSalesByCategory(months,allowedSkus){
   const result={};
   if(!window._salesBySkuDay||!window._skuCategoryMap)return result;
   for(const[sku,cat] of Object.entries(window._skuCategoryMap)){
+    if(allowedSkus&&!allowedSkus.has(sku))continue;
     const dayData=window._salesBySkuDay[sku]||{};
     if(!result[cat])result[cat]={};
     for(const[day,d] of Object.entries(dayData)){
@@ -2809,9 +2810,10 @@ function getLYSalesByCategory(months){
   return result;
 }
 
-function getAMOnOrderByCategory(months){
+function getAMOnOrderByCategory(months,planRows){
   const result={};
-  for(const row of allVariantRows){
+  const rows=planRows||allVariantRows;
+  for(const row of rows){
     const cat=row.category||'UNCATEGORISED';
     if(!result[cat])result[cat]={};
     const onOrder=row.onOrder||0;
@@ -2851,9 +2853,10 @@ function renderPlanning(){
 
   const months=getPlanMonths();
   const planRows=planCoreFilter==='core'?allVariantRows.filter(r=>r.vendor==='CORE'):allVariantRows;
+  const allowedSkus=planCoreFilter==='core'?new Set(planRows.map(r=>r.sku)):null;
   const cats=[...new Set(planRows.filter(r=>!r.amOnly).map(r=>r.category||'UNCATEGORISED'))].sort();
-  const lyData=getLYSalesByCategory(months);
-  const onOrderData=getAMOnOrderByCategory(months);
+  const lyData=getLYSalesByCategory(months,allowedSkus);
+  const onOrderData=getAMOnOrderByCategory(months,planRows);
   const saved=getPlanningData();
   const coverMonths=Math.max(1,Math.min(12,parseInt(saved['cover_months'])||2));
 
