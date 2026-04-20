@@ -2362,11 +2362,9 @@ function renderCadence(){
 
   let rowKeys, rowLabel, getKey;
   if(cadenceView==='cat'){
-    // Use ALL SKUs including draft for accurate historical category totals
     // When Core filter active, restrict to SKUs belonging to CORE products
     const skuCatMap=window._skuCategoryMap||{};
     const coreSkus=globalCoreFilter==='core'?new Set(allVariantRows.filter(r=>r.vendor==='CORE').map(r=>r.sku)):null;
-    rowKeys=[...new Set(Object.values(skuCatMap).filter(Boolean))].sort();
     rowLabel='Category';
     // For category view, sum directly from _salesBySkuDay using skuCatMap
     for(const[sku,cat] of Object.entries(skuCatMap)){
@@ -2378,6 +2376,8 @@ function renderCadence(){
         totals[p.label]=(totals[p.label]||0)+skuDays[p.label];
       }
     }
+    // Only show categories that have data after filtering
+    rowKeys=[...new Set(Object.keys(data))].filter(Boolean).sort();
     getKey=null; // already built above
   } else {
     // Group by product+colour, filter by search, status, category, month del, disc%, flag
@@ -2432,7 +2432,7 @@ function renderCadence(){
     for(const k of rowKeys)data[k]={};
     for(const p of periods)totals[p.label]=0;
 
-    for(const row of allVariantRows){
+    for(const row of getActiveRows()){
       if(row.amOnly)continue;
       const k=getKey(row);
       if(!data[k])continue;
@@ -2453,7 +2453,7 @@ function renderCadence(){
   const onOrderByKey={};
   const _onOrderSeen=new Set();
   if(cadenceView==='cat'){
-    for(const r of allVariantRows){
+    for(const r of getActiveRows()){
       const c=r.category||'UNCATEGORISED';
       sohByKey[c]=(sohByKey[c]||0)+(r.stock||0);
       const dedupeKey=c+'||'+r.productName+'||'+r.colour;
@@ -2464,7 +2464,7 @@ function renderCadence(){
       }
     }
   } else {
-    for(const r of allVariantRows){
+    for(const r of getActiveRows()){
       const k=r.productName+'||'+r.colour;
       sohByKey[k]=(sohByKey[k]||0)+(r.stock||0);
       if(!_onOrderSeen.has(k)){
@@ -2537,7 +2537,7 @@ function renderCadence(){
     const lyE=`${lyMtdEnd.getFullYear()}-${String(lyMtdEnd.getMonth()+1).padStart(2,'0')}-${String(lyMtdEnd.getDate()).padStart(2,'0')}`;
     for(const[sku,dayData] of Object.entries(window._salesBySkuDay)){
       const rowKey=cadenceView==='cat'?(skuCatMap[sku]||null):(()=>{
-        const r=allVariantRows.find(r=>r.sku===sku);
+        const r=getActiveRows().find(r=>r.sku===sku);
         return r?r.productName+'||'+r.colour:null;
       })();
       if(!rowKey||!rowKeys.includes(rowKey))continue;
@@ -6106,9 +6106,10 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const velocity=sold/selectedPeriod;
 
     // Suggested order eligibility:
-    // - Not discounted (no markdown applied)
+    // - Not discounted (no markdown applied), not GWP (free gift product)
     // - CORE, OR delivered within last 2 months, OR 30d sell-through >= 30%
     const isDiscounted=(compareAt>0&&price>0&&price<compareAt);
+    const isGwp=(category||'').toUpperCase().trim()==='GWP';
     const isCoreSku=(vendor||'').toUpperCase()==='CORE'||coreSet.has(productName+' - '+colour);
     // Delivered within last 2 months — check SKU decode
     const skuDeliveryRaw=decodeSkuDelivery(sku);
@@ -6130,7 +6131,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     // 30-day sell-through for eligibility
     const st30=s30.qty>0&&(stock+s30.qty)>0?s30.qty/(stock+s30.qty)*100:0;
     const highSellThru=st30>=30;
-    const isEligible=!isDiscounted&&(isCoreSku||deliveredRecently||highSellThru);
+    const isEligible=!isDiscounted&&!isGwp&&(isCoreSku||deliveredRecently||highSellThru);
     // suggestedOrder calculated below after onOrder is defined
 
     // Weekly velocities for display
@@ -6224,15 +6225,15 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     // REDUCED takes priority over CLEARANCE when product has an active discount
     // PRE-RELEASE: draft-flagged with stock — always shows regardless of delivery month
     const effectiveVendor=isCore?'CORE':(isDraft&&!isDraftButCurrent)?'DRAFT':isPreRelease?'PRE-RELEASE':isBundle?'BUNDLE':isReduced?'REDUCED':isClearance?'CLEARANCE':(isNew||isDraftButCurrent)?'NEW':isEnd?'OLD':isCurrent?'CURRENT':vendor;
-    // No suggested orders for BUNDLE (non-CORE) or REDUCED — these shouldn't be restocked at full price
-    const finalSuggestedOrder=(isBundle&&!isCore)||isReduced?0:suggestedOrder;
+    // No suggested orders for BUNDLE (non-CORE), REDUCED, or GWP — these shouldn't be restocked via normal reorder logic
+    const finalSuggestedOrder=(isBundle&&!isCore)||isReduced||isGwp?0:suggestedOrder;
     // Re-run flag with effectiveVendor so CORE/NEW/CURRENT/ON ORDER status is respected
     flag=getFlag(recalcDays,stock,onOrder,effectiveVendor,discountPct);
     if(isEnd&&!discountPct&&!isNew&&!isDraft&&!isDraftButCurrent&&!isPreRelease)flag='reduce';
     // Never flag NEW, CURRENT, ON ORDER or BUNDLE products as reduce
     if(flag==='reduce'&&(effectiveVendor==='NEW'||effectiveVendor==='CURRENT'||effectiveVendor==='ON ORDER'||effectiveVendor==='PRE-RELEASE'||isBundle))flag='ok';
-    // Never flag OLD, CLEARANCE, BUNDLE (non-CORE) as reorder at variant level
-    if(flag==='reorder'&&(isEnd||isClearance||(isBundle&&!isCore)))flag='ok';
+    // Never flag OLD, CLEARANCE, BUNDLE (non-CORE), or GWP as reorder at variant level
+    if(flag==='reorder'&&(isEnd||isClearance||(isBundle&&!isCore)||isGwp))flag='ok';
     // Note: MOQ (70 unit) check is done at product level in toProduct, not per-variant
 
     rows.push({
@@ -6840,14 +6841,17 @@ function toProduct(vr){
       const pIsCurrent=ev==='CURRENT';
       const pIsOnOrder=ev==='ON ORDER';
       const pIsCore=ev==='CORE';
-      // Reduce exclusions: NEW, CURRENT, ON ORDER, BUNDLE
-      if(f==='reduce'&&(pIsNew||pIsCurrent||pIsOnOrder||pIsBundle))f='ok';
-      // Reorder exclusions: OLD, CLEARANCE, BUNDLE (non-CORE), below MOQ
-      if(f==='reorder'&&(pIsOld||pIsClearance||(pIsBundle&&!pIsCore)))f='ok';
+      const pIsGwp=(p.category||'').toUpperCase().trim()==='GWP';
+      // Reduce exclusions: NEW, CURRENT, ON ORDER, BUNDLE, GWP
+      if(f==='reduce'&&(pIsNew||pIsCurrent||pIsOnOrder||pIsBundle||pIsGwp))f='ok';
+      // Reorder exclusions: OLD, CLEARANCE, BUNDLE (non-CORE), GWP, below MOQ
+      if(f==='reorder'&&(pIsOld||pIsClearance||(pIsBundle&&!pIsCore)||pIsGwp))f='ok';
       if(f==='reorder'&&(p.suggestedOrder||0)<70)f='ok';
       return f;
     })();
+    const pIsGwpFinal=(p.category||'').toUpperCase().trim()==='GWP';
     return{...p,velocity,onOrder,monthDue,
+      suggestedOrder:pIsGwpFinal?0:(p.suggestedOrder||0),
       sellThru7:(p.sold>0&&(p.stock+p.sold)>0)?+(p.sold/(p.stock+p.sold)*100).toFixed(2):null,
       days:days===null?9999:days,
       daysDisplay:days===null?'—':+(days/7).toFixed(1),
