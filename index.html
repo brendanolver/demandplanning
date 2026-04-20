@@ -5787,15 +5787,17 @@ function getSoldInPeriod(salesBySkuDay, sku, days){
 
 function getLifetimeDiscountPerUnit(salesBySkuDay, sku){
   // Returns average discount per unit across all sales history (discount is negative in source)
+  // Guards against missing discountAmt field on rows parsed before the Discounts column was added
   const dayData=salesBySkuDay[sku]||{};
   let totalQty=0, totalDiscount=0;
   for(const d of Object.values(dayData)){
-    if((d.qty||0)>0){
-      totalQty+=d.qty;
-      totalDiscount+=(d.discountAmt||0);
+    const qty=d.qty||0;
+    const disc=isFinite(d.discountAmt)?d.discountAmt:0;
+    if(qty>0){
+      totalQty+=qty;
+      totalDiscount+=disc;
     }
   }
-  // totalDiscount is negative (e.g. -14.95); divide by qty to get per-unit discount
   return totalQty>0?totalDiscount/totalQty:0;
 }
 
@@ -6040,8 +6042,8 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const isActive=activeSet.has(fullTitleUpper)||hasSalesHistory;
     const isPreRelease=isDraftSignal&&stock>0&&isCurrentMonthDelivery&&!hasSalesHistory&&!isActive;
     if(isDraft){
-      // Skip excluded categories entirely
-      const excludedDraftCats=['GWP','MYSTERY BOX','INSURANCE','GIVEAWAY'];
+      // Skip excluded categories entirely (GWP now handled separately for margin purposes)
+      const excludedDraftCats=['MYSTERY BOX','INSURANCE','GIVEAWAY'];
       if(excludedDraftCats.includes((category||'').toUpperCase().trim()))continue;
 
       const vKey=productName+'||'+colour+'||'+size;
@@ -6171,10 +6173,16 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const avgCostPerUnit=brCost||amCost||salesCost;
     const avgDiscountPerUnit=getLifetimeDiscountPerUnit(salesBySkuDay,sku); // negative value
     const grossPrice=price>0?price:0;
-    const netPrice=grossPrice+avgDiscountPerUnit; // discount is negative so this reduces price
+    // Cap discount so netPrice never goes below zero (guards against refund/promo data anomalies)
+    const cappedDiscount=Math.max(avgDiscountPerUnit,-(grossPrice*0.99));
+    const netPrice=grossPrice+cappedDiscount; // discount is negative so this reduces price
     const exGstNetPrice=netPrice>0?netPrice/1.1:0;
     const exGstPrice=grossPrice>0?grossPrice/1.1:0; // used for SOH/sell value (at retail, no discount)
-    const margin=(exGstNetPrice>0&&avgCostPerUnit>0)?+((exGstNetPrice-avgCostPerUnit)/exGstNetPrice*100).toFixed(2):null;
+    // GWP items: zero revenue, cost only — margin% not displayed but cost drags category blended margin
+    const isGwp=(category||'').toUpperCase().trim()==='GWP';
+    // Use discount-adjusted price for margin; fall back to gross if net price is unusable
+    const marginBase=isGwp?0:(exGstNetPrice>0?exGstNetPrice:exGstPrice);
+    const margin=(!isGwp&&marginBase>0&&avgCostPerUnit>0)?+((marginBase-avgCostPerUnit)/marginBase*100).toFixed(2):null;
 
     // SOH Value at cost
     const sohValue=stock>0&&avgCostPerUnit>0?+(stock*avgCostPerUnit).toFixed(2):null;
@@ -6271,6 +6279,9 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
       fullTitle:productName+' - '+colour,productName,colour,size,variant:size,sku,
       category,vendor:effectiveVendor,stock,
       price,compareAt,discountPct,margin,
+      costPerUnit:avgCostPerUnit||0,
+      netExGstPrice:marginBase||0,
+      isGwp:isGwp||false,
       velocity,vel7,vel30,
       sold7:s7.qty,sold14:s14.qty,sold30:s30.qty,sold60:s60.qty,sold90:s90.qty,sold365:s365.qty,
       soldToday,soldYesterday,
@@ -6545,14 +6556,18 @@ function renderKPIs(){
   const reorder=productRows.filter(p=>p.flag==='reorder').length;
   const reduce=productRows.filter(p=>p.flag==='reduce').length;
 
-  // Today's margin — weighted average GP% across units sold today
-  let todayMarginNum=0,todayMarginDen=0;
+  // Today's margin — revenue-weighted GP% on today's sales, GWP contributes cost only
+  let todayRevPool=0,todayCostPool=0;
   for(const r of rows){
     const st=r.soldToday||0;
-    if(st>0&&r.margin!=null){todayMarginNum+=st*r.margin;todayMarginDen+=st;}
+    if(st>0&&(r.costPerUnit||0)>0){
+      todayRevPool+=st*(r.netExGstPrice||0); // GWP netExGstPrice=0
+      todayCostPool+=st*(r.costPerUnit||0);
+    }
   }
-  const todayMargin=todayMarginDen>0?(todayMarginNum/todayMarginDen).toFixed(2)+'%':'—';
-  const todayMarginColor=todayMarginDen===0?'var(--text)':(todayMarginNum/todayMarginDen)>=75?'var(--green)':(todayMarginNum/todayMarginDen)>=70?'var(--amber)':'var(--red)';
+  const todayMarginPct=todayRevPool>0?(todayRevPool-todayCostPool)/todayRevPool*100:null;
+  const todayMargin=todayMarginPct!=null?todayMarginPct.toFixed(2)+'%':'—';
+  const todayMarginColor=todayMarginPct===null?'var(--text)':todayMarginPct>=75?'var(--green)':todayMarginPct>=70?'var(--amber)':'var(--red)';
 
   const kpis=[
     {name:'Total Products',val:totalProducts.toLocaleString(),sub:'Unique styles',ico:'📊',bg:'#eef1fe',ic:'#4f6ef7',click:null},
@@ -6888,7 +6903,7 @@ function toCategory(vr){
     if(!map[key])map[key]={category:key,stock:0,sold:0,sold7:0,sold30:0,sold90:0,sold365:0,
       soldToday:0,soldYesterday:0,suggestedOrder:0,
       onOrder:0,velSum:0,vel7Sum:0,vel30Sum:0,sohValue:0,sellValue:0,
-      marginSum:0,marginCount:0,
+      revenuePool:0,costPool:0,
       productSet:new Set(),
       oosCount:0,critCount:0,earliestDue:'',earliestKey:999999};
     const c=map[key];
@@ -6902,7 +6917,12 @@ function toCategory(vr){
     c.vel30Sum+=(r.vel30||0);
     c.sohValue+=(r.sohValue||0);
     c.sellValue+=(r.sellValue||0);
-    if(r.margin!=null){c.marginSum+=r.margin;c.marginCount++;}
+    // Revenue-weighted margin: GWP contributes cost only (zero revenue)
+    const unitsSold=r.sold||0;
+    if(unitsSold>0&&(r.costPerUnit||0)>0){
+      c.revenuePool+=unitsSold*(r.netExGstPrice||0); // GWP netExGstPrice=0
+      c.costPool+=unitsSold*(r.costPerUnit||0);
+    }
     c.onOrder+=(r.onOrder!==null?(r.onOrder||0):(r.productOnOrder||0));
     c.productSet.add(r.productName+'||'+r.colour);
     if(r.flag==='oos')c.oosCount++;
@@ -6923,7 +6943,7 @@ function toCategory(vr){
     }
     return{...c,products:c.productSet.size,monthDue,
       sellThru7:(c.sold>0&&(c.stock+c.sold)>0)?+(c.sold/(c.stock+c.sold)*100).toFixed(2):null,
-      margin:c.marginCount>0?+(c.marginSum/c.marginCount).toFixed(2):null,
+      margin:c.revenuePool>0?+((c.revenuePool-c.costPool)/c.revenuePool*100).toFixed(2):null,
       vel7:c.vel7Sum||null,vel30:c.vel30Sum||null,
       days:days===null?9999:days,
       daysDisplay:days===null?'—':+(days/7).toFixed(1),
