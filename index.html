@@ -5700,7 +5700,7 @@ function buildSoldOutMap(){
 
 /* ── BUILD SALES MAPS FROM 365-DAY FILE ── */
 function buildSalesMaps(){
-  // salesBySkuDay: {sku: {date: {qty, cogs}}}
+  // salesBySkuDay: {sku: {date: {qty, cogs, discountAmt}}}
   // priceMap: {sku: {price, compareAt, vendor, category, productName, colour, size}}
   const salesBySkuDay={};
   const priceMap={};
@@ -5722,6 +5722,7 @@ function buildSalesMaps(){
     const fullTitle=(row['Product title']||'').trim().toUpperCase();
     const variantTitle=(row['Product variant title']||'').trim();
     const status=(row['Product status']||'').trim().toUpperCase();
+    const discountAmt=parseFloat(row['Discounts']||0)||0; // negative value in CSV
 
     if(!sku||!day)continue;
 
@@ -5729,9 +5730,10 @@ function buildSalesMaps(){
     // Include ALL products (active + draft) in sales history so Cadence is accurate
     if(qty>0){
       if(!salesBySkuDay[sku])salesBySkuDay[sku]={};
-      if(!salesBySkuDay[sku][day])salesBySkuDay[sku][day]={qty:0,cogs:0};
+      if(!salesBySkuDay[sku][day])salesBySkuDay[sku][day]={qty:0,cogs:0,discountAmt:0};
       salesBySkuDay[sku][day].qty+=qty;
       salesBySkuDay[sku][day].cogs+=cogs;
+      salesBySkuDay[sku][day].discountAmt+=discountAmt; // accumulate discount (negative)
     }
 
     // Store price/meta info
@@ -5781,6 +5783,20 @@ function getSoldInPeriod(salesBySkuDay, sku, days){
     if(day>=cutoffLocal&&day<=todayLocal){qty+=d.qty;cogs+=d.cogs;}
   }
   return{qty,cogs};
+}
+
+function getLifetimeDiscountPerUnit(salesBySkuDay, sku){
+  // Returns average discount per unit across all sales history (discount is negative in source)
+  const dayData=salesBySkuDay[sku]||{};
+  let totalQty=0, totalDiscount=0;
+  for(const d of Object.values(dayData)){
+    if((d.qty||0)>0){
+      totalQty+=d.qty;
+      totalDiscount+=(d.discountAmt||0);
+    }
+  }
+  // totalDiscount is negative (e.g. -14.95); divide by qty to get per-unit discount
+  return totalQty>0?totalDiscount/totalQty:0;
 }
 
 /* ── AM DATA ── */
@@ -6149,11 +6165,16 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const vel30=s30.qty>0?s30.qty/30*7:null; // weekly rate from 30d
 
     // Margin — uses ex-GST sell price (price ÷ 1.1 to remove 10% GST)
+    // Discount-adjusted: average discount per unit across lifetime sales reduces effective revenue
     // Cost priority: 1) Better Reports, 2) AM, 3) 365-day COGS/qty
     const salesCost=s365.qty>0?s365.cogs/s365.qty:(sold>0?cogs/sold:0);
     const avgCostPerUnit=brCost||amCost||salesCost;
-    const exGstPrice=price>0?price/1.1:0;
-    const margin=(exGstPrice>0&&avgCostPerUnit>0)?+((exGstPrice-avgCostPerUnit)/exGstPrice*100).toFixed(2):null;
+    const avgDiscountPerUnit=getLifetimeDiscountPerUnit(salesBySkuDay,sku); // negative value
+    const grossPrice=price>0?price:0;
+    const netPrice=grossPrice+avgDiscountPerUnit; // discount is negative so this reduces price
+    const exGstNetPrice=netPrice>0?netPrice/1.1:0;
+    const exGstPrice=grossPrice>0?grossPrice/1.1:0; // used for SOH/sell value (at retail, no discount)
+    const margin=(exGstNetPrice>0&&avgCostPerUnit>0)?+((exGstNetPrice-avgCostPerUnit)/exGstNetPrice*100).toFixed(2):null;
 
     // SOH Value at cost
     const sohValue=stock>0&&avgCostPerUnit>0?+(stock*avgCostPerUnit).toFixed(2):null;
