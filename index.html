@@ -138,18 +138,18 @@ input[type="file"]{display:none;}
 .main{overflow-y:auto;padding:20px;background:var(--bg);min-height:0;}
 
 /* KPI GRID */
-.kpi-row{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:20px;}
-.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:12px 14px;box-shadow:var(--shadow-xs);transition:box-shadow 0.15s;}
+.kpi-row{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:20px;}
+.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 18px;box-shadow:var(--shadow-xs);transition:box-shadow 0.15s;}
 .kpi-card.kpi-clickable:hover{box-shadow:var(--shadow-md);transform:translateY(-1px);}
 .kpi-card.kpi-clickable{transition:box-shadow 0.15s,transform 0.15s;}
-.kpi-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
-.kpi-name{font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;}
-.kpi-ico{width:26px;height:26px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;font-size:12px;}
-.kpi-val{font-size:20px;font-weight:700;color:var(--text);letter-spacing:-0.5px;line-height:1;margin-bottom:3px;}
-.kpi-sub{font-size:10px;color:var(--text-muted);}
+.kpi-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.kpi-name{font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;}
+.kpi-ico{width:30px;height:30px;border-radius:var(--r-sm);display:flex;align-items:center;justify-content:center;font-size:14px;}
+.kpi-val{font-size:26px;font-weight:700;color:var(--text);letter-spacing:-0.5px;line-height:1;margin-bottom:3px;}
+.kpi-sub{font-size:11px;color:var(--text-muted);}
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
 .kpi-card{animation:fadeUp 0.35s ease both;}
-.kpi-card:nth-child(1){animation-delay:0.04s}.kpi-card:nth-child(2){animation-delay:0.08s}.kpi-card:nth-child(3){animation-delay:0.12s}.kpi-card:nth-child(4){animation-delay:0.16s}.kpi-card:nth-child(5){animation-delay:0.20s}.kpi-card:nth-child(6){animation-delay:0.24s}.kpi-card:nth-child(7){animation-delay:0.28s}
+.kpi-card:nth-child(1){animation-delay:0.04s}.kpi-card:nth-child(2){animation-delay:0.08s}.kpi-card:nth-child(3){animation-delay:0.12s}.kpi-card:nth-child(4){animation-delay:0.16s}.kpi-card:nth-child(5){animation-delay:0.20s}.kpi-card:nth-child(6){animation-delay:0.24s}
 
 /* TOOLBAR */
 .toolbar{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:14px;box-shadow:var(--shadow-xs);}
@@ -247,7 +247,7 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .rp-other{background:var(--surface2);color:var(--text-secondary);}
 
 /* Planning */
-.plan-table-wrap{overflow-x:auto;margin-bottom:24px;padding-bottom:48px;-webkit-overflow-scrolling:touch;}
+.plan-table-wrap{overflow-x:auto;margin-bottom:24px;-webkit-overflow-scrolling:touch;}
 .plan-table{width:100%;border-collapse:collapse;font-size:12px;}
 .plan-table th{background:var(--navy);color:var(--navy-text);padding:8px 10px;text-align:center;font-weight:600;font-size:11px;white-space:nowrap;border:1px solid var(--navy-border);position:sticky;top:0;z-index:10;}
 .plan-table th.plan-th-left{position:sticky;top:0;left:0;z-index:20;}
@@ -786,10 +786,6 @@ th{position:relative;}
         <button class="screen-btn" id="btn-insights" onclick="showScreen('insights')">💡 Insights</button>
         <button class="screen-btn" id="btn-planning" onclick="showScreen('planning')">📋 Planning</button>
         <button class="screen-btn" id="btn-markdowns" onclick="showScreen('markdowns')">📝 Working</button>
-      </div>
-      <div id="global-core-toggle" style="display:none;background:var(--surface);border:1px solid var(--navy-border);border-radius:var(--r);overflow:hidden;flex-shrink:0;">
-        <button id="gcf-all" onclick="setGlobalCoreFilter('all')" style="padding:5px 12px;font-size:11.5px;font-weight:600;font-family:'Inter',sans-serif;border:none;cursor:pointer;background:var(--teal);color:white;transition:all 0.15s;">All</button>
-        <button id="gcf-core" onclick="setGlobalCoreFilter('core')" style="padding:5px 12px;font-size:11.5px;font-weight:600;font-family:'Inter',sans-serif;border:none;cursor:pointer;background:transparent;color:var(--navy-text);transition:all 0.15s;">Core</button>
       </div>
       <div class="period-selector" id="period-selector" style="display:none;">
         <span class="period-label">Period:</span>
@@ -1727,8 +1723,6 @@ function showScreen(screen){
   periodSelector.style.display=(!isTouch&&screen==='dashboard')?'flex':'none';
   if(periodBar)periodBar.style.display=(isTouch&&screen==='dashboard')?'flex':'none';
   exportBtn.style.display=screen==='dashboard'?'':'none';
-  const globalToggle=document.getElementById('global-core-toggle');
-  if(globalToggle) globalToggle.style.display=['dashboard','cadence','planning','markdowns'].includes(screen)?'flex':'none';
   if(screen==='insights'){
     document.getElementById('insights-period-label').textContent=selectedPeriod+'d';
     document.getElementById('insights-sku-count').textContent=allVariantRows.length.toLocaleString();
@@ -1744,8 +1738,6 @@ let cadenceSortCol=null; // null = default order, 'soh', or period label
 let cadenceSortDir='desc';
 let planSortCol='category';
 let planSortDir='asc';
-let planCoreFilter='all'; // 'core' | 'all'
-let globalCoreFilter='all'; // 'core' | 'all' — global toggle across all views
 let mdSortCol='productName';
 let mdSortDir='asc';
 let cadenceView='cat';
@@ -1795,9 +1787,8 @@ function cadenceCompareSearch(){
   // Build product-level disc/flag maps for filtering
   const productDiscMap={};
   const productFlagMap={};
-  const _activeRows=getActiveRows();
   if(selectedDiscs.length||selectedFlags.length){
-    for(const r of _activeRows){
+    for(const r of allVariantRows){
       if(r.amOnly)continue;
       const k=r.productName+'||'+r.colour;
       if(productDiscMap[k]===undefined)productDiscMap[k]=r.discountPct||0;
@@ -1807,7 +1798,7 @@ function cadenceCompareSearch(){
 
   // Get unique product+colour combos matching search and filters
   const matches=new Map();
-  for(const r of _activeRows){
+  for(const r of allVariantRows){
     if(r.amOnly)continue;
     const k=r.productName+'||'+r.colour;
     if(matches.has(k))continue;
@@ -2361,21 +2352,14 @@ function renderCadence(){
   const totals={};
   for(const p of periods)totals[p.label]=0;
 
-  const activeRows=getActiveRows();
-  const activeSKUs=globalCoreFilter==='core'?new Set(activeRows.map(r=>r.sku)):null;
-
   let rowKeys, rowLabel, getKey;
   if(cadenceView==='cat'){
     // Use ALL SKUs including draft for accurate historical category totals
-    // When core filter active, restrict to core SKUs only
     const skuCatMap=window._skuCategoryMap||{};
-    const filteredSkuCatMap=activeSKUs
-      ?Object.fromEntries(Object.entries(skuCatMap).filter(([sku])=>activeSKUs.has(sku)))
-      :skuCatMap;
-    rowKeys=[...new Set(Object.values(filteredSkuCatMap).filter(Boolean))].sort();
+    rowKeys=[...new Set(Object.values(skuCatMap).filter(Boolean))].sort();
     rowLabel='Category';
     // For category view, sum directly from _salesBySkuDay using skuCatMap
-    for(const[sku,cat] of Object.entries(filteredSkuCatMap)){
+    for(const[sku,cat] of Object.entries(skuCatMap)){
       if(!data[cat])data[cat]={};
       const skuDays=getSoldInPeriodBreakdown(sku,periods);
       for(const p of periods){
@@ -2394,14 +2378,14 @@ function renderCadence(){
     // Build product-level aggregates for disc/flag filtering
     const productDiscMap={};   // key → discountPct
     const productFlagMap={};   // key → flag
-    for(const r of activeRows){
+    for(const r of allVariantRows){
       if(r.amOnly)continue;
       const k=r.productName+'||'+r.colour;
       if(productDiscMap[k]===undefined)productDiscMap[k]=r.discountPct||0;
       if(productFlagMap[k]===undefined)productFlagMap[k]=r.flag||'ok';
     }
     const prodSet=new Map();
-    for(const r of activeRows){
+    for(const r of allVariantRows){
       if(r.amOnly)continue;
       if(selectedStatuses.length&&!selectedStatuses.includes(r.vendor))continue;
       if(selectedCats.length&&!selectedCats.includes(r.category))continue;
@@ -2436,7 +2420,7 @@ function renderCadence(){
     for(const k of rowKeys)data[k]={};
     for(const p of periods)totals[p.label]=0;
 
-    for(const row of activeRows){
+    for(const row of allVariantRows){
       if(row.amOnly)continue;
       const k=getKey(row);
       if(!data[k])continue;
@@ -2449,11 +2433,15 @@ function renderCadence(){
   }
 
   // Build SOH and On Order maps per row key
+  // On Order must be deduplicated by product+colour — it's stored on every variant row
+  // so summing across variants would multiply it by the number of sizes
+  // productOnOrder = product-level total from AM; onOrder = variant-level
+  // Use productOnOrder as the single source of truth, deduplicated per product+colour
   const sohByKey={};
   const onOrderByKey={};
   const _onOrderSeen=new Set();
   if(cadenceView==='cat'){
-    for(const r of activeRows){
+    for(const r of allVariantRows){
       const c=r.category||'UNCATEGORISED';
       sohByKey[c]=(sohByKey[c]||0)+(r.stock||0);
       const dedupeKey=c+'||'+r.productName+'||'+r.colour;
@@ -2464,7 +2452,7 @@ function renderCadence(){
       }
     }
   } else {
-    for(const r of activeRows){
+    for(const r of allVariantRows){
       const k=r.productName+'||'+r.colour;
       sohByKey[k]=(sohByKey[k]||0)+(r.stock||0);
       if(!_onOrderSeen.has(k)){
@@ -2789,11 +2777,10 @@ function getPlanMonths(){
   return months;
 }
 
-function getLYSalesByCategory(months,allowedSkus){
+function getLYSalesByCategory(months){
   const result={};
   if(!window._salesBySkuDay||!window._skuCategoryMap)return result;
   for(const[sku,cat] of Object.entries(window._skuCategoryMap)){
-    if(allowedSkus&&!allowedSkus.has(sku))continue;
     const dayData=window._salesBySkuDay[sku]||{};
     if(!result[cat])result[cat]={};
     for(const[day,d] of Object.entries(dayData)){
@@ -2815,10 +2802,9 @@ function getLYSalesByCategory(months,allowedSkus){
   return result;
 }
 
-function getAMOnOrderByCategory(months,planRows){
+function getAMOnOrderByCategory(months){
   const result={};
-  const rows=planRows||allVariantRows;
-  for(const row of rows){
+  for(const row of allVariantRows){
     const cat=row.category||'UNCATEGORISED';
     if(!result[cat])result[cat]={};
     const onOrder=row.onOrder||0;
@@ -2841,35 +2827,6 @@ function setPlanSort(col){
   renderPlanning();
 }
 
-function setGlobalCoreFilter(val){
-  globalCoreFilter=val;
-  const allBtn=document.getElementById('gcf-all');
-  const coreBtn=document.getElementById('gcf-core');
-  if(allBtn){allBtn.style.background=val==='all'?'var(--teal)':'transparent';allBtn.style.color=val==='all'?'white':'var(--navy-text)';}
-  if(coreBtn){coreBtn.style.background=val==='core'?'var(--teal)':'transparent';coreBtn.style.color=val==='core'?'white':'var(--navy-text)';}
-  // Sync planCoreFilter
-  planCoreFilter=val;
-  // Re-render current screen
-  if(currentScreen==='dashboard') renderTable();
-  else if(currentScreen==='cadence') renderCadence();
-  else if(currentScreen==='planning') renderPlanning();
-  else if(currentScreen==='markdowns') setWorkingView(workingView);
-}
-
-function getActiveRows(){
-  return globalCoreFilter==='core'?allVariantRows.filter(r=>r.vendor==='CORE'):allVariantRows;
-}
-
-function setPlanCoreFilter(val){
-  planCoreFilter=val;
-  globalCoreFilter=val;
-  const gcfAll=document.getElementById('gcf-all');
-  const gcfCore=document.getElementById('gcf-core');
-  if(gcfAll){gcfAll.style.background=val==='all'?'var(--teal)':'transparent';gcfAll.style.color=val==='all'?'white':'var(--navy-text)';}
-  if(gcfCore){gcfCore.style.background=val==='core'?'var(--teal)':'transparent';gcfCore.style.color=val==='core'?'white':'var(--navy-text)';}
-  renderPlanning();
-}
-
 function renderPlanning(){
   if(!allVariantRows||allVariantRows.length===0){
     document.getElementById('planning-body').innerHTML=`<div class="insights-error">⚠️ No data loaded yet. Please upload your files and analyse first.</div>`;
@@ -2877,17 +2834,14 @@ function renderPlanning(){
   }
 
   const months=getPlanMonths();
-  const _basePlanRows=getActiveRows();
-  const planRows=planCoreFilter==='core'?_basePlanRows.filter(r=>r.vendor==='CORE'):_basePlanRows;
-  const allowedSkus=planCoreFilter==='core'?new Set(planRows.map(r=>r.sku)):null;
-  const cats=[...new Set(planRows.filter(r=>!r.amOnly).map(r=>r.category||'UNCATEGORISED'))].sort();
-  const lyData=getLYSalesByCategory(months,allowedSkus);
-  const onOrderData=getAMOnOrderByCategory(months,planRows);
+  const cats=[...new Set(allVariantRows.filter(r=>!r.amOnly).map(r=>r.category||'UNCATEGORISED'))].sort();
+  const lyData=getLYSalesByCategory(months);
+  const onOrderData=getAMOnOrderByCategory(months);
   const saved=getPlanningData();
   const coverMonths=Math.max(1,Math.min(12,parseInt(saved['cover_months'])||2));
 
   const catSoh={},catVel30={};
-  for(const r of planRows){
+  for(const r of allVariantRows){
     const c=r.category||'UNCATEGORISED';
     catSoh[c]=(catSoh[c]||0)+r.stock;
     catVel30[c]=(catVel30[c]||0)+(r.sold30||0)/30;
@@ -4224,12 +4178,11 @@ function renderReorders(){
   const saved=getRoData();
   const search=(document.getElementById('ro-search')?.value||'').trim().toUpperCase();
 
-  const _roActiveRows=getActiveRows();
   // Build full product list — include all products with stock or on order
-  const _stockSet=new Set(_roActiveRows
+  const _stockSet=new Set(allVariantRows
     .filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)
     .map(r=>r.productName+'||'+r.colour));
-  const allProductsRo=[...toProduct(_roActiveRows.filter(r=>
+  const allProductsRo=[...toProduct(allVariantRows.filter(r=>
     !r.amOnly&&((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)
   ))];
 
@@ -4953,12 +4906,12 @@ function renderMarkdowns(){
   const saved=getMdData();
   const search=(document.getElementById('md-search')?.value||'').trim().toUpperCase();
 
-  const _mdActiveRows=getActiveRows();
-  // Build product list — use active rows for sold figures
+  // Get all products
+  // Build product list — use ALL variants for sold figures (so OOS sizes contribute to sold totals)
   // but only show products that have stock or on order
-  const allProductsFullSales=[...toProduct(_mdActiveRows)];
+  const allProductsFullSales=[...toProduct(allVariantRows)];
   const hasStockOrOrder=new Set(
-    _mdActiveRows.filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)
+    allVariantRows.filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)
       .map(r=>r.productName+'||'+r.colour)
   );
   const allProducts=allProductsFullSales.filter(p=>hasStockOrOrder.has(p.productName+'||'+p.colour));
@@ -5101,6 +5054,16 @@ function renderMarkdowns(){
       </td>
       <td class="cell-muted">${p.category||'—'}</td>
       <td style="padding:6px 8px;font-size:12px;color:${(p.discountPct||0)>0?'var(--red)':'var(--text-secondary)'};">${disc}</td>
+      <td style="padding:5px 8px;text-align:center;">
+        <div style="display:flex;align-items:center;gap:3px;justify-content:center;">
+          <input type="number" min="0" max="90" step="5" placeholder="%" value="${pct}"
+            style="width:72px;padding:6px 8px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:14px;font-weight:600;text-align:center;outline:none;"
+            oninput="mdSavePct('${safeKey}',this.value)" onblur="renderMarkdowns()" onkeydown="if(event.key==='Enter'){renderMarkdowns();this.blur();}"
+            onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
+          <span style="font-size:11px;color:var(--text-muted);">%</span>
+        </div>
+      </td>
+      <td class="cell-num">${proposedPrice?`<span style="color:var(--red);font-weight:700;">$${proposedPrice}</span>`:'—'}</td>
       <td style="padding:6px 8px;"><span class="range-pill ${vendorCls}">${p.vendor||'—'}</span></td>
       <td style="padding:6px 8px;font-size:12px;">${p.deliveryMonth==='CORE'?'<span style="font-size:11px;font-weight:600;color:var(--blue);">CORE</span>':p.deliveryMonth?`<span style="font-size:12px;font-weight:500;color:var(--text-secondary);">${p.deliveryMonth}</span>`:'—'}</td>
       <td class="cell-num">${st!=null?st+'%':'—'}</td>
@@ -5118,16 +5081,6 @@ function renderMarkdowns(){
       <td class="cell-num">${mg}</td>
       <td class="cell-num">${p.daysDisplay&&p.daysDisplay!=='—'&&p.daysDisplay!==9999?p.daysDisplay+'w':'—'}</td>
       <td style="padding:6px 8px;"><span class="stock-pill ${flagPillCls[p.flag]||''}">${SL[p.flag]||p.flag||'—'}</span></td>
-      <td style="padding:5px 8px;text-align:center;">
-        <div style="display:flex;align-items:center;gap:3px;justify-content:center;">
-          <input type="number" min="0" max="90" step="5" placeholder="%" value="${pct}"
-            style="width:72px;padding:6px 8px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:14px;font-weight:600;text-align:center;outline:none;"
-            oninput="mdSavePct('${safeKey}',this.value)" onblur="renderMarkdowns()" onkeydown="if(event.key==='Enter'){renderMarkdowns();this.blur();}"
-            onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
-          <span style="font-size:11px;color:var(--text-muted);">%</span>
-        </div>
-      </td>
-      <td class="cell-num">${proposedPrice?`<span style="color:var(--red);font-weight:700;">$${proposedPrice}</span>`:'—'}</td>
     </tr>`;
   }).join('');
 
@@ -5138,6 +5091,8 @@ function renderMarkdowns(){
       <th style="min-width:180px;white-space:nowrap;">New Collection</th>
       <th style="${thS}" onclick="setMdSort('category')">Category${mdArrow('category')}</th>
       <th style="${thS}" onclick="setMdSort('discountPct')">Disc%${mdArrow('discountPct')}</th>
+      <th style="text-align:center;min-width:100px;">Proposed %</th>
+      <th style="text-align:right;">New Price</th>
       <th style="${thS}" onclick="setMdSort('vendor')">Status${mdArrow('vendor')}</th>
       <th style="${thS}" onclick="setMdSort('deliveryMonth')">Month Del${mdArrow('deliveryMonth')}</th>
       <th style="${thS}text-align:right;" onclick="setMdSort('sellThru7')">${stLabel}${mdArrow('sellThru7')}</th>
@@ -5155,8 +5110,6 @@ function renderMarkdowns(){
       <th style="${thS}text-align:right;" onclick="setMdSort('margin')">Margin%${mdArrow('margin')}</th>
       <th style="${thS}text-align:right;" onclick="setMdSort('days')">Wks Cover${mdArrow('days')}</th>
       <th style="${thS}" onclick="setMdSort('flag')">Stock Status${mdArrow('flag')}</th>
-      <th style="text-align:center;min-width:100px;">Proposed %</th>
-      <th style="text-align:right;">New Price</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
@@ -5700,7 +5653,7 @@ function buildSoldOutMap(){
 
 /* ── BUILD SALES MAPS FROM 365-DAY FILE ── */
 function buildSalesMaps(){
-  // salesBySkuDay: {sku: {date: {qty, cogs, discountAmt}}}
+  // salesBySkuDay: {sku: {date: {qty, cogs}}}
   // priceMap: {sku: {price, compareAt, vendor, category, productName, colour, size}}
   const salesBySkuDay={};
   const priceMap={};
@@ -5722,7 +5675,6 @@ function buildSalesMaps(){
     const fullTitle=(row['Product title']||'').trim().toUpperCase();
     const variantTitle=(row['Product variant title']||'').trim();
     const status=(row['Product status']||'').trim().toUpperCase();
-    const discountAmt=parseFloat(row['Discounts']||0)||0; // negative value in CSV
 
     if(!sku||!day)continue;
 
@@ -5730,10 +5682,9 @@ function buildSalesMaps(){
     // Include ALL products (active + draft) in sales history so Cadence is accurate
     if(qty>0){
       if(!salesBySkuDay[sku])salesBySkuDay[sku]={};
-      if(!salesBySkuDay[sku][day])salesBySkuDay[sku][day]={qty:0,cogs:0,discountAmt:0};
+      if(!salesBySkuDay[sku][day])salesBySkuDay[sku][day]={qty:0,cogs:0};
       salesBySkuDay[sku][day].qty+=qty;
       salesBySkuDay[sku][day].cogs+=cogs;
-      salesBySkuDay[sku][day].discountAmt+=discountAmt; // accumulate discount (negative)
     }
 
     // Store price/meta info
@@ -5783,22 +5734,6 @@ function getSoldInPeriod(salesBySkuDay, sku, days){
     if(day>=cutoffLocal&&day<=todayLocal){qty+=d.qty;cogs+=d.cogs;}
   }
   return{qty,cogs};
-}
-
-function getLifetimeDiscountPerUnit(salesBySkuDay, sku){
-  // Returns average discount per unit across all sales history (discount is negative in source)
-  // Guards against missing discountAmt field on rows parsed before the Discounts column was added
-  const dayData=salesBySkuDay[sku]||{};
-  let totalQty=0, totalDiscount=0;
-  for(const d of Object.values(dayData)){
-    const qty=d.qty||0;
-    const disc=isFinite(d.discountAmt)?d.discountAmt:0;
-    if(qty>0){
-      totalQty+=qty;
-      totalDiscount+=disc;
-    }
-  }
-  return totalQty>0?totalDiscount/totalQty:0;
 }
 
 /* ── AM DATA ── */
@@ -6042,8 +5977,8 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const isActive=activeSet.has(fullTitleUpper)||hasSalesHistory;
     const isPreRelease=isDraftSignal&&stock>0&&isCurrentMonthDelivery&&!hasSalesHistory&&!isActive;
     if(isDraft){
-      // Skip excluded categories entirely (GWP now handled separately for margin purposes)
-      const excludedDraftCats=['MYSTERY BOX','INSURANCE','GIVEAWAY'];
+      // Skip excluded categories entirely
+      const excludedDraftCats=['GWP','MYSTERY BOX','INSURANCE','GIVEAWAY'];
       if(excludedDraftCats.includes((category||'').toUpperCase().trim()))continue;
 
       const vKey=productName+'||'+colour+'||'+size;
@@ -6076,7 +6011,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     // Use price list if uploaded (matched by product title), fall back to sales file prices
     const price=plEntry?plEntry.price:(pm.price||0);
     const compareAt=plEntry?plEntry.compareAt:(pm.compareAt||pm.price||0);
-    const isCore=coreSet.has(productName+' - '+colour);
+    const isCore=(vendor||'').toUpperCase()==='CORE'||coreSet.has(productName+' - '+colour);
 
     // Delivery month: SKU decode is authoritative; Better Reports as fallback; CORE always shows CORE; AM as last resort
     let deliveryMonth='';
@@ -6138,7 +6073,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     // - Not discounted (no markdown applied)
     // - CORE, OR delivered within last 2 months, OR 30d sell-through >= 30%
     const isDiscounted=(compareAt>0&&price>0&&price<compareAt);
-    const isCoreSku=coreSet.has(productName+' - '+colour);
+    const isCoreSku=(vendor||'').toUpperCase()==='CORE'||coreSet.has(productName+' - '+colour);
     // Delivered within last 2 months — check SKU decode
     const skuDeliveryRaw=decodeSkuDelivery(sku);
     let deliveredRecently=false;
@@ -6167,22 +6102,11 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const vel30=s30.qty>0?s30.qty/30*7:null; // weekly rate from 30d
 
     // Margin — uses ex-GST sell price (price ÷ 1.1 to remove 10% GST)
-    // Discount-adjusted: average discount per unit across lifetime sales reduces effective revenue
     // Cost priority: 1) Better Reports, 2) AM, 3) 365-day COGS/qty
     const salesCost=s365.qty>0?s365.cogs/s365.qty:(sold>0?cogs/sold:0);
     const avgCostPerUnit=brCost||amCost||salesCost;
-    const avgDiscountPerUnit=getLifetimeDiscountPerUnit(salesBySkuDay,sku); // negative value
-    const grossPrice=price>0?price:0;
-    // Cap discount so netPrice never goes below zero (guards against refund/promo data anomalies)
-    const cappedDiscount=Math.max(avgDiscountPerUnit,-(grossPrice*0.99));
-    const netPrice=grossPrice+cappedDiscount; // discount is negative so this reduces price
-    const exGstNetPrice=netPrice>0?netPrice/1.1:0;
-    const exGstPrice=grossPrice>0?grossPrice/1.1:0; // used for SOH/sell value (at retail, no discount)
-    // GWP items: zero revenue, cost only — margin% not displayed but cost drags category blended margin
-    const isGwp=(category||'').toUpperCase().trim()==='GWP';
-    // Use discount-adjusted price for margin; fall back to gross if net price is unusable
-    const marginBase=isGwp?0:(exGstNetPrice>0?exGstNetPrice:exGstPrice);
-    const margin=(!isGwp&&marginBase>0&&avgCostPerUnit>0)?+((marginBase-avgCostPerUnit)/marginBase*100).toFixed(2):null;
+    const exGstPrice=price>0?price/1.1:0;
+    const margin=(exGstPrice>0&&avgCostPerUnit>0)?+((exGstPrice-avgCostPerUnit)/exGstPrice*100).toFixed(2):null;
 
     // SOH Value at cost
     const sohValue=stock>0&&avgCostPerUnit>0?+(stock*avgCostPerUnit).toFixed(2):null;
@@ -6279,9 +6203,6 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
       fullTitle:productName+' - '+colour,productName,colour,size,variant:size,sku,
       category,vendor:effectiveVendor,stock,
       price,compareAt,discountPct,margin,
-      costPerUnit:avgCostPerUnit||0,
-      netExGstPrice:marginBase||0,
-      isGwp:isGwp||false,
       velocity,vel7,vel30,
       sold7:s7.qty,sold14:s14.qty,sold30:s30.qty,sold60:s60.qty,sold90:s90.qty,sold365:s365.qty,
       soldToday,soldYesterday,
@@ -6543,7 +6464,7 @@ function buildDashboard(){
 }
 
 function renderKPIs(){
-  const rows=getActiveRows();
+  const rows=allVariantRows;
   const totalSoh=rows.reduce((s,r)=>s+(r.stock||0),0);
   const totalSold=rows.reduce((s,r)=>s+(r.sold||0),0);
   const onOrder=rows.reduce((s,r)=>s+(r.onOrder||0),0);
@@ -6556,25 +6477,11 @@ function renderKPIs(){
   const reorder=productRows.filter(p=>p.flag==='reorder').length;
   const reduce=productRows.filter(p=>p.flag==='reduce').length;
 
-  // Today's margin — revenue-weighted GP% on today's sales, GWP contributes cost only
-  let todayRevPool=0,todayCostPool=0;
-  for(const r of rows){
-    const st=r.soldToday||0;
-    if(st>0&&(r.costPerUnit||0)>0){
-      todayRevPool+=st*(r.netExGstPrice||0); // GWP netExGstPrice=0
-      todayCostPool+=st*(r.costPerUnit||0);
-    }
-  }
-  const todayMarginPct=todayRevPool>0?(todayRevPool-todayCostPool)/todayRevPool*100:null;
-  const todayMargin=todayMarginPct!=null?todayMarginPct.toFixed(2)+'%':'—';
-  const todayMarginColor=todayMarginPct===null?'var(--text)':todayMarginPct>=75?'var(--green)':todayMarginPct>=70?'var(--amber)':'var(--red)';
-
   const kpis=[
     {name:'Total Products',val:totalProducts.toLocaleString(),sub:'Unique styles',ico:'📊',bg:'#eef1fe',ic:'#4f6ef7',click:null},
     {name:'SOH',val:totalSoh.toLocaleString(),sub:'Units on hand',ico:'📦',bg:'#e6f7f7',ic:'var(--teal)',click:null},
     {name:`Units Sold (${selectedPeriod}d)`,val:totalSold.toLocaleString(),sub:`Last ${selectedPeriod} days`,ico:'🛍️',bg:'#dcfce7',ic:'var(--green)',click:null},
     {name:'On Order',val:onOrder.toLocaleString(),sub:'Total units on order',ico:'🚚',bg:'#f3e8ff',ic:'#7c3aed',click:null},
-    {name:"Today's Margin",val:todayMargin,sub:"Wtd avg GP% on today's sales",ico:'💹',bg:'#ecfdf5',ic:'var(--green)',valColor:todayMarginColor,click:null},
     {name:'Re-Order',val:reorder.toLocaleString(),sub:'≤14 weeks cover',ico:'⚠️',bg:'#fef9c3',ic:'#854d0e',click:"kpiDrillDown('reorder')"},
     {name:'Reduce',val:reduce.toLocaleString(),sub:'26w+ cover, no order',ico:'🏷️',bg:'#fee2e2',ic:'var(--red)',click:"kpiDrillDown('reduce')"},
   ];
@@ -6584,7 +6491,7 @@ function renderKPIs(){
         <div class="kpi-name">${k.name}${k.click?` <span style="font-size:10px;color:var(--text-muted);font-weight:400;">↗</span>`:''}</div>
         <div class="kpi-ico" style="background:${k.bg};color:${k.ic}">${k.ico}</div>
       </div>
-      <div class="kpi-val" style="color:${k.valColor||'var(--text)'}">${k.val}</div>
+      <div class="kpi-val">${k.val}</div>
       <div class="kpi-sub">${k.sub}</div>
     </div>`).join('');
 }
@@ -6683,40 +6590,20 @@ function toggleDashboardCollapse(){
 }
 
 function kpiDrillDown(flag){
-  if(flag==='reorder'){
-    // Navigate to Working > Re-Orders
-    showScreen('markdowns');
-    setWorkingView('reorders');
-    // Wait for filters to populate then apply reorder flag only
-    setTimeout(()=>{
-      // Reset all ro filters to all-checked
-      ['cat','vendor','disc','delmonth'].forEach(type=>{
-        document.querySelectorAll(`#ms-ro-${type}-options input`).forEach(b=>b.checked=true);
-        roUpdateLabel(type);
-      });
-      document.querySelectorAll('#ms-ro-flag-options input[type="checkbox"]').forEach(b=>{
-        b.checked=b.value==='reorder';
-      });
-      roUpdateLabel('flag');
-      renderReorders();
-    },50);
-  } else if(flag==='reduce'){
-    // Navigate to Working > Markdowns
-    showScreen('markdowns');
-    setWorkingView('markdowns');
-    setTimeout(()=>{
-      // Reset all md filters to all-checked
-      ['cat','vendor','disc','soldout','delmonth'].forEach(type=>{
-        document.querySelectorAll(`#ms-md-${type}-options input`).forEach(b=>b.checked=true);
-        mdUpdateLabel(type);
-      });
-      document.querySelectorAll('#ms-md-flag-options input[type="checkbox"]').forEach(b=>{
-        b.checked=b.value==='reduce';
-      });
-      mdUpdateLabel('flag');
-      renderMarkdowns();
-    },50);
-  }
+  // Expand if collapsed so filters are visible
+  if(dashboardCollapsed)toggleDashboardCollapse();
+  // Switch to product view
+  setView('product');
+  // Clear ALL filters first, then set only the flag filter
+  document.getElementById('search-input').value='';
+  // Reset all dropdowns to "all checked"
+  ['cat','vendor','disc','soldout','delmonth'].forEach(type=>{
+    document.querySelectorAll(`#ms-${type}-options input`).forEach(b=>b.checked=true);
+    updateLabel(type, type==='cat'?'All Categories':type==='vendor'?'All Statuses':type==='disc'?'Discount %':type==='soldout'?'Sizes Sold Out':'Month Del');
+  });
+  // Then apply only the flag filter
+  quickFlag(flag);
+  document.querySelector('.main')?.scrollTo({top:0,behavior:'smooth'});
 }
 
 function quickFlag(f){
@@ -6903,7 +6790,7 @@ function toCategory(vr){
     if(!map[key])map[key]={category:key,stock:0,sold:0,sold7:0,sold30:0,sold90:0,sold365:0,
       soldToday:0,soldYesterday:0,suggestedOrder:0,
       onOrder:0,velSum:0,vel7Sum:0,vel30Sum:0,sohValue:0,sellValue:0,
-      revenuePool:0,costPool:0,
+      marginSum:0,marginCount:0,
       productSet:new Set(),
       oosCount:0,critCount:0,earliestDue:'',earliestKey:999999};
     const c=map[key];
@@ -6917,12 +6804,7 @@ function toCategory(vr){
     c.vel30Sum+=(r.vel30||0);
     c.sohValue+=(r.sohValue||0);
     c.sellValue+=(r.sellValue||0);
-    // Revenue-weighted margin: GWP contributes cost only (zero revenue)
-    const unitsSold=r.sold||0;
-    if(unitsSold>0&&(r.costPerUnit||0)>0){
-      c.revenuePool+=unitsSold*(r.netExGstPrice||0); // GWP netExGstPrice=0
-      c.costPool+=unitsSold*(r.costPerUnit||0);
-    }
+    if(r.margin!=null){c.marginSum+=r.margin;c.marginCount++;}
     c.onOrder+=(r.onOrder!==null?(r.onOrder||0):(r.productOnOrder||0));
     c.productSet.add(r.productName+'||'+r.colour);
     if(r.flag==='oos')c.oosCount++;
@@ -6943,7 +6825,7 @@ function toCategory(vr){
     }
     return{...c,products:c.productSet.size,monthDue,
       sellThru7:(c.sold>0&&(c.stock+c.sold)>0)?+(c.sold/(c.stock+c.sold)*100).toFixed(2):null,
-      margin:c.revenuePool>0?+((c.revenuePool-c.costPool)/c.revenuePool*100).toFixed(2):null,
+      margin:c.marginCount>0?+(c.marginSum/c.marginCount).toFixed(2):null,
       vel7:c.vel7Sum||null,vel30:c.vel30Sum||null,
       days:days===null?9999:days,
       daysDisplay:days===null?'—':+(days/7).toFixed(1),
@@ -7073,7 +6955,7 @@ function getFilteredRows(){
   const search=document.getElementById('search-input').value.trim().toUpperCase();
 
   // Filter at variant level for variant view; post-aggregation for product view
-  let baseRows=[...getActiveRows()];
+  let baseRows=[...allVariantRows];
   // Vendor/status filter applied at variant level for all views
   if(vendors.length) baseRows=baseRows.filter(r=>vendors.includes(r.vendor||''));
   if(currentView==='variant'){
