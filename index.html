@@ -1142,13 +1142,7 @@ th{position:relative;}
           <div class="insights-title">Planning</div>
           <div class="insights-sub">Forward planning by category — next 12 months. Data saved automatically in your browser.</div>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <div style="display:flex;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">
-            <button id="plan-filter-all" onclick="setPlanCoreFilter('all')" style="padding:6px 14px;font-size:12px;font-weight:600;font-family:'Inter',sans-serif;border:none;cursor:pointer;background:var(--teal);color:white;transition:all 0.15s;">All Products</button>
-            <button id="plan-filter-core" onclick="setPlanCoreFilter('core')" style="padding:6px 14px;font-size:12px;font-weight:600;font-family:'Inter',sans-serif;border:none;cursor:pointer;background:var(--surface);color:var(--text-secondary);transition:all 0.15s;">Core Only</button>
-          </div>
-          <button class="insights-refresh-btn" onclick="clearPlanningData()" style="background:var(--surface);border:1px solid var(--border);color:var(--text-secondary);">✕ Clear All</button>
-        </div>
+        <button class="insights-refresh-btn" onclick="clearPlanningData()" style="background:var(--surface);border:1px solid var(--border);color:var(--text-secondary);">✕ Clear All</button>
       </div>
       <div id="planning-body">
         <div class="insights-empty">
@@ -2853,12 +2847,8 @@ function setGlobalCoreFilter(val){
   const coreBtn=document.getElementById('gcf-core');
   if(allBtn){allBtn.style.background=val==='all'?'var(--teal)':'transparent';allBtn.style.color=val==='all'?'white':'var(--navy-text)';}
   if(coreBtn){coreBtn.style.background=val==='core'?'var(--teal)':'transparent';coreBtn.style.color=val==='core'?'white':'var(--navy-text)';}
-  // Also sync the planning tab's local toggle
+  // Sync planCoreFilter
   planCoreFilter=val;
-  const planAllBtn=document.getElementById('plan-filter-all');
-  const planCoreBtn=document.getElementById('plan-filter-core');
-  if(planAllBtn){planAllBtn.style.background=val==='all'?'var(--teal)':'var(--surface)';planAllBtn.style.color=val==='all'?'white':'var(--text-secondary)';}
-  if(planCoreBtn){planCoreBtn.style.background=val==='core'?'var(--teal)':'var(--surface)';planCoreBtn.style.color=val==='core'?'white':'var(--text-secondary)';}
   // Re-render current screen
   if(currentScreen==='dashboard') renderTable();
   else if(currentScreen==='cadence') renderCadence();
@@ -2873,11 +2863,6 @@ function getActiveRows(){
 function setPlanCoreFilter(val){
   planCoreFilter=val;
   globalCoreFilter=val;
-  const allBtn=document.getElementById('plan-filter-all');
-  const coreBtn=document.getElementById('plan-filter-core');
-  if(allBtn){allBtn.style.background=val==='all'?'var(--teal)':'var(--surface)';allBtn.style.color=val==='all'?'white':'var(--text-secondary)';}
-  if(coreBtn){coreBtn.style.background=val==='core'?'var(--teal)':'var(--surface)';coreBtn.style.color=val==='core'?'white':'var(--text-secondary)';}
-  // Sync topbar toggle
   const gcfAll=document.getElementById('gcf-all');
   const gcfCore=document.getElementById('gcf-core');
   if(gcfAll){gcfAll.style.background=val==='all'?'var(--teal)':'transparent';gcfAll.style.color=val==='all'?'white':'var(--navy-text)';}
@@ -6662,20 +6647,40 @@ function toggleDashboardCollapse(){
 }
 
 function kpiDrillDown(flag){
-  // Expand if collapsed so filters are visible
-  if(dashboardCollapsed)toggleDashboardCollapse();
-  // Switch to product view
-  setView('product');
-  // Clear ALL filters first, then set only the flag filter
-  document.getElementById('search-input').value='';
-  // Reset all dropdowns to "all checked"
-  ['cat','vendor','disc','soldout','delmonth'].forEach(type=>{
-    document.querySelectorAll(`#ms-${type}-options input`).forEach(b=>b.checked=true);
-    updateLabel(type, type==='cat'?'All Categories':type==='vendor'?'All Statuses':type==='disc'?'Discount %':type==='soldout'?'Sizes Sold Out':'Month Del');
-  });
-  // Then apply only the flag filter
-  quickFlag(flag);
-  document.querySelector('.main')?.scrollTo({top:0,behavior:'smooth'});
+  if(flag==='reorder'){
+    // Navigate to Working > Re-Orders
+    showScreen('markdowns');
+    setWorkingView('reorders');
+    // Wait for filters to populate then apply reorder flag only
+    setTimeout(()=>{
+      // Reset all ro filters to all-checked
+      ['cat','vendor','disc','delmonth'].forEach(type=>{
+        document.querySelectorAll(`#ms-ro-${type}-options input`).forEach(b=>b.checked=true);
+        roUpdateLabel(type);
+      });
+      document.querySelectorAll('#ms-ro-flag-options input[type="checkbox"]').forEach(b=>{
+        b.checked=b.value==='reorder';
+      });
+      roUpdateLabel('flag');
+      renderReorders();
+    },50);
+  } else if(flag==='reduce'){
+    // Navigate to Working > Markdowns
+    showScreen('markdowns');
+    setWorkingView('markdowns');
+    setTimeout(()=>{
+      // Reset all md filters to all-checked
+      ['cat','vendor','disc','soldout','delmonth'].forEach(type=>{
+        document.querySelectorAll(`#ms-md-${type}-options input`).forEach(b=>b.checked=true);
+        mdUpdateLabel(type);
+      });
+      document.querySelectorAll('#ms-md-flag-options input[type="checkbox"]').forEach(b=>{
+        b.checked=b.value==='reduce';
+      });
+      mdUpdateLabel('flag');
+      renderMarkdowns();
+    },50);
+  }
 }
 
 function quickFlag(f){
