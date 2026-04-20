@@ -113,7 +113,8 @@ input[type="file"]{display:none;}
 .topbar-logo-mark svg{width:14px;height:14px;fill:none;stroke:white;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;}
 .topbar-brand{font-size:13px;font-weight:700;color:var(--text);letter-spacing:0.3px;}
 .topbar-brand span{color:var(--navy-text);font-weight:400;}
-.topbar-right{display:flex;align-items:center;gap:8px;}
+.topbar-right{display:flex;align-items:center;gap:8px;overflow:hidden;}
+.screen-nav{display:flex;gap:2px;overflow-x:auto;flex-shrink:1;}
 .topbar-pill{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.7);border:1px solid var(--navy-border);border-radius:var(--r-pill);padding:5px 12px;font-size:11.5px;color:var(--navy-text);font-weight:500;}
 .live-dot{width:6px;height:6px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 2px rgba(14,165,160,0.25);}
 .tb-btn{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.7);border:1px solid var(--navy-border);border-radius:var(--r);padding:6px 12px;font-family:'Inter',sans-serif;font-size:11.5px;font-weight:500;color:var(--navy-text);cursor:pointer;transition:all 0.15s;}
@@ -298,7 +299,7 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .cadence-chart-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:16px;}
 
 /* Screen nav */
-.screen-nav{display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:2px;gap:2px;}
+.screen-nav{display:flex;flex-shrink:1;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:2px;gap:2px;}
 .screen-btn{padding:5px 14px;border:none;background:transparent;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;color:var(--text-secondary);cursor:pointer;border-radius:var(--r-sm);transition:all 0.12s;white-space:nowrap;}
 .screen-btn:hover{color:var(--teal);}
 .screen-btn.active{background:var(--teal);color:white;font-weight:600;}
@@ -787,7 +788,7 @@ th{position:relative;}
         <button class="screen-btn" id="btn-planning" onclick="showScreen('planning')">📋 Planning</button>
         <button class="screen-btn" id="btn-markdowns" onclick="showScreen('markdowns')">📝 Working</button>
       </div>
-      <div id="global-core-toggle" style="display:none;align-items:center;background:rgba(255,255,255,0.5);border:1px solid var(--navy-border);border-radius:var(--r);padding:2px;gap:2px;">
+      <div id="global-core-toggle" style="display:none;flex-shrink:0;align-items:center;background:rgba(255,255,255,0.5);border:1px solid var(--navy-border);border-radius:var(--r);padding:2px;gap:2px;">
         <button id="gcf-all" onclick="setGlobalCoreFilter('all')" style="padding:4px 12px;border:none;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:11px;font-weight:600;cursor:pointer;background:var(--teal);color:white;transition:all 0.12s;">All</button>
         <button id="gcf-core" onclick="setGlobalCoreFilter('core')" style="padding:4px 12px;border:none;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:11px;font-weight:600;cursor:pointer;background:transparent;color:var(--navy-text);transition:all 0.12s;">Core</button>
       </div>
@@ -6536,9 +6537,9 @@ function renderKPIs(){
     {name:'SOH',val:totalSoh.toLocaleString(),sub:'Units on hand',ico:'📦',bg:'#e6f7f7',ic:'var(--teal)',click:null},
     {name:`Units Sold (${selectedPeriod}d)`,val:totalSold.toLocaleString(),sub:`Last ${selectedPeriod} days`,ico:'🛍️',bg:'#dcfce7',ic:'var(--green)',click:null},
     {name:'On Order',val:onOrder.toLocaleString(),sub:'Total units on order',ico:'🚚',bg:'#f3e8ff',ic:'#7c3aed',click:null},
+    {name:"Today's Margin",val:`<span style="color:${todayMarginColor}">${todayMarginFmt}</span>`,sub:"Revenue-weighted GP% today",ico:'💰',bg:'#dcfce7',ic:'var(--green)',click:null},
     {name:'Re-Order',val:reorder.toLocaleString(),sub:'≤14 weeks cover',ico:'⚠️',bg:'#fef9c3',ic:'#854d0e',click:"kpiDrillDown('reorder')"},
     {name:'Reduce',val:reduce.toLocaleString(),sub:'26w+ cover, no order',ico:'🏷️',bg:'#fee2e2',ic:'var(--red)',click:"kpiDrillDown('reduce')"},
-    {name:"Today's Margin",val:`<span style="color:${todayMarginColor}">${todayMarginFmt}</span>`,sub:"Revenue-weighted GP% today",ico:'💰',bg:'#dcfce7',ic:'var(--green)',click:null},
   ];
   document.getElementById('kpi-row').innerHTML=kpis.map(k=>`
     <div class="kpi-card${k.click?` kpi-clickable`:''}" ${k.click?`onclick="${k.click}" title="Click to view products"`:''} style="${k.click?'cursor:pointer;':''}" >
