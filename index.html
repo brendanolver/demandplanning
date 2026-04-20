@@ -5685,8 +5685,8 @@ function buildSoldOutMap(){
 
 /* ── BUILD SALES MAPS FROM 365-DAY FILE ── */
 function buildSalesMaps(){
-  // salesBySkuDay: {sku: {date: {qty, cogs}}}
-  // priceMap: {sku: {price, compareAt, vendor, category, productName, colour, size}}
+  // salesBySkuDay: {sku: {date: {qty, cogs, revenue}}}
+  // revenue = gross sales - discounts (ex-GST), used for accurate margin calculation
   const salesBySkuDay={};
   const priceMap={};
 
@@ -5701,6 +5701,7 @@ function buildSalesMaps(){
     const qty=parseFloat(row['Quantity ordered']||0)||0;
     const cogs=parseFloat(row['Cost of goods sold']||0)||0;
     const price=parseFloat(row['Product variant price']||0)||0;
+    const discounts=parseFloat(row['Discounts']||0)||0; // negative e.g. -14.95
     const compareAt=parseFloat(row['Product variant compare at price']||0)||0;
     const vendor=(row['Product vendor']||'').trim().toUpperCase();
     const category=(row['Product type']||'').trim().toUpperCase();
@@ -5714,9 +5715,11 @@ function buildSalesMaps(){
     // Include ALL products (active + draft) in sales history so Cadence is accurate
     if(qty>0){
       if(!salesBySkuDay[sku])salesBySkuDay[sku]={};
-      if(!salesBySkuDay[sku][day])salesBySkuDay[sku][day]={qty:0,cogs:0};
+      if(!salesBySkuDay[sku][day])salesBySkuDay[sku][day]={qty:0,cogs:0,revenue:0};
       salesBySkuDay[sku][day].qty+=qty;
       salesBySkuDay[sku][day].cogs+=cogs;
+      // Net revenue ex-GST: (price * qty + discounts) / 1.1
+      salesBySkuDay[sku][day].revenue+=((price*qty)+discounts)/1.1;
     }
 
     // Store price/meta info
@@ -6511,14 +6514,17 @@ function renderKPIs(){
   const reorder=productRows.filter(p=>p.flag==='reorder').length;
   const reduce=productRows.filter(p=>p.flag==='reduce').length;
 
-  // Today's Margin: revenue-weighted GP% using costPerUnit & netExGstPrice stored on rows
-  // GWP contributes cost only (netExGstPrice=0), dragging margin down accurately
+  // Today's Margin: pull directly from _salesBySkuDay for today's date
+  // revenue field = (price × qty + discounts) / 1.1 — already discount-adjusted ex-GST
+  // cogs field = cost of goods sold from Shopify
+  const todayStr=new Date().toISOString().slice(0,10);
   let todayRevPool=0,todayCostPool=0;
-  for(const r of rows){
-    const st=r.soldToday||0;
-    if(st>0&&(r.costPerUnit||0)>0){
-      todayRevPool+=st*(r.netExGstPrice||0);
-      todayCostPool+=st*(r.costPerUnit||0);
+  if(window._salesBySkuDay){
+    for(const[sku,days] of Object.entries(window._salesBySkuDay)){
+      const d=days[todayStr];
+      if(!d||!d.qty)continue;
+      todayRevPool+=(d.revenue||0);
+      todayCostPool+=(d.cogs||0);
     }
   }
   const todayMarginPct=todayRevPool>0?(todayRevPool-todayCostPool)/todayRevPool*100:null;
