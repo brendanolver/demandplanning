@@ -5046,14 +5046,13 @@ function renderMarkdowns(){
     return`<tr style="background:${isChecked?'rgba(20,184,166,0.05)':''};">
       <td style="padding:6px 8px;text-align:center;"><input type="checkbox" ${isChecked?'checked':''} style="width:16px;height:16px;accent-color:var(--teal);cursor:pointer;" onchange="mdToggle('${safeKey}',this.checked)"></td>
       <td class="cell-product"><div class="prod-name">${p.productName}${p.colour?" - "+p.colour:""}</div></td>
+      <td class="cell-muted">${p.category||'—'}</td>
       <td style="padding:5px 8px;">
         <input type="text" placeholder="e.g. BUNDLE TEES 3 FOR $150" value="${collection}"
           style="width:180px;padding:6px 9px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;outline:none;background:var(--surface);"
           oninput="mdSaveCollection('${safeKey}',this.value)"
           onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
       </td>
-      <td class="cell-muted">${p.category||'—'}</td>
-      <td style="padding:6px 8px;font-size:12px;color:${(p.discountPct||0)>0?'var(--red)':'var(--text-secondary)'};">${disc}</td>
       <td style="padding:5px 8px;text-align:center;">
         <div style="display:flex;align-items:center;gap:3px;justify-content:center;">
           <input type="number" min="0" max="90" step="5" placeholder="%" value="${pct}"
@@ -5064,6 +5063,9 @@ function renderMarkdowns(){
         </div>
       </td>
       <td class="cell-num">${proposedPrice?`<span style="color:var(--red);font-weight:700;">$${proposedPrice}</span>`:'—'}</td>
+      <td style="padding:6px 8px;font-size:12px;color:${(p.discountPct||0)>0?'var(--red)':'var(--text-secondary)'};">${disc}</td>
+      <td class="cell-num">${p.price>0?'$'+p.price.toFixed(2):'—'}</td>
+      <td class="cell-num">${p.compareAt>0?'$'+p.compareAt.toFixed(2):'—'}</td>
       <td style="padding:6px 8px;"><span class="range-pill ${vendorCls}">${p.vendor||'—'}</span></td>
       <td style="padding:6px 8px;font-size:12px;">${p.deliveryMonth==='CORE'?'<span style="font-size:11px;font-weight:600;color:var(--blue);">CORE</span>':p.deliveryMonth?`<span style="font-size:12px;font-weight:500;color:var(--text-secondary);">${p.deliveryMonth}</span>`:'—'}</td>
       <td class="cell-num">${st!=null?st+'%':'—'}</td>
@@ -5076,8 +5078,6 @@ function renderMarkdowns(){
       <td class="cell-num" style="color:var(--purple);">${onOrder>0?onOrder.toLocaleString():'—'}</td>
       <td style="padding:6px 8px;font-size:12px;color:var(--text-secondary);">${shortMonth(p.monthDue)}</td>
       <td class="cell-num" style="${(p.soldOutSizes||0)>0?'color:var(--red);font-weight:600;':'color:var(--text-muted);'}">${(p.soldOutSizes||0)>0?p.soldOutSizes:'—'}</td>
-      <td class="cell-num">${p.price>0?'$'+p.price.toFixed(2):'—'}</td>
-      <td class="cell-num">${p.compareAt>0?'$'+p.compareAt.toFixed(2):'—'}</td>
       <td class="cell-num">${mg}</td>
       <td class="cell-num">${p.daysDisplay&&p.daysDisplay!=='—'&&p.daysDisplay!==9999?p.daysDisplay+'w':'—'}</td>
       <td style="padding:6px 8px;"><span class="stock-pill ${flagPillCls[p.flag]||''}">${SL[p.flag]||p.flag||'—'}</span></td>
@@ -5088,11 +5088,13 @@ function renderMarkdowns(){
     <thead><tr>
       <th style="width:36px;text-align:center;padding:8px 6px;"><input type="checkbox" id="md-select-all-chk" ${allTicked?'checked':''} style="width:15px;height:15px;accent-color:var(--teal);" onchange="mdSelectAll(this.checked)"></th>
       <th style="${thS}" onclick="setMdSort('productName')">Product${mdArrow('productName')}</th>
-      <th style="min-width:180px;white-space:nowrap;">New Collection</th>
       <th style="${thS}" onclick="setMdSort('category')">Category${mdArrow('category')}</th>
-      <th style="${thS}" onclick="setMdSort('discountPct')">Disc%${mdArrow('discountPct')}</th>
+      <th style="min-width:180px;white-space:nowrap;">New Collection</th>
       <th style="text-align:center;min-width:100px;">Proposed %</th>
       <th style="text-align:right;">New Price</th>
+      <th style="${thS}" onclick="setMdSort('discountPct')">Disc%${mdArrow('discountPct')}</th>
+      <th style="${thS}text-align:right;" onclick="setMdSort('price')">Current Price${mdArrow('price')}</th>
+      <th style="${thS}text-align:right;" onclick="setMdSort('compareAt')">RRP${mdArrow('compareAt')}</th>
       <th style="${thS}" onclick="setMdSort('vendor')">Status${mdArrow('vendor')}</th>
       <th style="${thS}" onclick="setMdSort('deliveryMonth')">Month Del${mdArrow('deliveryMonth')}</th>
       <th style="${thS}text-align:right;" onclick="setMdSort('sellThru7')">${stLabel}${mdArrow('sellThru7')}</th>
@@ -5105,8 +5107,6 @@ function renderMarkdowns(){
       <th style="${thS}text-align:right;" onclick="setMdSort('onOrder')">On Order${mdArrow('onOrder')}</th>
       <th style="${thS}" onclick="setMdSort('monthDue')">Month Due${mdArrow('monthDue')}</th>
       <th style="${thS}text-align:right;" onclick="setMdSort('soldOutSizes')">Sizes S/O${mdArrow('soldOutSizes')}</th>
-      <th style="${thS}text-align:right;" onclick="setMdSort('price')">Price${mdArrow('price')}</th>
-      <th style="${thS}text-align:right;" onclick="setMdSort('compareAt')">RRP${mdArrow('compareAt')}</th>
       <th style="${thS}text-align:right;" onclick="setMdSort('margin')">Margin%${mdArrow('margin')}</th>
       <th style="${thS}text-align:right;" onclick="setMdSort('days')">Wks Cover${mdArrow('days')}</th>
       <th style="${thS}" onclick="setMdSort('flag')">Stock Status${mdArrow('flag')}</th>
