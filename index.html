@@ -787,6 +787,10 @@ th{position:relative;}
         <button class="screen-btn" id="btn-planning" onclick="showScreen('planning')">📋 Planning</button>
         <button class="screen-btn" id="btn-markdowns" onclick="showScreen('markdowns')">📝 Working</button>
       </div>
+      <div id="global-core-toggle" style="display:none;align-items:center;background:rgba(255,255,255,0.5);border:1px solid var(--navy-border);border-radius:var(--r);padding:2px;gap:2px;">
+        <button id="gcf-all" onclick="setGlobalCoreFilter('all')" style="padding:4px 12px;border:none;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:11px;font-weight:600;cursor:pointer;background:var(--teal);color:white;transition:all 0.12s;">All</button>
+        <button id="gcf-core" onclick="setGlobalCoreFilter('core')" style="padding:4px 12px;border:none;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:11px;font-weight:600;cursor:pointer;background:transparent;color:var(--navy-text);transition:all 0.12s;">Core</button>
+      </div>
       <div class="period-selector" id="period-selector" style="display:none;">
         <span class="period-label">Period:</span>
         <button class="period-btn active" data-days="7" onclick="setPeriod(7)">7d</button>
@@ -1694,6 +1698,7 @@ document.addEventListener('click',e=>{
 
 /* ── SCREEN NAV ── */
 let currentScreen='dashboard';
+let globalCoreFilter='all';
 
 function showScreen(screen){
   currentScreen=screen;
@@ -1723,6 +1728,8 @@ function showScreen(screen){
   periodSelector.style.display=(!isTouch&&screen==='dashboard')?'flex':'none';
   if(periodBar)periodBar.style.display=(isTouch&&screen==='dashboard')?'flex':'none';
   exportBtn.style.display=screen==='dashboard'?'':'none';
+  const globalToggle=document.getElementById('global-core-toggle');
+  if(globalToggle)globalToggle.style.display=['dashboard','cadence','planning','markdowns'].includes(screen)?'flex':'none';
   if(screen==='insights'){
     document.getElementById('insights-period-label').textContent=selectedPeriod+'d';
     document.getElementById('insights-sku-count').textContent=allVariantRows.length.toLocaleString();
@@ -2355,11 +2362,14 @@ function renderCadence(){
   let rowKeys, rowLabel, getKey;
   if(cadenceView==='cat'){
     // Use ALL SKUs including draft for accurate historical category totals
+    // When Core filter active, restrict to SKUs belonging to CORE products
     const skuCatMap=window._skuCategoryMap||{};
+    const coreSkus=globalCoreFilter==='core'?new Set(allVariantRows.filter(r=>r.vendor==='CORE').map(r=>r.sku)):null;
     rowKeys=[...new Set(Object.values(skuCatMap).filter(Boolean))].sort();
     rowLabel='Category';
     // For category view, sum directly from _salesBySkuDay using skuCatMap
     for(const[sku,cat] of Object.entries(skuCatMap)){
+      if(coreSkus&&!coreSkus.has(sku))continue;
       if(!data[cat])data[cat]={};
       const skuDays=getSoldInPeriodBreakdown(sku,periods);
       for(const p of periods){
@@ -2375,17 +2385,18 @@ function renderCadence(){
     const selectedDelMonths=getCadenceSelectedDelMonths();
     const selectedDiscs=getCadenceSelectedDiscs();
     const selectedFlags=getCadenceSelectedFlags();
+    const activeRows=getActiveRows();
     // Build product-level aggregates for disc/flag filtering
-    const productDiscMap={};   // key → discountPct
-    const productFlagMap={};   // key → flag
-    for(const r of allVariantRows){
+    const productDiscMap={};
+    const productFlagMap={};
+    for(const r of activeRows){
       if(r.amOnly)continue;
       const k=r.productName+'||'+r.colour;
       if(productDiscMap[k]===undefined)productDiscMap[k]=r.discountPct||0;
       if(productFlagMap[k]===undefined)productFlagMap[k]=r.flag||'ok';
     }
     const prodSet=new Map();
-    for(const r of allVariantRows){
+    for(const r of activeRows){
       if(r.amOnly)continue;
       if(selectedStatuses.length&&!selectedStatuses.includes(r.vendor))continue;
       if(selectedCats.length&&!selectedCats.includes(r.category))continue;
@@ -2777,10 +2788,11 @@ function getPlanMonths(){
   return months;
 }
 
-function getLYSalesByCategory(months){
+function getLYSalesByCategory(months,allowedSkus){
   const result={};
   if(!window._salesBySkuDay||!window._skuCategoryMap)return result;
   for(const[sku,cat] of Object.entries(window._skuCategoryMap)){
+    if(allowedSkus&&!allowedSkus.has(sku))continue;
     const dayData=window._salesBySkuDay[sku]||{};
     if(!result[cat])result[cat]={};
     for(const[day,d] of Object.entries(dayData)){
@@ -2802,9 +2814,10 @@ function getLYSalesByCategory(months){
   return result;
 }
 
-function getAMOnOrderByCategory(months){
+function getAMOnOrderByCategory(months,planRows){
   const result={};
-  for(const row of allVariantRows){
+  const sourceRows=planRows||allVariantRows;
+  for(const row of sourceRows){
     const cat=row.category||'UNCATEGORISED';
     if(!result[cat])result[cat]={};
     const onOrder=row.onOrder||0;
@@ -2827,6 +2840,23 @@ function setPlanSort(col){
   renderPlanning();
 }
 
+function getActiveRows(){
+  return globalCoreFilter==='core'?allVariantRows.filter(r=>r.vendor==='CORE'):allVariantRows;
+}
+
+function setGlobalCoreFilter(val){
+  globalCoreFilter=val;
+  const allBtn=document.getElementById('gcf-all');
+  const coreBtn=document.getElementById('gcf-core');
+  if(allBtn){allBtn.style.background=val==='all'?'var(--teal)':'transparent';allBtn.style.color=val==='all'?'white':'var(--navy-text)';}
+  if(coreBtn){coreBtn.style.background=val==='core'?'var(--teal)':'transparent';coreBtn.style.color=val==='core'?'white':'var(--navy-text)';}
+  // Re-render current screen
+  if(currentScreen==='dashboard'){renderKPIs();renderTable();}
+  else if(currentScreen==='cadence')renderCadence();
+  else if(currentScreen==='planning')renderPlanning();
+  else if(currentScreen==='markdowns')setWorkingView(workingView);
+}
+
 function renderPlanning(){
   if(!allVariantRows||allVariantRows.length===0){
     document.getElementById('planning-body').innerHTML=`<div class="insights-error">⚠️ No data loaded yet. Please upload your files and analyse first.</div>`;
@@ -2834,14 +2864,16 @@ function renderPlanning(){
   }
 
   const months=getPlanMonths();
-  const cats=[...new Set(allVariantRows.filter(r=>!r.amOnly).map(r=>r.category||'UNCATEGORISED'))].sort();
-  const lyData=getLYSalesByCategory(months);
-  const onOrderData=getAMOnOrderByCategory(months);
+  const planRows=globalCoreFilter==='core'?allVariantRows.filter(r=>r.vendor==='CORE'):allVariantRows;
+  const allowedSkus=globalCoreFilter==='core'?new Set(planRows.map(r=>r.sku)):null;
+  const cats=[...new Set(planRows.filter(r=>!r.amOnly).map(r=>r.category||'UNCATEGORISED'))].sort();
+  const lyData=getLYSalesByCategory(months,allowedSkus);
+  const onOrderData=getAMOnOrderByCategory(months,planRows);
   const saved=getPlanningData();
   const coverMonths=Math.max(1,Math.min(12,parseInt(saved['cover_months'])||2));
 
   const catSoh={},catVel30={};
-  for(const r of allVariantRows){
+  for(const r of planRows){
     const c=r.category||'UNCATEGORISED';
     catSoh[c]=(catSoh[c]||0)+r.stock;
     catVel30[c]=(catVel30[c]||0)+(r.sold30||0)/30;
@@ -4179,10 +4211,10 @@ function renderReorders(){
   const search=(document.getElementById('ro-search')?.value||'').trim().toUpperCase();
 
   // Build full product list — include all products with stock or on order
-  const _stockSet=new Set(allVariantRows
+  const _stockSet=new Set(getActiveRows()
     .filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)
     .map(r=>r.productName+'||'+r.colour));
-  const allProductsRo=[...toProduct(allVariantRows.filter(r=>
+  const allProductsRo=[...toProduct(getActiveRows().filter(r=>
     !r.amOnly&&((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)
   ))];
 
@@ -4909,9 +4941,9 @@ function renderMarkdowns(){
   // Get all products
   // Build product list — use ALL variants for sold figures (so OOS sizes contribute to sold totals)
   // but only show products that have stock or on order
-  const allProductsFullSales=[...toProduct(allVariantRows)];
+  const allProductsFullSales=[...toProduct(getActiveRows())];
   const hasStockOrOrder=new Set(
-    allVariantRows.filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)
+    getActiveRows().filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)
       .map(r=>r.productName+'||'+r.colour)
   );
   const allProducts=allProductsFullSales.filter(p=>hasStockOrOrder.has(p.productName+'||'+p.colour));
@@ -6466,7 +6498,7 @@ function buildDashboard(){
 }
 
 function renderKPIs(){
-  const rows=allVariantRows;
+  const rows=getActiveRows();
   const totalSoh=rows.reduce((s,r)=>s+(r.stock||0),0);
   const totalSold=rows.reduce((s,r)=>s+(r.sold||0),0);
   const onOrder=rows.reduce((s,r)=>s+(r.onOrder||0),0);
@@ -6607,20 +6639,41 @@ function toggleDashboardCollapse(){
 }
 
 function kpiDrillDown(flag){
-  // Expand if collapsed so filters are visible
-  if(dashboardCollapsed)toggleDashboardCollapse();
-  // Switch to product view
-  setView('product');
-  // Clear ALL filters first, then set only the flag filter
-  document.getElementById('search-input').value='';
-  // Reset all dropdowns to "all checked"
-  ['cat','vendor','disc','soldout','delmonth'].forEach(type=>{
-    document.querySelectorAll(`#ms-${type}-options input`).forEach(b=>b.checked=true);
-    updateLabel(type, type==='cat'?'All Categories':type==='vendor'?'All Statuses':type==='disc'?'Discount %':type==='soldout'?'Sizes Sold Out':'Month Del');
-  });
-  // Then apply only the flag filter
-  quickFlag(flag);
-  document.querySelector('.main')?.scrollTo({top:0,behavior:'smooth'});
+  if(flag==='reorder'){
+    // Navigate to Working > Re-Orders, filter to reorder flag only
+    showScreen('markdowns');
+    setWorkingView('reorders');
+    setTimeout(()=>{
+      // Reset all ro filters to all-checked first
+      ['cat','vendor','disc','delmonth'].forEach(type=>{
+        document.querySelectorAll(`#ms-ro-${type}-options input`).forEach(b=>b.checked=true);
+        roUpdateLabel(type);
+      });
+      // Set flag filter to reorder only
+      document.querySelectorAll('#ms-ro-flag-options input[type="checkbox"]').forEach(b=>{
+        b.checked=b.value==='reorder';
+      });
+      roUpdateLabel('flag');
+      renderReorders();
+    },50);
+  } else if(flag==='reduce'){
+    // Navigate to Working > Markdowns, filter to reduce flag only
+    showScreen('markdowns');
+    setWorkingView('markdowns');
+    setTimeout(()=>{
+      // Reset all md filters to all-checked first
+      ['cat','vendor','disc','soldout','delmonth'].forEach(type=>{
+        document.querySelectorAll(`#ms-md-${type}-options input`).forEach(b=>b.checked=true);
+        mdUpdateLabel(type);
+      });
+      // Set flag filter to reduce only
+      document.querySelectorAll('#ms-md-flag-options input[type="checkbox"]').forEach(b=>{
+        b.checked=b.value==='reduce';
+      });
+      mdUpdateLabel('flag');
+      renderMarkdowns();
+    },50);
+  }
 }
 
 function quickFlag(f){
@@ -6972,7 +7025,7 @@ function getFilteredRows(){
   const search=document.getElementById('search-input').value.trim().toUpperCase();
 
   // Filter at variant level for variant view; post-aggregation for product view
-  let baseRows=[...allVariantRows];
+  let baseRows=[...getActiveRows()];
   // Vendor/status filter applied at variant level for all views
   if(vendors.length) baseRows=baseRows.filter(r=>vendors.includes(r.vendor||''));
   if(currentView==='variant'){
