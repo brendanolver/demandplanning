@@ -1372,16 +1372,31 @@ th{position:relative;}
         <div id="sw-tab-product-body">
         <!-- Toolbar -->
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
-          <div class="search-wrap" style="min-width:280px;max-width:420px;">
-            <span class="search-ico">🔍</span>
-            <input type="text" id="sw-search" placeholder="Search product name..." oninput="swSearch()" style="width:100%;">
-          </div>
-          <div id="sw-colour-wrap" style="display:none;">
-            <select id="sw-colour-select" onchange="renderSizeWorkings()" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;background:var(--surface);color:var(--text);outline:none;cursor:pointer;"></select>
+          <div style="position:relative;flex:1;min-width:280px;max-width:420px;">
+            <div class="search-wrap">
+              <span class="search-ico">🔍</span>
+              <input type="text" id="sw-search" placeholder="Type to search, tick to select, then click Add Selected..." oninput="swSearch()" autocomplete="off" style="width:100%;">
+            </div>
+            <!-- Multi-select dropdown -->
+            <div id="sw-results" style="display:none;position:absolute;z-index:300;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-lg);width:100%;top:100%;margin-top:4px;">
+              <div style="padding:7px 14px;border-bottom:1px solid var(--border);background:var(--surface2);border-radius:var(--r) var(--r) 0 0;">
+                <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+                  <input type="checkbox" id="sw-select-all" onchange="swSelectAll(this)" style="width:15px;height:15px;flex-shrink:0;accent-color:var(--teal);cursor:pointer;">
+                  <span style="font-size:12px;font-weight:600;color:var(--text-secondary);">Select All</span>
+                </label>
+              </div>
+              <div id="sw-results-list" style="max-height:260px;overflow-y:auto;"></div>
+              <div style="padding:8px 12px;border-top:1px solid var(--border);background:var(--surface2);display:flex;justify-content:space-between;align-items:center;border-radius:0 0 var(--r) var(--r);">
+                <span id="sw-count-label" style="font-size:11px;color:var(--text-muted);"></span>
+                <button onclick="swApplyChecked()" style="padding:5px 16px;background:var(--teal);color:white;border:none;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">✓ Add Selected</button>
+              </div>
+            </div>
           </div>
           <button onclick="swClearAll()" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✕ Clear All</button>
           <button onclick="swExport()" style="padding:7px 16px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">⬇ Export</button>
         </div>
+        <!-- Selected product tags -->
+        <div id="sw-tags" style="display:flex;gap:6px;flex-wrap:wrap;min-height:20px;align-items:center;margin-bottom:8px;"></div>
         <!-- Filter bar -->
         <div class="filter-row" style="margin-bottom:12px;flex-wrap:wrap;">
           <div class="ms-wrap" id="ms-sw-cat">
@@ -1433,8 +1448,6 @@ th{position:relative;}
             <button class="period-btn" data-sw-days="365" onclick="setSwPeriod(365)">365d</button>
           </div>
         </div>
-        <!-- Search results dropdown -->
-        <div id="sw-results" style="display:none;position:absolute;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-lg);max-height:260px;overflow-y:auto;min-width:320px;"></div>
         <!-- Size workings table -->
         <div id="sw-body">
           <div class="insights-empty" style="margin-top:40px;">
@@ -2261,6 +2274,10 @@ function renderCadenceCompare(){
     colTotals[p.label]=productData.reduce((s,cp)=>s+Math.round(cp.data[p.label]||0),0);
   }
   const grandTotal=Object.values(colTotals).reduce((s,v)=>s+v,0);
+  const totalSoh=productData.reduce((s,cp)=>s+(cp.soh||0),0);
+  const totalOnOrder=productData.reduce((s,cp)=>s+(cp.onOrder||0),0);
+  const totalStPct=grandTotal>0&&(totalSoh+grandTotal)>0?grandTotal/(totalSoh+grandTotal)*100:null;
+  const totalStColor=totalStPct===null?'color:var(--text-muted);':totalStPct>=60?'color:#15803d;font-weight:700;':totalStPct>=30?'color:var(--amber);font-weight:600;':'color:var(--red);font-weight:600;';
 
   // Sort arrow helper
   const arrow=col=>compareSortCol===col?(compareSortDir==='asc'?' ▲':' ▼'):'';
@@ -2314,9 +2331,9 @@ function renderCadenceCompare(){
 
   const totalsRow=`<tr style="background:var(--surface2);border-top:2px solid var(--border);">
     <td style="padding:8px 10px;font-weight:700;font-size:12px;color:var(--text-secondary);letter-spacing:0.05em;">TOTAL</td>
-    <td style="text-align:right;padding:8px 10px;font-weight:700;">—</td>
-    <td style="text-align:right;padding:8px 10px;font-weight:700;color:var(--purple);">—</td>
-    <td style="text-align:right;padding:8px 10px;font-weight:700;">—</td>
+    <td style="text-align:right;padding:8px 10px;font-weight:700;color:var(--text-secondary);">${totalSoh>0?totalSoh.toLocaleString():'—'}</td>
+    <td style="text-align:right;padding:8px 10px;font-weight:700;color:var(--purple);">${totalOnOrder>0?totalOnOrder.toLocaleString():'—'}</td>
+    <td style="text-align:right;padding:8px 10px;${totalStColor}">${totalStPct!==null?totalStPct.toFixed(1)+'%':'—'}</td>
     <td style="text-align:right;padding:8px 10px;font-weight:700;color:var(--teal);">${grandTotal>0?Math.round(grandTotal).toLocaleString():'—'}</td>
     ${totalCells}
   </tr>`;
@@ -3290,7 +3307,8 @@ function renderInsights(data){
 let swPeriod=7;
 let swcPeriod=7;
 let swTab='product'; // 'product' or 'category'
-let swProduct=null; // {productName, colour}
+let swProduct=null; // kept for RO send-to-SW compatibility
+let swSelectedProducts=[]; // multi-select array [{productName, colour, key}]
 const SW_STORAGE_KEY='wndrr_sizeworkings_v1';
 const SWC_ORDER_KEY='wndrr_swc_orders_v1';
 
@@ -3370,13 +3388,141 @@ function swPopulateFilters(){
     months.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="swUpdateLabel('delmonth')"> ${m} <span class="ms-count">(${delCounts[m]||0})</span></label>`).join('');
 }
 function swClearAll(){
-  // Clear search, filters and current table
   const s=document.getElementById('sw-search');if(s)s.value='';
   swProduct=null;
+  swSelectedProducts=[];
   swClearFilters();
-  document.getElementById('sw-results').style.display='none';
+  const res=document.getElementById('sw-results');if(res)res.style.display='none';
+  swRenderTags();
   document.getElementById('sw-body').innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">📐</div><div class="insights-empty-title">Size Workings</div><div class="insights-empty-sub">Search for a product above to begin size planning.</div></div>`;
 }
+
+function swSearch(){
+  const val=(document.getElementById('sw-search')?.value||'').trim().toUpperCase();
+  const results=document.getElementById('sw-results');
+  const list=document.getElementById('sw-results-list');
+  if(!results||!list)return;
+
+  // Populate filters on first use
+  if(!document.getElementById('ms-sw-cat-options').children.length) swPopulateFilters();
+
+  if(val.length<2){results.style.display='none';return;}
+
+  const cats=swGetSelected('cat');
+  const vendors=swGetSelected('vendor');
+  const flags=swGetSelected('flag');
+  const discs=swGetSelected('disc');
+  const delmonths=swGetSelected('delmonth');
+
+  const matches=new Map();
+  for(const r of allVariantRows){
+    if(r.amOnly)continue;
+    const key=r.productName+'||'+r.colour;
+    if(matches.has(key))continue;
+    if(!(r.productName+' - '+r.colour).toUpperCase().includes(val)&&!r.productName.toUpperCase().includes(val))continue;
+    if(cats.length&&!cats.includes(r.category||''))continue;
+    if(vendors.length&&!vendors.includes(r.vendor||''))continue;
+    if(flags.length&&!flags.includes(r.flag||''))continue;
+    if(discs.length){const d=Math.round(r.discountPct||0);const band=!r.discountPct||d===0?'none':String(d);if(!discs.some(b=>b===band))continue;}
+    if(delmonths.length&&!delmonths.includes(r.deliveryMonth||''))continue;
+    matches.set(key,{key,productName:r.productName,colour:r.colour});
+  }
+  const items=[...matches.values()].slice(0,100);
+
+  if(!items.length){
+    list.innerHTML=`<div style="padding:12px 14px;font-size:13px;color:var(--text-muted);font-style:italic;">No products found</div>`;
+    results.style.display='block';
+    return;
+  }
+
+  list.innerHTML=items.map(p=>{
+    const alreadyAdded=swSelectedProducts.some(x=>x.key===p.key);
+    return`<label style="display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:${alreadyAdded?'default':'pointer'};border-bottom:1px solid var(--border);"
+      onmouseover="if(!${alreadyAdded})this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+      <input type="checkbox" value="${p.key.replace(/"/g,'&quot;')}"
+        data-product="${p.productName.replace(/"/g,'&quot;')}"
+        data-colour="${p.colour.replace(/"/g,'&quot;')}"
+        ${alreadyAdded?'checked disabled':''}
+        onchange="swUpdateCount()"
+        style="width:15px;height:15px;flex-shrink:0;accent-color:var(--teal);cursor:pointer;">
+      <span style="font-size:13px;line-height:1.3;">
+        <strong>${p.productName}</strong>
+        <span style="color:var(--teal);font-weight:500;"> — ${p.colour}</span>
+      </span>
+      ${alreadyAdded?'<span style="font-size:10px;font-weight:600;color:var(--teal);margin-left:auto;white-space:nowrap;">✓ added</span>':''}
+    </label>`;
+  }).join('');
+
+  swUpdateCount();
+  results.style.display='block';
+  const sa=document.getElementById('sw-select-all');
+  if(sa){sa.checked=false;sa.indeterminate=false;}
+}
+
+function swSelectAll(cb){
+  document.querySelectorAll('#sw-results-list input[type="checkbox"]:not([disabled])').forEach(b=>b.checked=cb.checked);
+  swUpdateCount();
+}
+
+function swUpdateCount(){
+  const checked=document.querySelectorAll('#sw-results-list input[type="checkbox"]:checked:not([disabled])');
+  const label=document.getElementById('sw-count-label');
+  if(label){
+    if(checked.length>0) label.textContent=`${checked.length} selected`;
+    else label.textContent=`${swSelectedProducts.length} product${swSelectedProducts.length!==1?'s':''} added`;
+  }
+  const all=document.querySelectorAll('#sw-results-list input[type="checkbox"]:not([disabled])');
+  const allChecked=[...all].every(b=>b.checked);
+  const sa=document.getElementById('sw-select-all');
+  if(sa){sa.checked=all.length>0&&allChecked;sa.indeterminate=!allChecked&&checked.length>0;}
+}
+
+function swApplyChecked(){
+  const checked=document.querySelectorAll('#sw-results-list input[type="checkbox"]:checked:not([disabled])');
+  checked.forEach(cb=>{
+    const key=cb.value;
+    const productName=cb.dataset.product;
+    const colour=cb.dataset.colour;
+    if(!swSelectedProducts.some(p=>p.key===key)){
+      // Pre-fill Total Units Needed from RO qty if not already set
+      const swData=getSwData();
+      if(!swData[key]?.total){
+        const roData=getRoData();
+        const roQty=roData[productName+' - '+colour]?.qty||'';
+        if(roQty){if(!swData[key])swData[key]={};swData[key].total=roQty;saveSwData(swData);}
+      }
+      swSelectedProducts.push({key,productName,colour});
+    }
+  });
+  swProduct=swSelectedProducts.length===1?swSelectedProducts[0]:null;
+  const inp=document.getElementById('sw-search');if(inp)inp.value='';
+  const res=document.getElementById('sw-results');if(res)res.style.display='none';
+  swRenderTags();
+  renderSizeWorkings();
+}
+
+function swRemoveProduct(key){
+  swSelectedProducts=swSelectedProducts.filter(p=>p.key!==key);
+  swProduct=swSelectedProducts.length===1?swSelectedProducts[0]:null;
+  swRenderTags();
+  renderSizeWorkings();
+}
+
+function swRenderTags(){
+  const wrap=document.getElementById('sw-tags');
+  if(!wrap)return;
+  if(!swSelectedProducts.length){wrap.innerHTML='';return;}
+  wrap.innerHTML=swSelectedProducts.map(p=>`
+    <span style="display:inline-flex;align-items:center;gap:5px;background:var(--teal-light);color:var(--teal-dark);border:1px solid rgba(14,165,160,0.25);border-radius:var(--r-pill);padding:3px 10px 3px 10px;font-size:12px;font-weight:500;">
+      ${p.productName} — ${p.colour}
+      <button onclick="swRemoveProduct('${p.key.replace(/'/g,"\\'")}')}" style="background:none;border:none;cursor:pointer;color:var(--teal);font-size:13px;line-height:1;padding:0 0 0 2px;">×</button>
+    </span>`).join('');
+}
+
+document.addEventListener('click',e=>{
+  if(!e.target.closest('#sw-search')&&!e.target.closest('#sw-results'))
+    {const r=document.getElementById('sw-results');if(r)r.style.display='none';}
+});
 
 function setSwTab(tab){
   swTab=tab;
@@ -3704,103 +3850,29 @@ function setSwPeriod(days){
   else renderSizeWorkings();
 }
 
-function swSearch(){
-  const val=(document.getElementById('sw-search')?.value||'').trim().toUpperCase();
-  const results=document.getElementById('sw-results');
-
-  // Populate filters on first use
-  if(!document.getElementById('ms-sw-cat-options').children.length) swPopulateFilters();
-
-  if(!val||val.length<2){results.style.display='none';return;}
-
-  // Apply active filters
-  const cats=swGetSelected('cat');
-  const vendors=swGetSelected('vendor');
-  const flags=swGetSelected('flag');
-  const discs=swGetSelected('disc');
-  const delmonths=swGetSelected('delmonth');
-
-  // Get unique product+colour combinations matching search and filters
-  const matches=new Map();
-  for(const r of allVariantRows){
-    if(r.amOnly)continue;
-    const key=r.productName+'||'+r.colour;
-    if(matches.has(key))continue;
-    if(!(r.productName.includes(val)||(r.productName+' - '+r.colour).includes(val)))continue;
-    if(cats.length&&!cats.includes(r.category||''))continue;
-    if(vendors.length&&!vendors.includes(r.vendor||''))continue;
-    if(flags.length&&!flags.includes(r.flag||''))continue;
-    if(discs.length){const d=Math.round(r.discountPct||0);const band=!r.discountPct||d===0?'none':String(d);if(!discs.some(b=>b===band||(b==='none'&&band==='none')))continue;}
-    if(delmonths.length&&!delmonths.includes(r.deliveryMonth||''))continue;
-    matches.set(key,{productName:r.productName,colour:r.colour});
-  }
-  const items=[...matches.values()].slice(0,20);
-  if(!items.length){results.style.display='none';return;}
-  results.innerHTML=items.map(p=>
-    `<div class="sw-result-item" onclick="swSelectProduct('${p.productName.replace(/'/g,"\\'")}','${p.colour.replace(/'/g,"\\'")}')">
-      <strong>${p.productName}</strong> <span style="color:var(--text-muted);">— ${p.colour}</span>
-    </div>`
-  ).join('');
-  results.style.display='block';
-}
-
-function swSelectProduct(productName,colour){
-  document.getElementById('sw-search').value=productName+' - '+colour;
-  document.getElementById('sw-results').style.display='none';
-  swProduct={productName,colour};
-  document.getElementById('sw-colour-wrap').style.display='none';
-
-  // Pre-fill Total Units Needed from Re-Orders qty if SW total not already set
-  const swKey=`${productName}||${colour}`;
-  const swData=getSwData();
-  if(!swData[swKey]?.total){
-    const roData=getRoData();
-    const roKey=productName+' - '+colour;
-    const roQty=roData[roKey]?.qty||'';
-    if(roQty){
-      if(!swData[swKey])swData[swKey]={};
-      swData[swKey].total=roQty;
-      saveSwData(swData);
-    }
-  }
-
-  renderSizeWorkings();
-}
-
-document.addEventListener('click',e=>{
-  if(!e.target.closest('#sw-search')&&!e.target.closest('#sw-results'))
-    document.getElementById('sw-results').style.display='none';
-});
-
 function renderSizeWorkings(){
   const body=document.getElementById('sw-body');
-  if(!swProduct||!allVariantRows.length){return;}
-  const colour=swProduct.colour;
-  const{productName}=swProduct;
+  if(!swSelectedProducts.length||!allVariantRows.length){
+    if(!body.innerHTML.includes('insights-empty'))
+      body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">📐</div><div class="insights-empty-title">Size Workings</div><div class="insights-empty-sub">Search for a product above to begin size planning.</div></div>`;
+    return;
+  }
+
+  body.innerHTML=swSelectedProducts.map(({productName,colour})=>{
   const saved=getSwData();
   const swKey=`${productName}||${colour}`;
   const totalInput=saved[swKey]?.total||'';
   const swManual=saved[swKey]?.manual||{};
 
-  // Get all variant rows for this product+colour
   const variants=allVariantRows.filter(r=>r.productName===productName&&r.colour===colour);
-  if(!variants.length){body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No data found</div></div>`;return;}
+  if(!variants.length)return`<div style="margin-bottom:20px;padding:12px;background:var(--surface2);border-radius:var(--r);color:var(--text-muted);">No data for ${productName} — ${colour}</div>`;
 
-  // Extract style+colour code from SKU by stripping size suffix
-  // e.g. W26BA021BLKL → W26BA021BLK — find first variant with a real SKU
   const sampleSku=(variants.find(r=>r.sku&&r.sku!=='—'&&r.sku.length>6)?.sku)||'';
   const sizeSuffixes=['XXXXL','XXXL','XXL','XL','XXS','XS','OS','S','M','L'];
   let styleCode=sampleSku;
-  for(const sz of sizeSuffixes){
-    if(sampleSku.toUpperCase().endsWith(sz)){
-      styleCode=sampleSku.slice(0,sampleSku.length-sz.length);
-      break;
-    }
-  }
-  // Handle numeric sizes (28,30,32 etc)
-  if(styleCode===sampleSku&&sampleSku) styleCode=sampleSku.replace(/\d{2}$/, '');
+  for(const sz of sizeSuffixes){if(sampleSku.toUpperCase().endsWith(sz)){styleCode=sampleSku.slice(0,sampleSku.length-sz.length);break;}}
+  if(styleCode===sampleSku&&sampleSku) styleCode=sampleSku.replace(/\d{2}$/,'');
 
-  // Size order
   const sizeOrder=['XXS','XS','S','M','L','XL','XXL','XXXL','XXXXL','28','30','32','34','36','38','40','42','44','46','48','50','OS'];
   const sorted=variants.sort((a,b)=>{
     const ai=sizeOrder.indexOf(a.size);const bi=sizeOrder.indexOf(b.size);
@@ -3809,7 +3881,6 @@ function renderSizeWorkings(){
     return a.size.localeCompare(b.size);
   });
 
-  // Per-size data
   const sizes=sorted.map(r=>r.size);
   const soldBySize=sorted.map(r=>{
     if(swPeriod===7)return r.sold7||0;
@@ -3825,18 +3896,13 @@ function renderSizeWorkings(){
   const po=sorted.map(r=>(r.onOrder||0));
   const sohPoTotal=sorted.map((r,i)=>soh[i]+po[i]);
 
-  // Calculations — Suggested Order = total × sold% per size using largest remainder rounding
-  // so sizes always sum to exactly the entered total
   const total=parseInt(totalInput)||0;
-
-  // Largest remainder method to distribute total across sizes by sold%
   let suggestedOrder;
   if(total>0&&soldTotal>0){
     const exact=soldPct.map(pct=>pct*total);
     const floored=exact.map(v=>Math.floor(v));
     const remainders=exact.map((v,i)=>v-floored[i]);
     const remainder=total-floored.reduce((s,v)=>s+v,0);
-    // Distribute remaining units to sizes with largest remainders
     const indices=[...Array(sizes.length).keys()].sort((a,b)=>remainders[b]-remainders[a]);
     suggestedOrder=[...floored];
     for(let i=0;i<remainder;i++)suggestedOrder[indices[i]]++;
@@ -3846,27 +3912,26 @@ function renderSizeWorkings(){
   const suggestedTotal=suggestedOrder.reduce((s,v)=>s+v,0);
   const suggestedPct=suggestedOrder.map(v=>suggestedTotal>0?Math.round(v/suggestedTotal*100):0);
 
-  // Size workings (manual overrides)
   const swVals=sizes.map(sz=>parseInt(swManual[sz])||0);
   const swTotal=swVals.reduce((s,v)=>s+v,0);
   const swPct=swVals.map(v=>swTotal>0?Math.round(v/swTotal*100):0);
 
   const pctFmt=v=>v>0?v.toFixed(1)+'%':'0.0%';
   const pctFmtInt=v=>v>0?v+'%':'0%';
+  const safeKey=swKey.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
 
   const thCols=sizes.map(s=>`<th>${s}</th>`).join('');
   const mkRow=(label,vals,cls,totalVal,totalCls='')=>
     `<tr><td class="sw-row-label">${label}</td>${vals.map((v,i)=>`<td class="${cls}${v===0?' sw-need-zero':''}">${v}</td>`).join('')}<td class="sw-total ${totalCls}">${totalVal}</td></tr>`;
   const mkPctRow=(vals,total)=>
-    `<tr>${'<td class="sw-pct"></td>'}${vals.map(v=>`<td class="sw-pct">${pctFmt(v)}</td>`).join('')}<td class="sw-pct">${total>0?'100.0%':'0.0%'}</td></tr>`;
+    `<tr><td class="sw-pct"></td>${vals.map(v=>`<td class="sw-pct">${pctFmt(v)}</td>`).join('')}<td class="sw-pct">${total>0?'100.0%':'0.0%'}</td></tr>`;
 
-  // Total needed input row
   const totalInputRow=`<tr>
     <td class="sw-row-label" style="border-top:2px solid var(--teal);">Total Units Needed</td>
     <td colspan="${sizes.length}" style="border-top:2px solid var(--teal);"></td>
     <td style="border-top:2px solid var(--teal);padding:6px;">
       <input class="sw-input-total" type="number" min="0" step="1" placeholder="0" value="${totalInput}"
-        oninput="swSaveTotal('${swKey.replace(/'/g,"\\'")}',this.value)"
+        oninput="swSaveTotal('${safeKey}',this.value)"
         onblur="renderSizeWorkings()" onkeydown="if(event.key==='Enter'){renderSizeWorkings();this.blur();}">
     </td>
   </tr>
@@ -3876,13 +3941,12 @@ function renderSizeWorkings(){
     <td class="sw-total">${total.toLocaleString()}</td>
   </tr>`;
 
-  // Size workings input row
   const swInputRow=`<tr style="background:#fafafa;">
     <td class="sw-row-label" style="border-top:2px solid var(--border);">Size Workings</td>
     ${sizes.map(sz=>`<td style="padding:5px 6px;border-top:2px solid var(--border);">
       <input class="sw-input-size" type="number" min="0" step="1" placeholder="0"
         value="${swManual[sz]||''}"
-        oninput="swSaveManual('${swKey.replace(/'/g,"\\'")}','${sz}',this.value)"
+        oninput="swSaveManual('${safeKey}','${sz}',this.value)"
         onblur="renderSizeWorkings()" onkeydown="if(event.key==='Enter'){renderSizeWorkings();this.blur();}">
     </td>`).join('')}
     <td class="sw-total" style="border-top:2px solid var(--border);">${swTotal>0?swTotal.toLocaleString():'—'}</td>
@@ -3893,7 +3957,7 @@ function renderSizeWorkings(){
     <td class="sw-pct">${swTotal>0?'100%':'—'}</td>
   </tr>`;
 
-  body.innerHTML=`
+  return`<div style="margin-bottom:28px;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-xs);">
     <div class="sw-product-title">${styleCode?`<span style="color:var(--text-muted);font-size:13px;font-weight:500;letter-spacing:0.05em;">${styleCode}</span> `:''}${productName} <span style="color:var(--teal);">— ${colour}</span></div>
     <div style="overflow-x:auto;">
       <table class="sw-table">
@@ -3913,7 +3977,9 @@ function renderSizeWorkings(){
           ${swInputRow}
         </tbody>
       </table>
-    </div>`;
+    </div>
+  </div>`;
+  }).join('');
 }
 
 function swSaveTotal(key,val){
@@ -3924,18 +3990,19 @@ function swSaveManual(key,size,val){
   d[key].manual[size]=val;saveSwData(d);
 }
 function swExport(){
-  if(!swProduct)return;
-  const colour=swProduct.colour;
-  const table=document.querySelector('.sw-table');
-  if(!table){alert('No data to export.');return;}
-  const rows=[...table.querySelectorAll('tr')].map(tr=>
-    [...tr.querySelectorAll('th,td')].map(td=>`"${(td.querySelector('input')?td.querySelector('input').value:td.textContent).trim().replace(/"/g,'""')}"`)
-    .join(',')
-  ).join('\n');
-  const blob=new Blob([rows],{type:'text/csv'});
+  if(!swSelectedProducts.length){alert('No products selected.');return;}
+  const tables=document.querySelectorAll('.sw-table');
+  if(!tables.length){alert('No data to export.');return;}
+  const csvParts=[...tables].map(table=>{
+    return[...table.querySelectorAll('tr')].map(tr=>
+      [...tr.querySelectorAll('th,td')].map(td=>`"${(td.querySelector('input')?td.querySelector('input').value:td.textContent).trim().replace(/"/g,'""')}"`)
+      .join(',')
+    ).join('\n');
+  }).join('\n\n');
+  const blob=new Blob([csvParts],{type:'text/csv'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;
-  a.download=`size_workings_${swProduct.productName.replace(/[^a-z0-9]/gi,'_')}_${colour}.csv`;
+  a.download=`size_workings_${new Date().toISOString().slice(0,10)}.csv`;
   a.click();URL.revokeObjectURL(url);
 }
 
@@ -4511,11 +4578,13 @@ function roSendToSizeWorkings(){
 
 function roSendToSwReset(){
   window._roToSwProducts=null;
-  // Clear the multi-product body, restore normal empty state
+  swSelectedProducts=[];
+  swProduct=null;
+  swRenderTags();
   const body=document.getElementById('sw-body');
-  if(body)body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">📐</div><div class="insights-empty-title">Select a product above</div><div class="insights-empty-sub">Search for a product to see its size breakdown.</div></div>`;
+  if(body)body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">📐</div><div class="insights-empty-title">Size Workings</div><div class="insights-empty-sub">Search for a product above to begin size planning.</div></div>`;
   const searchEl=document.getElementById('sw-search');
-  if(searchEl){searchEl.value='';searchEl.placeholder='Search product...';}
+  if(searchEl){searchEl.value='';searchEl.placeholder='Type to search, tick to select, then click Add Selected...';}
 }
 
 function renderRoSizeWorkings(){
