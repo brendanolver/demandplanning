@@ -2865,6 +2865,61 @@ function togglePlanExpand(cat){
   renderPlanning();
 }
 
+function getLYSalesByProduct(months,allowedSkus){
+  const result={};
+  if(!window._salesBySkuDay)return result;
+  // Build SKU → productName||colour map from allVariantRows
+  const skuProdMap={};
+  for(const r of allVariantRows){
+    if(!skuProdMap[r.sku])skuProdMap[r.sku]=r.productName+'||'+r.colour;
+  }
+  for(const[sku,days] of Object.entries(window._salesBySkuDay)){
+    if(allowedSkus&&!allowedSkus.has(sku))continue;
+    const pk=skuProdMap[sku];
+    if(!pk)continue;
+    if(!result[pk])result[pk]={};
+    for(const[day,d] of Object.entries(days)){
+      const dt=new Date(day);dt.setHours(0,0,0,0);
+      for(const m of months){
+        if(dt>=m.lyStart&&dt<=m.lyEnd){
+          const qty=m.prorateRatio<1?d.qty*m.prorateRatio:d.qty;
+          result[pk][m.key]=(result[pk][m.key]||0)+qty;
+        }
+      }
+    }
+  }
+  for(const pk of Object.keys(result)){
+    for(const key of Object.keys(result[pk])){
+      result[pk][key]=Math.round(result[pk][key]);
+    }
+  }
+  return result;
+}
+
+function getAMOnOrderByProduct(months,planRows){
+  const result={};
+  const sourceRows=planRows||allVariantRows;
+  const seen=new Set();
+  for(const row of sourceRows){
+    const pk=row.productName+'||'+row.colour;
+    const onOrder=(row.productOnOrder||0)||(row.onOrder||0);
+    if(onOrder<=0||!row.monthDue)continue;
+    // Deduplicate — only count product-level on-order once per product
+    if(seen.has(pk))continue;
+    seen.add(pk);
+    const parts=row.monthDue.split(' - ');
+    if(parts.length<2)continue;
+    const yr=parseInt(parts[0]);
+    const MONTHS=['january','february','march','april','may','june','july','august','september','october','november','december'];
+    const mi=MONTHS.indexOf(parts[1].toLowerCase().trim());
+    if(mi<0||isNaN(yr))continue;
+    const mKey=`${yr}-${String(mi+1).padStart(2,'0')}`;
+    if(!result[pk])result[pk]={};
+    result[pk][mKey]=(result[pk][mKey]||0)+onOrder;
+  }
+  return result;
+}
+
 function getActiveRows(){
   return globalCoreFilter==='core'?allVariantRows.filter(r=>r.vendor==='CORE'):allVariantRows;
 }
@@ -2942,7 +2997,6 @@ function renderPlanning(){
   }).join('');
 
   // Build per-product data for expansion rows
-  // Uses getActiveRows() so Core toggle is respected
   const activeRows=getActiveRows();
   const productsByCat={};
   const prodMap=new Map();
@@ -2953,27 +3007,20 @@ function renderPlanning(){
     if(!prodMap.has(key)){
       prodMap.set(key,{
         productName:r.productName,colour:r.colour,category:cat,
-        vendor:r.vendor,stock:0,sold:0,sold30:0,onOrder:0,flag:r.flag,
-        margin:r.margin,velocity:0
+        vendor:r.vendor,stock:0,flag:r.flag
       });
     }
     const p=prodMap.get(key);
     p.stock+=r.stock||0;
-    p.sold+=r.sold||0;
-    p.sold30+=(r.sold30||0);
-    p.velocity+=(r.velocity||0);
-    if(!p.onOrder)(p.onOrder=(r.productOnOrder||0)||(r.onOrder||0));
   }
   for(const[,p] of prodMap){
-    const cat=p.category;
-    if(!productsByCat[cat])productsByCat[cat]=[];
-    productsByCat[cat].push(p);
+    if(!productsByCat[p.category])productsByCat[p.category]=[];
+    productsByCat[p.category].push(p);
   }
 
-  const mgMap=buildAchievedMarginMap(selectedPeriod);
-  const SL2={ok:'OK','on-order':'On Order',oos:'OOS',reorder:'Re-Order',reduce:'Reduce',clearance:'Clearance'};
-  const flagCls={ok:'sp-ok','on-order':'sp-onorder',oos:'sp-oos',reorder:'sp-reorder',reduce:'sp-reduce',clearance:'sp-clearance'};
-  const totalMonthCols=months.length*5;
+  // Product-level LY sales and on-order (for expansion planning columns)
+  const lyDataProd=getLYSalesByProduct(months,allowedSkus);
+  const onOrderDataProd=getAMOnOrderByProduct(months,activeRows.filter(r=>!r.amOnly));
 
   const catRows=sortedCats.map((cat)=>{
     const soh=catSoh[cat]||0;
@@ -3028,45 +3075,67 @@ function renderPlanning(){
         <td style="${m.isCurrent?'background:rgba(14,165,160,0.04);':''}"><span class="${varClass}">${varLabel}</span></td>`;
     }).join('');
 
-    // Build product expansion rows
+    // Build product expansion rows with full planning columns
     const prods=(productsByCat[cat]||[]).sort((a,b)=>a.productName.localeCompare(b.productName));
     const prodRows=prods.map(p=>{
-      const pKey=`prod:${p.productName}||${p.colour}`;
-      const pMg=mgMap[pKey];
-      const pSt=p.sold>0&&(p.stock+p.sold)>0?+(p.sold/(p.stock+p.sold)*100).toFixed(1):null;
-      const pVel=p.velocity;
-      const pWksRaw=pVel>0?(p.stock/(pVel)):null;
-      const pWks=pWksRaw!==null?(pWksRaw/7).toFixed(1):null;
-      const pWksCls=pWks===null?'cell-muted':parseFloat(pWks)>=12?'plan-wks-ok':'plan-wks-warn';
-      const pMgColor=pMg==null?'var(--text-muted)':pMg>=75?'var(--green)':pMg>=60?'var(--teal)':pMg>=40?'var(--amber)':'var(--red)';
-      return`<tr style="background:#f8faff;border-bottom:1px solid var(--border-light);">
-        <td style="padding:5px 8px 5px 32px;font-size:12px;white-space:nowrap;" colspan="3">
-          <span style="font-weight:600;color:var(--text);">${p.productName}</span>
-          <span style="color:var(--teal);font-size:11px;"> — ${p.colour}</span>
+      const pk=p.productName+'||'+p.colour;
+      const safePk=pk.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+      const pSoh=p.stock;
+
+      const pMonthlyCells=months.map((m,mi)=>{
+        const growth=parseFloat(saved[`growth_${m.key}`]||0)||0;
+        const ly=Math.round(lyDataProd[pk]?.[m.key]||0);
+        const budget=Math.round(ly*(1+growth/100));
+        const onOrder=Math.round(onOrderDataProd[pk]?.[m.key]||0);
+        const toOrderVal=saved[`to_prod_${safePk}_${m.key}`]||'';
+        const toOrder=parseInt(toOrderVal)||0;
+
+        // Same coverage logic as category rows
+        let coverage=0;
+        if(!m.isCurrent&&months[0]?.isCurrent){
+          const cm=months[0];
+          const cfg=parseFloat(saved[`growth_${cm.key}`]||0)||0;
+          coverage+=Math.round((lyDataProd[pk]?.[cm.key]||0)*(1+cfg/100));
+        }
+        for(let j=0;j<coverMonths;j++){
+          const fm=months[m.isCurrent?mi+j:mi+j];
+          if(!fm)break;
+          const fg=parseFloat(saved[`growth_${fm.key}`]||0)||0;
+          coverage+=Math.round((lyDataProd[pk]?.[fm.key]||0)*(1+fg/100));
+        }
+
+        const suggestOrder=coverage>0?Math.max(0,coverage-(pSoh+onOrder)):0;
+        const variance=(pSoh+onOrder+toOrder)-coverage;
+        const varClass=coverage===0?'':variance>=0?'plan-variance-ok':'plan-variance-warn';
+        const varLabel=coverage===0?'—':(variance>=0?'+':'')+variance.toLocaleString();
+        return`
+          <td style="border-left:2px solid var(--border);${m.isCurrent?'background:rgba(14,165,160,0.04);':''}">
+            <span class="plan-budget">${budget>0?budget.toLocaleString():'—'}</span></td>
+          <td style="${m.isCurrent?'background:rgba(14,165,160,0.04);':''}"><span class="${pSoh>0?'plan-soh':'cell-muted'}">${pSoh>0?pSoh.toLocaleString():'—'}</span></td>
+          <td style="${m.isCurrent?'background:rgba(14,165,160,0.04);':''}"><span class="${onOrder>0?'plan-onorder':'cell-muted'}">${onOrder>0?onOrder.toLocaleString():'—'}</span></td>
+          <td style="padding:3px 5px;${m.isCurrent?'background:rgba(14,165,160,0.04);':''}">
+            ${m.isCurrent
+              ?`<span style="font-size:11px;color:var(--text-muted);font-style:italic;">current</span>`
+              :`<input class="plan-input" type="number" min="0" step="1"
+                  placeholder="${suggestOrder>0?suggestOrder:''}"
+                  value="${toOrderVal}"
+                  style="font-size:11px;${!toOrderVal&&suggestOrder>0?'color:#f97316;':''}"
+                  onchange="savePlanField('to_prod_${safePk}_${m.key}',this.value);renderPlanning();">`}
+          </td>
+          <td style="${m.isCurrent?'background:rgba(14,165,160,0.04);':''}"><span class="${varClass}">${varLabel}</span></td>`;
+      }).join('');
+
+      return`<tr style="background:#f5f8ff;border-bottom:1px solid var(--border-light);">
+        <td class="plan-cat" style="padding-left:32px;font-size:12px;font-weight:600;white-space:nowrap;" colspan="3">
+          <span style="color:var(--text);">${p.productName}</span>
+          <span style="color:var(--teal);font-weight:400;"> — ${p.colour}</span>
           <span class="range-pill rp-${(p.vendor||'').toLowerCase().replace(/[^a-z]/g,'')}" style="font-size:10px;margin-left:6px;">${p.vendor}</span>
         </td>
-        <td style="text-align:right;padding:5px 8px;font-size:12px;color:var(--text-secondary);">${p.stock>0?p.stock.toLocaleString():'—'}</td>
-        <td style="text-align:right;padding:5px 8px;font-size:12px;color:var(--purple);">${p.onOrder>0?p.onOrder.toLocaleString():'—'}</td>
-        <td style="text-align:right;padding:5px 8px;font-size:12px;">${p.sold>0?p.sold.toLocaleString():'—'}</td>
-        <td style="text-align:right;padding:5px 8px;font-size:12px;">${pSt!==null?pSt+'%':'—'}</td>
-        <td style="text-align:right;padding:5px 8px;font-size:12px;"><span class="${pWksCls}">${pWks!==null?pWks+'w':'—'}</span></td>
-        <td style="text-align:right;padding:5px 8px;font-size:12px;font-weight:600;color:${pMgColor};">${pMg!=null?pMg.toFixed(1)+'%':'—'}</td>
-        <td style="padding:5px 8px;"><span class="stock-pill ${flagCls[p.flag]||''}" style="font-size:10px;">${SL2[p.flag]||p.flag||'—'}</span></td>
-        <td colspan="${totalMonthCols}" style="background:#f8faff;"></td>
+        ${pMonthlyCells}
       </tr>`;
     }).join('');
 
-    const expandHeader=isExpanded?`<tr style="background:#eef4ff;border-bottom:1px solid var(--border);">
-      <td style="padding:4px 8px 4px 32px;font-size:10px;font-weight:700;color:var(--text-muted);letter-spacing:0.08em;white-space:nowrap;" colspan="3">PRODUCT</td>
-      <td style="text-align:right;padding:4px 8px;font-size:10px;font-weight:700;color:var(--text-muted);">SOH</td>
-      <td style="text-align:right;padding:4px 8px;font-size:10px;font-weight:700;color:var(--text-muted);">ON ORDER</td>
-      <td style="text-align:right;padding:4px 8px;font-size:10px;font-weight:700;color:var(--text-muted);">SOLD (${selectedPeriod}d)</td>
-      <td style="text-align:right;padding:4px 8px;font-size:10px;font-weight:700;color:var(--text-muted);">ST%</td>
-      <td style="text-align:right;padding:4px 8px;font-size:10px;font-weight:700;color:var(--text-muted);">WKS</td>
-      <td style="text-align:right;padding:4px 8px;font-size:10px;font-weight:700;color:var(--text-muted);">MARGIN%</td>
-      <td style="padding:4px 8px;font-size:10px;font-weight:700;color:var(--text-muted);">STATUS</td>
-      <td colspan="${totalMonthCols}" style="background:#eef4ff;"></td>
-    </tr>${prodRows}`:'';
+    const expandHeader=isExpanded?prodRows:'';
 
     return`<tr style="background:${isExpanded?'#eef4ff':''};">
       <td class="plan-cat" style="cursor:pointer;" onclick="togglePlanExpand('${safeCat}')">
