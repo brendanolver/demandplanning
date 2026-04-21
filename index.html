@@ -7164,18 +7164,28 @@ function buildAchievedMarginMap(period){
     if(rev>0){skuRev[sku]=rev;skuCost[sku]=cost;}
   }
 
-  // Aggregate to product and category level using allVariantRows for key mapping
+  // Aggregate to product and category level
+  // Use _skuCategoryMap (covers all SKUs incl. GWP) for category mapping
+  // Use allVariantRows for product-level mapping (product view only needs live products)
+  const skuCatMap=window._skuCategoryMap||{};
   const prodRev={},prodCost={},catRev={},catCost={};
+
+  // Category pooling — use skuCatMap so GWP and other draft SKUs contribute their cost drag
+  for(const[sku,rev] of Object.entries(skuRev)){
+    const cost=skuCost[sku]||0;
+    const ck=skuCatMap[sku]||'UNCATEGORISED';
+    catRev[ck]=(catRev[ck]||0)+rev;
+    catCost[ck]=(catCost[ck]||0)+cost;
+  }
+
+  // Product pooling — only live products in allVariantRows
   for(const r of allVariantRows){
     const rev=skuRev[r.sku]||0;
     const cost=skuCost[r.sku]||0;
     if(rev<=0)continue;
     const pk=r.productName+'||'+r.colour;
-    const ck=r.category||'UNCATEGORISED';
     prodRev[pk]=(prodRev[pk]||0)+rev;
     prodCost[pk]=(prodCost[pk]||0)+cost;
-    catRev[ck]=(catRev[ck]||0)+rev;
-    catCost[ck]=(catCost[ck]||0)+cost;
   }
 
   const mgPct=(rev,cost)=>rev>0?+((rev-cost)/rev*100).toFixed(2):null;
