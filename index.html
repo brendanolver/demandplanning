@@ -3294,6 +3294,128 @@ function renderPlanning(){
   const lyDataProd=getLYSalesByProduct(months,allowedSkus);
   const onOrderDataProd=getAMOnOrderByProduct(months,activeRows.filter(r=>!r.amOnly));
 
+  // ── FILTERED MODE: flat product rows only, no categories ──
+  if(isFiltered){
+    const filteredProds=[...planFilteredProds].map(key=>{
+      const sepIdx=key.indexOf('||');
+      return{productName:key.slice(0,sepIdx),colour:key.slice(sepIdx+2),key};
+    }).sort((a,b)=>a.productName.localeCompare(b.productName));
+
+    const prodRows=filteredProds.map(({productName,colour,key:pk})=>{
+      const p=prodMap.get(pk);
+      if(!p)return'';
+      const pSoh=p.stock;
+      const safePk=pk.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+
+      const pMonthlyCells=months.map((m,mi)=>{
+        const growth=parseFloat(saved[`growth_${m.key}`]||0)||0;
+        const ly=Math.round(lyDataProd[pk]?.[m.key]||0);
+        const budget=Math.round(ly*(1+growth/100));
+        const onOrder=Math.round(onOrderDataProd[pk]?.[m.key]||0);
+        const toOrderVal=saved[`to_prod_${safePk}_${m.key}`]||'';
+        const toOrder=parseInt(toOrderVal)||0;
+        let coverage=0;
+        if(!m.isCurrent&&months[0]?.isCurrent){
+          const cm=months[0];const cfg=parseFloat(saved[`growth_${cm.key}`]||0)||0;
+          coverage+=Math.round((lyDataProd[pk]?.[cm.key]||0)*(1+cfg/100));
+        }
+        for(let j=0;j<coverMonths;j++){
+          const fm=months[m.isCurrent?mi+j:mi+j];if(!fm)break;
+          const fg=parseFloat(saved[`growth_${fm.key}`]||0)||0;
+          coverage+=Math.round((lyDataProd[pk]?.[fm.key]||0)*(1+fg/100));
+        }
+        const suggestOrder=coverage>0?Math.max(0,coverage-(pSoh+onOrder)):0;
+        const variance=(pSoh+onOrder+toOrder)-coverage;
+        const varClass=coverage===0?'':variance<0?'plan-variance-warn':budget>0&&variance>=3*budget?'plan-variance-over':'plan-variance-ok';
+        const varLabel=coverage===0?'—':(variance>=0?'+':'')+variance.toLocaleString();
+        return`
+          <td style="border-left:2px solid var(--border);${m.isCurrent?'background:rgba(14,165,160,0.04);':''}">
+            <span class="plan-budget">${budget>0?budget.toLocaleString():'—'}</span></td>
+          <td style="${m.isCurrent?'background:rgba(14,165,160,0.04);':''}"><span class="${pSoh>0?'plan-soh':'cell-muted'}">${pSoh>0?pSoh.toLocaleString():'—'}</span></td>
+          <td style="${m.isCurrent?'background:rgba(14,165,160,0.04);':''}"><span class="${onOrder>0?'plan-onorder':'cell-muted'}">${onOrder>0?onOrder.toLocaleString():'—'}</span></td>
+          <td style="padding:3px 5px;${m.isCurrent?'background:rgba(14,165,160,0.04);':''}">
+            ${m.isCurrent
+              ?`<span style="font-size:11px;color:var(--text-muted);font-style:italic;">current</span>`
+              :`<input class="plan-input" type="number" min="0" step="1"
+                  placeholder="${suggestOrder>0?suggestOrder:''}"
+                  value="${toOrderVal}"
+                  style="font-size:11px;${!toOrderVal&&suggestOrder>0?'color:#f97316;':''}"
+                  onchange="savePlanField('to_prod_${safePk}_${m.key}',this.value);renderPlanning();">`}
+          </td>
+          <td style="${m.isCurrent?'background:rgba(14,165,160,0.04);':''}"><span class="${varClass}">${varLabel}</span></td>`;
+      }).join('');
+
+      return`<tr style="background:var(--surface);border-bottom:1px solid var(--border);">
+        <td class="plan-cat" style="font-size:12px;font-weight:600;white-space:nowrap;" colspan="3">
+          <div style="font-weight:700;color:var(--text);">${productName}</div>
+          <div style="font-size:11px;color:var(--teal);font-weight:400;">${colour}
+            <span class="range-pill rp-${(p.vendor||'').toLowerCase().replace(/[^a-z]/g,'')}" style="font-size:10px;margin-left:4px;">${p.vendor}</span>
+          </div>
+        </td>
+        ${pMonthlyCells}
+      </tr>`;
+    }).join('');
+
+    // Product-level totals for filtered view
+    const filteredTotalCells=months.map((m,mi)=>{
+      const growth=parseFloat(saved[`growth_${m.key}`]||0)||0;
+      let tb=0,tsoh=0,too=0,tto=0,tcov=0;
+      for(const{key:pk} of filteredProds){
+        const p=prodMap.get(pk);if(!p)continue;
+        tb+=Math.round((lyDataProd[pk]?.[m.key]||0)*(1+growth/100));
+        tsoh+=p.stock||0;
+        too+=Math.round(onOrderDataProd[pk]?.[m.key]||0);
+        tto+=parseInt(saved[`to_prod_${pk.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}_${m.key}`]||0)||0;
+      }
+      if(!m.isCurrent&&months[0]?.isCurrent){
+        const cm=months[0];const cfg=parseFloat(saved[`growth_${cm.key}`]||0)||0;
+        for(const{key:pk} of filteredProds)tcov+=Math.round((lyDataProd[pk]?.[cm.key]||0)*(1+cfg/100));
+      }
+      for(let j=0;j<coverMonths;j++){
+        const fm=months[mi+j];if(!fm)break;
+        const fg=parseFloat(saved[`growth_${fm.key}`]||0)||0;
+        for(const{key:pk} of filteredProds)tcov+=Math.round((lyDataProd[pk]?.[fm.key]||0)*(1+fg/100));
+      }
+      const variance=(tsoh+too+tto)-tcov;
+      const varClass=tcov===0?'':variance<0?'plan-variance-warn':tb>0&&variance>=3*tb?'plan-variance-over':'plan-variance-ok';
+      return`
+        <td style="border-left:2px solid var(--border);font-weight:700;">${tb>0?tb.toLocaleString():'—'}</td>
+        <td style="font-weight:700;color:var(--text-secondary);">${tsoh>0?tsoh.toLocaleString():'—'}</td>
+        <td style="font-weight:700;color:var(--purple);">${too>0?too.toLocaleString():'—'}</td>
+        <td style="font-weight:700;color:${tto>0?'var(--text)':'#f97316'};">${tto>0?tto.toLocaleString():tcov>0?Math.max(0,tcov-(tsoh+too)).toLocaleString():'—'}</td>
+        <td><span class="${varClass}" style="font-size:12px;">${tcov===0?'—':((variance>=0?'+':'')+variance.toLocaleString())}</span></td>`;
+    }).join('');
+
+    // Render filtered table with Product as first column header
+    document.getElementById('planning-body').innerHTML=`
+      <div class="plan-legend">
+        <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--teal)"></div>12w+ cover — healthy</div>
+        <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--red)"></div>Under 12w — reorder risk</div>
+        <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--purple)"></div>On Order from Apparel Magic</div>
+        <div class="plan-legend-item" style="color:var(--orange);">■ Orange variance = 3× monthly budget (overstocked)</div>
+      </div>
+      <div class="plan-table-wrap">
+        <table class="plan-table">
+          <thead>
+            <tr>
+              <th class="plan-th-left" rowspan="2" style="min-width:200px;">Product</th>
+              ${monthHeaders}
+            </tr>
+            <tr>${subHeaders}</tr>
+          </thead>
+          <tbody>
+            ${prodRows}
+            <tr class="plan-total-row">
+              <td class="plan-cat" colspan="3">TOTAL</td>
+              ${filteredTotalCells}
+            </tr>
+          </tbody>
+        </table>
+      </div>`;
+    return; // exit renderPlanning early — don't render category table
+  }
+
+  // ── NORMAL MODE: category rows with expand arrows ──
   const catRows=filteredSortedCats.map((cat)=>{
     const soh=catSoh[cat]||0;
     const vel=catVel30[cat]||0;
