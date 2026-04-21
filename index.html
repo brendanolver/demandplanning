@@ -1153,10 +1153,21 @@ th{position:relative;}
       <!-- Product filter search -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 18px;margin-bottom:16px;box-shadow:var(--shadow-xs);">
         <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;">
-          <div style="position:relative;flex:1;min-width:260px;">
+          <!-- Category quick-select -->
+          <div class="ms-wrap" id="ms-plan-cat" style="flex-shrink:0;">
+            <button class="ms-btn" onclick="toggleDropdown('ms-plan-cat')"><span id="ms-plan-cat-label">All Categories</span><span class="ms-arrow">▾</span></button>
+            <div class="ms-dropdown" id="ms-plan-cat-dropdown">
+              <label class="ms-item ms-all"><input type="checkbox" id="plan-cat-all-cb" onchange="planCatSelectAll(this)"> All Categories</label>
+              <div id="ms-plan-cat-options"></div>
+              <div style="padding:8px 10px;border-top:1px solid var(--border);background:var(--surface2);">
+                <button onclick="planCatApply()" style="width:100%;padding:5px;background:var(--teal);color:white;border:none;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">✓ Add All in Category</button>
+              </div>
+            </div>
+          </div>
+          <div style="position:relative;flex:1;min-width:220px;">
             <div class="search-wrap">
               <span class="search-ico">🔍</span>
-              <input type="text" id="plan-filter-search" placeholder="Filter by product — type to search, tick to select, then Add Selected..." oninput="planFilterSearch()" autocomplete="off" style="width:100%;">
+              <input type="text" id="plan-filter-search" placeholder="Or search by product name..." oninput="planFilterSearch()" autocomplete="off" style="width:100%;">
             </div>
             <div id="plan-filter-results" style="display:none;position:absolute;z-index:300;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-lg);width:100%;top:100%;margin-top:4px;">
               <div style="padding:7px 14px;border-bottom:1px solid var(--border);background:var(--surface2);border-radius:var(--r) var(--r) 0 0;">
@@ -2978,6 +2989,43 @@ function planFilterRemove(key){
   renderPlanning();
 }
 
+function planCatSelectAll(cb){
+  document.querySelectorAll('#ms-plan-cat-options input[type="checkbox"]').forEach(b=>b.checked=cb.checked);
+}
+
+function planCatApply(){
+  // Get all checked categories and add every product in those categories
+  const checked=[...document.querySelectorAll('#ms-plan-cat-options input[type="checkbox"]:checked')].map(b=>b.value);
+  if(!checked.length){toggleDropdown('ms-plan-cat');return;}
+  for(const r of allVariantRows){
+    if(r.amOnly)continue;
+    if(checked.includes(r.category||'UNCATEGORISED')){
+      planFilteredProds.add(r.productName+'||'+r.colour);
+    }
+  }
+  // Reset checkboxes and close dropdown
+  document.querySelectorAll('#ms-plan-cat-options input[type="checkbox"]').forEach(b=>b.checked=false);
+  const allCb=document.getElementById('plan-cat-all-cb');if(allCb)allCb.checked=false;
+  const label=document.getElementById('ms-plan-cat-label');if(label)label.textContent='All Categories';
+  toggleDropdown('ms-plan-cat');
+  planFilterRenderTags();
+  renderPlanning();
+}
+
+function planPopulateCatDropdown(){
+  const opts=document.getElementById('ms-plan-cat-options');
+  if(!opts||opts.children.length)return;
+  const cats=[...new Set(allVariantRows.filter(r=>!r.amOnly).map(r=>r.category||'UNCATEGORISED'))].sort();
+  opts.innerHTML=cats.map(c=>`<label class="ms-item"><input type="checkbox" value="${c}" onchange="planCatUpdateLabel()"> ${c}</label>`).join('');
+}
+
+function planCatUpdateLabel(){
+  const all=document.querySelectorAll('#ms-plan-cat-options input');
+  const checked=[...all].filter(b=>b.checked);
+  const label=document.getElementById('ms-plan-cat-label');
+  if(label)label.textContent=checked.length===0||checked.length===all.length?'All Categories':checked.length===1?checked[0].value:checked.length+' categories';
+}
+
 function planFilterClear(){
   planFilteredProds.clear();
   const inp=document.getElementById('plan-filter-search');if(inp)inp.value='';
@@ -3123,6 +3171,9 @@ document.addEventListener('click',e=>{
   if(!e.target.closest('#plan-filter-search')&&!e.target.closest('#plan-filter-results')){
     const r=document.getElementById('plan-filter-results');if(r)r.style.display='none';
   }
+  if(!e.target.closest('#ms-plan-cat')){
+    const d=document.getElementById('ms-plan-cat-dropdown');if(d)d.style.display='none';
+  }
 });
 
 function getLYSalesByProduct(months,allowedSkus){
@@ -3203,8 +3254,7 @@ function renderPlanning(){
     return;
   }
   planFilterRenderTags();
-
-  const months=getPlanMonths();
+  planPopulateCatDropdown();
   const planRows=globalCoreFilter==='core'?allVariantRows.filter(r=>r.vendor==='CORE'):allVariantRows;
   const allowedSkus=globalCoreFilter==='core'?new Set(planRows.map(r=>r.sku)):null;
   const cats=[...new Set(planRows.filter(r=>!r.amOnly).map(r=>r.category||'UNCATEGORISED'))].sort();
@@ -3257,11 +3307,12 @@ function renderPlanning(){
         </div></td>`;
   }).join('');
 
-  // Build per-product data for expansion rows
+  // Build per-product data — use allVariantRows (not getActiveRows) so SOH is
+  // available for any product the user selects, regardless of Core/All toggle
   const activeRows=getActiveRows();
   const productsByCat={};
   const prodMap=new Map();
-  for(const r of activeRows){
+  for(const r of allVariantRows){
     if(r.amOnly)continue;
     const cat=r.category||'UNCATEGORISED';
     const key=r.productName+'||'+r.colour;
@@ -3280,8 +3331,8 @@ function renderPlanning(){
   }
 
   // Product-level LY sales and on-order (for expansion planning columns)
-  const lyDataProd=getLYSalesByProduct(months,allowedSkus);
-  const onOrderDataProd=getAMOnOrderByProduct(months,activeRows.filter(r=>!r.amOnly));
+  const lyDataProd=getLYSalesByProduct(months,null); // always use all SKUs for LY budget
+  const onOrderDataProd=getAMOnOrderByProduct(months,allVariantRows.filter(r=>!r.amOnly));
 
   // Now that prodMap/productsByCat are built, determine filter state
   const isFiltered=planFilteredProds.size>0;
