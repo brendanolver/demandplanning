@@ -273,6 +273,7 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .plan-onorder{color:var(--purple);font-weight:500;}
 .plan-variance-ok{color:var(--teal);font-weight:700;}
 .plan-variance-warn{color:var(--red);font-weight:700;}
+.plan-variance-over{color:var(--orange);font-weight:700;}
 .plan-section-header{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);padding:4px 0;border-bottom:2px solid var(--teal);margin-bottom:2px;}
 .plan-legend{display:flex;gap:16px;align-items:center;font-size:11px;color:var(--text-secondary);margin-bottom:14px;flex-wrap:wrap;}
 .plan-legend-item{display:flex;align-items:center;gap:5px;}
@@ -3319,7 +3320,7 @@ function renderPlanning(){
 
       const suggestOrder=coverage2m>0?Math.max(0,coverage2m-(soh+onOrder)):0;
       const variance=(soh+onOrder+toOrder)-coverage2m;
-      const varClass=coverage2m===0?'':variance>=0?'plan-variance-ok':'plan-variance-warn';
+      const varClass=coverage2m===0?'':variance<0?'plan-variance-warn':budget>0&&variance>=3*budget?'plan-variance-over':'plan-variance-ok';
       const varLabel=coverage2m===0?'—':(variance>=0?'+':'')+variance.toLocaleString();
       return`
         <td style="border-left:2px solid var(--border);${m.isCurrent?'background:rgba(14,165,160,0.04);':''}">
@@ -3369,7 +3370,7 @@ function renderPlanning(){
 
         const suggestOrder=coverage>0?Math.max(0,coverage-(pSoh+onOrder)):0;
         const variance=(pSoh+onOrder+toOrder)-coverage;
-        const varClass=coverage===0?'':variance>=0?'plan-variance-ok':'plan-variance-warn';
+        const varClass=coverage===0?'':variance<0?'plan-variance-warn':budget>0&&variance>=3*budget?'plan-variance-over':'plan-variance-ok';
         const varLabel=coverage===0?'—':(variance>=0?'+':'')+variance.toLocaleString();
         return`
           <td style="border-left:2px solid var(--border);${m.isCurrent?'background:rgba(14,165,160,0.04);':''}">
@@ -3439,7 +3440,7 @@ function renderPlanning(){
     }
     const tsuggestOrder=tcoverage2m>0?Math.max(0,tcoverage2m-(tsoh+too)):0;
     const variance=(tsoh+too+tto)-tcoverage2m;
-    const varClass=tcoverage2m===0?'':variance>=0?'plan-variance-ok':'plan-variance-warn';
+    const varClass=tcoverage2m===0?'':variance<0?'plan-variance-warn':tb>0&&variance>=3*tb?'plan-variance-over':'plan-variance-ok';
     return`
       <td style="border-left:2px solid var(--border);font-weight:700;">${tb>0?tb.toLocaleString():'—'}</td>
       <td style="font-weight:700;color:var(--text-secondary);">${tsoh>0?tsoh.toLocaleString():'—'}</td>
