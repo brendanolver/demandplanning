@@ -6523,9 +6523,16 @@ function renderKPIs(){
   // revenue field = (price × qty + discounts) / 1.1 — already discount-adjusted ex-GST
   // cogs field = cost of goods sold from Shopify
   const todayStr=new Date().toISOString().slice(0,10);
+  // Build GWP SKU set for exclusion — matches Better Reports methodology
+  const _gwpSkuSet=new Set(
+    Object.entries(window._skuCategoryMap||{})
+      .filter(([,cat])=>(cat||'').toUpperCase().trim()==='GWP')
+      .map(([sku])=>sku)
+  );
   let todayRevPool=0,todayCostPool=0;
   if(window._salesBySkuDay){
     for(const[sku,days] of Object.entries(window._salesBySkuDay)){
+      if(_gwpSkuSet.has(sku))continue;
       const d=days[todayStr];
       if(!d||!d.qty)continue;
       todayRevPool+=(d.revenue||0);
@@ -7154,9 +7161,22 @@ function buildAchievedMarginMap(period){
   const cutoff=new Date(now.getFullYear(),now.getMonth(),now.getDate()-(period-1));
   const cutoffStr=`${cutoff.getFullYear()}-${String(cutoff.getMonth()+1).padStart(2,'0')}-${String(cutoff.getDate()).padStart(2,'0')}`;
 
-  // Pool revenue and COGS per SKU
+  // Build GWP SKU set — exclude from margin (GWP cost is a marketing expense, not product margin)
+  // Matches Better Reports methodology which excludes GWP from gross margin calculation
+  const skuCatMap=window._skuCategoryMap||{};
+  const gwpSkus=new Set(
+    Object.entries(skuCatMap)
+      .filter(([,cat])=>(cat||'').toUpperCase().trim()==='GWP')
+      .map(([sku])=>sku)
+  );
+  // Also exclude GWP vendor SKUs from allVariantRows
+  const gwpVendorSkus=new Set(allVariantRows.filter(r=>r.vendor==='GWP').map(r=>r.sku));
+  const isGwpSku=sku=>gwpSkus.has(sku)||gwpVendorSkus.has(sku);
+
+  // Pool revenue and COGS per SKU — excluding GWP
   const skuRev={},skuCost={};
   for(const[sku,days] of Object.entries(window._salesBySkuDay)){
+    if(isGwpSku(sku))continue;
     let rev=0,cost=0;
     for(const[day,d] of Object.entries(days)){
       if(day>=cutoffStr&&day<=todayStr){rev+=d.revenue||0;cost+=d.cogs||0;}
@@ -7165,12 +7185,9 @@ function buildAchievedMarginMap(period){
   }
 
   // Aggregate to product and category level
-  // Use _skuCategoryMap (covers all SKUs incl. GWP) for category mapping
-  // Use allVariantRows for product-level mapping (product view only needs live products)
-  const skuCatMap=window._skuCategoryMap||{};
   const prodRev={},prodCost={},catRev={},catCost={};
 
-  // Category pooling — use skuCatMap so GWP and other draft SKUs contribute their cost drag
+  // Category pooling via skuCatMap (excludes GWP already filtered above)
   for(const[sku,rev] of Object.entries(skuRev)){
     const cost=skuCost[sku]||0;
     const ck=skuCatMap[sku]||'UNCATEGORISED';
@@ -7178,8 +7195,9 @@ function buildAchievedMarginMap(period){
     catCost[ck]=(catCost[ck]||0)+cost;
   }
 
-  // Product pooling — only live products in allVariantRows
+  // Product pooling — live products only
   for(const r of allVariantRows){
+    if(isGwpSku(r.sku))continue;
     const rev=skuRev[r.sku]||0;
     const cost=skuCost[r.sku]||0;
     if(rev<=0)continue;
