@@ -3233,17 +3233,6 @@ function renderPlanning(){
     return planSortDir==='asc'?av-bv:bv-av;
   });
 
-  // When filter is active: only show categories that contain filtered products,
-  // auto-expand those categories, and only show filtered product rows within them
-  const isFiltered=planFilteredProds.size>0;
-  const filteredSortedCats=isFiltered
-    ? sortedCats.filter(cat=>(productsByCat[cat]||[]).some(p=>planFilteredProds.has(p.productName+'||'+p.colour)))
-    : sortedCats;
-  // Auto-expand categories that contain filtered products
-  if(isFiltered){
-    for(const cat of filteredSortedCats)planExpandedCats.add(cat);
-  }
-
   const planArrow=col=>planSortCol===col?(planSortDir==='asc'?' ↑':' ↓'):'';
   const planThStyle='cursor:pointer;user-select:none;';
 
@@ -3293,6 +3282,12 @@ function renderPlanning(){
   // Product-level LY sales and on-order (for expansion planning columns)
   const lyDataProd=getLYSalesByProduct(months,allowedSkus);
   const onOrderDataProd=getAMOnOrderByProduct(months,activeRows.filter(r=>!r.amOnly));
+
+  // Now that prodMap/productsByCat are built, determine filter state
+  const isFiltered=planFilteredProds.size>0;
+  const filteredSortedCats=isFiltered
+    ? sortedCats.filter(cat=>(productsByCat[cat]||[]).some(p=>planFilteredProds.has(p.productName+'||'+p.colour)))
+    : sortedCats;
 
   // ── FILTERED MODE: flat product rows only, no categories ──
   if(isFiltered){
