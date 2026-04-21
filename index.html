@@ -1145,6 +1145,35 @@ th{position:relative;}
         </div>
         <button class="insights-refresh-btn" onclick="clearPlanningData()" style="background:var(--surface);border:1px solid var(--border);color:var(--text-secondary);">✕ Clear All</button>
       </div>
+
+      <!-- Product pin search -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 18px;margin-bottom:16px;box-shadow:var(--shadow-xs);">
+        <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:10px;letter-spacing:0.05em;">PIN PRODUCTS — expand & highlight specific products in the table below</div>
+        <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;margin-bottom:10px;">
+          <div style="position:relative;flex:1;min-width:260px;">
+            <div class="search-wrap">
+              <span class="search-ico">🔍</span>
+              <input type="text" id="plan-pin-search" placeholder="Type to search, tick to select, then click Add Selected..." oninput="planPinSearch()" autocomplete="off" style="width:100%;">
+            </div>
+            <div id="plan-pin-results" style="display:none;position:absolute;z-index:300;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-lg);width:100%;top:100%;margin-top:4px;">
+              <div style="padding:7px 14px;border-bottom:1px solid var(--border);background:var(--surface2);border-radius:var(--r) var(--r) 0 0;">
+                <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+                  <input type="checkbox" id="plan-pin-select-all" onchange="planPinSelectAll(this)" style="width:15px;height:15px;flex-shrink:0;accent-color:var(--teal);cursor:pointer;">
+                  <span style="font-size:12px;font-weight:600;color:var(--text-secondary);">Select All</span>
+                </label>
+              </div>
+              <div id="plan-pin-list" style="max-height:260px;overflow-y:auto;"></div>
+              <div style="padding:8px 12px;border-top:1px solid var(--border);background:var(--surface2);display:flex;justify-content:space-between;align-items:center;border-radius:0 0 var(--r) var(--r);">
+                <span id="plan-pin-count-label" style="font-size:11px;color:var(--text-muted);"></span>
+                <button onclick="planPinApply()" style="padding:5px 16px;background:var(--teal);color:white;border:none;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">✓ Add Selected</button>
+              </div>
+            </div>
+          </div>
+          <button onclick="planPinClear()" style="padding:7px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);white-space:nowrap;margin-top:2px;">✕ Clear All</button>
+        </div>
+        <div id="plan-pin-tags" style="display:flex;gap:6px;flex-wrap:wrap;min-height:20px;align-items:center;"></div>
+      </div>
+
       <div id="planning-body">
         <div class="insights-empty">
           <div class="insights-empty-ico">📋</div>
@@ -2859,11 +2888,122 @@ function setPlanSort(col){
 }
 
 const planExpandedCats=new Set();
+const planPinnedProds=new Set(); // keys: "productName||colour"
+
 function togglePlanExpand(cat){
   if(planExpandedCats.has(cat))planExpandedCats.delete(cat);
   else planExpandedCats.add(cat);
   renderPlanning();
 }
+
+function planPinSearch(){
+  const val=(document.getElementById('plan-pin-search')?.value||'').trim().toUpperCase();
+  const results=document.getElementById('plan-pin-results');
+  const list=document.getElementById('plan-pin-list');
+  if(!results||!list)return;
+  if(val.length<2){results.style.display='none';return;}
+
+  const matches=new Map();
+  for(const r of getActiveRows()){
+    if(r.amOnly)continue;
+    const key=r.productName+'||'+r.colour;
+    if(matches.has(key))continue;
+    if(!(r.productName+' - '+r.colour).toUpperCase().includes(val)&&!r.productName.toUpperCase().includes(val))continue;
+    matches.set(key,{key,productName:r.productName,colour:r.colour});
+  }
+  const items=[...matches.values()].slice(0,100);
+  if(!items.length){
+    list.innerHTML=`<div style="padding:12px 14px;font-size:13px;color:var(--text-muted);font-style:italic;">No products found</div>`;
+    results.style.display='block';return;
+  }
+  list.innerHTML=items.map(p=>{
+    const pinned=planPinnedProds.has(p.key);
+    return`<label style="display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:${pinned?'default':'pointer'};border-bottom:1px solid var(--border);"
+      onmouseover="if(!${pinned})this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
+      <input type="checkbox" value="${p.key.replace(/"/g,'&quot;')}"
+        data-product="${p.productName.replace(/"/g,'&quot;')}"
+        data-colour="${p.colour.replace(/"/g,'&quot;')}"
+        ${pinned?'checked disabled':''}
+        onchange="planPinUpdateCount()"
+        style="width:15px;height:15px;flex-shrink:0;accent-color:var(--teal);cursor:pointer;">
+      <span style="font-size:13px;line-height:1.3;">
+        <strong>${p.productName}</strong>
+        <span style="color:var(--teal);font-weight:500;"> — ${p.colour}</span>
+      </span>
+      ${pinned?'<span style="font-size:10px;font-weight:600;color:var(--teal);margin-left:auto;white-space:nowrap;">✓ pinned</span>':''}
+    </label>`;
+  }).join('');
+  planPinUpdateCount();
+  results.style.display='block';
+  const sa=document.getElementById('plan-pin-select-all');
+  if(sa){sa.checked=false;sa.indeterminate=false;}
+}
+
+function planPinSelectAll(cb){
+  document.querySelectorAll('#plan-pin-list input[type="checkbox"]:not([disabled])').forEach(b=>b.checked=cb.checked);
+  planPinUpdateCount();
+}
+
+function planPinUpdateCount(){
+  const checked=document.querySelectorAll('#plan-pin-list input[type="checkbox"]:checked:not([disabled])');
+  const label=document.getElementById('plan-pin-count-label');
+  if(label){
+    if(checked.length>0)label.textContent=`${checked.length} selected`;
+    else label.textContent=`${planPinnedProds.size} product${planPinnedProds.size!==1?'s':''} pinned`;
+  }
+  const all=document.querySelectorAll('#plan-pin-list input[type="checkbox"]:not([disabled])');
+  const allChecked=[...all].every(b=>b.checked);
+  const sa=document.getElementById('plan-pin-select-all');
+  if(sa){sa.checked=all.length>0&&allChecked;sa.indeterminate=!allChecked&&checked.length>0;}
+}
+
+function planPinApply(){
+  const checked=document.querySelectorAll('#plan-pin-list input[type="checkbox"]:checked:not([disabled])');
+  checked.forEach(cb=>{
+    planPinnedProds.add(cb.value);
+    // Auto-expand the parent category
+    const r=getActiveRows().find(r=>r.productName+'||'+r.colour===cb.value);
+    if(r)planExpandedCats.add(r.category||'UNCATEGORISED');
+  });
+  const inp=document.getElementById('plan-pin-search');if(inp)inp.value='';
+  const res=document.getElementById('plan-pin-results');if(res)res.style.display='none';
+  planPinRenderTags();
+  renderPlanning();
+}
+
+function planPinRemove(key){
+  planPinnedProds.delete(key);
+  planPinRenderTags();
+  renderPlanning();
+}
+
+function planPinClear(){
+  planPinnedProds.clear();
+  const inp=document.getElementById('plan-pin-search');if(inp)inp.value='';
+  const res=document.getElementById('plan-pin-results');if(res)res.style.display='none';
+  planPinRenderTags();
+  renderPlanning();
+}
+
+function planPinRenderTags(){
+  const wrap=document.getElementById('plan-pin-tags');
+  if(!wrap)return;
+  if(!planPinnedProds.size){wrap.innerHTML='';return;}
+  wrap.innerHTML=[...planPinnedProds].map(key=>{
+    const parts=key.split('||');
+    const safeKey=key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    return`<span style="display:inline-flex;align-items:center;gap:5px;background:var(--teal-light);color:var(--teal-dark);border:1px solid rgba(14,165,160,0.25);border-radius:var(--r-pill);padding:3px 10px;font-size:12px;font-weight:500;">
+      ${parts[0]}${parts[1]?' — '+parts[1]:''}
+      <button onclick="planPinRemove('${safeKey}')" style="background:none;border:none;cursor:pointer;color:var(--teal);font-size:13px;line-height:1;padding:0 0 0 2px;">×</button>
+    </span>`;
+  }).join('');
+}
+
+document.addEventListener('click',e=>{
+  if(!e.target.closest('#plan-pin-search')&&!e.target.closest('#plan-pin-results')){
+    const r=document.getElementById('plan-pin-results');if(r)r.style.display='none';
+  }
+});
 
 function getLYSalesByProduct(months,allowedSkus){
   const result={};
@@ -2942,6 +3082,7 @@ function renderPlanning(){
     document.getElementById('planning-body').innerHTML=`<div class="insights-error">⚠️ No data loaded yet. Please upload your files and analyse first.</div>`;
     return;
   }
+  planPinRenderTags();
 
   const months=getPlanMonths();
   const planRows=globalCoreFilter==='core'?allVariantRows.filter(r=>r.vendor==='CORE'):allVariantRows;
@@ -3125,8 +3266,9 @@ function renderPlanning(){
           <td style="${m.isCurrent?'background:rgba(14,165,160,0.04);':''}"><span class="${varClass}">${varLabel}</span></td>`;
       }).join('');
 
-      return`<tr style="background:#f5f8ff;border-bottom:1px solid var(--border-light);">
+      return`<tr style="background:${planPinnedProds.has(pk)?'rgba(14,165,160,0.07)':'#f5f8ff'};border-bottom:1px solid var(--border-light);${planPinnedProds.has(pk)?'outline:2px solid rgba(14,165,160,0.3);outline-offset:-1px;':''}">
         <td class="plan-cat" style="padding-left:32px;font-size:12px;font-weight:600;white-space:nowrap;" colspan="3">
+          ${planPinnedProds.has(pk)?'<span style="color:var(--teal);margin-right:4px;font-size:10px;">📌</span>':''}
           <span style="color:var(--text);">${p.productName}</span>
           <span style="color:var(--teal);font-weight:400;"> — ${p.colour}</span>
           <span class="range-pill rp-${(p.vendor||'').toLowerCase().replace(/[^a-z]/g,'')}" style="font-size:10px;margin-left:6px;">${p.vendor}</span>
