@@ -5712,15 +5712,18 @@ function buildSalesMaps(){
 
     if(!sku||!day)continue;
 
-    // Only count positive quantities (ignore returns/refunds)
-    // Include ALL products (active + draft) in sales history so Cadence is accurate
-    if(qty>0){
+    // Include both positive (sales) and negative (refunds) quantities
+    // so revenue and COGS are net figures matching Shopify's gross margin report
+    // Skip zero-qty rows (no-ops)
+    if(qty!==0){
       if(!salesBySkuDay[sku])salesBySkuDay[sku]={};
       if(!salesBySkuDay[sku][day])salesBySkuDay[sku][day]={qty:0,cogs:0,revenue:0};
       salesBySkuDay[sku][day].qty+=qty;
+      // For refunds (qty<0), cogs from Shopify CSV is already negative — nets correctly
       salesBySkuDay[sku][day].cogs+=cogs;
-      // Net revenue ex-GST: (price * qty + discounts) / 1.1
-      salesBySkuDay[sku][day].revenue+=((price*qty)+discounts)/1.1;
+      // Net revenue inc GST: price * qty + discounts
+      // Shopify calculates gross margin using inc-GST revenue as denominator
+      salesBySkuDay[sku][day].revenue+=((price*qty)+discounts);
     }
 
     // Store price/meta info
@@ -7141,17 +7144,63 @@ function sortBy(col){
   renderTable();
 }
 
+/* ── ACHIEVED MARGIN MAP ── */
+// Builds period-aware margin% from actual Shopify transaction data (inc GST revenue, COGS)
+// Returns {skuKey: margin%, productKey: margin%, categoryKey: margin%}
+function buildAchievedMarginMap(period){
+  if(!window._salesBySkuDay)return{};
+  const now=new Date();
+  const todayStr=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  const cutoff=new Date(now.getFullYear(),now.getMonth(),now.getDate()-(period-1));
+  const cutoffStr=`${cutoff.getFullYear()}-${String(cutoff.getMonth()+1).padStart(2,'0')}-${String(cutoff.getDate()).padStart(2,'0')}`;
+
+  // Pool revenue and COGS per SKU
+  const skuRev={},skuCost={};
+  for(const[sku,days] of Object.entries(window._salesBySkuDay)){
+    let rev=0,cost=0;
+    for(const[day,d] of Object.entries(days)){
+      if(day>=cutoffStr&&day<=todayStr){rev+=d.revenue||0;cost+=d.cogs||0;}
+    }
+    if(rev>0){skuRev[sku]=rev;skuCost[sku]=cost;}
+  }
+
+  // Aggregate to product and category level using allVariantRows for key mapping
+  const prodRev={},prodCost={},catRev={},catCost={};
+  for(const r of allVariantRows){
+    const rev=skuRev[r.sku]||0;
+    const cost=skuCost[r.sku]||0;
+    if(rev<=0)continue;
+    const pk=r.productName+'||'+r.colour;
+    const ck=r.category||'UNCATEGORISED';
+    prodRev[pk]=(prodRev[pk]||0)+rev;
+    prodCost[pk]=(prodCost[pk]||0)+cost;
+    catRev[ck]=(catRev[ck]||0)+rev;
+    catCost[ck]=(catCost[ck]||0)+cost;
+  }
+
+  const mgPct=(rev,cost)=>rev>0?+((rev-cost)/rev*100).toFixed(2):null;
+  const map={};
+  for(const[sku,rev] of Object.entries(skuRev))map['sku:'+sku]=mgPct(rev,skuCost[sku]||0);
+  for(const[pk,rev] of Object.entries(prodRev))map['prod:'+pk]=mgPct(rev,prodCost[pk]||0);
+  for(const[ck,rev] of Object.entries(catRev))map['cat:'+ck]=mgPct(rev,catCost[ck]||0);
+  return map;
+}
+
 /* ── RENDER TABLE ── */
 function renderTable(){
   filteredRows=getFilteredRows();
   const start=(currentPage-1)*PAGE_SIZE;
   const pageRows=filteredRows.slice(start,start+PAGE_SIZE);
 
+  // Build period-aware achieved margin map for display
+  const mgMap=buildAchievedMarginMap(selectedPeriod);
+
   const soldLabel=`Sold (${selectedPeriod}d)`;
   const stLabel=`ST% (${selectedPeriod}d)`;
+  const mgLabel=`Margin% (${selectedPeriod}d)`;
   const catHeaders=[
     {k:'category',l:'Category'},{k:'products',l:'Products'},
-    {k:'sellThru7',l:stLabel},{k:'margin',l:'Margin%'},{k:'stock',l:'SOH'},{k:'sohValue',l:'SOH Value'},{k:'sellValue',l:'Sell Value'},
+    {k:'sellThru7',l:stLabel},{k:'margin',l:mgLabel},{k:'stock',l:'SOH'},{k:'sohValue',l:'SOH Value'},{k:'sellValue',l:'Sell Value'},
     {k:'soldToday',l:'Today'},{k:'soldYesterday',l:'Yest'},
     {k:'sold',l:soldLabel},
     {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},
@@ -7161,7 +7210,7 @@ function renderTable(){
   const prodHeaders=[
     {k:'productName',l:'Product'},{k:'category',l:'Category'},{k:'discountPct',l:'Disc%'},{k:'vendor',l:'Status'},
     {k:'deliveryMonth',l:'Month Del'},
-    {k:'sellThru7',l:stLabel},{k:'margin',l:'Margin%'},{k:'stock',l:'SOH'},{k:'sohValue',l:'SOH Value'},{k:'sellValue',l:'Sell Value'},
+    {k:'sellThru7',l:stLabel},{k:'margin',l:mgLabel},{k:'stock',l:'SOH'},{k:'sohValue',l:'SOH Value'},{k:'sellValue',l:'Sell Value'},
     {k:'soldToday',l:'Today'},{k:'soldYesterday',l:'Yest'},
     {k:'sold',l:soldLabel},
     {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},
@@ -7173,7 +7222,7 @@ function renderTable(){
     {k:'productName',l:'Product'},{k:'size',l:'Size'},{k:'sku',l:'SKU'},
     {k:'category',l:'Category'},{k:'discountPct',l:'Disc%'},{k:'vendor',l:'Status'},
     {k:'deliveryMonth',l:'Month Del'},
-    {k:'sellThru7',l:stLabel},{k:'margin',l:'Margin%'},{k:'stock',l:'SOH'},{k:'soldToday',l:'Today'},{k:'soldYesterday',l:'Yest'},{k:'sold',l:soldLabel},
+    {k:'sellThru7',l:stLabel},{k:'margin',l:mgLabel},{k:'stock',l:'SOH'},{k:'soldToday',l:'Today'},{k:'soldYesterday',l:'Yest'},{k:'sold',l:soldLabel},
     {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},
     {k:'price',l:'Price'},{k:'compareAt',l:'RRP'},
     {k:'days',l:'Weeks Cover'},{k:'suggestedOrder',l:'Suggest Order'},{k:'flag',l:'Stock Status'}
@@ -7211,9 +7260,25 @@ function renderTable(){
   if(pageRows.length===0){
     document.getElementById('tbl-body').innerHTML=`<tr><td colspan="${headers.length}"><div class="empty-cell"><div class="empty-ico">🔍</div><div class="empty-msg">No results found</div><div class="empty-sub">Try adjusting your filters</div></div></td></tr>`;
   }else{
-    let bodyHtml=pageRows.map(row=>renderRow(row,headers)).join('');
+    // Overlay achieved margin from period-based map before rendering
+    const rowsWithMargin=pageRows.map(row=>{
+      let achievedMargin=null;
+      if(currentView==='category') achievedMargin=mgMap['cat:'+(row.category||'UNCATEGORISED')];
+      else if(currentView==='product') achievedMargin=mgMap['prod:'+row.productName+'||'+row.colour];
+      else achievedMargin=mgMap['sku:'+row.sku];
+      return achievedMargin!=null?{...row,margin:achievedMargin}:row;
+    });
+    // Also overlay for totals row (revenue-weighted across all filtered rows)
+    const filteredWithMargin=filteredRows.map(row=>{
+      let achievedMargin=null;
+      if(currentView==='category') achievedMargin=mgMap['cat:'+(row.category||'UNCATEGORISED')];
+      else if(currentView==='product') achievedMargin=mgMap['prod:'+row.productName+'||'+row.colour];
+      else achievedMargin=mgMap['sku:'+row.sku];
+      return achievedMargin!=null?{...row,margin:achievedMargin}:row;
+    });
+    let bodyHtml=rowsWithMargin.map(row=>renderRow(row,headers)).join('');
     if(filteredRows.length>0){
-      bodyHtml+=renderTotalsRow(filteredRows,headers);
+      bodyHtml+=renderTotalsRow(filteredWithMargin,headers);
     }
     document.getElementById('tbl-body').innerHTML=bodyHtml;
   }
