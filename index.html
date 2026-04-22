@@ -1142,16 +1142,20 @@ th{position:relative;}
       <div class="insights-header" style="margin-bottom:20px;">
         <div>
           <div class="insights-title">Planning</div>
-          <div class="insights-sub">Forward planning by category — next 12 months. Data saved automatically in your browser.</div>
+          <div class="insights-sub" id="plan-view-sub">Forward planning by category — next 12 months. Data saved automatically in your browser.</div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
+          <div style="display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:2px;gap:2px;">
+            <button id="plan-view-btn-category" onclick="setPlanView('category')" style="padding:5px 14px;border:none;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;background:var(--teal);color:white;transition:all 0.12s;">Category</button>
+            <button id="plan-view-btn-product" onclick="setPlanView('product')" style="padding:5px 14px;border:none;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--text-secondary);transition:all 0.12s;">Products</button>
+          </div>
           <button onclick="planSendToSizeWorkings()" style="padding:7px 18px;background:#8b5cf6;color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">📐 Send to Size Workings</button>
           <button class="insights-refresh-btn" onclick="clearPlanningData()" style="background:var(--surface);border:1px solid var(--border);color:var(--text-secondary);">✕ Clear All</button>
         </div>
       </div>
 
       <!-- Product filter search -->
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 18px;margin-bottom:16px;box-shadow:var(--shadow-xs);">
+      <div id="plan-filter-panel" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 18px;margin-bottom:16px;box-shadow:var(--shadow-xs);display:none;">
         <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;">
           <!-- Category quick-select -->
           <div class="ms-wrap" id="ms-plan-cat" style="flex-shrink:0;">
@@ -1802,6 +1806,20 @@ let cadenceSortCol=null; // null = default order, 'soh', or period label
 let cadenceSortDir='desc';
 let planSortCol='category';
 let planSortDir='asc';
+let planView='category'; // 'category' | 'product'
+
+function setPlanView(v){
+  planView=v;
+  const catBtn=document.getElementById('plan-view-btn-category');
+  const prodBtn=document.getElementById('plan-view-btn-product');
+  const panel=document.getElementById('plan-filter-panel');
+  const sub=document.getElementById('plan-view-sub');
+  if(catBtn){catBtn.style.background=v==='category'?'var(--teal)':'transparent';catBtn.style.color=v==='category'?'white':'var(--text-secondary)';}
+  if(prodBtn){prodBtn.style.background=v==='product'?'var(--teal)':'transparent';prodBtn.style.color=v==='product'?'white':'var(--text-secondary)';}
+  if(panel)panel.style.display=v==='product'?'block':'none';
+  if(sub)sub.textContent=v==='category'?'Forward planning by category — next 12 months. Data saved automatically in your browser.':'Forward planning by product — select categories or search to filter.';
+  renderPlanning();
+}
 let mdSortCol='productName';
 let mdSortDir='asc';
 let cadenceView='cat';
@@ -3335,10 +3353,21 @@ function renderPlanning(){
   const onOrderDataProd=getAMOnOrderByProduct(months,allVariantRows.filter(r=>!r.amOnly));
 
   // Now that prodMap/productsByCat are built, determine filter state
-  const isFiltered=planFilteredProds.size>0;
+  const isFiltered=planView==='product'&&planFilteredProds.size>0;
   const filteredSortedCats=isFiltered
     ? sortedCats.filter(cat=>(productsByCat[cat]||[]).some(p=>planFilteredProds.has(p.productName+'||'+p.colour)))
     : sortedCats;
+
+  // ── PRODUCT VIEW: no products selected yet — show empty state ──
+  if(planView==='product'&&!isFiltered){
+    document.getElementById('planning-body').innerHTML=`
+      <div class="insights-empty" style="margin-top:40px;">
+        <div class="insights-empty-ico">📋</div>
+        <div class="insights-empty-title">No products selected</div>
+        <div class="insights-empty-sub">Use the Category dropdown or search above to select products to plan.</div>
+      </div>`;
+    return;
+  }
 
   // ── FILTERED MODE: flat product rows only, no categories ──
   if(isFiltered){
