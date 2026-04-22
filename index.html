@@ -1160,7 +1160,7 @@ th{position:relative;}
           <!-- Category quick-select -->
           <div class="ms-wrap" id="ms-plan-cat" style="flex-shrink:0;">
             <button class="ms-btn" onclick="toggleDropdown('ms-plan-cat')"><span id="ms-plan-cat-label">All Categories</span><span class="ms-arrow">▾</span></button>
-            <div class="ms-dropdown" id="ms-plan-cat-dropdown">
+            <div class="ms-dropdown" id="ms-plan-cat-dropdown" style="z-index:400;min-width:220px;">
               <label class="ms-item ms-all"><input type="checkbox" id="plan-cat-all-cb" onchange="planCatSelectAll(this)"> All Categories</label>
               <div id="ms-plan-cat-options"></div>
               <div style="padding:8px 10px;border-top:1px solid var(--border);background:var(--surface2);">
@@ -3189,9 +3189,6 @@ document.addEventListener('click',e=>{
   if(!e.target.closest('#plan-filter-search')&&!e.target.closest('#plan-filter-results')){
     const r=document.getElementById('plan-filter-results');if(r)r.style.display='none';
   }
-  if(!e.target.closest('#ms-plan-cat')){
-    const d=document.getElementById('ms-plan-cat-dropdown');if(d)d.style.display='none';
-  }
 });
 
 function getLYSalesByProduct(months,allowedSkus){
@@ -3273,6 +3270,7 @@ function renderPlanning(){
   }
   planFilterRenderTags();
   planPopulateCatDropdown();
+  const months=getPlanMonths();
   const planRows=globalCoreFilter==='core'?allVariantRows.filter(r=>r.vendor==='CORE'):allVariantRows;
   const allowedSkus=globalCoreFilter==='core'?new Set(planRows.map(r=>r.sku)):null;
   const cats=[...new Set(planRows.filter(r=>!r.amOnly).map(r=>r.category||'UNCATEGORISED'))].sort();
