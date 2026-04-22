@@ -3297,6 +3297,25 @@ function renderPlanning(){
       const va=catVel30[a]||0;const vb=catVel30[b]||0;
       av=va>0?(catSoh[a]||0)/(va*7):9999;
       bv=vb>0?(catSoh[b]||0)/(vb*7):9999;
+    } else if(planSortCol.startsWith('m_')){
+      // month column sort: m_YYYY-MM_budget|onorder|toorder|variance
+      const parts=planSortCol.split('_');
+      const mKey=parts[1]+'-'+parts[2];
+      const field=parts[3];
+      const growth=parseFloat(saved[`growth_${mKey}`]||0)||0;
+      const getVal=(cat)=>{
+        if(field==='budget') return Math.round((lyData[cat]?.[mKey]||0)*(1+growth/100));
+        if(field==='onorder') return Math.round(onOrderData[cat]?.[mKey]||0);
+        if(field==='toorder') return parseInt(saved[`to_${cat}_${mKey}`]||0)||0;
+        if(field==='variance'){
+          const soh=catSoh[cat]||0;const oo=Math.round(onOrderData[cat]?.[mKey]||0);
+          const to=parseInt(saved[`to_${cat}_${mKey}`]||0)||0;
+          const ly=Math.round((lyData[cat]?.[mKey]||0)*(1+growth/100));
+          return soh+oo+to-ly;
+        }
+        return 0;
+      };
+      av=getVal(a);bv=getVal(b);
     }
     return planSortDir==='asc'?av-bv:bv-av;
   });
@@ -3307,21 +3326,27 @@ function renderPlanning(){
   const monthHeaders=months.map(m=>`
     <th class="plan-month" colspan="5" style="border-left:2px solid var(--border);${m.isCurrent?'background:rgba(14,165,160,0.12);color:var(--teal);':''}">${m.label}${m.isCurrent?` <span style="font-size:9px;opacity:0.8;">(${Math.round(m.prorateRatio*100)}% of month)</span>`:''}</th>`).join('');
 
-  const subHeaders=months.map(()=>`
-    <th style="border-left:2px solid var(--border);">Budget</th>
+  const subHeaders=months.map(m=>{
+    const mk=m.key.replace('-','_');
+    return`
+    <th style="border-left:2px solid var(--border);${planThStyle}" onclick="setPlanSort('m_${mk}_budget')">Budget${planArrow(`m_${mk}_budget`)}</th>
     <th>SOH</th>
-    <th>On Order</th>
-    <th>To Order</th>
-    <th>Variance</th>`).join('');
+    <th style="${planThStyle}" onclick="setPlanSort('m_${mk}_onorder')">On Order${planArrow(`m_${mk}_onorder`)}</th>
+    <th style="${planThStyle}" onclick="setPlanSort('m_${mk}_toorder')">To Order${planArrow(`m_${mk}_toorder`)}</th>
+    <th style="${planThStyle}" onclick="setPlanSort('m_${mk}_variance')">Variance${planArrow(`m_${mk}_variance`)}</th>`;
+  }).join('');
 
   // Product view: SOH is a fixed left column, months only have 4 cols
   const prodMonthHeaders=months.map(m=>`
     <th class="plan-month" colspan="4" style="border-left:2px solid var(--border);${m.isCurrent?'background:rgba(14,165,160,0.12);color:var(--teal);':''}">${m.label}${m.isCurrent?` <span style="font-size:9px;opacity:0.8;">(${Math.round(m.prorateRatio*100)}% of month)</span>`:''}</th>`).join('');
-  const prodSubHeaders=months.map(()=>`
-    <th style="border-left:2px solid var(--border);">Budget</th>
-    <th>On Order</th>
-    <th>To Order</th>
-    <th>Variance</th>`).join('');
+  const prodSubHeaders=months.map(m=>{
+    const mk=m.key.replace('-','_');
+    return`
+    <th style="border-left:2px solid var(--border);${planThStyle}" onclick="setPlanSort('m_${mk}_budget')">Budget${planArrow(`m_${mk}_budget`)}</th>
+    <th style="${planThStyle}" onclick="setPlanSort('m_${mk}_onorder')">On Order${planArrow(`m_${mk}_onorder`)}</th>
+    <th style="${planThStyle}" onclick="setPlanSort('m_${mk}_toorder')">To Order${planArrow(`m_${mk}_toorder`)}</th>
+    <th style="${planThStyle}" onclick="setPlanSort('m_${mk}_variance')">Variance${planArrow(`m_${mk}_variance`)}</th>`;
+  }).join('');
 
   const growthCells=months.map(m=>{
     const gVal=saved[`growth_${m.key}`]||'';
@@ -3383,7 +3408,39 @@ function renderPlanning(){
     const filteredProds=[...planFilteredProds].map(key=>{
       const sepIdx=key.indexOf('||');
       return{productName:key.slice(0,sepIdx),colour:key.slice(sepIdx+2),key};
-    }).sort((a,b)=>a.productName.localeCompare(b.productName));
+    }).sort((a,b)=>{
+      const pa=prodMap.get(a.key),pb=prodMap.get(b.key);
+      if(planSortCol==='product'||planSortCol==='category'){
+        const av=a.productName+a.colour,bv=b.productName+b.colour;
+        return planSortDir==='asc'?av.localeCompare(bv):bv.localeCompare(av);
+      }
+      if(planSortCol==='soh'){
+        const av=pa?.stock||0,bv=pb?.stock||0;
+        return planSortDir==='asc'?av-bv:bv-av;
+      }
+      if(planSortCol.startsWith('m_')){
+        const parts=planSortCol.split('_');
+        const mKey=parts[1]+'-'+parts[2];
+        const field=parts[3];
+        const growth=parseFloat(saved[`growth_${mKey}`]||0)||0;
+        const getVal=(pk)=>{
+          if(field==='budget') return Math.round((lyDataProd[pk]?.[mKey]||0)*(1+growth/100));
+          if(field==='onorder') return Math.round(onOrderDataProd[pk]?.[mKey]||0);
+          if(field==='toorder') return parseInt(saved[`to_prod_${pk}_${mKey}`]||0)||0;
+          if(field==='variance'){
+            const soh=prodMap.get(pk)?.stock||0;
+            const oo=Math.round(onOrderDataProd[pk]?.[mKey]||0);
+            const to=parseInt(saved[`to_prod_${pk}_${mKey}`]||0)||0;
+            const ly=Math.round((lyDataProd[pk]?.[mKey]||0)*(1+growth/100));
+            return soh+oo+to-ly;
+          }
+          return 0;
+        };
+        const av=getVal(a.key),bv=getVal(b.key);
+        return planSortDir==='asc'?av-bv:bv-av;
+      }
+      return a.productName.localeCompare(b.productName);
+    });
 
     const prodRows=filteredProds.map(({productName,colour,key:pk})=>{
       const p=prodMap.get(pk);
@@ -3481,8 +3538,8 @@ function renderPlanning(){
         <table class="plan-table">
           <thead>
             <tr>
-              <th class="plan-th-left" rowspan="2" style="min-width:200px;">Product</th>
-              <th rowspan="2" style="text-align:right;white-space:nowrap;">SOH</th>
+              <th class="plan-th-left" rowspan="2" style="min-width:200px;${planThStyle}" onclick="setPlanSort('product')">Product${planArrow('product')}</th>
+              <th rowspan="2" style="text-align:right;white-space:nowrap;${planThStyle}" onclick="setPlanSort('soh')">SOH${planArrow('soh')}</th>
               ${prodMonthHeaders}
             </tr>
             <tr>${prodSubHeaders}</tr>
