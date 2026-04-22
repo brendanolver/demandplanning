@@ -3013,9 +3013,10 @@ function planCatSelectAll(cb){
 
 function planCatApply(){
   // Get all checked categories and add every product in those categories
+  // Uses getActiveRows() so Core toggle is respected
   const checked=[...document.querySelectorAll('#ms-plan-cat-options input[type="checkbox"]:checked')].map(b=>b.value);
   if(!checked.length){toggleDropdown('ms-plan-cat');return;}
-  for(const r of allVariantRows){
+  for(const r of getActiveRows()){
     if(r.amOnly)continue;
     if(checked.includes(r.category||'UNCATEGORISED')){
       planFilteredProds.add(r.productName+'||'+r.colour);
@@ -3032,8 +3033,9 @@ function planCatApply(){
 
 function planPopulateCatDropdown(){
   const opts=document.getElementById('ms-plan-cat-options');
-  if(!opts||opts.children.length)return;
-  const cats=[...new Set(allVariantRows.filter(r=>!r.amOnly).map(r=>r.category||'UNCATEGORISED'))].sort();
+  if(!opts)return;
+  // Always repopulate — category list changes with Core/All toggle
+  const cats=[...new Set(getActiveRows().filter(r=>!r.amOnly).map(r=>r.category||'UNCATEGORISED'))].sort();
   opts.innerHTML=cats.map(c=>`<label class="ms-item"><input type="checkbox" value="${c}" onchange="planCatUpdateLabel()"> ${c}</label>`).join('');
 }
 
