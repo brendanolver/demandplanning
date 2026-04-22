@@ -2896,19 +2896,34 @@ function getLYSalesByCategory(months,allowedSkus){
 function getAMOnOrderByCategory(months,planRows){
   const result={};
   const sourceRows=planRows||allVariantRows;
+  const MONTHS=['january','february','march','april','may','june','july','august','september','october','november','december'];
+  const parseMKey=md=>{
+    const p=md.split(' - ');if(p.length<2)return null;
+    const yr=parseInt(p[0]);const mi=MONTHS.indexOf(p[1].toLowerCase().trim());
+    if(mi<0||isNaN(yr))return null;
+    return`${yr}-${String(mi+1).padStart(2,'0')}`;
+  };
+  // Deduplicate at product level — iterate onOrderByMonth if available
+  const seen=new Set();
   for(const row of sourceRows){
     const cat=row.category||'UNCATEGORISED';
     if(!result[cat])result[cat]={};
-    const onOrder=row.onOrder||0;
-    if(onOrder<=0||!row.monthDue)continue;
-    const parts=row.monthDue.split(' - ');
-    if(parts.length<2)continue;
-    const yr=parseInt(parts[0]);
-    const MONTHS=['january','february','march','april','may','june','july','august','september','october','november','december'];
-    const mi=MONTHS.indexOf(parts[1].toLowerCase().trim());
-    if(mi<0||isNaN(yr))continue;
-    const mKey=`${yr}-${String(mi+1).padStart(2,'0')}`;
-    result[cat][mKey]=(result[cat][mKey]||0)+onOrder;
+    const pk=row.productName+'||'+row.colour;
+    if(seen.has(pk))continue;
+    seen.add(pk);
+    // Use per-month breakdown if available
+    if(row.onOrderByMonth&&Object.keys(row.onOrderByMonth).length){
+      for(const[md,qty] of Object.entries(row.onOrderByMonth)){
+        const mKey=parseMKey(md);
+        if(mKey)result[cat][mKey]=(result[cat][mKey]||0)+qty;
+      }
+    } else {
+      // Fallback: single monthDue
+      const onOrder=(row.productOnOrder||0)||(row.onOrder||0);
+      if(onOrder<=0||!row.monthDue)continue;
+      const mKey=parseMKey(row.monthDue);
+      if(mKey)result[cat][mKey]=(result[cat][mKey]||0)+onOrder;
+    }
   }
   return result;
 }
@@ -3227,23 +3242,31 @@ function getLYSalesByProduct(months,allowedSkus){
 function getAMOnOrderByProduct(months,planRows){
   const result={};
   const sourceRows=planRows||allVariantRows;
+  const MONTHS=['january','february','march','april','may','june','july','august','september','october','november','december'];
+  const parseMKey=md=>{
+    const p=md.split(' - ');if(p.length<2)return null;
+    const yr=parseInt(p[0]);const mi=MONTHS.indexOf(p[1].toLowerCase().trim());
+    if(mi<0||isNaN(yr))return null;
+    return`${yr}-${String(mi+1).padStart(2,'0')}`;
+  };
   const seen=new Set();
   for(const row of sourceRows){
     const pk=row.productName+'||'+row.colour;
-    const onOrder=(row.productOnOrder||0)||(row.onOrder||0);
-    if(onOrder<=0||!row.monthDue)continue;
-    // Deduplicate — only count product-level on-order once per product
     if(seen.has(pk))continue;
     seen.add(pk);
-    const parts=row.monthDue.split(' - ');
-    if(parts.length<2)continue;
-    const yr=parseInt(parts[0]);
-    const MONTHS=['january','february','march','april','may','june','july','august','september','october','november','december'];
-    const mi=MONTHS.indexOf(parts[1].toLowerCase().trim());
-    if(mi<0||isNaN(yr))continue;
-    const mKey=`${yr}-${String(mi+1).padStart(2,'0')}`;
     if(!result[pk])result[pk]={};
-    result[pk][mKey]=(result[pk][mKey]||0)+onOrder;
+    // Use per-month breakdown if available
+    if(row.onOrderByMonth&&Object.keys(row.onOrderByMonth).length){
+      for(const[md,qty] of Object.entries(row.onOrderByMonth)){
+        const mKey=parseMKey(md);
+        if(mKey)result[pk][mKey]=(result[pk][mKey]||0)+qty;
+      }
+    } else {
+      const onOrder=(row.productOnOrder||0)||(row.onOrder||0);
+      if(onOrder<=0||!row.monthDue)continue;
+      const mKey=parseMKey(row.monthDue);
+      if(mKey)result[pk][mKey]=(result[pk][mKey]||0)+onOrder;
+    }
   }
   return result;
 }
@@ -6563,13 +6586,20 @@ function buildAMData(){
     // Always store at product level — accumulate qtyOpen (handles no-size rows)
     // Use max rather than sum to avoid double-counting duplicate rows in the AM export
     if(!productMap[pKey]){
-      productMap[pKey]={qtyOpen,monthDue:monthDue||'',style,category:category||'',amCostPerUnit};
+      productMap[pKey]={qtyOpen,monthDue:monthDue||'',style,category:category||'',amCostPerUnit,
+        onOrderByMonth:monthDue&&qtyOpen>0?{[monthDue]:qtyOpen}:{}};
     } else {
       // Take the larger value to handle duplicate summary rows in the AM file
       if(qtyOpen>productMap[pKey].qtyOpen)productMap[pKey].qtyOpen=qtyOpen;
       if(monthDue&&!productMap[pKey].monthDue)productMap[pKey].monthDue=monthDue;
       if(style&&!productMap[pKey].style)productMap[pKey].style=style;
       if(category&&!productMap[pKey].category)productMap[pKey].category=category;
+      // Accumulate per-month on-order quantities for Planning view
+      if(monthDue&&qtyOpen>0){
+        if(!productMap[pKey].onOrderByMonth)productMap[pKey].onOrderByMonth={};
+        const existing=productMap[pKey].onOrderByMonth[monthDue]||0;
+        if(qtyOpen>existing)productMap[pKey].onOrderByMonth[monthDue]=qtyOpen;
+      }
     }
   }
   return{variantMap,productMap,products};
@@ -6926,6 +6956,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const onOrder=variantEntry?variantEntry.qtyOpen:0;
     const monthDue=variantEntry?variantEntry.monthDue:productEntry?productEntry.monthDue:'';
     const productOnOrder=productEntry?productEntry.qtyOpen:0;
+    const onOrderByMonth=productEntry?.onOrderByMonth||{};
     // Suggested order: 12 weeks of selected-period velocity minus SOH and on order
     // Only suggest if result is 70+ units (minimum order qty)
     const velDaily=sold>0?sold/selectedPeriod:0;
@@ -7008,7 +7039,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
       sold,sellThru7:sellThru,
       days:recalcDays===null?9999:recalcDays,
       daysDisplay:recalcWeeks===null?'—':recalcWeeks===0?'0':recalcWeeks,
-      onOrder,productOnOrder,monthDue,flag,amOnly:false,
+      onOrder,productOnOrder,monthDue,onOrderByMonth,flag,amOnly:false,
       suggestedOrder:finalSuggestedOrder,
       soldOutSizes:soMap[productName+'||'+colour]||null,
       deliveryMonth,sohValue,sellValue
@@ -7050,6 +7081,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
               days:9999,daysDisplay:'—',
               onOrder:se.qtyOpen,productOnOrder:totalOnOrder,
               monthDue:se.monthDue,deliveryMonth:se.deliveryMonth,
+              onOrderByMonth:productEntry?.onOrderByMonth||{},
               suggestedOrder:0,
               flag:'on-order',amOnly:true,sohValue:null,sellValue:null,soldOutSizes:null
             });
@@ -7065,6 +7097,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
             days:9999,daysDisplay:'—',
             onOrder:null,productOnOrder:totalOnOrder,
             monthDue,deliveryMonth:amDeliveryMonth,
+            onOrderByMonth:productEntry?.onOrderByMonth||{},
             suggestedOrder:0,
             flag:'on-order',amOnly:true,sohValue:null,sellValue:null,soldOutSizes:null
           });
