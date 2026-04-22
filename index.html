@@ -7313,20 +7313,36 @@ function renderKPIs(){
   // revenue field = (price × qty + discounts) / 1.1 — already discount-adjusted ex-GST
   // cogs field = cost of goods sold from Shopify
   const todayStr=new Date().toISOString().slice(0,10);
-  // Build GWP SKU set for exclusion — matches Better Reports methodology
   const _gwpSkuSet=new Set(
     Object.entries(window._skuCategoryMap||{})
       .filter(([,cat])=>(cat||'').toUpperCase().trim()==='GWP')
       .map(([sku])=>sku)
   );
-  let todayRevPool=0,todayCostPool=0;
+  // Also include GWP vendor SKUs
+  const _gwpVendorSkus=new Set((allVariantRows||[]).filter(r=>r.vendor==='GWP').map(r=>r.sku));
+  const _isGwpToday=sku=>_gwpSkuSet.has(sku)||_gwpVendorSkus.has(sku);
+
+  let todayRevPool=0,todayCostPool=0,todayGwpCogs=0;
   if(window._salesBySkuDay){
+    // First pass: sum GWP COGS and non-GWP revenue for today
     for(const[sku,days] of Object.entries(window._salesBySkuDay)){
-      if(_gwpSkuSet.has(sku))continue;
       const d=days[todayStr];
       if(!d||!d.qty)continue;
-      todayRevPool+=(d.revenue||0);
-      todayCostPool+=(d.cogs||0);
+      if(_isGwpToday(sku)){todayGwpCogs+=(d.cogs||0);}
+      else{todayRevPool+=(d.revenue||0);}
+    }
+    // Second pass: accumulate non-GWP COGS + allocate GWP COGS proportionally
+    for(const[sku,days] of Object.entries(window._salesBySkuDay)){
+      if(_isGwpToday(sku))continue;
+      const d=days[todayStr];
+      if(!d||!d.qty)continue;
+      const rev=d.revenue||0;
+      const cogs=d.cogs||0;
+      todayCostPool+=cogs;
+      // Allocate this SKU's share of today's GWP cost
+      if(todayGwpCogs>0&&todayRevPool>0&&rev>0){
+        todayCostPool+=todayGwpCogs*(rev/todayRevPool);
+      }
     }
   }
   const todayMarginPct=todayRevPool>0?(todayRevPool-todayCostPool)/todayRevPool*100:null;
@@ -7951,33 +7967,58 @@ function buildAchievedMarginMap(period){
   const cutoff=new Date(now.getFullYear(),now.getMonth(),now.getDate()-(period-1));
   const cutoffStr=`${cutoff.getFullYear()}-${String(cutoff.getMonth()+1).padStart(2,'0')}-${String(cutoff.getDate()).padStart(2,'0')}`;
 
-  // Build GWP SKU set — exclude from margin (GWP cost is a marketing expense, not product margin)
-  // Matches Better Reports methodology which excludes GWP from gross margin calculation
+  // Build GWP SKU set
   const skuCatMap=window._skuCategoryMap||{};
   const gwpSkus=new Set(
     Object.entries(skuCatMap)
       .filter(([,cat])=>(cat||'').toUpperCase().trim()==='GWP')
       .map(([sku])=>sku)
   );
-  // Also exclude GWP vendor SKUs from allVariantRows
   const gwpVendorSkus=new Set(allVariantRows.filter(r=>r.vendor==='GWP').map(r=>r.sku));
   const isGwpSku=sku=>gwpSkus.has(sku)||gwpVendorSkus.has(sku);
 
-  // Pool revenue and COGS per SKU — excluding GWP
+  // Step 1 — collect per-day GWP COGS and non-GWP revenue (for proportional allocation)
+  const dayGwpCogs={};   // day → total GWP COGS that day
+  const dayNonGwpRev={}; // day → total non-GWP revenue that day
+
+  for(const[sku,days] of Object.entries(window._salesBySkuDay)){
+    for(const[day,d] of Object.entries(days)){
+      if(day<cutoffStr||day>todayStr)continue;
+      if(isGwpSku(sku)){
+        // GWP: accumulate its COGS as a cost to be spread across other SKUs
+        dayGwpCogs[day]=(dayGwpCogs[day]||0)+(d.cogs||0);
+      } else {
+        const rev=d.revenue||0;
+        if(rev>0)dayNonGwpRev[day]=(dayNonGwpRev[day]||0)+rev;
+      }
+    }
+  }
+
+  // Step 2 — pool revenue and COGS per non-GWP SKU,
+  // allocating each day's GWP COGS proportionally by that SKU's revenue share
   const skuRev={},skuCost={};
   for(const[sku,days] of Object.entries(window._salesBySkuDay)){
     if(isGwpSku(sku))continue;
     let rev=0,cost=0;
     for(const[day,d] of Object.entries(days)){
-      if(day>=cutoffStr&&day<=todayStr){rev+=d.revenue||0;cost+=d.cogs||0;}
+      if(day<cutoffStr||day>todayStr)continue;
+      const r=d.revenue||0;
+      const c=d.cogs||0;
+      rev+=r;
+      cost+=c;
+      // Allocate this SKU's share of GWP cost for this day
+      const gwpPool=dayGwpCogs[day]||0;
+      const dayRev=dayNonGwpRev[day]||0;
+      if(gwpPool>0&&dayRev>0&&r>0){
+        cost+=gwpPool*(r/dayRev);
+      }
     }
     if(rev>0){skuRev[sku]=rev;skuCost[sku]=cost;}
   }
 
-  // Aggregate to product and category level
+  // Step 3 — aggregate to product and category level
   const prodRev={},prodCost={},catRev={},catCost={};
 
-  // Category pooling via skuCatMap (excludes GWP already filtered above)
   for(const[sku,rev] of Object.entries(skuRev)){
     const cost=skuCost[sku]||0;
     const ck=skuCatMap[sku]||'UNCATEGORISED';
@@ -7985,7 +8026,6 @@ function buildAchievedMarginMap(period){
     catCost[ck]=(catCost[ck]||0)+cost;
   }
 
-  // Product pooling — live products only
   for(const r of allVariantRows){
     if(isGwpSku(r.sku))continue;
     const rev=skuRev[r.sku]||0;
@@ -8001,6 +8041,10 @@ function buildAchievedMarginMap(period){
   for(const[sku,rev] of Object.entries(skuRev))map['sku:'+sku]=mgPct(rev,skuCost[sku]||0);
   for(const[pk,rev] of Object.entries(prodRev))map['prod:'+pk]=mgPct(rev,prodCost[pk]||0);
   for(const[ck,rev] of Object.entries(catRev))map['cat:'+ck]=mgPct(rev,catCost[ck]||0);
+
+  // GWP SKUs explicitly show 0% margin
+  for(const sku of [...gwpSkus,...gwpVendorSkus])map['sku:'+sku]=0;
+
   return map;
 }
 
