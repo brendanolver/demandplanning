@@ -3907,7 +3907,7 @@ function analyseStockData(){
     .filter(p=>{
       const st7=p.sold7>0&&(p.stock+p.sold7)>0?p.sold7/(p.stock+p.sold7)*100:0;
       const st14=p.sold14>0&&(p.stock+p.sold14)>0?p.sold14/(p.stock+p.sold14)*100:0;
-      return st7>=20||st14>=20;
+      return st7>=15||st14>=30;
     })
     .sort((a,b)=>b.sold7-a.sold7)
     .slice(0,5)
@@ -3978,7 +3978,30 @@ function analyseStockData(){
     .slice(0,5)
     .map(p=>({text:`${fmt(p)} — ${p.onOrder} units on order but only ${p.sold30} sold in last 30 days. Review if this order is still needed.`}));
 
-  return{needsReorder,needsMetaAds,stylesToWatch,slowerMovers,deadStyles,orderProblems};
+  // ── 7. SIZES SOLD OUT IN LAST 7 DAYS ──
+  // SKUs that had sales in the last 7 days AND now have zero stock
+  const soProductMap={};
+  for(const r of allVariantRows){
+    if(r.amOnly)continue;
+    const pk=r.productName+'||'+r.colour;
+    // Skip excluded categories/vendors
+    if(excludedCats.has((r.category||'').toUpperCase().trim()))continue;
+    if(excludedCats.has((r.vendor||'').toUpperCase().trim()))continue;
+    if(gwpProducts.has(pk))continue;
+    if((r.sold7||0)>0&&(r.stock||0)===0&&r.size&&r.size!=='—'){
+      if(!soProductMap[pk])soProductMap[pk]={productName:r.productName,colour:r.colour,category:r.category,vendor:r.vendor,sizes:[],totalSold7:0,stock:0};
+      soProductMap[pk].sizes.push(r.size);
+      soProductMap[pk].totalSold7+=(r.sold7||0);
+    }
+    // Also track total stock for the product (to show remaining SOH)
+    if(soProductMap[pk])soProductMap[pk].stock+=(r.stock||0);
+  }
+  const recentSizesSoldOut=Object.values(soProductMap)
+    .sort((a,b)=>b.sizes.length-a.sizes.length||b.totalSold7-a.totalSold7)
+    .slice(0,5)
+    .map(p=>({text:`${fmt(p)} — sizes <strong>${p.sizes.join(', ')}</strong> sold out in last 7 days. ${p.stock>0?p.stock+' units remaining in other sizes.':'All sizes now sold out.'}`}));
+
+  return{needsReorder,needsMetaAds,stylesToWatch,slowerMovers,deadStyles,orderProblems,recentSizesSoldOut};
 }
 
 function toTitleCase(str){
@@ -3992,7 +4015,7 @@ function renderInsights(data){
      sub:'ST% ≥20% in last 7 or 14 days — not reduced or on order'},
     {key:'needsMetaAds',   ico:'📣',title:'Needs Meta Ads',      dotClass:'insight-dot-amber',
      sub:'Strong early sell-through but pace has dropped with high stock remaining'},
-    {key:'stylesToWatch',  ico:'👀',title:'Styles to Watch',     dotClass:'insight-dot-teal',
+    {key:'stylesToWatch',  ico:'👀',title:'Styles to Watch for Re-Ordering',     dotClass:'insight-dot-teal',
      sub:'ST% 15–19% in last 14 days — monitor for reorder potential'},
     {key:'slowerMovers',   ico:'🐢',title:'Slower Movers',       dotClass:'insight-dot-blue',
      sub:'10–19 units sold in last 30 days — not reduced or on order'},
@@ -4000,6 +4023,8 @@ function renderInsights(data){
      sub:'Less than 10 units sold in last 30 days — not reduced'},
     {key:'orderProblems',  ico:'⚠️',title:'Order Problems',      dotClass:'insight-dot-red',
      sub:'Slow movers (under 20 units/30 days) with units still on order'},
+    {key:'recentSizesSoldOut', ico:'📏',title:'Sizes Sold Out in Last 7 Days', dotClass:'insight-dot-red',
+     sub:'SKUs that had sales in the last 7 days and are now out of stock — consider reordering sizes'},
   ];
   document.getElementById('insights-body').innerHTML=sections.map(s=>{
     const items=data[s.key]||[];
