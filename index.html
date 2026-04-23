@@ -3871,7 +3871,7 @@ function analyseStockData(){
       productMap[k]={
         productName:r.productName,colour:r.colour,category:r.category,
         vendor:r.vendor,stock:0,sold7:0,sold14:0,sold30:0,sold90:0,
-        onOrder:0,discountPct:r.discountPct||0,flag:r.flag,
+        onOrder:0,discountPct:r.discountPct||0,flag:r.flag,isDraft:r.isDraft||false,
         price:r.price,daysDisplay:r.daysDisplay
       };
     }
@@ -3891,8 +3891,8 @@ function analyseStockData(){
   const gwpProducts=new Set(allVariantRows.filter(r=>gwpVendorSkus.has(r.sku)).map(r=>r.productName+'||'+r.colour));
   const filteredProducts=products.filter(p=>
     !excludedCats.has((p.category||'').toUpperCase().trim()) &&
-    !excludedCats.has((p.vendor||'').toUpperCase().trim()) &&
-    !gwpProducts.has(p.productName+'||'+p.colour)
+    !gwpProducts.has(p.productName+'||'+p.colour) &&
+    !p.isDraft
   );
 
   // Helper
@@ -3986,7 +3986,7 @@ function analyseStockData(){
     const pk=r.productName+'||'+r.colour;
     // Skip excluded categories/vendors
     if(excludedCats.has((r.category||'').toUpperCase().trim()))continue;
-    if(excludedCats.has((r.vendor||'').toUpperCase().trim()))continue;
+    if(r.isDraft)continue;
     if(gwpProducts.has(pk))continue;
     if((r.sold7||0)>0&&(r.stock||0)===0&&r.size&&r.size!=='—'){
       if(!soProductMap[pk])soProductMap[pk]={productName:r.productName,colour:r.colour,category:r.category,vendor:r.vendor,sizes:[],totalSold7:0,stock:0};
@@ -7073,7 +7073,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
       sold,sellThru7:sellThru,
       days:recalcDays===null?9999:recalcDays,
       daysDisplay:recalcWeeks===null?'—':recalcWeeks===0?'0':recalcWeeks,
-      onOrder,productOnOrder,monthDue,onOrderByMonth,flag,amOnly:false,
+      onOrder,productOnOrder,monthDue,onOrderByMonth,flag,amOnly:false,isDraft,
       suggestedOrder:finalSuggestedOrder,
       soldOutSizes:soMap[productName+'||'+colour]||null,
       deliveryMonth,sohValue,sellValue
