@@ -3998,7 +3998,6 @@ function analyseStockData(){
   }
   const recentSizesSoldOut=Object.values(soProductMap)
     .sort((a,b)=>b.sizes.length-a.sizes.length||b.totalSold7-a.totalSold7)
-    .slice(0,5)
     .map(p=>({text:`${fmt(p)} — sizes <strong>${p.sizes.join(', ')}</strong> sold out in last 7 days. ${p.stock>0?p.stock+' units remaining in other sizes.':'All sizes now sold out.'}`}));
 
   return{needsReorder,needsMetaAds,stylesToWatch,slowerMovers,deadStyles,orderProblems,recentSizesSoldOut};
