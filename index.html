@@ -3885,11 +3885,11 @@ function analyseStockData(){
   }
   const products=Object.values(productMap);
 
-  // Exclude GWP and Bundle filteredProducts (past or present — by category or vendor)
+  // Exclude GWP and Bundle products (past or present — by category or vendor)
   const excludedCats=new Set(['GWP','BUNDLE','MYSTERY BOX','GIVEAWAY','INSURANCE']);
   const gwpVendorSkus=new Set(allVariantRows.filter(r=>r.vendor==='GWP').map(r=>r.sku));
   const gwpProducts=new Set(allVariantRows.filter(r=>gwpVendorSkus.has(r.sku)).map(r=>r.productName+'||'+r.colour));
-  const filteredProducts=filteredProducts.filter(p=>
+  const filteredProducts=products.filter(p=>
     !excludedCats.has((p.category||'').toUpperCase().trim()) &&
     !excludedCats.has((p.vendor||'').toUpperCase().trim()) &&
     !gwpProducts.has(p.productName+'||'+p.colour)
