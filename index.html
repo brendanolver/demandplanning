@@ -7325,25 +7325,19 @@ function renderKPIs(){
   let todayRevPool=0,todayCostPool=0,todayGwpCogs=0;
   if(window._salesBySkuDay){
     // First pass: sum GWP COGS and non-GWP revenue for today
+    // Note: include all entries including zero-qty (refund+sale netting to 0) so COGS is accurate
     for(const[sku,days] of Object.entries(window._salesBySkuDay)){
       const d=days[todayStr];
-      if(!d||!d.qty)continue;
-      if(_isGwpToday(sku)){todayGwpCogs+=(d.cogs||0);}
-      else{todayRevPool+=(d.revenue||0);}
-    }
-    // Second pass: accumulate non-GWP COGS + allocate GWP COGS proportionally
-    for(const[sku,days] of Object.entries(window._salesBySkuDay)){
-      if(_isGwpToday(sku))continue;
-      const d=days[todayStr];
-      if(!d||!d.qty)continue;
-      const rev=d.revenue||0;
-      const cogs=d.cogs||0;
-      todayCostPool+=cogs;
-      // Allocate this SKU's share of today's GWP cost
-      if(todayGwpCogs>0&&todayRevPool>0&&rev>0){
-        todayCostPool+=todayGwpCogs*(rev/todayRevPool);
+      if(!d)continue;
+      if(_isGwpToday(sku)){
+        todayGwpCogs+=(d.cogs||0);
+      } else {
+        todayRevPool+=(d.revenue||0);
+        todayCostPool+=(d.cogs||0);
       }
     }
+    // Add GWP COGS into the total cost pool (it's a real cost of the day's sales)
+    todayCostPool+=todayGwpCogs;
   }
   const todayMarginPct=todayRevPool>0?(todayRevPool-todayCostPool)/todayRevPool*100:null;
   const todayMarginFmt=todayMarginPct!=null?todayMarginPct.toFixed(2)+'%':'—';
@@ -7967,7 +7961,6 @@ function buildAchievedMarginMap(period){
   const cutoff=new Date(now.getFullYear(),now.getMonth(),now.getDate()-(period-1));
   const cutoffStr=`${cutoff.getFullYear()}-${String(cutoff.getMonth()+1).padStart(2,'0')}-${String(cutoff.getDate()).padStart(2,'0')}`;
 
-  // Build GWP SKU set
   const skuCatMap=window._skuCategoryMap||{};
   const gwpSkus=new Set(
     Object.entries(skuCatMap)
@@ -7977,15 +7970,13 @@ function buildAchievedMarginMap(period){
   const gwpVendorSkus=new Set(allVariantRows.filter(r=>r.vendor==='GWP').map(r=>r.sku));
   const isGwpSku=sku=>gwpSkus.has(sku)||gwpVendorSkus.has(sku);
 
-  // Step 1 — collect per-day GWP COGS and non-GWP revenue (for proportional allocation)
-  const dayGwpCogs={};   // day → total GWP COGS that day
-  const dayNonGwpRev={}; // day → total non-GWP revenue that day
-
+  // Collect per-day GWP COGS for category-level allocation only
+  const dayGwpCogs={};
+  const dayNonGwpRev={};
   for(const[sku,days] of Object.entries(window._salesBySkuDay)){
     for(const[day,d] of Object.entries(days)){
       if(day<cutoffStr||day>todayStr)continue;
       if(isGwpSku(sku)){
-        // GWP: accumulate its COGS as a cost to be spread across other SKUs
         dayGwpCogs[day]=(dayGwpCogs[day]||0)+(d.cogs||0);
       } else {
         const rev=d.revenue||0;
@@ -7994,38 +7985,21 @@ function buildAchievedMarginMap(period){
     }
   }
 
-  // Step 2 — pool revenue and COGS per non-GWP SKU,
-  // allocating each day's GWP COGS proportionally by that SKU's revenue share
+  // SKU/product level — clean own COGS only, no GWP allocation
   const skuRev={},skuCost={};
   for(const[sku,days] of Object.entries(window._salesBySkuDay)){
     if(isGwpSku(sku))continue;
     let rev=0,cost=0;
     for(const[day,d] of Object.entries(days)){
       if(day<cutoffStr||day>todayStr)continue;
-      const r=d.revenue||0;
-      const c=d.cogs||0;
-      rev+=r;
-      cost+=c;
-      // Allocate this SKU's share of GWP cost for this day
-      const gwpPool=dayGwpCogs[day]||0;
-      const dayRev=dayNonGwpRev[day]||0;
-      if(gwpPool>0&&dayRev>0&&r>0){
-        cost+=gwpPool*(r/dayRev);
-      }
+      rev+=d.revenue||0;
+      cost+=d.cogs||0;
     }
     if(rev>0){skuRev[sku]=rev;skuCost[sku]=cost;}
   }
 
-  // Step 3 — aggregate to product and category level
-  const prodRev={},prodCost={},catRev={},catCost={};
-
-  for(const[sku,rev] of Object.entries(skuRev)){
-    const cost=skuCost[sku]||0;
-    const ck=skuCatMap[sku]||'UNCATEGORISED';
-    catRev[ck]=(catRev[ck]||0)+rev;
-    catCost[ck]=(catCost[ck]||0)+cost;
-  }
-
+  // Product level — own COGS only
+  const prodRev={},prodCost={};
   for(const r of allVariantRows){
     if(isGwpSku(r.sku))continue;
     const rev=skuRev[r.sku]||0;
@@ -8036,14 +8010,36 @@ function buildAchievedMarginMap(period){
     prodCost[pk]=(prodCost[pk]||0)+cost;
   }
 
+  // Category level — own COGS + GWP COGS allocated proportionally by day
+  const catRev={},catCost={};
+  for(const[sku,days] of Object.entries(window._salesBySkuDay)){
+    if(isGwpSku(sku))continue;
+    const ck=skuCatMap[sku]||'UNCATEGORISED';
+    for(const[day,d] of Object.entries(days)){
+      if(day<cutoffStr||day>todayStr)continue;
+      const r=d.revenue||0;
+      const c=d.cogs||0;
+      catRev[ck]=(catRev[ck]||0)+r;
+      catCost[ck]=(catCost[ck]||0)+c;
+      const gwpPool=dayGwpCogs[day]||0;
+      const dayRev=dayNonGwpRev[day]||0;
+      if(gwpPool>0&&dayRev>0&&r>0){
+        catCost[ck]=(catCost[ck]||0)+gwpPool*(r/dayRev);
+      }
+    }
+  }
+
   const mgPct=(rev,cost)=>rev>0?+((rev-cost)/rev*100).toFixed(2):null;
   const map={};
   for(const[sku,rev] of Object.entries(skuRev))map['sku:'+sku]=mgPct(rev,skuCost[sku]||0);
   for(const[pk,rev] of Object.entries(prodRev))map['prod:'+pk]=mgPct(rev,prodCost[pk]||0);
   for(const[ck,rev] of Object.entries(catRev))map['cat:'+ck]=mgPct(rev,catCost[ck]||0);
 
-  // GWP SKUs explicitly show 0% margin
+  // GWP: 0% at both sku and product level
   for(const sku of [...gwpSkus,...gwpVendorSkus])map['sku:'+sku]=0;
+  for(const r of allVariantRows){
+    if(isGwpSku(r.sku))map['prod:'+r.productName+'||'+r.colour]=0;
+  }
 
   return map;
 }
