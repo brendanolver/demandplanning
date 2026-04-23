@@ -7073,7 +7073,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
       sold,sellThru7:sellThru,
       days:recalcDays===null?9999:recalcDays,
       daysDisplay:recalcWeeks===null?'—':recalcWeeks===0?'0':recalcWeeks,
-      onOrder,productOnOrder,monthDue,onOrderByMonth,flag,amOnly:false,isDraft,
+      onOrder,productOnOrder,monthDue,onOrderByMonth,flag,amOnly:false,isDraft:isDraftFlagged,
       suggestedOrder:finalSuggestedOrder,
       soldOutSizes:soMap[productName+'||'+colour]||null,
       deliveryMonth,sohValue,sellValue
