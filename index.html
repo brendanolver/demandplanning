@@ -3872,7 +3872,9 @@ function analyseStockData(){
         productName:r.productName,colour:r.colour,category:r.category,
         vendor:r.vendor,stock:0,sold7:0,sold14:0,sold30:0,sold90:0,
         onOrder:0,discountPct:r.discountPct||0,flag:r.flag,isDraft:r.isDraft||false,
-        price:r.price,daysDisplay:r.daysDisplay
+        price:r.price,daysDisplay:r.daysDisplay,
+        soldOutSizes:0,totalSizes:0,
+        _productOnOrderSet:false // track whether we've taken productOnOrder once
       };
     }
     const p=productMap[k];
@@ -3881,7 +3883,18 @@ function analyseStockData(){
     p.sold14+=getSoldInPeriod(window._salesBySkuDay,r.sku,14).qty;
     p.sold30+=(r.sold30||0);
     p.sold90+=(r.sold90||0);
-    p.onOrder+=(r.onOrder||0)+(r.productOnOrder||0);
+    // onOrder: use productOnOrder once per product, not per variant
+    if(!p._productOnOrderSet&&(r.productOnOrder||0)>0){
+      p.onOrder+=(r.productOnOrder||0);
+      p._productOnOrderSet=true;
+    } else if(!p._productOnOrderSet){
+      p.onOrder+=(r.onOrder||0);
+    }
+    // Track sold-out sizes
+    if(r.size&&r.size!=='—'){
+      p.totalSizes++;
+      if((r.stock||0)===0)p.soldOutSizes++;
+    }
   }
   const products=Object.values(productMap);
 
@@ -3973,10 +3986,10 @@ function analyseStockData(){
   // ── 6. ORDER PROBLEMS ──
   // Slow movers (< 20 sold in 30 days) but have units on order
   const orderProblems=filteredProducts
-    .filter(p=>p.sold30<20&&hasOrder(p)&&!isReduced(p))
+    .filter(p=>p.sold30<20&&hasOrder(p)&&!isReduced(p)&&p.soldOutSizes===0)
     .sort((a,b)=>b.onOrder-a.onOrder)
     .slice(0,5)
-    .map(p=>({text:`${fmt(p)} — ${p.onOrder} units on order but only ${p.sold30} sold in last 30 days. Review if this order is still needed.`}));
+    .map(p=>({text:`${fmt(p)} — ${p.onOrder.toLocaleString()} units on order but only ${p.sold30} sold in last 30 days (all sizes available). Review if this order is still needed.`}));
 
   // ── 7. SIZES SOLD OUT IN LAST 7 DAYS ──
   // SKUs that had sales in the last 7 days AND now have zero stock
