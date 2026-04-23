@@ -3885,6 +3885,16 @@ function analyseStockData(){
   }
   const products=Object.values(productMap);
 
+  // Exclude GWP and Bundle filteredProducts (past or present — by category or vendor)
+  const excludedCats=new Set(['GWP','BUNDLE','MYSTERY BOX','GIVEAWAY','INSURANCE']);
+  const gwpVendorSkus=new Set(allVariantRows.filter(r=>r.vendor==='GWP').map(r=>r.sku));
+  const gwpProducts=new Set(allVariantRows.filter(r=>gwpVendorSkus.has(r.sku)).map(r=>r.productName+'||'+r.colour));
+  const filteredProducts=filteredProducts.filter(p=>
+    !excludedCats.has((p.category||'').toUpperCase().trim()) &&
+    !excludedCats.has((p.vendor||'').toUpperCase().trim()) &&
+    !gwpProducts.has(p.productName+'||'+p.colour)
+  );
+
   // Helper
   const fmt=p=>`<strong>${toTitleCase(p.productName)} — ${toTitleCase(p.colour)}</strong>`;
   const isReduced=p=>(p.discountPct||0)>0;
@@ -3892,7 +3902,7 @@ function analyseStockData(){
 
   // ── 1. NEEDS RE-ORDER ──
   // ST% ≥ 20% over last 7 or 14 days, not reduced, not on order, has stock
-  const needsReorder=products
+  const needsReorder=filteredProducts
     .filter(p=>p.stock>0&&!isReduced(p)&&!hasOrder(p))
     .filter(p=>{
       const st7=p.sold7>0&&(p.stock+p.sold7)>0?p.sold7/(p.stock+p.sold7)*100:0;
@@ -3900,7 +3910,7 @@ function analyseStockData(){
       return st7>=20||st14>=20;
     })
     .sort((a,b)=>b.sold7-a.sold7)
-    .slice(0,20)
+    .slice(0,5)
     .map(p=>{
       const st7=p.sold7>0&&(p.stock+p.sold7)>0?(p.sold7/(p.stock+p.sold7)*100).toFixed(1):null;
       const st14=p.sold14>0&&(p.stock+p.sold14)>0?(p.sold14/(p.stock+p.sold14)*100).toFixed(1):null;
@@ -3909,7 +3919,7 @@ function analyseStockData(){
 
   // ── 2. NEEDS META ADS ──
   // Strong early ST% (≥15% in first 7-14 days) but now slow (sold30 < sold7*4) with high stock (>50)
-  const needsMetaAds=products
+  const needsMetaAds=filteredProducts
     .filter(p=>p.stock>=50&&!isReduced(p))
     .filter(p=>{
       const st7=p.sold7>0&&(p.stock+p.sold7)>0?p.sold7/(p.stock+p.sold7)*100:0;
@@ -3921,7 +3931,7 @@ function analyseStockData(){
       return hadStrongStart&&nowSlow;
     })
     .sort((a,b)=>b.stock-a.stock)
-    .slice(0,20)
+    .slice(0,5)
     .map(p=>{
       const st14=p.sold14>0&&(p.stock+p.sold14)>0?(p.sold14/(p.stock+p.sold14)*100).toFixed(1):null;
       return{text:`${fmt(p)} — ${p.stock} SOH, ${p.sold30} sold in last 30d. Strong early ST% (${st14||'—'}% in 14d) but pace has dropped — consider Meta Ads to push inventory.`};
@@ -3929,7 +3939,7 @@ function analyseStockData(){
 
   // ── 3. STYLES TO WATCH ──
   // ST% ≥ 15% over last 14 days, not reduced, not on order — worth watching for reorder
-  const stylesToWatch=products
+  const stylesToWatch=filteredProducts
     .filter(p=>p.stock>0&&!isReduced(p)&&!hasOrder(p))
     .filter(p=>{
       const st7=p.sold7>0&&(p.stock+p.sold7)>0?p.sold7/(p.stock+p.sold7)*100:0;
@@ -3938,7 +3948,7 @@ function analyseStockData(){
       return (st7>=15&&st7<20)||(st14>=15&&st14<20);
     })
     .sort((a,b)=>b.sold14-a.sold14)
-    .slice(0,20)
+    .slice(0,5)
     .map(p=>{
       const st14=p.sold14>0&&(p.stock+p.sold14)>0?(p.sold14/(p.stock+p.sold14)*100).toFixed(1):null;
       return{text:`${fmt(p)} — ${p.stock} SOH, ${st14||'—'}% ST in 14d. Keep an eye on this one for reorder potential.`};
@@ -3946,26 +3956,26 @@ function analyseStockData(){
 
   // ── 4. SLOWER MOVERS ──
   // < 20 units sold in last 30 days, not reduced, not on order, has stock
-  const slowerMovers=products
+  const slowerMovers=filteredProducts
     .filter(p=>p.stock>0&&!isReduced(p)&&!hasOrder(p)&&p.sold30<20&&p.sold30>9)
     .sort((a,b)=>b.stock-a.stock)
-    .slice(0,20)
+    .slice(0,5)
     .map(p=>({text:`${fmt(p)} — ${p.stock} SOH, only ${p.sold30} units sold in last 30 days. Consider a promotion to move stock.`}));
 
   // ── 5. DEAD STYLES ──
   // < 10 sales in last 30 days, not reduced, has stock
-  const deadStyles=products
+  const deadStyles=filteredProducts
     .filter(p=>p.stock>0&&!isReduced(p)&&p.sold30<10)
     .sort((a,b)=>b.stock-a.stock)
-    .slice(0,20)
+    .slice(0,5)
     .map(p=>({text:`${fmt(p)} — ${p.stock} SOH, only ${p.sold30} units sold in last 30 days. Consider marking down or delisting.`}));
 
   // ── 6. ORDER PROBLEMS ──
   // Slow movers (< 20 sold in 30 days) but have units on order
-  const orderProblems=products
+  const orderProblems=filteredProducts
     .filter(p=>p.sold30<20&&hasOrder(p)&&!isReduced(p))
     .sort((a,b)=>b.onOrder-a.onOrder)
-    .slice(0,20)
+    .slice(0,5)
     .map(p=>({text:`${fmt(p)} — ${p.onOrder} units on order but only ${p.sold30} sold in last 30 days. Review if this order is still needed.`}));
 
   return{needsReorder,needsMetaAds,stylesToWatch,slowerMovers,deadStyles,orderProblems};
