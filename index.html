@@ -2940,8 +2940,17 @@ function planPopulateCatDropdown(){
 }
 
 function planCatToggleAll(cb){
-  document.querySelectorAll('#ms-plan-cat-options input').forEach(b=>b.checked=cb.checked);
-  planCatChange();
+  if(cb.checked){
+    // Check all = no filter = show all
+    document.querySelectorAll('#ms-plan-cat-options input').forEach(b=>b.checked=true);
+    planSelectedCats=new Set();
+    const label=document.getElementById('ms-plan-cat-label');
+    if(label)label.textContent='All Categories';
+    planSelectedProds=new Set();planProdRenderTags();
+    renderPlanning();
+  } else {
+    planCatChange();
+  }
 }
 
 function planCatChange(){
@@ -3193,8 +3202,8 @@ function renderPlanning(){
   if(prodBtn){prodBtn.style.background=planView==='product'?'var(--teal)':'transparent';prodBtn.style.color=planView==='product'?'white':'var(--text-secondary)';}
   const pinPanel=document.getElementById('plan-pin-panel');
   if(pinPanel)pinPanel.style.display=planView==='product'?'block':'none';
-  // Populate category dropdown when switching to product view
-  if(planView==='product'){
+  // Only repopulate category dropdown on initial switch to product view
+  if(planView==='product'&&!document.querySelector('#ms-plan-cat-options label')){
     planPopulateCatDropdown();
   }
 
@@ -3217,10 +3226,15 @@ function renderPlanning(){
   for(const r of activeBase){const c=r.category||'UNCATEGORISED';catSoh[c]=(catSoh[c]||0)+r.stock;catVel30[c]=(catVel30[c]||0)+(r.sold30||0)/30;}
   const activeRows=activeBase;
   const productsByCat={};const prodSoh={},prodVel30={};
+  const globalPkSeen=new Set(); // prevent duplicates across categories
   for(const r of activeRows){
     const cat=r.category||'UNCATEGORISED';const pk=r.productName+'||'+r.colour;
     if(!productsByCat[cat])productsByCat[cat]=[];
-    if(!prodSoh[pk]){productsByCat[cat].push({pk,productName:r.productName,colour:r.colour,flag:r.flag});prodSoh[pk]=0;prodVel30[pk]=0;}
+    if(!globalPkSeen.has(pk)){
+      globalPkSeen.add(pk);
+      productsByCat[cat].push({pk,productName:r.productName,colour:r.colour,flag:r.flag});
+      prodSoh[pk]=0;prodVel30[pk]=0;
+    }
     prodSoh[pk]+=(r.stock||0);prodVel30[pk]+=(r.sold30||0)/30;
   }
   const sortedCats=[...cats].sort((a,b)=>{
