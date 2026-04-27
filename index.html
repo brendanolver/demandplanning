@@ -3156,6 +3156,9 @@ function setPlanView(val){
 }
 
 function setGlobalCoreFilter(val){
+  console.log('🔄 setGlobalCoreFilter:',val,'screen:',currentScreen,'total rows:',allVariantRows.length);
+  console.log('🔄 CORE rows:',allVariantRows.filter(r=>r.vendor==='CORE').length);
+  console.log('🔄 Vendor sample:',[...new Set(allVariantRows.slice(0,50).map(r=>r.vendor))].join(','));
   globalCoreFilter=val;
   _planLyDataProd=null; _planOnOrderDataProd=null; _planMonthsCache=null;
   const allBtn=document.getElementById('gcf-all');
