@@ -3108,9 +3108,56 @@ function swExportAM(){
     productList=[{productName:swProduct.productName,colour:swProduct.colour,roQty:parseInt(saved[swKey]?.total)||0}];
   }
   if(!productList.length){alert('No product loaded in Size Workings.');return;}
-  const customerPO=prompt('Enter Customer PO number:','');
-  if(customerPO===null)return;
-  if(!customerPO.trim()){alert('Customer PO is required.');return;}
+
+  // Show modal to collect PO and date_due
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  const modal=document.createElement('div');
+  modal.style.cssText='background:white;border-radius:12px;padding:28px 32px;min-width:340px;box-shadow:0 8px 40px rgba(0,0,0,0.18);font-family:Inter,sans-serif;';
+  // Default date_due to 3 months from today
+  const defDate=new Date();defDate.setMonth(defDate.getMonth()+3);
+  const defDateStr=defDate.toISOString().slice(0,10);
+  modal.innerHTML=`
+    <div style="font-size:16px;font-weight:700;color:#111827;margin-bottom:20px;">⬇ Apparel Magic Export</div>
+    <div style="margin-bottom:14px;">
+      <label style="font-size:12px;font-weight:600;color:#4b5563;display:block;margin-bottom:5px;">Customer PO *</label>
+      <input id="am-export-po" type="text" placeholder="e.g. PO-2026-001" style="width:100%;padding:9px 12px;border:1.5px solid #e4e7ed;border-radius:6px;font-family:Inter,sans-serif;font-size:14px;outline:none;box-sizing:border-box;">
+    </div>
+    <div style="margin-bottom:22px;">
+      <label style="font-size:12px;font-weight:600;color:#4b5563;display:block;margin-bottom:5px;">Date Due *</label>
+      <input id="am-export-date" type="date" value="${defDateStr}" style="width:100%;padding:9px 12px;border:1.5px solid #e4e7ed;border-radius:6px;font-family:Inter,sans-serif;font-size:14px;outline:none;box-sizing:border-box;">
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button id="am-export-cancel" style="flex:1;padding:10px;background:#f3f4f6;border:none;border-radius:6px;font-family:Inter,sans-serif;font-size:13px;font-weight:600;cursor:pointer;color:#4b5563;">Cancel</button>
+      <button id="am-export-confirm" style="flex:2;padding:10px;background:#0ea5a0;color:white;border:none;border-radius:6px;font-family:Inter,sans-serif;font-size:13px;font-weight:600;cursor:pointer;">Export CSV</button>
+    </div>`;
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+
+  const poInput=modal.querySelector('#am-export-po');
+  const dateInput=modal.querySelector('#am-export-date');
+  poInput.focus();
+
+  // Focus styling
+  [poInput,dateInput].forEach(el=>{
+    el.addEventListener('focus',()=>el.style.borderColor='#0ea5a0');
+    el.addEventListener('blur',()=>el.style.borderColor='#e4e7ed');
+  });
+
+  modal.querySelector('#am-export-cancel').onclick=()=>overlay.remove();
+  overlay.addEventListener('click',e=>{if(e.target===overlay)overlay.remove();});
+
+  modal.querySelector('#am-export-confirm').onclick=()=>{
+    const customerPO=poInput.value.trim();
+    const dateDue=dateInput.value;
+    if(!customerPO){poInput.style.borderColor='#dc2626';poInput.focus();return;}
+    if(!dateDue){dateInput.style.borderColor='#dc2626';dateInput.focus();return;}
+    overlay.remove();
+    _doAMExport(productList,customerPO,dateDue);
+  };
+}
+
+function _doAMExport(productList,customerPO,dateDue){
   const sizeOrder=['XXS','XS','S','M','L','XL','XXL','XXXL','XXXXL','28','30','32','34','36','38','40','42','44','46','48','50','OS'];
   const swSaved=getSwData();
   const csvRows=[];
@@ -3138,11 +3185,11 @@ function swExportAM(){
     for(let i=0;i<variants.length;i++){
       const qty=sizeQtys[i];if(!qty)continue;
       const sku=variants[i].sku;if(!sku||sku==='—')continue;
-      csvRows.push([customerPO.trim(),'WNDRR ONLINE STORE',sku,qty]);
+      csvRows.push([customerPO,'WNDRR ONLINE STORE',sku,qty,dateDue]);
     }
   }
   if(!csvRows.length){alert('No exportable rows — enter a Total Units Needed or Size Workings values first.');return;}
-  const headers=['customer_po','customer_name','sku_alt','qty'];
+  const headers=['customer_po','customer_name','sku_alt','qty','date_due'];
   const csv=[headers,...csvRows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob=new Blob([csv],{type:'text/csv'});
   const url=URL.createObjectURL(blob);
