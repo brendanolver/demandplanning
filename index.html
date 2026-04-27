@@ -5543,30 +5543,50 @@ function setLoadingProgress(pct,msg){
 function startAutoSync(){
   const ls=document.getElementById('loading-screen');
   ls.style.display='flex';
-  setLoadingProgress(5,'Click below to connect Google Drive');
-  // Always require a direct user tap for OAuth — browsers block popups from async/auto triggers
-  let tapBtn=document.getElementById('ios-auth-btn');
-  if(!tapBtn){
-    tapBtn=document.createElement('button');
-    tapBtn.id='ios-auth-btn';
-    tapBtn.textContent='🔗 Connect Google Drive';
-    tapBtn.style.cssText='margin-top:8px;padding:12px 28px;background:#14b8a6;color:white;border:none;border-radius:8px;font-family:Inter,sans-serif;font-size:15px;font-weight:600;cursor:pointer;';
-    tapBtn.onclick=()=>{
-      tapBtn.style.display='none';
-      setLoadingProgress(15,'Authenticating...');
-      if(!window.google?.accounts?.oauth2){
-        const script=document.createElement('script');
-        script.src='https://accounts.google.com/gsi/client';
-        script.onload=()=>autoSyncAuth();
-        script.onerror=()=>{setLoadingProgress(0,'⚠️ Could not load Google Sign-In.');setTimeout(showUploadScreen,2500);};
-        document.head.appendChild(script);
-      } else {
-        autoSyncAuth();
-      }
+  // On iOS/iPadOS Safari, window.open popups are blocked from async callbacks.
+  // Detect mobile and show a direct tap button instead of auto-triggering auth.
+  const isMobileSafari=/iP(hone|ad|od)/.test(navigator.userAgent)||
+    (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  if(isMobileSafari){
+    setLoadingProgress(5,'Tap below to connect Google Drive');
+    const ls=document.getElementById('loading-screen');
+    // Inject a tap button directly in the loading screen
+    let tapBtn=document.getElementById('ios-auth-btn');
+    if(!tapBtn){
+      tapBtn=document.createElement('button');
+      tapBtn.id='ios-auth-btn';
+      tapBtn.textContent='🔗 Connect Google Drive';
+      tapBtn.style.cssText='margin-top:8px;padding:12px 28px;background:#14b8a6;color:white;border:none;border-radius:8px;font-family:Inter,sans-serif;font-size:15px;font-weight:600;cursor:pointer;';
+      tapBtn.onclick=()=>{
+        tapBtn.style.display='none';
+        setLoadingProgress(15,'Authenticating...');
+        if(!window.google?.accounts?.oauth2){
+          const script=document.createElement('script');
+          script.src='https://accounts.google.com/gsi/client';
+          script.onload=()=>autoSyncAuth();
+          document.head.appendChild(script);
+        } else {
+          autoSyncAuth();
+        }
+      };
+      ls.appendChild(tapBtn);
+    } else {
+      tapBtn.style.display='block';
+    }
+    return;
+  }
+  setLoadingProgress(5,'Connecting to Google Drive...');
+  if(!window.google?.accounts?.oauth2){
+    const script=document.createElement('script');
+    script.src='https://accounts.google.com/gsi/client';
+    script.onload=()=>autoSyncAuth();
+    script.onerror=()=>{
+      setLoadingProgress(0,'⚠️ Could not load Google Sign-In. Try manual upload.');
+      setTimeout(showUploadScreen,2500);
     };
-    ls.appendChild(tapBtn);
+    document.head.appendChild(script);
   } else {
-    tapBtn.style.display='block';
+    autoSyncAuth();
   }
 }
 
