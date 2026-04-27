@@ -3248,7 +3248,7 @@ function renderPlanning(){
   }
 
   const months=getPlanMonths();
-  const activeBase=getActiveRows().filter(r=>!r.amOnly);
+  const activeBase=getActiveRows().filter(r=>!r.amOnly&&(r.category||'UNCATEGORISED').toUpperCase()!=='GWP');
   const cats=[...new Set(activeBase.map(r=>r.category||'UNCATEGORISED'))].sort();
   const lyData=getLYSalesByCategory(months);
   const onOrderData=getAMOnOrderByCategory(months);
