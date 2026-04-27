@@ -5421,8 +5421,8 @@ async function gdriveFetchFiles(){
       'All Products Sizes Sold Out':{loader:'soldout',exact:false,sheet:false},
       'Variants 0 inventory by Product':{loader:'variantssoldout',exact:false,sheet:false},
       'Core Styles':{loader:'corestyles',exact:false,sheet:false},
-        'All_Products_List':{loader:'allproductslist',exact:false,sheet:false},
-        'All Products List':{loader:'allproductslist',exact:false,sheet:false},
+        'All_Products_List':{loader:'allproductslist',exact:false,sheet:false,optional:true},
+        'All Products List':{loader:'allproductslist',exact:false,sheet:false,optional:true},
       'Current Bundle Styles':{loader:'bundlestyles',exact:false,sheet:false},
       'Order Item Analysis':{loader:'am',exact:false,sheet:false},
     };
@@ -5436,7 +5436,7 @@ async function gdriveFetchFiles(){
         // Pick latest by modifiedTime (already sorted desc by API) — case insensitive
         match=files.find(f=>f.name.toLowerCase().startsWith(filename.toLowerCase()));
       }
-      if(!match){errors.push(`"${filename}" not found`);continue;}
+      if(!match){if(!config.optional)errors.push(`"${filename}" not found`);continue;}
 
       let text;
       if(config.sheet||match.mimeType==='application/vnd.google-apps.spreadsheet'){
@@ -5629,21 +5629,21 @@ async function autoSyncFetch(){
       'All Products Sizes Sold Out':{loader:'soldout',exact:false,sheet:false},
       'Variants 0 inventory by Product':{loader:'variantssoldout',exact:false,sheet:false},
       'Core Styles':{loader:'corestyles',exact:false,sheet:false},
-        'All_Products_List':{loader:'allproductslist',exact:false,sheet:false},
-        'All Products List':{loader:'allproductslist',exact:false,sheet:false},
+        'All_Products_List':{loader:'allproductslist',exact:false,sheet:false,optional:true},
+        'All Products List':{loader:'allproductslist',exact:false,sheet:false,optional:true},
       'Current Bundle Styles':{loader:'bundlestyles',exact:false,sheet:false},
       'Order Item Analysis':{loader:'am',exact:false,sheet:false},
     };
     const fileLabels={inv:'Inventory',sales:'Sales History',soldout:'All Products',variantssoldout:'Variants Sold Out',corestyles:'Core Styles',bundlestyles:'Bundle Styles',am:'Apparel Magic'};
     let loaded=0;
-    const total=Object.keys(fileMap).length;
+    const total=Object.values(fileMap).filter(c=>!c.optional).length;
     const errors=[];
 
     for(const[filename,config]of Object.entries(fileMap)){
       const pct=45+Math.round((loaded/total)*50);
-      setLoadingProgress(pct,`Downloading ${fileLabels[config.loader]}...`);
+      setLoadingProgress(pct,`Downloading ${fileLabels[config.loader]||''}...`);
       let match=config.exact?files.find(f=>f.name.toLowerCase()===filename.toLowerCase()):files.find(f=>f.name.toLowerCase().startsWith(filename.toLowerCase()));
-      if(!match){errors.push(fileLabels[config.loader]);loaded++;continue;}
+      if(!match){if(!config.optional){errors.push(fileLabels[config.loader]);loaded++;}continue;}
       let text;
       if(config.sheet||match.mimeType==='application/vnd.google-apps.spreadsheet'){
         const dlRes=await fetch(`https://www.googleapis.com/drive/v3/files/${match.id}/export?mimeType=text/csv`,{headers:{Authorization:`Bearer ${gdriveToken}`}});
