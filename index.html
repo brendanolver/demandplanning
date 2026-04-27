@@ -3195,10 +3195,11 @@ function renderPlanning(){
   }
 
   const months=getPlanMonths();
-  const cats=[...new Set(allVariantRows.filter(r=>!r.amOnly).map(r=>r.category||'UNCATEGORISED'))].sort();
+  const activeBase=getActiveRows().filter(r=>!r.amOnly);
+  const cats=[...new Set(activeBase.map(r=>r.category||'UNCATEGORISED'))].sort();
   const lyData=getLYSalesByCategory(months);
   const onOrderData=getAMOnOrderByCategory(months);
-  // Cache expensive per-product LY/onOrder calculations
+  // Cache expensive per-product LY/onOrder calculations — invalidate when filter changes
   if(!_planLyDataProd||!_planMonthsCache||_planMonthsCache[0]?.key!==months[0]?.key){
     _planLyDataProd=getLYSalesByProduct(months);
     _planOnOrderDataProd=getAMOnOrderByProduct(months);
@@ -3209,8 +3210,8 @@ function renderPlanning(){
   const saved=getPlanningData();
   const coverMonths=Math.max(1,Math.min(12,parseInt(saved['cover_months'])||2));
   const catSoh={},catVel30={};
-  for(const r of allVariantRows){const c=r.category||'UNCATEGORISED';catSoh[c]=(catSoh[c]||0)+r.stock;catVel30[c]=(catVel30[c]||0)+(r.sold30||0)/30;}
-  const activeRows=getActiveRows().filter(r=>!r.amOnly);
+  for(const r of activeBase){const c=r.category||'UNCATEGORISED';catSoh[c]=(catSoh[c]||0)+r.stock;catVel30[c]=(catVel30[c]||0)+(r.sold30||0)/30;}
+  const activeRows=activeBase;
   const productsByCat={};const prodSoh={},prodVel30={};
   for(const r of activeRows){
     const cat=r.category||'UNCATEGORISED';const pk=r.productName+'||'+r.colour;
