@@ -113,8 +113,7 @@ input[type="file"]{display:none;}
 .topbar-logo-mark svg{width:14px;height:14px;fill:none;stroke:white;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;}
 .topbar-brand{font-size:13px;font-weight:700;color:var(--text);letter-spacing:0.3px;}
 .topbar-brand span{color:var(--navy-text);font-weight:400;}
-.topbar-right{display:flex;align-items:center;gap:8px;overflow:hidden;}
-.screen-nav{display:flex;gap:2px;overflow-x:auto;flex-shrink:1;}
+.topbar-right{display:flex;align-items:center;gap:8px;}
 .topbar-pill{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.7);border:1px solid var(--navy-border);border-radius:var(--r-pill);padding:5px 12px;font-size:11.5px;color:var(--navy-text);font-weight:500;}
 .live-dot{width:6px;height:6px;border-radius:50%;background:var(--teal);box-shadow:0 0 0 2px rgba(14,165,160,0.25);}
 .tb-btn{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.7);border:1px solid var(--navy-border);border-radius:var(--r);padding:6px 12px;font-family:'Inter',sans-serif;font-size:11.5px;font-weight:500;color:var(--navy-text);cursor:pointer;transition:all 0.15s;}
@@ -139,7 +138,7 @@ input[type="file"]{display:none;}
 .main{overflow-y:auto;padding:20px;background:var(--bg);min-height:0;}
 
 /* KPI GRID */
-.kpi-row{display:grid;grid-template-columns:repeat(7,1fr);gap:12px;margin-bottom:20px;}
+.kpi-row{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:20px;}
 .kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 18px;box-shadow:var(--shadow-xs);transition:box-shadow 0.15s;}
 .kpi-card.kpi-clickable:hover{box-shadow:var(--shadow-md);transform:translateY(-1px);}
 .kpi-card.kpi-clickable{transition:box-shadow 0.15s,transform 0.15s;}
@@ -273,7 +272,6 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .plan-onorder{color:var(--purple);font-weight:500;}
 .plan-variance-ok{color:var(--teal);font-weight:700;}
 .plan-variance-warn{color:var(--red);font-weight:700;}
-.plan-variance-over{color:var(--orange);font-weight:700;}
 .plan-section-header{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);padding:4px 0;border-bottom:2px solid var(--teal);margin-bottom:2px;}
 .plan-legend{display:flex;gap:16px;align-items:center;font-size:11px;color:var(--text-secondary);margin-bottom:14px;flex-wrap:wrap;}
 .plan-legend-item{display:flex;align-items:center;gap:5px;}
@@ -300,7 +298,7 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .cadence-chart-title{font-size:13px;font-weight:700;color:var(--text);margin-bottom:16px;}
 
 /* Screen nav */
-.screen-nav{display:flex;flex-shrink:1;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:2px;gap:2px;}
+.screen-nav{display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:2px;gap:2px;}
 .screen-btn{padding:5px 14px;border:none;background:transparent;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;color:var(--text-secondary);cursor:pointer;border-radius:var(--r-sm);transition:all 0.12s;white-space:nowrap;}
 .screen-btn:hover{color:var(--teal);}
 .screen-btn.active{background:var(--teal);color:white;font-weight:600;}
@@ -529,7 +527,7 @@ th{position:relative;}
   .screen-nav{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;max-width:380px;}
   .screen-btn{white-space:nowrap;font-size:11px;padding:5px 8px;flex-shrink:0;}
   /* KPI: 3 columns on tablet, 2 on phone */
-  .kpi-row{grid-template-columns:repeat(4,1fr);gap:8px;}
+  .kpi-row{grid-template-columns:repeat(3,1fr);gap:8px;}
   /* SIDEBAR: completely removed from layout, hidden off-screen */
   .layout{grid-template-columns:1fr !important;display:block !important;}
   .sidebar{
@@ -788,10 +786,6 @@ th{position:relative;}
         <button class="screen-btn" id="btn-insights" onclick="showScreen('insights')">💡 Insights</button>
         <button class="screen-btn" id="btn-planning" onclick="showScreen('planning')">📋 Planning</button>
         <button class="screen-btn" id="btn-markdowns" onclick="showScreen('markdowns')">📝 Working</button>
-      </div>
-      <div id="global-core-toggle" style="display:none;flex-shrink:0;align-items:center;background:rgba(255,255,255,0.5);border:1px solid var(--navy-border);border-radius:var(--r);padding:2px;gap:2px;">
-        <button id="gcf-all" onclick="setGlobalCoreFilter('all')" style="padding:4px 12px;border:none;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:11px;font-weight:600;cursor:pointer;background:var(--teal);color:white;transition:all 0.12s;">All</button>
-        <button id="gcf-core" onclick="setGlobalCoreFilter('core')" style="padding:4px 12px;border:none;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:11px;font-weight:600;cursor:pointer;background:transparent;color:var(--navy-text);transition:all 0.12s;">Core</button>
       </div>
       <div class="period-selector" id="period-selector" style="display:none;">
         <span class="period-label">Period:</span>
@@ -1142,56 +1136,10 @@ th{position:relative;}
       <div class="insights-header" style="margin-bottom:20px;">
         <div>
           <div class="insights-title">Planning</div>
-          <div class="insights-sub" id="plan-view-sub">Forward planning by category — next 12 months. Data saved automatically in your browser.</div>
+          <div class="insights-sub">Forward planning by category — next 12 months. Data saved automatically in your browser.</div>
         </div>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <div style="display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:2px;gap:2px;">
-            <button id="plan-view-btn-category" onclick="setPlanView('category')" style="padding:5px 14px;border:none;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;background:var(--teal);color:white;transition:all 0.12s;">Category</button>
-            <button id="plan-view-btn-product" onclick="setPlanView('product')" style="padding:5px 14px;border:none;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--text-secondary);transition:all 0.12s;">Products</button>
-          </div>
-          <button onclick="planSendToSizeWorkings()" style="padding:7px 18px;background:#8b5cf6;color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">📐 Send to Size Workings</button>
-          <button class="insights-refresh-btn" onclick="clearPlanningData()" style="background:var(--surface);border:1px solid var(--border);color:var(--text-secondary);">✕ Clear All</button>
-        </div>
+        <button class="insights-refresh-btn" onclick="clearPlanningData()" style="background:var(--surface);border:1px solid var(--border);color:var(--text-secondary);">✕ Clear All</button>
       </div>
-
-      <!-- Product filter search -->
-      <div id="plan-filter-panel" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 18px;margin-bottom:16px;box-shadow:var(--shadow-xs);display:none;">
-        <div style="display:flex;gap:8px;align-items:flex-start;flex-wrap:wrap;">
-          <!-- Category quick-select -->
-          <div class="ms-wrap" id="ms-plan-cat" style="flex-shrink:0;">
-            <button class="ms-btn" onclick="toggleDropdown('ms-plan-cat')"><span id="ms-plan-cat-label">All Categories</span><span class="ms-arrow">▾</span></button>
-            <div class="ms-dropdown" id="ms-plan-cat-dropdown" style="z-index:400;min-width:220px;">
-              <label class="ms-item ms-all"><input type="checkbox" id="plan-cat-all-cb" onchange="planCatSelectAll(this)"> All Categories</label>
-              <div id="ms-plan-cat-options"></div>
-              <div style="padding:8px 10px;border-top:1px solid var(--border);background:var(--surface2);">
-                <button onclick="planCatApply()" style="width:100%;padding:5px;background:var(--teal);color:white;border:none;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">✓ Add All in Category</button>
-              </div>
-            </div>
-          </div>
-          <div style="position:relative;flex:1;min-width:220px;">
-            <div class="search-wrap">
-              <span class="search-ico">🔍</span>
-              <input type="text" id="plan-filter-search" placeholder="Or search by product name..." oninput="planFilterSearch()" autocomplete="off" style="width:100%;">
-            </div>
-            <div id="plan-filter-results" style="display:none;position:absolute;z-index:300;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-lg);width:100%;top:100%;margin-top:4px;">
-              <div style="padding:7px 14px;border-bottom:1px solid var(--border);background:var(--surface2);border-radius:var(--r) var(--r) 0 0;">
-                <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
-                  <input type="checkbox" id="plan-filter-select-all" onchange="planFilterSelectAll(this)" style="width:15px;height:15px;flex-shrink:0;accent-color:var(--teal);cursor:pointer;">
-                  <span style="font-size:12px;font-weight:600;color:var(--text-secondary);">Select All</span>
-                </label>
-              </div>
-              <div id="plan-filter-list" style="max-height:260px;overflow-y:auto;"></div>
-              <div style="padding:8px 12px;border-top:1px solid var(--border);background:var(--surface2);display:flex;justify-content:space-between;align-items:center;border-radius:0 0 var(--r) var(--r);">
-                <span id="plan-filter-count-label" style="font-size:11px;color:var(--text-muted);"></span>
-                <button onclick="planFilterApply()" style="padding:5px 16px;background:var(--teal);color:white;border:none;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">✓ Add Selected</button>
-              </div>
-            </div>
-          </div>
-          <button onclick="planFilterClear()" style="padding:7px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);white-space:nowrap;margin-top:2px;">✕ Show All</button>
-        </div>
-        <div id="plan-filter-tags" style="display:flex;gap:6px;flex-wrap:wrap;min-height:0;align-items:center;margin-top:8px;"></div>
-      </div>
-
       <div id="planning-body">
         <div class="insights-empty">
           <div class="insights-empty-ico">📋</div>
@@ -1419,31 +1367,17 @@ th{position:relative;}
         <div id="sw-tab-product-body">
         <!-- Toolbar -->
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
-          <div style="position:relative;flex:1;min-width:280px;max-width:420px;">
-            <div class="search-wrap">
-              <span class="search-ico">🔍</span>
-              <input type="text" id="sw-search" placeholder="Type to search, tick to select, then click Add Selected..." oninput="swSearch()" autocomplete="off" style="width:100%;">
-            </div>
-            <!-- Multi-select dropdown -->
-            <div id="sw-results" style="display:none;position:absolute;z-index:300;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-lg);width:100%;top:100%;margin-top:4px;">
-              <div style="padding:7px 14px;border-bottom:1px solid var(--border);background:var(--surface2);border-radius:var(--r) var(--r) 0 0;">
-                <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
-                  <input type="checkbox" id="sw-select-all" onchange="swSelectAll(this)" style="width:15px;height:15px;flex-shrink:0;accent-color:var(--teal);cursor:pointer;">
-                  <span style="font-size:12px;font-weight:600;color:var(--text-secondary);">Select All</span>
-                </label>
-              </div>
-              <div id="sw-results-list" style="max-height:260px;overflow-y:auto;"></div>
-              <div style="padding:8px 12px;border-top:1px solid var(--border);background:var(--surface2);display:flex;justify-content:space-between;align-items:center;border-radius:0 0 var(--r) var(--r);">
-                <span id="sw-count-label" style="font-size:11px;color:var(--text-muted);"></span>
-                <button onclick="swApplyChecked()" style="padding:5px 16px;background:var(--teal);color:white;border:none;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">✓ Add Selected</button>
-              </div>
-            </div>
+          <div class="search-wrap" style="min-width:280px;max-width:420px;">
+            <span class="search-ico">🔍</span>
+            <input type="text" id="sw-search" placeholder="Search product name..." oninput="swSearch()" style="width:100%;">
+          </div>
+          <div id="sw-colour-wrap" style="display:none;">
+            <select id="sw-colour-select" onchange="renderSizeWorkings()" style="padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;background:var(--surface);color:var(--text);outline:none;cursor:pointer;"></select>
           </div>
           <button onclick="swClearAll()" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✕ Clear All</button>
           <button onclick="swExport()" style="padding:7px 16px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">⬇ Export</button>
+          <button onclick="swExportAM()" style="padding:7px 16px;background:#0369a1;color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">⬇ Apparel Magic</button>
         </div>
-        <!-- Selected product tags -->
-        <div id="sw-tags" style="display:flex;gap:6px;flex-wrap:wrap;min-height:20px;align-items:center;margin-bottom:8px;"></div>
         <!-- Filter bar -->
         <div class="filter-row" style="margin-bottom:12px;flex-wrap:wrap;">
           <div class="ms-wrap" id="ms-sw-cat">
@@ -1495,6 +1429,8 @@ th{position:relative;}
             <button class="period-btn" data-sw-days="365" onclick="setSwPeriod(365)">365d</button>
           </div>
         </div>
+        <!-- Search results dropdown -->
+        <div id="sw-results" style="display:none;position:absolute;z-index:200;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow-lg);max-height:260px;overflow-y:auto;min-width:320px;"></div>
         <!-- Size workings table -->
         <div id="sw-body">
           <div class="insights-empty" style="margin-top:40px;">
@@ -1759,7 +1695,6 @@ document.addEventListener('click',e=>{
 
 /* ── SCREEN NAV ── */
 let currentScreen='dashboard';
-let globalCoreFilter='all';
 
 function showScreen(screen){
   currentScreen=screen;
@@ -1789,8 +1724,6 @@ function showScreen(screen){
   periodSelector.style.display=(!isTouch&&screen==='dashboard')?'flex':'none';
   if(periodBar)periodBar.style.display=(isTouch&&screen==='dashboard')?'flex':'none';
   exportBtn.style.display=screen==='dashboard'?'':'none';
-  const globalToggle=document.getElementById('global-core-toggle');
-  if(globalToggle)globalToggle.style.display=['dashboard','cadence','planning','markdowns'].includes(screen)?'flex':'none';
   if(screen==='insights'){
     document.getElementById('insights-period-label').textContent=selectedPeriod+'d';
     document.getElementById('insights-sku-count').textContent=allVariantRows.length.toLocaleString();
@@ -1806,20 +1739,6 @@ let cadenceSortCol=null; // null = default order, 'soh', or period label
 let cadenceSortDir='desc';
 let planSortCol='category';
 let planSortDir='asc';
-let planView='category'; // 'category' | 'product'
-
-function setPlanView(v){
-  planView=v;
-  const catBtn=document.getElementById('plan-view-btn-category');
-  const prodBtn=document.getElementById('plan-view-btn-product');
-  const panel=document.getElementById('plan-filter-panel');
-  const sub=document.getElementById('plan-view-sub');
-  if(catBtn){catBtn.style.background=v==='category'?'var(--teal)':'transparent';catBtn.style.color=v==='category'?'white':'var(--text-secondary)';}
-  if(prodBtn){prodBtn.style.background=v==='product'?'var(--teal)':'transparent';prodBtn.style.color=v==='product'?'white':'var(--text-secondary)';}
-  if(panel)panel.style.display=v==='product'?'block':'none';
-  if(sub)sub.textContent=v==='category'?'Forward planning by category — next 12 months. Data saved automatically in your browser.':'Forward planning by product — select categories or search to filter.';
-  renderPlanning();
-}
 let mdSortCol='productName';
 let mdSortDir='asc';
 let cadenceView='cat';
@@ -2335,10 +2254,6 @@ function renderCadenceCompare(){
     colTotals[p.label]=productData.reduce((s,cp)=>s+Math.round(cp.data[p.label]||0),0);
   }
   const grandTotal=Object.values(colTotals).reduce((s,v)=>s+v,0);
-  const totalSoh=productData.reduce((s,cp)=>s+(cp.soh||0),0);
-  const totalOnOrder=productData.reduce((s,cp)=>s+(cp.onOrder||0),0);
-  const totalStPct=grandTotal>0&&(totalSoh+grandTotal)>0?grandTotal/(totalSoh+grandTotal)*100:null;
-  const totalStColor=totalStPct===null?'color:var(--text-muted);':totalStPct>=60?'color:#15803d;font-weight:700;':totalStPct>=30?'color:var(--amber);font-weight:600;':'color:var(--red);font-weight:600;';
 
   // Sort arrow helper
   const arrow=col=>compareSortCol===col?(compareSortDir==='asc'?' ▲':' ▼'):'';
@@ -2392,9 +2307,9 @@ function renderCadenceCompare(){
 
   const totalsRow=`<tr style="background:var(--surface2);border-top:2px solid var(--border);">
     <td style="padding:8px 10px;font-weight:700;font-size:12px;color:var(--text-secondary);letter-spacing:0.05em;">TOTAL</td>
-    <td style="text-align:right;padding:8px 10px;font-weight:700;color:var(--text-secondary);">${totalSoh>0?totalSoh.toLocaleString():'—'}</td>
-    <td style="text-align:right;padding:8px 10px;font-weight:700;color:var(--purple);">${totalOnOrder>0?totalOnOrder.toLocaleString():'—'}</td>
-    <td style="text-align:right;padding:8px 10px;${totalStColor}">${totalStPct!==null?totalStPct.toFixed(1)+'%':'—'}</td>
+    <td style="text-align:right;padding:8px 10px;font-weight:700;">—</td>
+    <td style="text-align:right;padding:8px 10px;font-weight:700;color:var(--purple);">—</td>
+    <td style="text-align:right;padding:8px 10px;font-weight:700;">—</td>
     <td style="text-align:right;padding:8px 10px;font-weight:700;color:var(--teal);">${grandTotal>0?Math.round(grandTotal).toLocaleString():'—'}</td>
     ${totalCells}
   </tr>`;
@@ -2440,13 +2355,12 @@ function renderCadence(){
 
   let rowKeys, rowLabel, getKey;
   if(cadenceView==='cat'){
-    // When Core filter active, restrict to SKUs belonging to CORE products
+    // Use ALL SKUs including draft for accurate historical category totals
     const skuCatMap=window._skuCategoryMap||{};
-    const coreSkus=globalCoreFilter==='core'?new Set(allVariantRows.filter(r=>r.vendor==='CORE').map(r=>r.sku)):null;
+    rowKeys=[...new Set(Object.values(skuCatMap).filter(Boolean))].sort();
     rowLabel='Category';
     // For category view, sum directly from _salesBySkuDay using skuCatMap
     for(const[sku,cat] of Object.entries(skuCatMap)){
-      if(coreSkus&&!coreSkus.has(sku))continue;
       if(!data[cat])data[cat]={};
       const skuDays=getSoldInPeriodBreakdown(sku,periods);
       for(const p of periods){
@@ -2454,8 +2368,6 @@ function renderCadence(){
         totals[p.label]=(totals[p.label]||0)+skuDays[p.label];
       }
     }
-    // Only show categories that have data after filtering
-    rowKeys=[...new Set(Object.keys(data))].filter(Boolean).sort();
     getKey=null; // already built above
   } else {
     // Group by product+colour, filter by search, status, category, month del, disc%, flag
@@ -2464,18 +2376,17 @@ function renderCadence(){
     const selectedDelMonths=getCadenceSelectedDelMonths();
     const selectedDiscs=getCadenceSelectedDiscs();
     const selectedFlags=getCadenceSelectedFlags();
-    const activeRows=getActiveRows();
     // Build product-level aggregates for disc/flag filtering
-    const productDiscMap={};
-    const productFlagMap={};
-    for(const r of activeRows){
+    const productDiscMap={};   // key → discountPct
+    const productFlagMap={};   // key → flag
+    for(const r of allVariantRows){
       if(r.amOnly)continue;
       const k=r.productName+'||'+r.colour;
       if(productDiscMap[k]===undefined)productDiscMap[k]=r.discountPct||0;
       if(productFlagMap[k]===undefined)productFlagMap[k]=r.flag||'ok';
     }
     const prodSet=new Map();
-    for(const r of activeRows){
+    for(const r of allVariantRows){
       if(r.amOnly)continue;
       if(selectedStatuses.length&&!selectedStatuses.includes(r.vendor))continue;
       if(selectedCats.length&&!selectedCats.includes(r.category))continue;
@@ -2510,7 +2421,7 @@ function renderCadence(){
     for(const k of rowKeys)data[k]={};
     for(const p of periods)totals[p.label]=0;
 
-    for(const row of getActiveRows()){
+    for(const row of allVariantRows){
       if(row.amOnly)continue;
       const k=getKey(row);
       if(!data[k])continue;
@@ -2531,7 +2442,7 @@ function renderCadence(){
   const onOrderByKey={};
   const _onOrderSeen=new Set();
   if(cadenceView==='cat'){
-    for(const r of getActiveRows()){
+    for(const r of allVariantRows){
       const c=r.category||'UNCATEGORISED';
       sohByKey[c]=(sohByKey[c]||0)+(r.stock||0);
       const dedupeKey=c+'||'+r.productName+'||'+r.colour;
@@ -2542,7 +2453,7 @@ function renderCadence(){
       }
     }
   } else {
-    for(const r of getActiveRows()){
+    for(const r of allVariantRows){
       const k=r.productName+'||'+r.colour;
       sohByKey[k]=(sohByKey[k]||0)+(r.stock||0);
       if(!_onOrderSeen.has(k)){
@@ -2615,7 +2526,7 @@ function renderCadence(){
     const lyE=`${lyMtdEnd.getFullYear()}-${String(lyMtdEnd.getMonth()+1).padStart(2,'0')}-${String(lyMtdEnd.getDate()).padStart(2,'0')}`;
     for(const[sku,dayData] of Object.entries(window._salesBySkuDay)){
       const rowKey=cadenceView==='cat'?(skuCatMap[sku]||null):(()=>{
-        const r=getActiveRows().find(r=>r.sku===sku);
+        const r=allVariantRows.find(r=>r.sku===sku);
         return r?r.productName+'||'+r.colour:null;
       })();
       if(!rowKey||!rowKeys.includes(rowKey))continue;
@@ -2867,11 +2778,10 @@ function getPlanMonths(){
   return months;
 }
 
-function getLYSalesByCategory(months,allowedSkus){
+function getLYSalesByCategory(months){
   const result={};
   if(!window._salesBySkuDay||!window._skuCategoryMap)return result;
   for(const[sku,cat] of Object.entries(window._skuCategoryMap)){
-    if(allowedSkus&&!allowedSkus.has(sku))continue;
     const dayData=window._salesBySkuDay[sku]||{};
     if(!result[cat])result[cat]={};
     for(const[day,d] of Object.entries(dayData)){
@@ -2893,37 +2803,21 @@ function getLYSalesByCategory(months,allowedSkus){
   return result;
 }
 
-function getAMOnOrderByCategory(months,planRows){
+function getAMOnOrderByCategory(months){
   const result={};
-  const sourceRows=planRows||allVariantRows;
-  const MONTHS=['january','february','march','april','may','june','july','august','september','october','november','december'];
-  const parseMKey=md=>{
-    const p=md.split(' - ');if(p.length<2)return null;
-    const yr=parseInt(p[0]);const mi=MONTHS.indexOf(p[1].toLowerCase().trim());
-    if(mi<0||isNaN(yr))return null;
-    return`${yr}-${String(mi+1).padStart(2,'0')}`;
-  };
-  // Deduplicate at product level — iterate onOrderByMonth if available
-  const seen=new Set();
-  for(const row of sourceRows){
+  for(const row of allVariantRows){
     const cat=row.category||'UNCATEGORISED';
     if(!result[cat])result[cat]={};
-    const pk=row.productName+'||'+row.colour;
-    if(seen.has(pk))continue;
-    seen.add(pk);
-    // Use per-month breakdown if available
-    if(row.onOrderByMonth&&Object.keys(row.onOrderByMonth).length){
-      for(const[md,qty] of Object.entries(row.onOrderByMonth)){
-        const mKey=parseMKey(md);
-        if(mKey)result[cat][mKey]=(result[cat][mKey]||0)+qty;
-      }
-    } else {
-      // Fallback: single monthDue
-      const onOrder=(row.productOnOrder||0)||(row.onOrder||0);
-      if(onOrder<=0||!row.monthDue)continue;
-      const mKey=parseMKey(row.monthDue);
-      if(mKey)result[cat][mKey]=(result[cat][mKey]||0)+onOrder;
-    }
+    const onOrder=row.onOrder||0;
+    if(onOrder<=0||!row.monthDue)continue;
+    const parts=row.monthDue.split(' - ');
+    if(parts.length<2)continue;
+    const yr=parseInt(parts[0]);
+    const MONTHS=['january','february','march','april','may','june','july','august','september','october','november','december'];
+    const mi=MONTHS.indexOf(parts[1].toLowerCase().trim());
+    if(mi<0||isNaN(yr))continue;
+    const mKey=`${yr}-${String(mi+1).padStart(2,'0')}`;
+    result[cat][mKey]=(result[cat][mKey]||0)+onOrder;
   }
   return result;
 }
@@ -2934,378 +2828,21 @@ function setPlanSort(col){
   renderPlanning();
 }
 
-const planExpandedCats=new Set();
-const planPinnedProds=new Set(); // keys: "productName||colour"
-
-function togglePlanExpand(cat){
-  if(planExpandedCats.has(cat))planExpandedCats.delete(cat);
-  else planExpandedCats.add(cat);
-  renderPlanning();
-}
-
-// planFilteredProds: Set of "productName||colour" keys — when non-empty, table filters to only these
-const planFilteredProds=new Set();
-
-function planFilterSearch(){
-  const val=(document.getElementById('plan-filter-search')?.value||'').trim().toUpperCase();
-  const results=document.getElementById('plan-filter-results');
-  const list=document.getElementById('plan-filter-list');
-  if(!results||!list)return;
-  if(val.length<2){results.style.display='none';return;}
-
-  const matches=new Map();
-  for(const r of getActiveRows()){
-    if(r.amOnly)continue;
-    const key=r.productName+'||'+r.colour;
-    if(matches.has(key))continue;
-    if(!(r.productName+' - '+r.colour).toUpperCase().includes(val)&&!r.productName.toUpperCase().includes(val))continue;
-    matches.set(key,{key,productName:r.productName,colour:r.colour});
-  }
-  const items=[...matches.values()].slice(0,100);
-  if(!items.length){
-    list.innerHTML=`<div style="padding:12px 14px;font-size:13px;color:var(--text-muted);font-style:italic;">No products found</div>`;
-    results.style.display='block';return;
-  }
-  list.innerHTML=items.map(p=>{
-    const already=planFilteredProds.has(p.key);
-    return`<label style="display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:${already?'default':'pointer'};border-bottom:1px solid var(--border);"
-      onmouseover="if(!${already})this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
-      <input type="checkbox" value="${p.key.replace(/"/g,'&quot;')}"
-        data-product="${p.productName.replace(/"/g,'&quot;')}"
-        data-colour="${p.colour.replace(/"/g,'&quot;')}"
-        ${already?'checked disabled':''}
-        onchange="planFilterUpdateCount()"
-        style="width:15px;height:15px;flex-shrink:0;accent-color:var(--teal);cursor:pointer;">
-      <span style="font-size:13px;line-height:1.3;">
-        <strong>${p.productName}</strong>
-        <span style="color:var(--teal);font-weight:500;"> — ${p.colour}</span>
-      </span>
-      ${already?'<span style="font-size:10px;font-weight:600;color:var(--teal);margin-left:auto;white-space:nowrap;">✓ added</span>':''}
-    </label>`;
-  }).join('');
-  planFilterUpdateCount();
-  results.style.display='block';
-  const sa=document.getElementById('plan-filter-select-all');
-  if(sa){sa.checked=false;sa.indeterminate=false;}
-}
-
-function planFilterSelectAll(cb){
-  document.querySelectorAll('#plan-filter-list input[type="checkbox"]:not([disabled])').forEach(b=>b.checked=cb.checked);
-  planFilterUpdateCount();
-}
-
-function planFilterUpdateCount(){
-  const checked=document.querySelectorAll('#plan-filter-list input[type="checkbox"]:checked:not([disabled])');
-  const label=document.getElementById('plan-filter-count-label');
-  if(label){
-    if(checked.length>0)label.textContent=`${checked.length} selected`;
-    else label.textContent=planFilteredProds.size?`Showing ${planFilteredProds.size} product${planFilteredProds.size!==1?'s':''}`:'' ;
-  }
-  const all=document.querySelectorAll('#plan-filter-list input[type="checkbox"]:not([disabled])');
-  const allChecked=[...all].every(b=>b.checked);
-  const sa=document.getElementById('plan-filter-select-all');
-  if(sa){sa.checked=all.length>0&&allChecked;sa.indeterminate=!allChecked&&checked.length>0;}
-}
-
-function planFilterApply(){
-  const checked=document.querySelectorAll('#plan-filter-list input[type="checkbox"]:checked:not([disabled])');
-  checked.forEach(cb=>planFilteredProds.add(cb.value));
-  const inp=document.getElementById('plan-filter-search');if(inp)inp.value='';
-  const res=document.getElementById('plan-filter-results');if(res)res.style.display='none';
-  planFilterRenderTags();
-  renderPlanning();
-}
-
-function planFilterRemove(key){
-  planFilteredProds.delete(key);
-  planFilterRenderTags();
-  renderPlanning();
-}
-
-function planCatSelectAll(cb){
-  document.querySelectorAll('#ms-plan-cat-options input[type="checkbox"]').forEach(b=>b.checked=cb.checked);
-}
-
-function planCatApply(){
-  // Get all checked categories and add every product in those categories
-  // Uses getActiveRows() so Core toggle is respected
-  const checked=[...document.querySelectorAll('#ms-plan-cat-options input[type="checkbox"]:checked')].map(b=>b.value);
-  if(!checked.length){toggleDropdown('ms-plan-cat');return;}
-  for(const r of getActiveRows()){
-    if(r.amOnly)continue;
-    if(checked.includes(r.category||'UNCATEGORISED')){
-      planFilteredProds.add(r.productName+'||'+r.colour);
-    }
-  }
-  // Reset checkboxes and close dropdown
-  document.querySelectorAll('#ms-plan-cat-options input[type="checkbox"]').forEach(b=>b.checked=false);
-  const allCb=document.getElementById('plan-cat-all-cb');if(allCb)allCb.checked=false;
-  const label=document.getElementById('ms-plan-cat-label');if(label)label.textContent='All Categories';
-  toggleDropdown('ms-plan-cat');
-  planFilterRenderTags();
-  renderPlanning();
-}
-
-function planPopulateCatDropdown(){
-  const opts=document.getElementById('ms-plan-cat-options');
-  if(!opts)return;
-  // Always repopulate — category list changes with Core/All toggle
-  const cats=[...new Set(getActiveRows().filter(r=>!r.amOnly).map(r=>r.category||'UNCATEGORISED'))].sort();
-  opts.innerHTML=cats.map(c=>`<label class="ms-item"><input type="checkbox" value="${c}" onchange="planCatUpdateLabel()"> ${c}</label>`).join('');
-}
-
-function planCatUpdateLabel(){
-  const all=document.querySelectorAll('#ms-plan-cat-options input');
-  const checked=[...all].filter(b=>b.checked);
-  const label=document.getElementById('ms-plan-cat-label');
-  if(label)label.textContent=checked.length===0||checked.length===all.length?'All Categories':checked.length===1?checked[0].value:checked.length+' categories';
-}
-
-function planFilterClear(){
-  planFilteredProds.clear();
-  const inp=document.getElementById('plan-filter-search');if(inp)inp.value='';
-  const res=document.getElementById('plan-filter-results');if(res)res.style.display='none';
-  planFilterRenderTags();
-  renderPlanning();
-}
-
-function planFilterRenderTags(){
-  const wrap=document.getElementById('plan-filter-tags');
-  if(!wrap)return;
-  if(!planFilteredProds.size){wrap.innerHTML='';return;}
-  wrap.innerHTML=[...planFilteredProds].map(key=>{
-    const parts=key.split('||');
-    const safeKey=key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    return`<span style="display:inline-flex;align-items:center;gap:5px;background:var(--teal-light);color:var(--teal-dark);border:1px solid rgba(14,165,160,0.25);border-radius:var(--r-pill);padding:3px 10px;font-size:12px;font-weight:500;">
-      ${parts[0]}${parts[1]?' — '+parts[1]:''}
-      <button onclick="planFilterRemove('${safeKey}')" style="background:none;border:none;cursor:pointer;color:var(--teal);font-size:13px;line-height:1;padding:0 0 0 2px;">×</button>
-    </span>`;
-  }).join('');
-}
-
-function planSendToSizeWorkings(){
-  const saved=getPlanningData();
-  const months=getPlanMonths();
-  const prodPrefix='to_prod_';
-
-  // Scan all months for product-level To Order entries, group by month
-  const monthsWithQtys={};
-  for(const[key,val] of Object.entries(saved)){
-    if(!key.startsWith(prodPrefix))continue;
-    // Key format: to_prod_NAME||COLOUR_YYYY-MM
-    // Find the month key at the end (last segment after last _ before the YYYY-MM)
-    const mMatch=key.match(/_(\d{4}-\d{2})$/);
-    if(!mMatch)continue;
-    const mKey=mMatch[1];
-    const qty=parseInt(val)||0;
-    if(!qty)continue;
-    if(!monthsWithQtys[mKey])monthsWithQtys[mKey]=[];
-    // Extract product name
-    const inner=key.slice(prodPrefix.length,key.length-('_'+mKey).length);
-    const sepIdx=inner.indexOf('||');
-    if(sepIdx<0)continue;
-    monthsWithQtys[mKey].push({
-      productName:inner.slice(0,sepIdx),
-      colour:inner.slice(sepIdx+2),
-      qty
-    });
-  }
-
-  const availableMonths=Object.keys(monthsWithQtys);
-  if(!availableMonths.length){
-    alert('No product-level To Order quantities entered yet.\n\nExpand a category row, then enter quantities in the product To Order inputs.');
-    return;
-  }
-
-  // Build modal with month options
-  const monthLabels={};
-  for(const m of months)monthLabels[m.key]=m.label+(m.isCurrent?' (current)':'');
-
-  // Remove existing modal if present
-  document.getElementById('plan-sw-modal')?.remove();
-
-  const modal=document.createElement('div');
-  modal.id='plan-sw-modal';
-  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:9999;display:flex;align-items:center;justify-content:center;';
-  modal.innerHTML=`
-    <div style="background:var(--surface);border-radius:var(--r-lg);padding:28px 32px;box-shadow:0 20px 60px rgba(0,0,0,0.25);min-width:340px;max-width:460px;width:100%;">
-      <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px;">📐 Send to Size Workings</div>
-      <div style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">Select which month's To Order quantities to send:</div>
-      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:24px;">
-        ${availableMonths
-          .sort()
-          .map(mKey=>{
-            const label=monthLabels[mKey]||mKey;
-            const count=monthsWithQtys[mKey].length;
-            const totalQty=monthsWithQtys[mKey].reduce((s,p)=>s+p.qty,0);
-            return`<label style="display:flex;align-items:center;gap:12px;padding:10px 14px;border:1.5px solid var(--border);border-radius:var(--r);cursor:pointer;"
-              onmouseover="this.style.borderColor='var(--teal)';this.style.background='var(--teal-light)'"
-              onmouseout="this.style.borderColor='var(--border)';this.style.background=''">
-              <input type="radio" name="plan-sw-month" value="${mKey}" style="accent-color:var(--teal);width:15px;height:15px;cursor:pointer;">
-              <div>
-                <div style="font-size:13px;font-weight:600;color:var(--text);">${label}</div>
-                <div style="font-size:11px;color:var(--text-muted);margin-top:1px;">${count} product${count!==1?'s':''} — ${totalQty.toLocaleString()} total units</div>
-              </div>
-            </label>`;
-          }).join('')}
-      </div>
-      <div style="display:flex;gap:8px;justify-content:flex-end;">
-        <button onclick="document.getElementById('plan-sw-modal').remove()"
-          style="padding:8px 18px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;cursor:pointer;color:var(--text-secondary);">Cancel</button>
-        <button onclick="planSendToSwConfirm()"
-          style="padding:8px 20px;background:#8b5cf6;color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">Send →</button>
-      </div>
-    </div>`;
-  document.body.appendChild(modal);
-  // Auto-select first option
-  const firstRadio=modal.querySelector('input[type="radio"]');
-  if(firstRadio)firstRadio.checked=true;
-}
-
-function planSendToSwConfirm(){
-  const modal=document.getElementById('plan-sw-modal');
-  const selected=modal?.querySelector('input[name="plan-sw-month"]:checked');
-  if(!selected){alert('Please select a month.');return;}
-  const mKey=selected.value;
-  modal?.remove();
-
-  const saved=getPlanningData();
-  const prodPrefix='to_prod_';
-  const prodSuffix=`_${mKey}`;
-  const products=[];
-  for(const[key,val] of Object.entries(saved)){
-    if(!key.startsWith(prodPrefix)||!key.endsWith(prodSuffix))continue;
-    const qty=parseInt(val)||0;
-    if(!qty)continue;
-    const inner=key.slice(prodPrefix.length,key.length-prodSuffix.length);
-    const sepIdx=inner.indexOf('||');
-    if(sepIdx<0)continue;
-    const productName=inner.slice(0,sepIdx);
-    const colour=inner.slice(sepIdx+2);
-    products.push({fullTitle:productName+' - '+colour,productName,colour,qty});
-  }
-  if(!products.length)return;
-
-  // Pre-fill Size Workings Total Units Needed
-  const swData=getSwData();
-  for(const{productName,colour,qty} of products){
-    const swKey=`${productName}||${colour}`;
-    if(!swData[swKey])swData[swKey]={};
-    swData[swKey].total=String(qty);
-  }
-  saveSwData(swData);
-
-  showScreen('markdowns');
-  setWorkingView('sizeworkings');
-  setSwTab('product');
-  window._roToSwProducts=products.map(p=>({fullTitle:p.fullTitle,qty:p.qty}));
-  renderRoSizeWorkings();
-}
-
-document.addEventListener('click',e=>{
-  if(!e.target.closest('#plan-filter-search')&&!e.target.closest('#plan-filter-results')){
-    const r=document.getElementById('plan-filter-results');if(r)r.style.display='none';
-  }
-});
-
-function getLYSalesByProduct(months,allowedSkus){
-  const result={};
-  if(!window._salesBySkuDay)return result;
-  // Build SKU → productName||colour map from allVariantRows
-  const skuProdMap={};
-  for(const r of allVariantRows){
-    if(!skuProdMap[r.sku])skuProdMap[r.sku]=r.productName+'||'+r.colour;
-  }
-  for(const[sku,days] of Object.entries(window._salesBySkuDay)){
-    if(allowedSkus&&!allowedSkus.has(sku))continue;
-    const pk=skuProdMap[sku];
-    if(!pk)continue;
-    if(!result[pk])result[pk]={};
-    for(const[day,d] of Object.entries(days)){
-      const dt=new Date(day);dt.setHours(0,0,0,0);
-      for(const m of months){
-        if(dt>=m.lyStart&&dt<=m.lyEnd){
-          const qty=m.prorateRatio<1?d.qty*m.prorateRatio:d.qty;
-          result[pk][m.key]=(result[pk][m.key]||0)+qty;
-        }
-      }
-    }
-  }
-  for(const pk of Object.keys(result)){
-    for(const key of Object.keys(result[pk])){
-      result[pk][key]=Math.round(result[pk][key]);
-    }
-  }
-  return result;
-}
-
-function getAMOnOrderByProduct(months,planRows){
-  const result={};
-  const sourceRows=planRows||allVariantRows;
-  const MONTHS=['january','february','march','april','may','june','july','august','september','october','november','december'];
-  const parseMKey=md=>{
-    const p=md.split(' - ');if(p.length<2)return null;
-    const yr=parseInt(p[0]);const mi=MONTHS.indexOf(p[1].toLowerCase().trim());
-    if(mi<0||isNaN(yr))return null;
-    return`${yr}-${String(mi+1).padStart(2,'0')}`;
-  };
-  const seen=new Set();
-  for(const row of sourceRows){
-    const pk=row.productName+'||'+row.colour;
-    if(seen.has(pk))continue;
-    seen.add(pk);
-    if(!result[pk])result[pk]={};
-    // Use per-month breakdown if available
-    if(row.onOrderByMonth&&Object.keys(row.onOrderByMonth).length){
-      for(const[md,qty] of Object.entries(row.onOrderByMonth)){
-        const mKey=parseMKey(md);
-        if(mKey)result[pk][mKey]=(result[pk][mKey]||0)+qty;
-      }
-    } else {
-      const onOrder=(row.productOnOrder||0)||(row.onOrder||0);
-      if(onOrder<=0||!row.monthDue)continue;
-      const mKey=parseMKey(row.monthDue);
-      if(mKey)result[pk][mKey]=(result[pk][mKey]||0)+onOrder;
-    }
-  }
-  return result;
-}
-
-function getActiveRows(){
-  return globalCoreFilter==='core'?allVariantRows.filter(r=>r.vendor==='CORE'):allVariantRows;
-}
-
-function setGlobalCoreFilter(val){
-  globalCoreFilter=val;
-  const allBtn=document.getElementById('gcf-all');
-  const coreBtn=document.getElementById('gcf-core');
-  if(allBtn){allBtn.style.background=val==='all'?'var(--teal)':'transparent';allBtn.style.color=val==='all'?'white':'var(--navy-text)';}
-  if(coreBtn){coreBtn.style.background=val==='core'?'var(--teal)':'transparent';coreBtn.style.color=val==='core'?'white':'var(--navy-text)';}
-  // Re-render current screen
-  if(currentScreen==='dashboard'){renderKPIs();renderTable();}
-  else if(currentScreen==='cadence')renderCadence();
-  else if(currentScreen==='planning')renderPlanning();
-  else if(currentScreen==='markdowns')setWorkingView(workingView);
-}
-
 function renderPlanning(){
   if(!allVariantRows||allVariantRows.length===0){
     document.getElementById('planning-body').innerHTML=`<div class="insights-error">⚠️ No data loaded yet. Please upload your files and analyse first.</div>`;
     return;
   }
-  planFilterRenderTags();
-  planPopulateCatDropdown();
+
   const months=getPlanMonths();
-  const planRows=globalCoreFilter==='core'?allVariantRows.filter(r=>r.vendor==='CORE'):allVariantRows;
-  const allowedSkus=globalCoreFilter==='core'?new Set(planRows.map(r=>r.sku)):null;
-  const cats=[...new Set(planRows.filter(r=>!r.amOnly).map(r=>r.category||'UNCATEGORISED'))].sort();
-  const lyData=getLYSalesByCategory(months,allowedSkus);
-  const onOrderData=getAMOnOrderByCategory(months,planRows);
+  const cats=[...new Set(allVariantRows.filter(r=>!r.amOnly).map(r=>r.category||'UNCATEGORISED'))].sort();
+  const lyData=getLYSalesByCategory(months);
+  const onOrderData=getAMOnOrderByCategory(months);
   const saved=getPlanningData();
   const coverMonths=Math.max(1,Math.min(12,parseInt(saved['cover_months'])||2));
 
   const catSoh={},catVel30={};
-  for(const r of planRows){
+  for(const r of allVariantRows){
     const c=r.category||'UNCATEGORISED';
     catSoh[c]=(catSoh[c]||0)+r.stock;
     catVel30[c]=(catVel30[c]||0)+(r.sold30||0)/30;
@@ -3320,25 +2857,6 @@ function renderPlanning(){
       const va=catVel30[a]||0;const vb=catVel30[b]||0;
       av=va>0?(catSoh[a]||0)/(va*7):9999;
       bv=vb>0?(catSoh[b]||0)/(vb*7):9999;
-    } else if(planSortCol.startsWith('m_')){
-      // month column sort: m_YYYY-MM_budget|onorder|toorder|variance
-      const parts=planSortCol.split('_');
-      const mKey=parts[1]+'-'+parts[2];
-      const field=parts[3];
-      const growth=parseFloat(saved[`growth_${mKey}`]||0)||0;
-      const getVal=(cat)=>{
-        if(field==='budget') return Math.round((lyData[cat]?.[mKey]||0)*(1+growth/100));
-        if(field==='onorder') return Math.round(onOrderData[cat]?.[mKey]||0);
-        if(field==='toorder') return parseInt(saved[`to_${cat}_${mKey}`]||0)||0;
-        if(field==='variance'){
-          const soh=catSoh[cat]||0;const oo=Math.round(onOrderData[cat]?.[mKey]||0);
-          const to=parseInt(saved[`to_${cat}_${mKey}`]||0)||0;
-          const ly=Math.round((lyData[cat]?.[mKey]||0)*(1+growth/100));
-          return soh+oo+to-ly;
-        }
-        return 0;
-      };
-      av=getVal(a);bv=getVal(b);
     }
     return planSortDir==='asc'?av-bv:bv-av;
   });
@@ -3349,27 +2867,12 @@ function renderPlanning(){
   const monthHeaders=months.map(m=>`
     <th class="plan-month" colspan="5" style="border-left:2px solid var(--border);${m.isCurrent?'background:rgba(14,165,160,0.12);color:var(--teal);':''}">${m.label}${m.isCurrent?` <span style="font-size:9px;opacity:0.8;">(${Math.round(m.prorateRatio*100)}% of month)</span>`:''}</th>`).join('');
 
-  const subHeaders=months.map(m=>{
-    const mk=m.key.replace('-','_');
-    return`
-    <th style="border-left:2px solid var(--border);${planThStyle}" onclick="setPlanSort('m_${mk}_budget')">Budget${planArrow(`m_${mk}_budget`)}</th>
+  const subHeaders=months.map(()=>`
+    <th style="border-left:2px solid var(--border);">Budget</th>
     <th>SOH</th>
-    <th style="${planThStyle}" onclick="setPlanSort('m_${mk}_onorder')">On Order${planArrow(`m_${mk}_onorder`)}</th>
-    <th style="${planThStyle}" onclick="setPlanSort('m_${mk}_toorder')">To Order${planArrow(`m_${mk}_toorder`)}</th>
-    <th style="${planThStyle}" onclick="setPlanSort('m_${mk}_variance')">Variance${planArrow(`m_${mk}_variance`)}</th>`;
-  }).join('');
-
-  // Product view: SOH is a fixed left column, months only have 4 cols
-  const prodMonthHeaders=months.map(m=>`
-    <th class="plan-month" colspan="4" style="border-left:2px solid var(--border);${m.isCurrent?'background:rgba(14,165,160,0.12);color:var(--teal);':''}">${m.label}${m.isCurrent?` <span style="font-size:9px;opacity:0.8;">(${Math.round(m.prorateRatio*100)}% of month)</span>`:''}</th>`).join('');
-  const prodSubHeaders=months.map(m=>{
-    const mk=m.key.replace('-','_');
-    return`
-    <th style="border-left:2px solid var(--border);${planThStyle}" onclick="setPlanSort('m_${mk}_budget')">Budget${planArrow(`m_${mk}_budget`)}</th>
-    <th style="${planThStyle}" onclick="setPlanSort('m_${mk}_onorder')">On Order${planArrow(`m_${mk}_onorder`)}</th>
-    <th style="${planThStyle}" onclick="setPlanSort('m_${mk}_toorder')">To Order${planArrow(`m_${mk}_toorder`)}</th>
-    <th style="${planThStyle}" onclick="setPlanSort('m_${mk}_variance')">Variance${planArrow(`m_${mk}_variance`)}</th>`;
-  }).join('');
+    <th>On Order</th>
+    <th>To Order</th>
+    <th>Variance</th>`).join('');
 
   const growthCells=months.map(m=>{
     const gVal=saved[`growth_${m.key}`]||'';
@@ -3382,213 +2885,12 @@ function renderPlanning(){
         </div></td>`;
   }).join('');
 
-  // Build per-product data — use allVariantRows (not getActiveRows) so SOH is
-  // available for any product the user selects, regardless of Core/All toggle
-  const activeRows=getActiveRows();
-  const productsByCat={};
-  const prodMap=new Map();
-  for(const r of allVariantRows){
-    if(r.amOnly)continue;
-    const cat=r.category||'UNCATEGORISED';
-    const key=r.productName+'||'+r.colour;
-    if(!prodMap.has(key)){
-      prodMap.set(key,{
-        productName:r.productName,colour:r.colour,category:cat,
-        vendor:r.vendor,stock:0,flag:r.flag
-      });
-    }
-    const p=prodMap.get(key);
-    p.stock+=r.stock||0;
-  }
-  for(const[,p] of prodMap){
-    if(!productsByCat[p.category])productsByCat[p.category]=[];
-    productsByCat[p.category].push(p);
-  }
-
-  // Product-level LY sales and on-order (for expansion planning columns)
-  const lyDataProd=getLYSalesByProduct(months,null); // always use all SKUs for LY budget
-  const onOrderDataProd=getAMOnOrderByProduct(months,allVariantRows.filter(r=>!r.amOnly));
-
-  // Now that prodMap/productsByCat are built, determine filter state
-  const isFiltered=planView==='product'&&planFilteredProds.size>0;
-  const filteredSortedCats=isFiltered
-    ? sortedCats.filter(cat=>(productsByCat[cat]||[]).some(p=>planFilteredProds.has(p.productName+'||'+p.colour)))
-    : sortedCats;
-
-  // ── PRODUCT VIEW: no products selected yet — show empty state ──
-  if(planView==='product'&&!isFiltered){
-    document.getElementById('planning-body').innerHTML=`
-      <div class="insights-empty" style="margin-top:40px;">
-        <div class="insights-empty-ico">📋</div>
-        <div class="insights-empty-title">No products selected</div>
-        <div class="insights-empty-sub">Use the Category dropdown or search above to select products to plan.</div>
-      </div>`;
-    return;
-  }
-
-  // ── FILTERED MODE: flat product rows only, no categories ──
-  if(isFiltered){
-    const filteredProds=[...planFilteredProds].map(key=>{
-      const sepIdx=key.indexOf('||');
-      return{productName:key.slice(0,sepIdx),colour:key.slice(sepIdx+2),key};
-    }).sort((a,b)=>{
-      const pa=prodMap.get(a.key),pb=prodMap.get(b.key);
-      if(planSortCol==='product'||planSortCol==='category'){
-        const av=a.productName+a.colour,bv=b.productName+b.colour;
-        return planSortDir==='asc'?av.localeCompare(bv):bv.localeCompare(av);
-      }
-      if(planSortCol==='soh'){
-        const av=pa?.stock||0,bv=pb?.stock||0;
-        return planSortDir==='asc'?av-bv:bv-av;
-      }
-      if(planSortCol.startsWith('m_')){
-        const parts=planSortCol.split('_');
-        const mKey=parts[1]+'-'+parts[2];
-        const field=parts[3];
-        const growth=parseFloat(saved[`growth_${mKey}`]||0)||0;
-        const getVal=(pk)=>{
-          if(field==='budget') return Math.round((lyDataProd[pk]?.[mKey]||0)*(1+growth/100));
-          if(field==='onorder') return Math.round(onOrderDataProd[pk]?.[mKey]||0);
-          if(field==='toorder') return parseInt(saved[`to_prod_${pk}_${mKey}`]||0)||0;
-          if(field==='variance'){
-            const soh=prodMap.get(pk)?.stock||0;
-            const oo=Math.round(onOrderDataProd[pk]?.[mKey]||0);
-            const to=parseInt(saved[`to_prod_${pk}_${mKey}`]||0)||0;
-            const ly=Math.round((lyDataProd[pk]?.[mKey]||0)*(1+growth/100));
-            return soh+oo+to-ly;
-          }
-          return 0;
-        };
-        const av=getVal(a.key),bv=getVal(b.key);
-        return planSortDir==='asc'?av-bv:bv-av;
-      }
-      return a.productName.localeCompare(b.productName);
-    });
-
-    const prodRows=filteredProds.map(({productName,colour,key:pk})=>{
-      const p=prodMap.get(pk);
-      if(!p)return'';
-      const pSoh=p.stock;
-      const safePk=pk.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-
-      const pMonthlyCells=months.map((m,mi)=>{
-        const growth=parseFloat(saved[`growth_${m.key}`]||0)||0;
-        const ly=Math.round(lyDataProd[pk]?.[m.key]||0);
-        const budget=Math.round(ly*(1+growth/100));
-        const onOrder=Math.round(onOrderDataProd[pk]?.[m.key]||0);
-        const toOrderVal=saved[`to_prod_${safePk}_${m.key}`]||'';
-        const toOrder=parseInt(toOrderVal)||0;
-        let coverage=0;
-        if(!m.isCurrent&&months[0]?.isCurrent){
-          const cm=months[0];const cfg=parseFloat(saved[`growth_${cm.key}`]||0)||0;
-          coverage+=Math.round((lyDataProd[pk]?.[cm.key]||0)*(1+cfg/100));
-        }
-        for(let j=0;j<coverMonths;j++){
-          const fm=months[m.isCurrent?mi+j:mi+j];if(!fm)break;
-          const fg=parseFloat(saved[`growth_${fm.key}`]||0)||0;
-          coverage+=Math.round((lyDataProd[pk]?.[fm.key]||0)*(1+fg/100));
-        }
-        const suggestOrder=coverage>0?Math.max(0,coverage-(pSoh+onOrder)):0;
-        const variance=(pSoh+onOrder+toOrder)-coverage;
-        const varClass=coverage===0?'':variance<0?'plan-variance-warn':budget>0&&variance>=3*budget?'plan-variance-over':'plan-variance-ok';
-        const varLabel=coverage===0?'—':(variance>=0?'+':'')+variance.toLocaleString();
-        return`
-          <td style="border-left:2px solid var(--border);${m.isCurrent?'background:rgba(14,165,160,0.04);':''}">
-            <span class="plan-budget">${budget>0?budget.toLocaleString():'—'}</span></td>
-          <td style="${m.isCurrent?'background:rgba(14,165,160,0.04);':''}"><span class="${onOrder>0?'plan-onorder':'cell-muted'}">${onOrder>0?onOrder.toLocaleString():'—'}</span></td>
-          <td style="padding:3px 5px;${m.isCurrent?'background:rgba(14,165,160,0.04);':''}">
-            ${m.isCurrent
-              ?`<span style="font-size:11px;color:var(--text-muted);font-style:italic;">current</span>`
-              :`<input class="plan-input" type="number" min="0" step="1"
-                  placeholder="${suggestOrder>0?suggestOrder:''}"
-                  value="${toOrderVal}"
-                  style="font-size:11px;${!toOrderVal&&suggestOrder>0?'color:#f97316;':''}"
-                  onchange="savePlanField('to_prod_${safePk}_${m.key}',this.value);renderPlanning();">`}
-          </td>
-          <td style="${m.isCurrent?'background:rgba(14,165,160,0.04);':''}"><span class="${varClass}">${varLabel}</span></td>`;
-      }).join('');
-
-      return`<tr style="background:var(--surface);border-bottom:1px solid var(--border);">
-        <td class="plan-cat" style="font-size:12px;font-weight:600;white-space:nowrap;">
-          <div style="font-weight:700;color:var(--text);">${productName}</div>
-          <div style="font-size:11px;color:var(--teal);font-weight:400;">${colour}
-            <span class="range-pill rp-${(p.vendor||'').toLowerCase().replace(/[^a-z]/g,'')}" style="font-size:10px;margin-left:4px;">${p.vendor}</span>
-          </div>
-        </td>
-        <td style="text-align:right;padding:8px 10px;font-weight:600;color:var(--text-secondary);">${pSoh>0?pSoh.toLocaleString():'—'}</td>
-        ${pMonthlyCells}
-      </tr>`;
-    }).join('');
-
-    // Product-level totals for filtered view
-    const filteredTotalCells=months.map((m,mi)=>{
-      const growth=parseFloat(saved[`growth_${m.key}`]||0)||0;
-      let tb=0,tsoh=0,too=0,tto=0,tcov=0;
-      for(const{key:pk} of filteredProds){
-        const p=prodMap.get(pk);if(!p)continue;
-        tb+=Math.round((lyDataProd[pk]?.[m.key]||0)*(1+growth/100));
-        tsoh+=p.stock||0;
-        too+=Math.round(onOrderDataProd[pk]?.[m.key]||0);
-        tto+=parseInt(saved[`to_prod_${pk.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}_${m.key}`]||0)||0;
-      }
-      if(!m.isCurrent&&months[0]?.isCurrent){
-        const cm=months[0];const cfg=parseFloat(saved[`growth_${cm.key}`]||0)||0;
-        for(const{key:pk} of filteredProds)tcov+=Math.round((lyDataProd[pk]?.[cm.key]||0)*(1+cfg/100));
-      }
-      for(let j=0;j<coverMonths;j++){
-        const fm=months[mi+j];if(!fm)break;
-        const fg=parseFloat(saved[`growth_${fm.key}`]||0)||0;
-        for(const{key:pk} of filteredProds)tcov+=Math.round((lyDataProd[pk]?.[fm.key]||0)*(1+fg/100));
-      }
-      const variance=(tsoh+too+tto)-tcov;
-      const varClass=tcov===0?'':variance<0?'plan-variance-warn':tb>0&&variance>=3*tb?'plan-variance-over':'plan-variance-ok';
-      return`
-        <td style="border-left:2px solid var(--border);font-weight:700;">${tb>0?tb.toLocaleString():'—'}</td>
-        <td style="font-weight:700;color:var(--purple);">${too>0?too.toLocaleString():'—'}</td>
-        <td style="font-weight:700;color:${tto>0?'var(--text)':'#f97316'};">${tto>0?tto.toLocaleString():tcov>0?Math.max(0,tcov-(tsoh+too)).toLocaleString():'—'}</td>
-        <td><span class="${varClass}" style="font-size:12px;">${tcov===0?'—':((variance>=0?'+':'')+variance.toLocaleString())}</span></td>`;
-    }).join('');
-
-    // Render filtered table with Product as first column header
-    document.getElementById('planning-body').innerHTML=`
-      <div class="plan-legend">
-        <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--teal)"></div>12w+ cover — healthy</div>
-        <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--red)"></div>Under 12w — reorder risk</div>
-        <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--purple)"></div>On Order from Apparel Magic</div>
-        <div class="plan-legend-item" style="color:var(--orange);">■ Orange variance = 3× monthly budget (overstocked)</div>
-      </div>
-      <div class="plan-table-wrap">
-        <table class="plan-table">
-          <thead>
-            <tr>
-              <th class="plan-th-left" rowspan="2" style="min-width:200px;${planThStyle}" onclick="setPlanSort('product')">Product${planArrow('product')}</th>
-              <th rowspan="2" style="text-align:right;white-space:nowrap;${planThStyle}" onclick="setPlanSort('soh')">SOH${planArrow('soh')}</th>
-              ${prodMonthHeaders}
-            </tr>
-            <tr>${prodSubHeaders}</tr>
-          </thead>
-          <tbody>
-            ${prodRows}
-            <tr class="plan-total-row">
-              <td class="plan-cat" style="font-weight:700;">TOTAL</td>
-              <td style="text-align:right;font-weight:700;">${filteredProds.reduce((s,{key:pk})=>s+(prodMap.get(pk)?.stock||0),0).toLocaleString()}</td>
-              ${filteredTotalCells}
-            </tr>
-          </tbody>
-        </table>
-      </div>`;
-    return; // exit renderPlanning early — don't render category table
-  }
-
-  // ── NORMAL MODE: category rows with expand arrows ──
-  const catRows=filteredSortedCats.map((cat)=>{
+  const catRows=sortedCats.map((cat)=>{
     const soh=catSoh[cat]||0;
     const vel=catVel30[cat]||0;
     const wksRaw=vel>0?(soh/(vel*7)):null;
     const wks=wksRaw!==null?wksRaw.toFixed(1):null;
     const wksClass=wks===null?'plan-soh':parseFloat(wks)>=12?'plan-wks-ok':'plan-wks-warn';
-    const isExpanded=planExpandedCats.has(cat);
-    const safeCat=cat.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
 
     const monthlyCells=months.map((m,mi)=>{
       const growth=parseFloat(saved[`growth_${m.key}`]||0)||0;
@@ -3598,12 +2900,17 @@ function renderPlanning(){
       const toOrderVal=saved[`to_${cat}_${m.key}`]||'';
       const toOrder=parseInt(toOrderVal)||0;
 
+      // Variable months cover (set by user)
+      // For future month columns: always include prorated current month + coverMonths forward
+      // For the current month column itself: just coverMonths forward from current
       let coverage2m=0;
+      const startIdx=m.isCurrent?mi:mi; // start from this column
+      // If this is a future month, first add the prorated current month
       if(!m.isCurrent&&months[0]?.isCurrent){
         const cm=months[0];
         const cfg=parseFloat(saved[`growth_${cm.key}`]||0)||0;
         const cfly=Math.round(lyData[cat]?.[cm.key]||0);
-        coverage2m+=Math.round(cfly*(1+cfg/100));
+        coverage2m+=Math.round(cfly*(1+cfg/100)); // already prorated via lyData
       }
       for(let j=0;j<coverMonths;j++){
         const fm=months[m.isCurrent?mi+j:mi+j];
@@ -3615,7 +2922,7 @@ function renderPlanning(){
 
       const suggestOrder=coverage2m>0?Math.max(0,coverage2m-(soh+onOrder)):0;
       const variance=(soh+onOrder+toOrder)-coverage2m;
-      const varClass=coverage2m===0?'':variance<0?'plan-variance-warn':budget>0&&variance>=3*budget?'plan-variance-over':'plan-variance-ok';
+      const varClass=coverage2m===0?'':variance>=0?'plan-variance-ok':'plan-variance-warn';
       const varLabel=coverage2m===0?'—':(variance>=0?'+':'')+variance.toLocaleString();
       return`
         <td style="border-left:2px solid var(--border);${m.isCurrent?'background:rgba(14,165,160,0.04);':''}">
@@ -3634,84 +2941,17 @@ function renderPlanning(){
         <td style="${m.isCurrent?'background:rgba(14,165,160,0.04);':''}"><span class="${varClass}">${varLabel}</span></td>`;
     }).join('');
 
-    // Build product expansion rows with full planning columns
-    const allProds=(productsByCat[cat]||[]).sort((a,b)=>a.productName.localeCompare(b.productName));
-    const prods=isFiltered?allProds.filter(p=>planFilteredProds.has(p.productName+'||'+p.colour)):allProds;
-    const prodRows=prods.map(p=>{
-      const pk=p.productName+'||'+p.colour;
-      const safePk=pk.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      const pSoh=p.stock;
-
-      const pMonthlyCells=months.map((m,mi)=>{
-        const growth=parseFloat(saved[`growth_${m.key}`]||0)||0;
-        const ly=Math.round(lyDataProd[pk]?.[m.key]||0);
-        const budget=Math.round(ly*(1+growth/100));
-        const onOrder=Math.round(onOrderDataProd[pk]?.[m.key]||0);
-        const toOrderVal=saved[`to_prod_${safePk}_${m.key}`]||'';
-        const toOrder=parseInt(toOrderVal)||0;
-
-        // Same coverage logic as category rows
-        let coverage=0;
-        if(!m.isCurrent&&months[0]?.isCurrent){
-          const cm=months[0];
-          const cfg=parseFloat(saved[`growth_${cm.key}`]||0)||0;
-          coverage+=Math.round((lyDataProd[pk]?.[cm.key]||0)*(1+cfg/100));
-        }
-        for(let j=0;j<coverMonths;j++){
-          const fm=months[m.isCurrent?mi+j:mi+j];
-          if(!fm)break;
-          const fg=parseFloat(saved[`growth_${fm.key}`]||0)||0;
-          coverage+=Math.round((lyDataProd[pk]?.[fm.key]||0)*(1+fg/100));
-        }
-
-        const suggestOrder=coverage>0?Math.max(0,coverage-(pSoh+onOrder)):0;
-        const variance=(pSoh+onOrder+toOrder)-coverage;
-        const varClass=coverage===0?'':variance<0?'plan-variance-warn':budget>0&&variance>=3*budget?'plan-variance-over':'plan-variance-ok';
-        const varLabel=coverage===0?'—':(variance>=0?'+':'')+variance.toLocaleString();
-        return`
-          <td style="border-left:2px solid var(--border);${m.isCurrent?'background:rgba(14,165,160,0.04);':''}">
-            <span class="plan-budget">${budget>0?budget.toLocaleString():'—'}</span></td>
-          <td style="${m.isCurrent?'background:rgba(14,165,160,0.04);':''}"><span class="${pSoh>0?'plan-soh':'cell-muted'}">${pSoh>0?pSoh.toLocaleString():'—'}</span></td>
-          <td style="${m.isCurrent?'background:rgba(14,165,160,0.04);':''}"><span class="${onOrder>0?'plan-onorder':'cell-muted'}">${onOrder>0?onOrder.toLocaleString():'—'}</span></td>
-          <td style="padding:3px 5px;${m.isCurrent?'background:rgba(14,165,160,0.04);':''}">
-            ${m.isCurrent
-              ?`<span style="font-size:11px;color:var(--text-muted);font-style:italic;">current</span>`
-              :`<input class="plan-input" type="number" min="0" step="1"
-                  placeholder="${suggestOrder>0?suggestOrder:''}"
-                  value="${toOrderVal}"
-                  style="font-size:11px;${!toOrderVal&&suggestOrder>0?'color:#f97316;':''}"
-                  onchange="savePlanField('to_prod_${safePk}_${m.key}',this.value);renderPlanning();">`}
-          </td>
-          <td style="${m.isCurrent?'background:rgba(14,165,160,0.04);':''}"><span class="${varClass}">${varLabel}</span></td>`;
-      }).join('');
-
-      return`<tr style="background:#f5f8ff;border-bottom:1px solid var(--border-light);">
-        <td class="plan-cat" style="padding-left:32px;font-size:12px;font-weight:600;white-space:nowrap;" colspan="3">
-          <span style="color:var(--text);">${p.productName}</span>
-          <span style="color:var(--teal);font-weight:400;"> — ${p.colour}</span>
-          <span class="range-pill rp-${(p.vendor||'').toLowerCase().replace(/[^a-z]/g,'')}" style="font-size:10px;margin-left:6px;">${p.vendor}</span>
-        </td>
-        ${pMonthlyCells}
-      </tr>`;
-    }).join('');
-
-    const expandHeader=isExpanded?prodRows:'';
-
-    return`<tr style="background:${isExpanded?'#eef4ff':''};">
-      <td class="plan-cat" style="cursor:pointer;" onclick="togglePlanExpand('${safeCat}')">
-        <span style="display:inline-block;width:16px;text-align:center;font-size:10px;color:var(--text-muted);transition:transform 0.15s;transform:rotate(${isExpanded?'90':'0'}deg);">▶</span>
-        ${cat}
-      </td>
+    return`<tr>
+      <td class="plan-cat">${cat}</td>
       <td class="plan-soh">${soh.toLocaleString()}</td>
       <td class="${wksClass}">${wks!==null?wks+'w':'—'}</td>
-      ${monthlyCells}</tr>
-    ${expandHeader}`;
+      ${monthlyCells}</tr>`;
   }).join('');
 
   const totalCells=months.map((m,mi)=>{
     const growth=parseFloat(saved[`growth_${m.key}`]||0)||0;
     let tb=0,tsoh=0,too=0,tto=0,tcoverage2m=0;
-    for(const cat of filteredSortedCats){
+    for(const cat of sortedCats){
       tb+=Math.round((lyData[cat]?.[m.key]||0)*(1+growth/100));
       tsoh+=catSoh[cat]||0;
       too+=Math.round(onOrderData[cat]?.[m.key]||0);
@@ -3721,7 +2961,7 @@ function renderPlanning(){
     if(!m.isCurrent&&months[0]?.isCurrent){
       const cm=months[0];
       const cfg=parseFloat(saved[`growth_${cm.key}`]||0)||0;
-      for(const cat of filteredSortedCats){
+      for(const cat of sortedCats){
         tcoverage2m+=Math.round((lyData[cat]?.[cm.key]||0)*(1+cfg/100));
       }
     }
@@ -3729,13 +2969,13 @@ function renderPlanning(){
       const fm=months[mi+j];
       if(!fm)break;
       const fg=parseFloat(saved[`growth_${fm.key}`]||0)||0;
-      for(const cat of filteredSortedCats){
+      for(const cat of sortedCats){
         tcoverage2m+=Math.round((lyData[cat]?.[fm.key]||0)*(1+fg/100));
       }
     }
     const tsuggestOrder=tcoverage2m>0?Math.max(0,tcoverage2m-(tsoh+too)):0;
     const variance=(tsoh+too+tto)-tcoverage2m;
-    const varClass=tcoverage2m===0?'':variance<0?'plan-variance-warn':tb>0&&variance>=3*tb?'plan-variance-over':'plan-variance-ok';
+    const varClass=tcoverage2m===0?'':variance>=0?'plan-variance-ok':'plan-variance-warn';
     return`
       <td style="border-left:2px solid var(--border);font-weight:700;">${tb>0?tb.toLocaleString():'—'}</td>
       <td style="font-weight:700;color:var(--text-secondary);">${tsoh>0?tsoh.toLocaleString():'—'}</td>
@@ -3871,10 +3111,8 @@ function analyseStockData(){
       productMap[k]={
         productName:r.productName,colour:r.colour,category:r.category,
         vendor:r.vendor,stock:0,sold7:0,sold14:0,sold30:0,sold90:0,
-        onOrder:0,discountPct:r.discountPct||0,flag:r.flag,isDraft:r.isDraft||false,
-        price:r.price,daysDisplay:r.daysDisplay,
-        soldOutSizes:0,totalSizes:0,
-        _productOnOrderSet:false // track whether we've taken productOnOrder once
+        onOrder:0,discountPct:r.discountPct||0,flag:r.flag,
+        price:r.price,daysDisplay:r.daysDisplay
       };
     }
     const p=productMap[k];
@@ -3883,30 +3121,9 @@ function analyseStockData(){
     p.sold14+=getSoldInPeriod(window._salesBySkuDay,r.sku,14).qty;
     p.sold30+=(r.sold30||0);
     p.sold90+=(r.sold90||0);
-    // onOrder: use productOnOrder once per product, not per variant
-    if(!p._productOnOrderSet&&(r.productOnOrder||0)>0){
-      p.onOrder+=(r.productOnOrder||0);
-      p._productOnOrderSet=true;
-    } else if(!p._productOnOrderSet){
-      p.onOrder+=(r.onOrder||0);
-    }
-    // Track sold-out sizes
-    if(r.size&&r.size!=='—'){
-      p.totalSizes++;
-      if((r.stock||0)===0)p.soldOutSizes++;
-    }
+    p.onOrder+=(r.onOrder||0)+(r.productOnOrder||0);
   }
   const products=Object.values(productMap);
-
-  // Exclude GWP and Bundle products (past or present — by category or vendor)
-  const excludedCats=new Set(['GWP','BUNDLE','MYSTERY BOX','GIVEAWAY','INSURANCE']);
-  const gwpVendorSkus=new Set(allVariantRows.filter(r=>r.vendor==='GWP').map(r=>r.sku));
-  const gwpProducts=new Set(allVariantRows.filter(r=>gwpVendorSkus.has(r.sku)).map(r=>r.productName+'||'+r.colour));
-  const filteredProducts=products.filter(p=>
-    !excludedCats.has((p.category||'').toUpperCase().trim()) &&
-    !gwpProducts.has(p.productName+'||'+p.colour) &&
-    !p.isDraft
-  );
 
   // Helper
   const fmt=p=>`<strong>${toTitleCase(p.productName)} — ${toTitleCase(p.colour)}</strong>`;
@@ -3915,15 +3132,15 @@ function analyseStockData(){
 
   // ── 1. NEEDS RE-ORDER ──
   // ST% ≥ 20% over last 7 or 14 days, not reduced, not on order, has stock
-  const needsReorder=filteredProducts
+  const needsReorder=products
     .filter(p=>p.stock>0&&!isReduced(p)&&!hasOrder(p))
     .filter(p=>{
       const st7=p.sold7>0&&(p.stock+p.sold7)>0?p.sold7/(p.stock+p.sold7)*100:0;
       const st14=p.sold14>0&&(p.stock+p.sold14)>0?p.sold14/(p.stock+p.sold14)*100:0;
-      return st7>=15||st14>=30;
+      return st7>=20||st14>=20;
     })
     .sort((a,b)=>b.sold7-a.sold7)
-    .slice(0,5)
+    .slice(0,20)
     .map(p=>{
       const st7=p.sold7>0&&(p.stock+p.sold7)>0?(p.sold7/(p.stock+p.sold7)*100).toFixed(1):null;
       const st14=p.sold14>0&&(p.stock+p.sold14)>0?(p.sold14/(p.stock+p.sold14)*100).toFixed(1):null;
@@ -3932,7 +3149,7 @@ function analyseStockData(){
 
   // ── 2. NEEDS META ADS ──
   // Strong early ST% (≥15% in first 7-14 days) but now slow (sold30 < sold7*4) with high stock (>50)
-  const needsMetaAds=filteredProducts
+  const needsMetaAds=products
     .filter(p=>p.stock>=50&&!isReduced(p))
     .filter(p=>{
       const st7=p.sold7>0&&(p.stock+p.sold7)>0?p.sold7/(p.stock+p.sold7)*100:0;
@@ -3944,7 +3161,7 @@ function analyseStockData(){
       return hadStrongStart&&nowSlow;
     })
     .sort((a,b)=>b.stock-a.stock)
-    .slice(0,5)
+    .slice(0,20)
     .map(p=>{
       const st14=p.sold14>0&&(p.stock+p.sold14)>0?(p.sold14/(p.stock+p.sold14)*100).toFixed(1):null;
       return{text:`${fmt(p)} — ${p.stock} SOH, ${p.sold30} sold in last 30d. Strong early ST% (${st14||'—'}% in 14d) but pace has dropped — consider Meta Ads to push inventory.`};
@@ -3952,7 +3169,7 @@ function analyseStockData(){
 
   // ── 3. STYLES TO WATCH ──
   // ST% ≥ 15% over last 14 days, not reduced, not on order — worth watching for reorder
-  const stylesToWatch=filteredProducts
+  const stylesToWatch=products
     .filter(p=>p.stock>0&&!isReduced(p)&&!hasOrder(p))
     .filter(p=>{
       const st7=p.sold7>0&&(p.stock+p.sold7)>0?p.sold7/(p.stock+p.sold7)*100:0;
@@ -3961,7 +3178,7 @@ function analyseStockData(){
       return (st7>=15&&st7<20)||(st14>=15&&st14<20);
     })
     .sort((a,b)=>b.sold14-a.sold14)
-    .slice(0,5)
+    .slice(0,20)
     .map(p=>{
       const st14=p.sold14>0&&(p.stock+p.sold14)>0?(p.sold14/(p.stock+p.sold14)*100).toFixed(1):null;
       return{text:`${fmt(p)} — ${p.stock} SOH, ${st14||'—'}% ST in 14d. Keep an eye on this one for reorder potential.`};
@@ -3969,51 +3186,29 @@ function analyseStockData(){
 
   // ── 4. SLOWER MOVERS ──
   // < 20 units sold in last 30 days, not reduced, not on order, has stock
-  const slowerMovers=filteredProducts
+  const slowerMovers=products
     .filter(p=>p.stock>0&&!isReduced(p)&&!hasOrder(p)&&p.sold30<20&&p.sold30>9)
     .sort((a,b)=>b.stock-a.stock)
-    .slice(0,5)
+    .slice(0,20)
     .map(p=>({text:`${fmt(p)} — ${p.stock} SOH, only ${p.sold30} units sold in last 30 days. Consider a promotion to move stock.`}));
 
   // ── 5. DEAD STYLES ──
   // < 10 sales in last 30 days, not reduced, has stock
-  const deadStyles=filteredProducts
+  const deadStyles=products
     .filter(p=>p.stock>0&&!isReduced(p)&&p.sold30<10)
     .sort((a,b)=>b.stock-a.stock)
-    .slice(0,5)
+    .slice(0,20)
     .map(p=>({text:`${fmt(p)} — ${p.stock} SOH, only ${p.sold30} units sold in last 30 days. Consider marking down or delisting.`}));
 
   // ── 6. ORDER PROBLEMS ──
   // Slow movers (< 20 sold in 30 days) but have units on order
-  const orderProblems=filteredProducts
-    .filter(p=>p.sold30<20&&hasOrder(p)&&!isReduced(p)&&p.soldOutSizes===0)
+  const orderProblems=products
+    .filter(p=>p.sold30<20&&hasOrder(p)&&!isReduced(p))
     .sort((a,b)=>b.onOrder-a.onOrder)
-    .slice(0,5)
-    .map(p=>({text:`${fmt(p)} — ${p.onOrder.toLocaleString()} units on order but only ${p.sold30} sold in last 30 days (all sizes available). Review if this order is still needed.`}));
+    .slice(0,20)
+    .map(p=>({text:`${fmt(p)} — ${p.onOrder} units on order but only ${p.sold30} sold in last 30 days. Review if this order is still needed.`}));
 
-  // ── 7. SIZES SOLD OUT IN LAST 7 DAYS ──
-  // SKUs that had sales in the last 7 days AND now have zero stock
-  const soProductMap={};
-  for(const r of allVariantRows){
-    if(r.amOnly)continue;
-    const pk=r.productName+'||'+r.colour;
-    // Skip excluded categories/vendors
-    if(excludedCats.has((r.category||'').toUpperCase().trim()))continue;
-    if(r.isDraft)continue;
-    if(gwpProducts.has(pk))continue;
-    if((r.sold7||0)>0&&(r.stock||0)===0&&r.size&&r.size!=='—'){
-      if(!soProductMap[pk])soProductMap[pk]={productName:r.productName,colour:r.colour,category:r.category,vendor:r.vendor,sizes:[],totalSold7:0,stock:0};
-      soProductMap[pk].sizes.push(r.size);
-      soProductMap[pk].totalSold7+=(r.sold7||0);
-    }
-    // Also track total stock for the product (to show remaining SOH)
-    if(soProductMap[pk])soProductMap[pk].stock+=(r.stock||0);
-  }
-  const recentSizesSoldOut=Object.values(soProductMap)
-    .sort((a,b)=>b.sizes.length-a.sizes.length||b.totalSold7-a.totalSold7)
-    .map(p=>({text:`${fmt(p)} — sizes <strong>${p.sizes.join(', ')}</strong> sold out in last 7 days. ${p.stock>0?p.stock+' units remaining in other sizes.':'All sizes now sold out.'}`}));
-
-  return{needsReorder,needsMetaAds,stylesToWatch,slowerMovers,deadStyles,orderProblems,recentSizesSoldOut};
+  return{needsReorder,needsMetaAds,stylesToWatch,slowerMovers,deadStyles,orderProblems};
 }
 
 function toTitleCase(str){
@@ -4027,7 +3222,7 @@ function renderInsights(data){
      sub:'ST% ≥20% in last 7 or 14 days — not reduced or on order'},
     {key:'needsMetaAds',   ico:'📣',title:'Needs Meta Ads',      dotClass:'insight-dot-amber',
      sub:'Strong early sell-through but pace has dropped with high stock remaining'},
-    {key:'stylesToWatch',  ico:'👀',title:'Styles to Watch for Re-Ordering',     dotClass:'insight-dot-teal',
+    {key:'stylesToWatch',  ico:'👀',title:'Styles to Watch',     dotClass:'insight-dot-teal',
      sub:'ST% 15–19% in last 14 days — monitor for reorder potential'},
     {key:'slowerMovers',   ico:'🐢',title:'Slower Movers',       dotClass:'insight-dot-blue',
      sub:'10–19 units sold in last 30 days — not reduced or on order'},
@@ -4035,8 +3230,6 @@ function renderInsights(data){
      sub:'Less than 10 units sold in last 30 days — not reduced'},
     {key:'orderProblems',  ico:'⚠️',title:'Order Problems',      dotClass:'insight-dot-red',
      sub:'Slow movers (under 20 units/30 days) with units still on order'},
-    {key:'recentSizesSoldOut', ico:'📏',title:'Sizes Sold Out in Last 7 Days', dotClass:'insight-dot-red',
-     sub:'SKUs that had sales in the last 7 days and are now out of stock — consider reordering sizes'},
   ];
   document.getElementById('insights-body').innerHTML=sections.map(s=>{
     const items=data[s.key]||[];
@@ -4065,8 +3258,7 @@ function renderInsights(data){
 let swPeriod=7;
 let swcPeriod=7;
 let swTab='product'; // 'product' or 'category'
-let swProduct=null; // kept for RO send-to-SW compatibility
-let swSelectedProducts=[]; // multi-select array [{productName, colour, key}]
+let swProduct=null; // {productName, colour}
 const SW_STORAGE_KEY='wndrr_sizeworkings_v1';
 const SWC_ORDER_KEY='wndrr_swc_orders_v1';
 
@@ -4146,141 +3338,13 @@ function swPopulateFilters(){
     months.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="swUpdateLabel('delmonth')"> ${m} <span class="ms-count">(${delCounts[m]||0})</span></label>`).join('');
 }
 function swClearAll(){
+  // Clear search, filters and current table
   const s=document.getElementById('sw-search');if(s)s.value='';
   swProduct=null;
-  swSelectedProducts=[];
   swClearFilters();
-  const res=document.getElementById('sw-results');if(res)res.style.display='none';
-  swRenderTags();
+  document.getElementById('sw-results').style.display='none';
   document.getElementById('sw-body').innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">📐</div><div class="insights-empty-title">Size Workings</div><div class="insights-empty-sub">Search for a product above to begin size planning.</div></div>`;
 }
-
-function swSearch(){
-  const val=(document.getElementById('sw-search')?.value||'').trim().toUpperCase();
-  const results=document.getElementById('sw-results');
-  const list=document.getElementById('sw-results-list');
-  if(!results||!list)return;
-
-  // Populate filters on first use
-  if(!document.getElementById('ms-sw-cat-options').children.length) swPopulateFilters();
-
-  if(val.length<2){results.style.display='none';return;}
-
-  const cats=swGetSelected('cat');
-  const vendors=swGetSelected('vendor');
-  const flags=swGetSelected('flag');
-  const discs=swGetSelected('disc');
-  const delmonths=swGetSelected('delmonth');
-
-  const matches=new Map();
-  for(const r of allVariantRows){
-    if(r.amOnly)continue;
-    const key=r.productName+'||'+r.colour;
-    if(matches.has(key))continue;
-    if(!(r.productName+' - '+r.colour).toUpperCase().includes(val)&&!r.productName.toUpperCase().includes(val))continue;
-    if(cats.length&&!cats.includes(r.category||''))continue;
-    if(vendors.length&&!vendors.includes(r.vendor||''))continue;
-    if(flags.length&&!flags.includes(r.flag||''))continue;
-    if(discs.length){const d=Math.round(r.discountPct||0);const band=!r.discountPct||d===0?'none':String(d);if(!discs.some(b=>b===band))continue;}
-    if(delmonths.length&&!delmonths.includes(r.deliveryMonth||''))continue;
-    matches.set(key,{key,productName:r.productName,colour:r.colour});
-  }
-  const items=[...matches.values()].slice(0,100);
-
-  if(!items.length){
-    list.innerHTML=`<div style="padding:12px 14px;font-size:13px;color:var(--text-muted);font-style:italic;">No products found</div>`;
-    results.style.display='block';
-    return;
-  }
-
-  list.innerHTML=items.map(p=>{
-    const alreadyAdded=swSelectedProducts.some(x=>x.key===p.key);
-    return`<label style="display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:${alreadyAdded?'default':'pointer'};border-bottom:1px solid var(--border);"
-      onmouseover="if(!${alreadyAdded})this.style.background='var(--surface2)'" onmouseout="this.style.background=''">
-      <input type="checkbox" value="${p.key.replace(/"/g,'&quot;')}"
-        data-product="${p.productName.replace(/"/g,'&quot;')}"
-        data-colour="${p.colour.replace(/"/g,'&quot;')}"
-        ${alreadyAdded?'checked disabled':''}
-        onchange="swUpdateCount()"
-        style="width:15px;height:15px;flex-shrink:0;accent-color:var(--teal);cursor:pointer;">
-      <span style="font-size:13px;line-height:1.3;">
-        <strong>${p.productName}</strong>
-        <span style="color:var(--teal);font-weight:500;"> — ${p.colour}</span>
-      </span>
-      ${alreadyAdded?'<span style="font-size:10px;font-weight:600;color:var(--teal);margin-left:auto;white-space:nowrap;">✓ added</span>':''}
-    </label>`;
-  }).join('');
-
-  swUpdateCount();
-  results.style.display='block';
-  const sa=document.getElementById('sw-select-all');
-  if(sa){sa.checked=false;sa.indeterminate=false;}
-}
-
-function swSelectAll(cb){
-  document.querySelectorAll('#sw-results-list input[type="checkbox"]:not([disabled])').forEach(b=>b.checked=cb.checked);
-  swUpdateCount();
-}
-
-function swUpdateCount(){
-  const checked=document.querySelectorAll('#sw-results-list input[type="checkbox"]:checked:not([disabled])');
-  const label=document.getElementById('sw-count-label');
-  if(label){
-    if(checked.length>0) label.textContent=`${checked.length} selected`;
-    else label.textContent=`${swSelectedProducts.length} product${swSelectedProducts.length!==1?'s':''} added`;
-  }
-  const all=document.querySelectorAll('#sw-results-list input[type="checkbox"]:not([disabled])');
-  const allChecked=[...all].every(b=>b.checked);
-  const sa=document.getElementById('sw-select-all');
-  if(sa){sa.checked=all.length>0&&allChecked;sa.indeterminate=!allChecked&&checked.length>0;}
-}
-
-function swApplyChecked(){
-  const checked=document.querySelectorAll('#sw-results-list input[type="checkbox"]:checked:not([disabled])');
-  checked.forEach(cb=>{
-    const key=cb.value;
-    const productName=cb.dataset.product;
-    const colour=cb.dataset.colour;
-    if(!swSelectedProducts.some(p=>p.key===key)){
-      // Pre-fill Total Units Needed from RO qty if not already set
-      const swData=getSwData();
-      if(!swData[key]?.total){
-        const roData=getRoData();
-        const roQty=roData[productName+' - '+colour]?.qty||'';
-        if(roQty){if(!swData[key])swData[key]={};swData[key].total=roQty;saveSwData(swData);}
-      }
-      swSelectedProducts.push({key,productName,colour});
-    }
-  });
-  swProduct=swSelectedProducts.length===1?swSelectedProducts[0]:null;
-  const inp=document.getElementById('sw-search');if(inp)inp.value='';
-  const res=document.getElementById('sw-results');if(res)res.style.display='none';
-  swRenderTags();
-  renderSizeWorkings();
-}
-
-function swRemoveProduct(key){
-  swSelectedProducts=swSelectedProducts.filter(p=>p.key!==key);
-  swProduct=swSelectedProducts.length===1?swSelectedProducts[0]:null;
-  swRenderTags();
-  renderSizeWorkings();
-}
-
-function swRenderTags(){
-  const wrap=document.getElementById('sw-tags');
-  if(!wrap)return;
-  if(!swSelectedProducts.length){wrap.innerHTML='';return;}
-  wrap.innerHTML=swSelectedProducts.map(p=>`
-    <span style="display:inline-flex;align-items:center;gap:5px;background:var(--teal-light);color:var(--teal-dark);border:1px solid rgba(14,165,160,0.25);border-radius:var(--r-pill);padding:3px 10px 3px 10px;font-size:12px;font-weight:500;">
-      ${p.productName} — ${p.colour}
-      <button onclick="swRemoveProduct('${p.key.replace(/'/g,"\\'")}')}" style="background:none;border:none;cursor:pointer;color:var(--teal);font-size:13px;line-height:1;padding:0 0 0 2px;">×</button>
-    </span>`).join('');
-}
-
-document.addEventListener('click',e=>{
-  if(!e.target.closest('#sw-search')&&!e.target.closest('#sw-results'))
-    {const r=document.getElementById('sw-results');if(r)r.style.display='none';}
-});
 
 function setSwTab(tab){
   swTab=tab;
@@ -4608,29 +3672,103 @@ function setSwPeriod(days){
   else renderSizeWorkings();
 }
 
-function renderSizeWorkings(){
-  const body=document.getElementById('sw-body');
-  if(!swSelectedProducts.length||!allVariantRows.length){
-    if(!body.innerHTML.includes('insights-empty'))
-      body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">📐</div><div class="insights-empty-title">Size Workings</div><div class="insights-empty-sub">Search for a product above to begin size planning.</div></div>`;
-    return;
+function swSearch(){
+  const val=(document.getElementById('sw-search')?.value||'').trim().toUpperCase();
+  const results=document.getElementById('sw-results');
+
+  // Populate filters on first use
+  if(!document.getElementById('ms-sw-cat-options').children.length) swPopulateFilters();
+
+  if(!val||val.length<2){results.style.display='none';return;}
+
+  // Apply active filters
+  const cats=swGetSelected('cat');
+  const vendors=swGetSelected('vendor');
+  const flags=swGetSelected('flag');
+  const discs=swGetSelected('disc');
+  const delmonths=swGetSelected('delmonth');
+
+  // Get unique product+colour combinations matching search and filters
+  const matches=new Map();
+  for(const r of allVariantRows){
+    if(r.amOnly)continue;
+    const key=r.productName+'||'+r.colour;
+    if(matches.has(key))continue;
+    if(!(r.productName.includes(val)||(r.productName+' - '+r.colour).includes(val)))continue;
+    if(cats.length&&!cats.includes(r.category||''))continue;
+    if(vendors.length&&!vendors.includes(r.vendor||''))continue;
+    if(flags.length&&!flags.includes(r.flag||''))continue;
+    if(discs.length){const d=Math.round(r.discountPct||0);const band=!r.discountPct||d===0?'none':String(d);if(!discs.some(b=>b===band||(b==='none'&&band==='none')))continue;}
+    if(delmonths.length&&!delmonths.includes(r.deliveryMonth||''))continue;
+    matches.set(key,{productName:r.productName,colour:r.colour});
+  }
+  const items=[...matches.values()].slice(0,20);
+  if(!items.length){results.style.display='none';return;}
+  results.innerHTML=items.map(p=>
+    `<div class="sw-result-item" onclick="swSelectProduct('${p.productName.replace(/'/g,"\\'")}','${p.colour.replace(/'/g,"\\'")}')">
+      <strong>${p.productName}</strong> <span style="color:var(--text-muted);">— ${p.colour}</span>
+    </div>`
+  ).join('');
+  results.style.display='block';
+}
+
+function swSelectProduct(productName,colour){
+  document.getElementById('sw-search').value=productName+' - '+colour;
+  document.getElementById('sw-results').style.display='none';
+  swProduct={productName,colour};
+  document.getElementById('sw-colour-wrap').style.display='none';
+
+  // Pre-fill Total Units Needed from Re-Orders qty if SW total not already set
+  const swKey=`${productName}||${colour}`;
+  const swData=getSwData();
+  if(!swData[swKey]?.total){
+    const roData=getRoData();
+    const roKey=productName+' - '+colour;
+    const roQty=roData[roKey]?.qty||'';
+    if(roQty){
+      if(!swData[swKey])swData[swKey]={};
+      swData[swKey].total=roQty;
+      saveSwData(swData);
+    }
   }
 
-  body.innerHTML=swSelectedProducts.map(({productName,colour})=>{
+  renderSizeWorkings();
+}
+
+document.addEventListener('click',e=>{
+  if(!e.target.closest('#sw-search')&&!e.target.closest('#sw-results'))
+    document.getElementById('sw-results').style.display='none';
+});
+
+function renderSizeWorkings(){
+  const body=document.getElementById('sw-body');
+  if(!swProduct||!allVariantRows.length){return;}
+  const colour=swProduct.colour;
+  const{productName}=swProduct;
   const saved=getSwData();
   const swKey=`${productName}||${colour}`;
   const totalInput=saved[swKey]?.total||'';
   const swManual=saved[swKey]?.manual||{};
 
+  // Get all variant rows for this product+colour
   const variants=allVariantRows.filter(r=>r.productName===productName&&r.colour===colour);
-  if(!variants.length)return`<div style="margin-bottom:20px;padding:12px;background:var(--surface2);border-radius:var(--r);color:var(--text-muted);">No data for ${productName} — ${colour}</div>`;
+  if(!variants.length){body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No data found</div></div>`;return;}
 
+  // Extract style+colour code from SKU by stripping size suffix
+  // e.g. W26BA021BLKL → W26BA021BLK — find first variant with a real SKU
   const sampleSku=(variants.find(r=>r.sku&&r.sku!=='—'&&r.sku.length>6)?.sku)||'';
   const sizeSuffixes=['XXXXL','XXXL','XXL','XL','XXS','XS','OS','S','M','L'];
   let styleCode=sampleSku;
-  for(const sz of sizeSuffixes){if(sampleSku.toUpperCase().endsWith(sz)){styleCode=sampleSku.slice(0,sampleSku.length-sz.length);break;}}
-  if(styleCode===sampleSku&&sampleSku) styleCode=sampleSku.replace(/\d{2}$/,'');
+  for(const sz of sizeSuffixes){
+    if(sampleSku.toUpperCase().endsWith(sz)){
+      styleCode=sampleSku.slice(0,sampleSku.length-sz.length);
+      break;
+    }
+  }
+  // Handle numeric sizes (28,30,32 etc)
+  if(styleCode===sampleSku&&sampleSku) styleCode=sampleSku.replace(/\d{2}$/, '');
 
+  // Size order
   const sizeOrder=['XXS','XS','S','M','L','XL','XXL','XXXL','XXXXL','28','30','32','34','36','38','40','42','44','46','48','50','OS'];
   const sorted=variants.sort((a,b)=>{
     const ai=sizeOrder.indexOf(a.size);const bi=sizeOrder.indexOf(b.size);
@@ -4639,6 +3777,7 @@ function renderSizeWorkings(){
     return a.size.localeCompare(b.size);
   });
 
+  // Per-size data
   const sizes=sorted.map(r=>r.size);
   const soldBySize=sorted.map(r=>{
     if(swPeriod===7)return r.sold7||0;
@@ -4654,13 +3793,18 @@ function renderSizeWorkings(){
   const po=sorted.map(r=>(r.onOrder||0));
   const sohPoTotal=sorted.map((r,i)=>soh[i]+po[i]);
 
+  // Calculations — Suggested Order = total × sold% per size using largest remainder rounding
+  // so sizes always sum to exactly the entered total
   const total=parseInt(totalInput)||0;
+
+  // Largest remainder method to distribute total across sizes by sold%
   let suggestedOrder;
   if(total>0&&soldTotal>0){
     const exact=soldPct.map(pct=>pct*total);
     const floored=exact.map(v=>Math.floor(v));
     const remainders=exact.map((v,i)=>v-floored[i]);
     const remainder=total-floored.reduce((s,v)=>s+v,0);
+    // Distribute remaining units to sizes with largest remainders
     const indices=[...Array(sizes.length).keys()].sort((a,b)=>remainders[b]-remainders[a]);
     suggestedOrder=[...floored];
     for(let i=0;i<remainder;i++)suggestedOrder[indices[i]]++;
@@ -4670,26 +3814,27 @@ function renderSizeWorkings(){
   const suggestedTotal=suggestedOrder.reduce((s,v)=>s+v,0);
   const suggestedPct=suggestedOrder.map(v=>suggestedTotal>0?Math.round(v/suggestedTotal*100):0);
 
+  // Size workings (manual overrides)
   const swVals=sizes.map(sz=>parseInt(swManual[sz])||0);
   const swTotal=swVals.reduce((s,v)=>s+v,0);
   const swPct=swVals.map(v=>swTotal>0?Math.round(v/swTotal*100):0);
 
   const pctFmt=v=>v>0?v.toFixed(1)+'%':'0.0%';
   const pctFmtInt=v=>v>0?v+'%':'0%';
-  const safeKey=swKey.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
 
   const thCols=sizes.map(s=>`<th>${s}</th>`).join('');
   const mkRow=(label,vals,cls,totalVal,totalCls='')=>
     `<tr><td class="sw-row-label">${label}</td>${vals.map((v,i)=>`<td class="${cls}${v===0?' sw-need-zero':''}">${v}</td>`).join('')}<td class="sw-total ${totalCls}">${totalVal}</td></tr>`;
   const mkPctRow=(vals,total)=>
-    `<tr><td class="sw-pct"></td>${vals.map(v=>`<td class="sw-pct">${pctFmt(v)}</td>`).join('')}<td class="sw-pct">${total>0?'100.0%':'0.0%'}</td></tr>`;
+    `<tr>${'<td class="sw-pct"></td>'}${vals.map(v=>`<td class="sw-pct">${pctFmt(v)}</td>`).join('')}<td class="sw-pct">${total>0?'100.0%':'0.0%'}</td></tr>`;
 
+  // Total needed input row
   const totalInputRow=`<tr>
     <td class="sw-row-label" style="border-top:2px solid var(--teal);">Total Units Needed</td>
     <td colspan="${sizes.length}" style="border-top:2px solid var(--teal);"></td>
     <td style="border-top:2px solid var(--teal);padding:6px;">
       <input class="sw-input-total" type="number" min="0" step="1" placeholder="0" value="${totalInput}"
-        oninput="swSaveTotal('${safeKey}',this.value)"
+        oninput="swSaveTotal('${swKey.replace(/'/g,"\\'")}',this.value)"
         onblur="renderSizeWorkings()" onkeydown="if(event.key==='Enter'){renderSizeWorkings();this.blur();}">
     </td>
   </tr>
@@ -4699,12 +3844,13 @@ function renderSizeWorkings(){
     <td class="sw-total">${total.toLocaleString()}</td>
   </tr>`;
 
+  // Size workings input row
   const swInputRow=`<tr style="background:#fafafa;">
     <td class="sw-row-label" style="border-top:2px solid var(--border);">Size Workings</td>
     ${sizes.map(sz=>`<td style="padding:5px 6px;border-top:2px solid var(--border);">
       <input class="sw-input-size" type="number" min="0" step="1" placeholder="0"
         value="${swManual[sz]||''}"
-        oninput="swSaveManual('${safeKey}','${sz}',this.value)"
+        oninput="swSaveManual('${swKey.replace(/'/g,"\\'")}','${sz}',this.value)"
         onblur="renderSizeWorkings()" onkeydown="if(event.key==='Enter'){renderSizeWorkings();this.blur();}">
     </td>`).join('')}
     <td class="sw-total" style="border-top:2px solid var(--border);">${swTotal>0?swTotal.toLocaleString():'—'}</td>
@@ -4715,7 +3861,7 @@ function renderSizeWorkings(){
     <td class="sw-pct">${swTotal>0?'100%':'—'}</td>
   </tr>`;
 
-  return`<div style="margin-bottom:28px;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-xs);">
+  body.innerHTML=`
     <div class="sw-product-title">${styleCode?`<span style="color:var(--text-muted);font-size:13px;font-weight:500;letter-spacing:0.05em;">${styleCode}</span> `:''}${productName} <span style="color:var(--teal);">— ${colour}</span></div>
     <div style="overflow-x:auto;">
       <table class="sw-table">
@@ -4735,9 +3881,7 @@ function renderSizeWorkings(){
           ${swInputRow}
         </tbody>
       </table>
-    </div>
-  </div>`;
-  }).join('');
+    </div>`;
 }
 
 function swSaveTotal(key,val){
@@ -4748,20 +3892,108 @@ function swSaveManual(key,size,val){
   d[key].manual[size]=val;saveSwData(d);
 }
 function swExport(){
-  if(!swSelectedProducts.length){alert('No products selected.');return;}
-  const tables=document.querySelectorAll('.sw-table');
-  if(!tables.length){alert('No data to export.');return;}
-  const csvParts=[...tables].map(table=>{
-    return[...table.querySelectorAll('tr')].map(tr=>
-      [...tr.querySelectorAll('th,td')].map(td=>`"${(td.querySelector('input')?td.querySelector('input').value:td.textContent).trim().replace(/"/g,'""')}"`)
-      .join(',')
-    ).join('\n');
-  }).join('\n\n');
-  const blob=new Blob([csvParts],{type:'text/csv'});
+  if(!swProduct)return;
+  const colour=swProduct.colour;
+  const table=document.querySelector('.sw-table');
+  if(!table){alert('No data to export.');return;}
+  const rows=[...table.querySelectorAll('tr')].map(tr=>
+    [...tr.querySelectorAll('th,td')].map(td=>`"${(td.querySelector('input')?td.querySelector('input').value:td.textContent).trim().replace(/"/g,'""')}"`)
+    .join(',')
+  ).join('\n');
+  const blob=new Blob([rows],{type:'text/csv'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;
-  a.download=`size_workings_${new Date().toISOString().slice(0,10)}.csv`;
+  a.download=`size_workings_${swProduct.productName.replace(/[^a-z0-9]/gi,'_')}_${colour}.csv`;
   a.click();URL.revokeObjectURL(url);
+}
+
+function swExportAM(){
+  // Collect product list — ro-mode (multi) or single product
+  let productList=[];
+  if(window._roToSwProducts&&window._roToSwProducts.length){
+    // Multi-product ro-mode
+    productList=window._roToSwProducts.map(({fullTitle,qty})=>{
+      const dashIdx=fullTitle.lastIndexOf(' - ');
+      return{
+        productName:dashIdx>=0?fullTitle.slice(0,dashIdx):fullTitle,
+        colour:dashIdx>=0?fullTitle.slice(dashIdx+3):'',
+        roQty:parseInt(qty)||0
+      };
+    });
+  } else if(swProduct){
+    // Single product mode — use Total Units Needed input as roQty
+    const swKey=`${swProduct.productName}||${swProduct.colour}`;
+    const saved=getSwData();
+    const roQty=parseInt(saved[swKey]?.total)||0;
+    productList=[{productName:swProduct.productName,colour:swProduct.colour,roQty}];
+  }
+  if(!productList.length){alert('No product loaded in Size Workings.');return;}
+
+  const customerPO=prompt('Enter Customer PO number:','');
+  if(customerPO===null)return;
+  if(!customerPO.trim()){alert('Customer PO is required.');return;}
+
+  const sizeOrder=['XXS','XS','S','M','L','XL','XXL','XXXL','XXXXL','28','30','32','34','36','38','40','42','44','46','48','50','OS'];
+  const swSaved=getSwData();
+  const csvRows=[];
+
+  for(const{productName,colour,roQty}of productList){
+    const swKey=`${productName}||${colour}`;
+    const swManual=swSaved[swKey]?.manual||{};
+
+    const variants=allVariantRows
+      .filter(r=>r.productName===productName&&r.colour===colour&&!r.amOnly)
+      .sort((a,b)=>{
+        const ai=sizeOrder.indexOf(a.size),bi=sizeOrder.indexOf(b.size);
+        if(ai>=0&&bi>=0)return ai-bi;
+        if(ai>=0)return-1;if(bi>=0)return 1;
+        return a.size.localeCompare(b.size);
+      });
+    if(!variants.length)continue;
+
+    // Priority 1: manual Size Workings values
+    const manualVals=variants.map(r=>parseInt(swManual[r.size])||0);
+    const manualTotal=manualVals.reduce((s,v)=>s+v,0);
+
+    let sizeQtys;
+    if(manualTotal>0){
+      sizeQtys=manualVals;
+    } else if(roQty>0){
+      // Priority 2: distribute roQty by sold% (largest remainder)
+      const soldBySize=variants.map(r=>r['sold'+(swPeriod===7?'7':swPeriod===14?'14':swPeriod===30?'30':swPeriod===60?'60':swPeriod===90?'90':'365')]||0);
+      const soldTotal=soldBySize.reduce((s,v)=>s+v,0);
+      const soldPct=soldBySize.map(v=>soldTotal>0?v/soldTotal:1/variants.length);
+      const exact=soldPct.map(p=>p*roQty);
+      const floored=exact.map(v=>Math.floor(v));
+      const remainders=exact.map((v,i)=>v-floored[i]);
+      const remainder=roQty-floored.reduce((s,v)=>s+v,0);
+      const indices=[...Array(variants.length).keys()].sort((a,b)=>remainders[b]-remainders[a]);
+      sizeQtys=[...floored];
+      for(let i=0;i<remainder;i++)sizeQtys[indices[i]]++;
+    } else {
+      continue; // no qty to export
+    }
+
+    for(let i=0;i<variants.length;i++){
+      const qty=sizeQtys[i];
+      if(!qty)continue;
+      const sku=variants[i].sku;
+      if(!sku||sku==='—')continue;
+      csvRows.push([customerPO.trim(),'WNDRR ONLINE STORE',sku,qty]);
+    }
+  }
+
+  if(!csvRows.length){
+    alert('No exportable rows — enter a Total Units Needed or Size Workings values first.');
+    return;
+  }
+
+  const headers=['customer_po','customer_name','sku_alt','qty'];
+  const csv=[headers,...csvRows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='wndrr_apparel_magic.csv';a.click();
+  URL.revokeObjectURL(url);
 }
 
 /* ── WORKING SCREEN ── */
@@ -5037,10 +4269,10 @@ function renderReorders(){
   const search=(document.getElementById('ro-search')?.value||'').trim().toUpperCase();
 
   // Build full product list — include all products with stock or on order
-  const _stockSet=new Set(getActiveRows()
+  const _stockSet=new Set(allVariantRows
     .filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)
     .map(r=>r.productName+'||'+r.colour));
-  const allProductsRo=[...toProduct(getActiveRows().filter(r=>
+  const allProductsRo=[...toProduct(allVariantRows.filter(r=>
     !r.amOnly&&((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)
   ))];
 
@@ -5336,13 +4568,11 @@ function roSendToSizeWorkings(){
 
 function roSendToSwReset(){
   window._roToSwProducts=null;
-  swSelectedProducts=[];
-  swProduct=null;
-  swRenderTags();
+  // Clear the multi-product body, restore normal empty state
   const body=document.getElementById('sw-body');
-  if(body)body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">📐</div><div class="insights-empty-title">Size Workings</div><div class="insights-empty-sub">Search for a product above to begin size planning.</div></div>`;
+  if(body)body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">📐</div><div class="insights-empty-title">Select a product above</div><div class="insights-empty-sub">Search for a product to see its size breakdown.</div></div>`;
   const searchEl=document.getElementById('sw-search');
-  if(searchEl){searchEl.value='';searchEl.placeholder='Type to search, tick to select, then click Add Selected...';}
+  if(searchEl){searchEl.value='';searchEl.placeholder='Search product...';}
 }
 
 function renderRoSizeWorkings(){
@@ -5769,9 +4999,9 @@ function renderMarkdowns(){
   // Get all products
   // Build product list — use ALL variants for sold figures (so OOS sizes contribute to sold totals)
   // but only show products that have stock or on order
-  const allProductsFullSales=[...toProduct(getActiveRows())];
+  const allProductsFullSales=[...toProduct(allVariantRows)];
   const hasStockOrOrder=new Set(
-    getActiveRows().filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)
+    allVariantRows.filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)
       .map(r=>r.productName+'||'+r.colour)
   );
   const allProducts=allProductsFullSales.filter(p=>hasStockOrOrder.has(p.productName+'||'+p.colour));
@@ -5906,26 +5136,14 @@ function renderMarkdowns(){
     return`<tr style="background:${isChecked?'rgba(20,184,166,0.05)':''};">
       <td style="padding:6px 8px;text-align:center;"><input type="checkbox" ${isChecked?'checked':''} style="width:16px;height:16px;accent-color:var(--teal);cursor:pointer;" onchange="mdToggle('${safeKey}',this.checked)"></td>
       <td class="cell-product"><div class="prod-name">${p.productName}${p.colour?" - "+p.colour:""}</div></td>
-      <td class="cell-muted">${p.category||'—'}</td>
       <td style="padding:5px 8px;">
         <input type="text" placeholder="e.g. BUNDLE TEES 3 FOR $150" value="${collection}"
           style="width:180px;padding:6px 9px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;outline:none;background:var(--surface);"
           oninput="mdSaveCollection('${safeKey}',this.value)"
           onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
       </td>
-      <td style="padding:5px 8px;text-align:center;">
-        <div style="display:flex;align-items:center;gap:3px;justify-content:center;">
-          <input type="number" min="0" max="90" step="5" placeholder="%" value="${pct}"
-            style="width:72px;padding:6px 8px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:14px;font-weight:600;text-align:center;outline:none;"
-            oninput="mdSavePct('${safeKey}',this.value)" onblur="renderMarkdowns()" onkeydown="if(event.key==='Enter'){renderMarkdowns();this.blur();}"
-            onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
-          <span style="font-size:11px;color:var(--text-muted);">%</span>
-        </div>
-      </td>
-      <td class="cell-num">${proposedPrice?`<span style="color:var(--red);font-weight:700;">$${proposedPrice}</span>`:'—'}</td>
+      <td class="cell-muted">${p.category||'—'}</td>
       <td style="padding:6px 8px;font-size:12px;color:${(p.discountPct||0)>0?'var(--red)':'var(--text-secondary)'};">${disc}</td>
-      <td class="cell-num">${p.price>0?'$'+p.price.toFixed(2):'—'}</td>
-      <td class="cell-num">${p.compareAt>0?'$'+p.compareAt.toFixed(2):'—'}</td>
       <td style="padding:6px 8px;"><span class="range-pill ${vendorCls}">${p.vendor||'—'}</span></td>
       <td style="padding:6px 8px;font-size:12px;">${p.deliveryMonth==='CORE'?'<span style="font-size:11px;font-weight:600;color:var(--blue);">CORE</span>':p.deliveryMonth?`<span style="font-size:12px;font-weight:500;color:var(--text-secondary);">${p.deliveryMonth}</span>`:'—'}</td>
       <td class="cell-num">${st!=null?st+'%':'—'}</td>
@@ -5938,9 +5156,21 @@ function renderMarkdowns(){
       <td class="cell-num" style="color:var(--purple);">${onOrder>0?onOrder.toLocaleString():'—'}</td>
       <td style="padding:6px 8px;font-size:12px;color:var(--text-secondary);">${shortMonth(p.monthDue)}</td>
       <td class="cell-num" style="${(p.soldOutSizes||0)>0?'color:var(--red);font-weight:600;':'color:var(--text-muted);'}">${(p.soldOutSizes||0)>0?p.soldOutSizes:'—'}</td>
+      <td class="cell-num">${p.price>0?'$'+p.price.toFixed(2):'—'}</td>
+      <td class="cell-num">${p.compareAt>0?'$'+p.compareAt.toFixed(2):'—'}</td>
       <td class="cell-num">${mg}</td>
       <td class="cell-num">${p.daysDisplay&&p.daysDisplay!=='—'&&p.daysDisplay!==9999?p.daysDisplay+'w':'—'}</td>
       <td style="padding:6px 8px;"><span class="stock-pill ${flagPillCls[p.flag]||''}">${SL[p.flag]||p.flag||'—'}</span></td>
+      <td style="padding:5px 8px;text-align:center;">
+        <div style="display:flex;align-items:center;gap:3px;justify-content:center;">
+          <input type="number" min="0" max="90" step="5" placeholder="%" value="${pct}"
+            style="width:72px;padding:6px 8px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:14px;font-weight:600;text-align:center;outline:none;"
+            oninput="mdSavePct('${safeKey}',this.value)" onblur="renderMarkdowns()" onkeydown="if(event.key==='Enter'){renderMarkdowns();this.blur();}"
+            onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
+          <span style="font-size:11px;color:var(--text-muted);">%</span>
+        </div>
+      </td>
+      <td class="cell-num">${proposedPrice?`<span style="color:var(--red);font-weight:700;">$${proposedPrice}</span>`:'—'}</td>
     </tr>`;
   }).join('');
 
@@ -5948,13 +5178,9 @@ function renderMarkdowns(){
     <thead><tr>
       <th style="width:36px;text-align:center;padding:8px 6px;"><input type="checkbox" id="md-select-all-chk" ${allTicked?'checked':''} style="width:15px;height:15px;accent-color:var(--teal);" onchange="mdSelectAll(this.checked)"></th>
       <th style="${thS}" onclick="setMdSort('productName')">Product${mdArrow('productName')}</th>
-      <th style="${thS}" onclick="setMdSort('category')">Category${mdArrow('category')}</th>
       <th style="min-width:180px;white-space:nowrap;">New Collection</th>
-      <th style="text-align:center;min-width:100px;">Proposed %</th>
-      <th style="text-align:right;">New Price</th>
-      <th style="${thS}" onclick="setMdSort('discountPct')">Cur Disc%${mdArrow('discountPct')}</th>
-      <th style="${thS}text-align:right;" onclick="setMdSort('price')">Cur Price${mdArrow('price')}</th>
-      <th style="${thS}text-align:right;" onclick="setMdSort('compareAt')">RRP${mdArrow('compareAt')}</th>
+      <th style="${thS}" onclick="setMdSort('category')">Category${mdArrow('category')}</th>
+      <th style="${thS}" onclick="setMdSort('discountPct')">Disc%${mdArrow('discountPct')}</th>
       <th style="${thS}" onclick="setMdSort('vendor')">Status${mdArrow('vendor')}</th>
       <th style="${thS}" onclick="setMdSort('deliveryMonth')">Month Del${mdArrow('deliveryMonth')}</th>
       <th style="${thS}text-align:right;" onclick="setMdSort('sellThru7')">${stLabel}${mdArrow('sellThru7')}</th>
@@ -5967,9 +5193,13 @@ function renderMarkdowns(){
       <th style="${thS}text-align:right;" onclick="setMdSort('onOrder')">On Order${mdArrow('onOrder')}</th>
       <th style="${thS}" onclick="setMdSort('monthDue')">Month Due${mdArrow('monthDue')}</th>
       <th style="${thS}text-align:right;" onclick="setMdSort('soldOutSizes')">Sizes S/O${mdArrow('soldOutSizes')}</th>
+      <th style="${thS}text-align:right;" onclick="setMdSort('price')">Price${mdArrow('price')}</th>
+      <th style="${thS}text-align:right;" onclick="setMdSort('compareAt')">RRP${mdArrow('compareAt')}</th>
       <th style="${thS}text-align:right;" onclick="setMdSort('margin')">Margin%${mdArrow('margin')}</th>
       <th style="${thS}text-align:right;" onclick="setMdSort('days')">Wks Cover${mdArrow('days')}</th>
       <th style="${thS}" onclick="setMdSort('flag')">Stock Status${mdArrow('flag')}</th>
+      <th style="text-align:center;min-width:100px;">Proposed %</th>
+      <th style="text-align:right;">New Price</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
@@ -6513,8 +5743,8 @@ function buildSoldOutMap(){
 
 /* ── BUILD SALES MAPS FROM 365-DAY FILE ── */
 function buildSalesMaps(){
-  // salesBySkuDay: {sku: {date: {qty, cogs, revenue}}}
-  // revenue = gross sales - discounts (ex-GST), used for accurate margin calculation
+  // salesBySkuDay: {sku: {date: {qty, cogs}}}
+  // priceMap: {sku: {price, compareAt, vendor, category, productName, colour, size}}
   const salesBySkuDay={};
   const priceMap={};
 
@@ -6529,7 +5759,6 @@ function buildSalesMaps(){
     const qty=parseFloat(row['Quantity ordered']||0)||0;
     const cogs=parseFloat(row['Cost of goods sold']||0)||0;
     const price=parseFloat(row['Product variant price']||0)||0;
-    const discounts=parseFloat(row['Discounts']||0)||0; // negative e.g. -14.95
     const compareAt=parseFloat(row['Product variant compare at price']||0)||0;
     const vendor=(row['Product vendor']||'').trim().toUpperCase();
     const category=(row['Product type']||'').trim().toUpperCase();
@@ -6539,18 +5768,13 @@ function buildSalesMaps(){
 
     if(!sku||!day)continue;
 
-    // Include both positive (sales) and negative (refunds) quantities
-    // so revenue and COGS are net figures matching Shopify's gross margin report
-    // Skip zero-qty rows (no-ops)
-    if(qty!==0){
+    // Only count positive quantities (ignore returns/refunds)
+    // Include ALL products (active + draft) in sales history so Cadence is accurate
+    if(qty>0){
       if(!salesBySkuDay[sku])salesBySkuDay[sku]={};
-      if(!salesBySkuDay[sku][day])salesBySkuDay[sku][day]={qty:0,cogs:0,revenue:0};
+      if(!salesBySkuDay[sku][day])salesBySkuDay[sku][day]={qty:0,cogs:0};
       salesBySkuDay[sku][day].qty+=qty;
-      // For refunds (qty<0), cogs from Shopify CSV is already negative — nets correctly
       salesBySkuDay[sku][day].cogs+=cogs;
-      // Net revenue inc GST: price * qty + discounts
-      // Shopify calculates gross margin using inc-GST revenue as denominator
-      salesBySkuDay[sku][day].revenue+=((price*qty)+discounts);
     }
 
     // Store price/meta info
@@ -6633,20 +5857,13 @@ function buildAMData(){
     // Always store at product level — accumulate qtyOpen (handles no-size rows)
     // Use max rather than sum to avoid double-counting duplicate rows in the AM export
     if(!productMap[pKey]){
-      productMap[pKey]={qtyOpen,monthDue:monthDue||'',style,category:category||'',amCostPerUnit,
-        onOrderByMonth:monthDue&&qtyOpen>0?{[monthDue]:qtyOpen}:{}};
+      productMap[pKey]={qtyOpen,monthDue:monthDue||'',style,category:category||'',amCostPerUnit};
     } else {
       // Take the larger value to handle duplicate summary rows in the AM file
       if(qtyOpen>productMap[pKey].qtyOpen)productMap[pKey].qtyOpen=qtyOpen;
       if(monthDue&&!productMap[pKey].monthDue)productMap[pKey].monthDue=monthDue;
       if(style&&!productMap[pKey].style)productMap[pKey].style=style;
       if(category&&!productMap[pKey].category)productMap[pKey].category=category;
-      // Accumulate per-month on-order quantities for Planning view
-      if(monthDue&&qtyOpen>0){
-        if(!productMap[pKey].onOrderByMonth)productMap[pKey].onOrderByMonth={};
-        const existing=productMap[pKey].onOrderByMonth[monthDue]||0;
-        if(qtyOpen>existing)productMap[pKey].onOrderByMonth[monthDue]=qtyOpen;
-      }
     }
   }
   return{variantMap,productMap,products};
@@ -6943,10 +6160,9 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const velocity=sold/selectedPeriod;
 
     // Suggested order eligibility:
-    // - Not discounted (no markdown applied), not GWP (free gift product)
+    // - Not discounted (no markdown applied)
     // - CORE, OR delivered within last 2 months, OR 30d sell-through >= 30%
     const isDiscounted=(compareAt>0&&price>0&&price<compareAt);
-    const isGwp=(category||'').toUpperCase().trim()==='GWP';
     const isCoreSku=(vendor||'').toUpperCase()==='CORE'||coreSet.has(productName+' - '+colour);
     // Delivered within last 2 months — check SKU decode
     const skuDeliveryRaw=decodeSkuDelivery(sku);
@@ -6968,7 +6184,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     // 30-day sell-through for eligibility
     const st30=s30.qty>0&&(stock+s30.qty)>0?s30.qty/(stock+s30.qty)*100:0;
     const highSellThru=st30>=30;
-    const isEligible=!isDiscounted&&!isGwp&&(isCoreSku||deliveredRecently||highSellThru);
+    const isEligible=!isDiscounted&&(isCoreSku||deliveredRecently||highSellThru);
     // suggestedOrder calculated below after onOrder is defined
 
     // Weekly velocities for display
@@ -7003,7 +6219,6 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const onOrder=variantEntry?variantEntry.qtyOpen:0;
     const monthDue=variantEntry?variantEntry.monthDue:productEntry?productEntry.monthDue:'';
     const productOnOrder=productEntry?productEntry.qtyOpen:0;
-    const onOrderByMonth=productEntry?.onOrderByMonth||{};
     // Suggested order: 12 weeks of selected-period velocity minus SOH and on order
     // Only suggest if result is 70+ units (minimum order qty)
     const velDaily=sold>0?sold/selectedPeriod:0;
@@ -7063,30 +6278,28 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     // REDUCED takes priority over CLEARANCE when product has an active discount
     // PRE-RELEASE: draft-flagged with stock — always shows regardless of delivery month
     const effectiveVendor=isCore?'CORE':(isDraft&&!isDraftButCurrent)?'DRAFT':isPreRelease?'PRE-RELEASE':isBundle?'BUNDLE':isReduced?'REDUCED':isClearance?'CLEARANCE':(isNew||isDraftButCurrent)?'NEW':isEnd?'OLD':isCurrent?'CURRENT':vendor;
-    // No suggested orders for BUNDLE (non-CORE), REDUCED, or GWP — these shouldn't be restocked via normal reorder logic
-    const finalSuggestedOrder=(isBundle&&!isCore)||isReduced||isGwp?0:suggestedOrder;
+    // No suggested orders for BUNDLE (non-CORE) or REDUCED — these shouldn't be restocked at full price
+    const finalSuggestedOrder=(isBundle&&!isCore)||isReduced?0:suggestedOrder;
     // Re-run flag with effectiveVendor so CORE/NEW/CURRENT/ON ORDER status is respected
     flag=getFlag(recalcDays,stock,onOrder,effectiveVendor,discountPct);
     if(isEnd&&!discountPct&&!isNew&&!isDraft&&!isDraftButCurrent&&!isPreRelease)flag='reduce';
     // Never flag NEW, CURRENT, ON ORDER or BUNDLE products as reduce
     if(flag==='reduce'&&(effectiveVendor==='NEW'||effectiveVendor==='CURRENT'||effectiveVendor==='ON ORDER'||effectiveVendor==='PRE-RELEASE'||isBundle))flag='ok';
-    // Never flag OLD, CLEARANCE, BUNDLE (non-CORE), or GWP as reorder at variant level
-    if(flag==='reorder'&&(isEnd||isClearance||(isBundle&&!isCore)||isGwp))flag='ok';
+    // Never flag OLD, CLEARANCE, BUNDLE (non-CORE) as reorder at variant level
+    if(flag==='reorder'&&(isEnd||isClearance||(isBundle&&!isCore)))flag='ok';
     // Note: MOQ (70 unit) check is done at product level in toProduct, not per-variant
 
     rows.push({
       fullTitle:productName+' - '+colour,productName,colour,size,variant:size,sku,
       category,vendor:effectiveVendor,stock,
       price,compareAt,discountPct,margin,
-      costPerUnit:avgCostPerUnit||0,
-      netExGstPrice:exGstPrice||0,
       velocity,vel7,vel30,
       sold7:s7.qty,sold14:s14.qty,sold30:s30.qty,sold60:s60.qty,sold90:s90.qty,sold365:s365.qty,
       soldToday,soldYesterday,
       sold,sellThru7:sellThru,
       days:recalcDays===null?9999:recalcDays,
       daysDisplay:recalcWeeks===null?'—':recalcWeeks===0?'0':recalcWeeks,
-      onOrder,productOnOrder,monthDue,onOrderByMonth,flag,amOnly:false,isDraft:isDraftFlagged,
+      onOrder,productOnOrder,monthDue,flag,amOnly:false,
       suggestedOrder:finalSuggestedOrder,
       soldOutSizes:soMap[productName+'||'+colour]||null,
       deliveryMonth,sohValue,sellValue
@@ -7128,7 +6341,6 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
               days:9999,daysDisplay:'—',
               onOrder:se.qtyOpen,productOnOrder:totalOnOrder,
               monthDue:se.monthDue,deliveryMonth:se.deliveryMonth,
-              onOrderByMonth:productEntry?.onOrderByMonth||{},
               suggestedOrder:0,
               flag:'on-order',amOnly:true,sohValue:null,sellValue:null,soldOutSizes:null
             });
@@ -7144,7 +6356,6 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
             days:9999,daysDisplay:'—',
             onOrder:null,productOnOrder:totalOnOrder,
             monthDue,deliveryMonth:amDeliveryMonth,
-            onOrderByMonth:productEntry?.onOrderByMonth||{},
             suggestedOrder:0,
             flag:'on-order',amOnly:true,sohValue:null,sellValue:null,soldOutSizes:null
           });
@@ -7343,7 +6554,7 @@ function buildDashboard(){
 }
 
 function renderKPIs(){
-  const rows=getActiveRows();
+  const rows=allVariantRows;
   const totalSoh=rows.reduce((s,r)=>s+(r.stock||0),0);
   const totalSold=rows.reduce((s,r)=>s+(r.sold||0),0);
   const onOrder=rows.reduce((s,r)=>s+(r.onOrder||0),0);
@@ -7356,46 +6567,11 @@ function renderKPIs(){
   const reorder=productRows.filter(p=>p.flag==='reorder').length;
   const reduce=productRows.filter(p=>p.flag==='reduce').length;
 
-  // Today's Margin: pull directly from _salesBySkuDay for today's date
-  // revenue field = (price × qty + discounts) / 1.1 — already discount-adjusted ex-GST
-  // cogs field = cost of goods sold from Shopify
-  const todayStr=new Date().toISOString().slice(0,10);
-  const _gwpSkuSet=new Set(
-    Object.entries(window._skuCategoryMap||{})
-      .filter(([,cat])=>(cat||'').toUpperCase().trim()==='GWP')
-      .map(([sku])=>sku)
-  );
-  // Also include GWP vendor SKUs
-  const _gwpVendorSkus=new Set((allVariantRows||[]).filter(r=>r.vendor==='GWP').map(r=>r.sku));
-  const _isGwpToday=sku=>_gwpSkuSet.has(sku)||_gwpVendorSkus.has(sku);
-
-  let todayRevPool=0,todayCostPool=0,todayGwpCogs=0;
-  if(window._salesBySkuDay){
-    // First pass: sum GWP COGS and non-GWP revenue for today
-    // Note: include all entries including zero-qty (refund+sale netting to 0) so COGS is accurate
-    for(const[sku,days] of Object.entries(window._salesBySkuDay)){
-      const d=days[todayStr];
-      if(!d)continue;
-      if(_isGwpToday(sku)){
-        todayGwpCogs+=(d.cogs||0);
-      } else {
-        todayRevPool+=(d.revenue||0);
-        todayCostPool+=(d.cogs||0);
-      }
-    }
-    // Add GWP COGS into the total cost pool (it's a real cost of the day's sales)
-    todayCostPool+=todayGwpCogs;
-  }
-  const todayMarginPct=todayRevPool>0?(todayRevPool-todayCostPool)/todayRevPool*100:null;
-  const todayMarginFmt=todayMarginPct!=null?todayMarginPct.toFixed(2)+'%':'—';
-  const todayMarginColor=todayMarginPct===null?'var(--text)':todayMarginPct>=75?'var(--green)':todayMarginPct>=70?'var(--amber)':'var(--red)';
-
   const kpis=[
     {name:'Total Products',val:totalProducts.toLocaleString(),sub:'Unique styles',ico:'📊',bg:'#eef1fe',ic:'#4f6ef7',click:null},
     {name:'SOH',val:totalSoh.toLocaleString(),sub:'Units on hand',ico:'📦',bg:'#e6f7f7',ic:'var(--teal)',click:null},
     {name:`Units Sold (${selectedPeriod}d)`,val:totalSold.toLocaleString(),sub:`Last ${selectedPeriod} days`,ico:'🛍️',bg:'#dcfce7',ic:'var(--green)',click:null},
     {name:'On Order',val:onOrder.toLocaleString(),sub:'Total units on order',ico:'🚚',bg:'#f3e8ff',ic:'#7c3aed',click:null},
-    {name:"Today's Margin",val:`<span style="color:${todayMarginColor}">${todayMarginFmt}</span>`,sub:"Revenue-weighted GP% today",ico:'💰',bg:'#dcfce7',ic:'var(--green)',click:null},
     {name:'Re-Order',val:reorder.toLocaleString(),sub:'≤14 weeks cover',ico:'⚠️',bg:'#fef9c3',ic:'#854d0e',click:"kpiDrillDown('reorder')"},
     {name:'Reduce',val:reduce.toLocaleString(),sub:'26w+ cover, no order',ico:'🏷️',bg:'#fee2e2',ic:'var(--red)',click:"kpiDrillDown('reduce')"},
   ];
@@ -7504,41 +6680,20 @@ function toggleDashboardCollapse(){
 }
 
 function kpiDrillDown(flag){
-  if(flag==='reorder'){
-    // Navigate to Working > Re-Orders, filter to reorder flag only
-    showScreen('markdowns');
-    setWorkingView('reorders');
-    setTimeout(()=>{
-      // Reset all ro filters to all-checked first
-      ['cat','vendor','disc','delmonth'].forEach(type=>{
-        document.querySelectorAll(`#ms-ro-${type}-options input`).forEach(b=>b.checked=true);
-        roUpdateLabel(type);
-      });
-      // Set flag filter to reorder only
-      document.querySelectorAll('#ms-ro-flag-options input[type="checkbox"]').forEach(b=>{
-        b.checked=b.value==='reorder';
-      });
-      roUpdateLabel('flag');
-      renderReorders();
-    },50);
-  } else if(flag==='reduce'){
-    // Navigate to Working > Markdowns, filter to reduce flag only
-    showScreen('markdowns');
-    setWorkingView('markdowns');
-    setTimeout(()=>{
-      // Reset all md filters to all-checked first
-      ['cat','vendor','disc','soldout','delmonth'].forEach(type=>{
-        document.querySelectorAll(`#ms-md-${type}-options input`).forEach(b=>b.checked=true);
-        mdUpdateLabel(type);
-      });
-      // Set flag filter to reduce only
-      document.querySelectorAll('#ms-md-flag-options input[type="checkbox"]').forEach(b=>{
-        b.checked=b.value==='reduce';
-      });
-      mdUpdateLabel('flag');
-      renderMarkdowns();
-    },50);
-  }
+  // Expand if collapsed so filters are visible
+  if(dashboardCollapsed)toggleDashboardCollapse();
+  // Switch to product view
+  setView('product');
+  // Clear ALL filters first, then set only the flag filter
+  document.getElementById('search-input').value='';
+  // Reset all dropdowns to "all checked"
+  ['cat','vendor','disc','soldout','delmonth'].forEach(type=>{
+    document.querySelectorAll(`#ms-${type}-options input`).forEach(b=>b.checked=true);
+    updateLabel(type, type==='cat'?'All Categories':type==='vendor'?'All Statuses':type==='disc'?'Discount %':type==='soldout'?'Sizes Sold Out':'Month Del');
+  });
+  // Then apply only the flag filter
+  quickFlag(flag);
+  document.querySelector('.main')?.scrollTo({top:0,behavior:'smooth'});
 }
 
 function quickFlag(f){
@@ -7698,17 +6853,14 @@ function toProduct(vr){
       const pIsCurrent=ev==='CURRENT';
       const pIsOnOrder=ev==='ON ORDER';
       const pIsCore=ev==='CORE';
-      const pIsGwp=(p.category||'').toUpperCase().trim()==='GWP';
-      // Reduce exclusions: NEW, CURRENT, ON ORDER, BUNDLE, GWP
-      if(f==='reduce'&&(pIsNew||pIsCurrent||pIsOnOrder||pIsBundle||pIsGwp))f='ok';
-      // Reorder exclusions: OLD, CLEARANCE, BUNDLE (non-CORE), GWP, below MOQ
-      if(f==='reorder'&&(pIsOld||pIsClearance||(pIsBundle&&!pIsCore)||pIsGwp))f='ok';
+      // Reduce exclusions: NEW, CURRENT, ON ORDER, BUNDLE
+      if(f==='reduce'&&(pIsNew||pIsCurrent||pIsOnOrder||pIsBundle))f='ok';
+      // Reorder exclusions: OLD, CLEARANCE, BUNDLE (non-CORE), below MOQ
+      if(f==='reorder'&&(pIsOld||pIsClearance||(pIsBundle&&!pIsCore)))f='ok';
       if(f==='reorder'&&(p.suggestedOrder||0)<70)f='ok';
       return f;
     })();
-    const pIsGwpFinal=(p.category||'').toUpperCase().trim()==='GWP';
     return{...p,velocity,onOrder,monthDue,
-      suggestedOrder:pIsGwpFinal?0:(p.suggestedOrder||0),
       sellThru7:(p.sold>0&&(p.stock+p.sold)>0)?+(p.sold/(p.stock+p.sold)*100).toFixed(2):null,
       days:days===null?9999:days,
       daysDisplay:days===null?'—':+(days/7).toFixed(1),
@@ -7893,7 +7045,7 @@ function getFilteredRows(){
   const search=document.getElementById('search-input').value.trim().toUpperCase();
 
   // Filter at variant level for variant view; post-aggregation for product view
-  let baseRows=[...getActiveRows()];
+  let baseRows=[...allVariantRows];
   // Vendor/status filter applied at variant level for all views
   if(vendors.length) baseRows=baseRows.filter(r=>vendors.includes(r.vendor||''));
   if(currentView==='variant'){
@@ -7998,114 +7150,17 @@ function sortBy(col){
   renderTable();
 }
 
-/* ── ACHIEVED MARGIN MAP ── */
-// Builds period-aware margin% from actual Shopify transaction data (inc GST revenue, COGS)
-// Returns {skuKey: margin%, productKey: margin%, categoryKey: margin%}
-function buildAchievedMarginMap(period){
-  if(!window._salesBySkuDay)return{};
-  const now=new Date();
-  const todayStr=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-  const cutoff=new Date(now.getFullYear(),now.getMonth(),now.getDate()-(period-1));
-  const cutoffStr=`${cutoff.getFullYear()}-${String(cutoff.getMonth()+1).padStart(2,'0')}-${String(cutoff.getDate()).padStart(2,'0')}`;
-
-  const skuCatMap=window._skuCategoryMap||{};
-  const gwpSkus=new Set(
-    Object.entries(skuCatMap)
-      .filter(([,cat])=>(cat||'').toUpperCase().trim()==='GWP')
-      .map(([sku])=>sku)
-  );
-  const gwpVendorSkus=new Set(allVariantRows.filter(r=>r.vendor==='GWP').map(r=>r.sku));
-  const isGwpSku=sku=>gwpSkus.has(sku)||gwpVendorSkus.has(sku);
-
-  // Collect per-day GWP COGS for category-level allocation only
-  const dayGwpCogs={};
-  const dayNonGwpRev={};
-  for(const[sku,days] of Object.entries(window._salesBySkuDay)){
-    for(const[day,d] of Object.entries(days)){
-      if(day<cutoffStr||day>todayStr)continue;
-      if(isGwpSku(sku)){
-        dayGwpCogs[day]=(dayGwpCogs[day]||0)+(d.cogs||0);
-      } else {
-        const rev=d.revenue||0;
-        if(rev>0)dayNonGwpRev[day]=(dayNonGwpRev[day]||0)+rev;
-      }
-    }
-  }
-
-  // SKU/product level — clean own COGS only, no GWP allocation
-  const skuRev={},skuCost={};
-  for(const[sku,days] of Object.entries(window._salesBySkuDay)){
-    if(isGwpSku(sku))continue;
-    let rev=0,cost=0;
-    for(const[day,d] of Object.entries(days)){
-      if(day<cutoffStr||day>todayStr)continue;
-      rev+=d.revenue||0;
-      cost+=d.cogs||0;
-    }
-    if(rev>0){skuRev[sku]=rev;skuCost[sku]=cost;}
-  }
-
-  // Product level — own COGS only
-  const prodRev={},prodCost={};
-  for(const r of allVariantRows){
-    if(isGwpSku(r.sku))continue;
-    const rev=skuRev[r.sku]||0;
-    const cost=skuCost[r.sku]||0;
-    if(rev<=0)continue;
-    const pk=r.productName+'||'+r.colour;
-    prodRev[pk]=(prodRev[pk]||0)+rev;
-    prodCost[pk]=(prodCost[pk]||0)+cost;
-  }
-
-  // Category level — own COGS + GWP COGS allocated proportionally by day
-  const catRev={},catCost={};
-  for(const[sku,days] of Object.entries(window._salesBySkuDay)){
-    if(isGwpSku(sku))continue;
-    const ck=skuCatMap[sku]||'UNCATEGORISED';
-    for(const[day,d] of Object.entries(days)){
-      if(day<cutoffStr||day>todayStr)continue;
-      const r=d.revenue||0;
-      const c=d.cogs||0;
-      catRev[ck]=(catRev[ck]||0)+r;
-      catCost[ck]=(catCost[ck]||0)+c;
-      const gwpPool=dayGwpCogs[day]||0;
-      const dayRev=dayNonGwpRev[day]||0;
-      if(gwpPool>0&&dayRev>0&&r>0){
-        catCost[ck]=(catCost[ck]||0)+gwpPool*(r/dayRev);
-      }
-    }
-  }
-
-  const mgPct=(rev,cost)=>rev>0?+((rev-cost)/rev*100).toFixed(2):null;
-  const map={};
-  for(const[sku,rev] of Object.entries(skuRev))map['sku:'+sku]=mgPct(rev,skuCost[sku]||0);
-  for(const[pk,rev] of Object.entries(prodRev))map['prod:'+pk]=mgPct(rev,prodCost[pk]||0);
-  for(const[ck,rev] of Object.entries(catRev))map['cat:'+ck]=mgPct(rev,catCost[ck]||0);
-
-  // GWP: 0% at both sku and product level
-  for(const sku of [...gwpSkus,...gwpVendorSkus])map['sku:'+sku]=0;
-  for(const r of allVariantRows){
-    if(isGwpSku(r.sku))map['prod:'+r.productName+'||'+r.colour]=0;
-  }
-
-  return map;
-}
-
 /* ── RENDER TABLE ── */
 function renderTable(){
   filteredRows=getFilteredRows();
   const start=(currentPage-1)*PAGE_SIZE;
   const pageRows=filteredRows.slice(start,start+PAGE_SIZE);
 
-  // Build period-aware achieved margin map for display
-  const mgMap=buildAchievedMarginMap(selectedPeriod);
-
   const soldLabel=`Sold (${selectedPeriod}d)`;
   const stLabel=`ST% (${selectedPeriod}d)`;
-  const mgLabel=`Margin% (${selectedPeriod}d)`;
   const catHeaders=[
     {k:'category',l:'Category'},{k:'products',l:'Products'},
-    {k:'sellThru7',l:stLabel},{k:'margin',l:mgLabel},{k:'stock',l:'SOH'},{k:'sohValue',l:'SOH Value'},{k:'sellValue',l:'Sell Value'},
+    {k:'sellThru7',l:stLabel},{k:'margin',l:'Margin%'},{k:'stock',l:'SOH'},{k:'sohValue',l:'SOH Value'},{k:'sellValue',l:'Sell Value'},
     {k:'soldToday',l:'Today'},{k:'soldYesterday',l:'Yest'},
     {k:'sold',l:soldLabel},
     {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},
@@ -8115,7 +7170,7 @@ function renderTable(){
   const prodHeaders=[
     {k:'productName',l:'Product'},{k:'category',l:'Category'},{k:'discountPct',l:'Disc%'},{k:'vendor',l:'Status'},
     {k:'deliveryMonth',l:'Month Del'},
-    {k:'sellThru7',l:stLabel},{k:'margin',l:mgLabel},{k:'stock',l:'SOH'},{k:'sohValue',l:'SOH Value'},{k:'sellValue',l:'Sell Value'},
+    {k:'sellThru7',l:stLabel},{k:'margin',l:'Margin%'},{k:'stock',l:'SOH'},{k:'sohValue',l:'SOH Value'},{k:'sellValue',l:'Sell Value'},
     {k:'soldToday',l:'Today'},{k:'soldYesterday',l:'Yest'},
     {k:'sold',l:soldLabel},
     {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},
@@ -8127,7 +7182,7 @@ function renderTable(){
     {k:'productName',l:'Product'},{k:'size',l:'Size'},{k:'sku',l:'SKU'},
     {k:'category',l:'Category'},{k:'discountPct',l:'Disc%'},{k:'vendor',l:'Status'},
     {k:'deliveryMonth',l:'Month Del'},
-    {k:'sellThru7',l:stLabel},{k:'margin',l:mgLabel},{k:'stock',l:'SOH'},{k:'soldToday',l:'Today'},{k:'soldYesterday',l:'Yest'},{k:'sold',l:soldLabel},
+    {k:'sellThru7',l:stLabel},{k:'margin',l:'Margin%'},{k:'stock',l:'SOH'},{k:'soldToday',l:'Today'},{k:'soldYesterday',l:'Yest'},{k:'sold',l:soldLabel},
     {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},
     {k:'price',l:'Price'},{k:'compareAt',l:'RRP'},
     {k:'days',l:'Weeks Cover'},{k:'suggestedOrder',l:'Suggest Order'},{k:'flag',l:'Stock Status'}
@@ -8165,25 +7220,9 @@ function renderTable(){
   if(pageRows.length===0){
     document.getElementById('tbl-body').innerHTML=`<tr><td colspan="${headers.length}"><div class="empty-cell"><div class="empty-ico">🔍</div><div class="empty-msg">No results found</div><div class="empty-sub">Try adjusting your filters</div></div></td></tr>`;
   }else{
-    // Overlay achieved margin from period-based map before rendering
-    const rowsWithMargin=pageRows.map(row=>{
-      let achievedMargin=null;
-      if(currentView==='category') achievedMargin=mgMap['cat:'+(row.category||'UNCATEGORISED')];
-      else if(currentView==='product') achievedMargin=mgMap['prod:'+row.productName+'||'+row.colour];
-      else achievedMargin=mgMap['sku:'+row.sku];
-      return achievedMargin!=null?{...row,margin:achievedMargin}:row;
-    });
-    // Also overlay for totals row (revenue-weighted across all filtered rows)
-    const filteredWithMargin=filteredRows.map(row=>{
-      let achievedMargin=null;
-      if(currentView==='category') achievedMargin=mgMap['cat:'+(row.category||'UNCATEGORISED')];
-      else if(currentView==='product') achievedMargin=mgMap['prod:'+row.productName+'||'+row.colour];
-      else achievedMargin=mgMap['sku:'+row.sku];
-      return achievedMargin!=null?{...row,margin:achievedMargin}:row;
-    });
-    let bodyHtml=rowsWithMargin.map(row=>renderRow(row,headers)).join('');
+    let bodyHtml=pageRows.map(row=>renderRow(row,headers)).join('');
     if(filteredRows.length>0){
-      bodyHtml+=renderTotalsRow(filteredWithMargin,headers);
+      bodyHtml+=renderTotalsRow(filteredRows,headers);
     }
     document.getElementById('tbl-body').innerHTML=bodyHtml;
   }
