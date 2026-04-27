@@ -3185,11 +3185,13 @@ function _doAMExport(productList,customerPO,dateDue){
     for(let i=0;i<variants.length;i++){
       const qty=sizeQtys[i];if(!qty)continue;
       const sku=variants[i].sku;if(!sku||sku==='—')continue;
-      csvRows.push([customerPO,'WNDRR ONLINE STORE',sku,qty,dateDue,new Date().toISOString().slice(0,10)]);
+      const rrp=variants[i].compareAt||variants[i].price||0;
+      const unitPrice=rrp>0?(rrp*0.5).toFixed(2):'';
+      csvRows.push([customerPO,'WNDRR ONLINE STORE',sku,qty,dateDue,new Date().toISOString().slice(0,10),unitPrice]);
     }
   }
   if(!csvRows.length){alert('No exportable rows — enter a Total Units Needed or Size Workings values first.');return;}
-  const headers=['customer_po','customer_name','sku_alt','qty','date_due','date'];
+  const headers=['customer_po','customer_name','sku_alt','qty','date_due','date','unit_price'];
   const csv=[headers,...csvRows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob=new Blob([csv],{type:'text/csv'});
   const url=URL.createObjectURL(blob);
