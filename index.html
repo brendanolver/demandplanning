@@ -1139,7 +1139,13 @@ th{position:relative;}
           <div class="insights-title">Planning</div>
           <div class="insights-sub">Forward planning by category — next 12 months. Data saved automatically in your browser.</div>
         </div>
-        <button class="insights-refresh-btn" onclick="clearPlanningData()" style="background:var(--surface);border:1px solid var(--border);color:var(--text-secondary);">✕ Clear All</button>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="display:flex;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;">
+            <button id="plan-filter-all" onclick="setPlanCoreFilter('all')" style="padding:6px 14px;font-size:12px;font-weight:600;font-family:'Inter',sans-serif;border:none;cursor:pointer;background:var(--teal);color:white;transition:all 0.15s;">All Products</button>
+            <button id="plan-filter-core" onclick="setPlanCoreFilter('core')" style="padding:6px 14px;font-size:12px;font-weight:600;font-family:'Inter',sans-serif;border:none;cursor:pointer;background:var(--surface);color:var(--text-secondary);transition:all 0.15s;">Core Only</button>
+          </div>
+          <button class="insights-refresh-btn" onclick="clearPlanningData()" style="background:var(--surface);border:1px solid var(--border);color:var(--text-secondary);">✕ Clear All</button>
+        </div>
       </div>
       <div id="planning-body">
         <div class="insights-empty">
@@ -1739,6 +1745,7 @@ let cadenceSortCol=null; // null = default order, 'soh', or period label
 let cadenceSortDir='desc';
 let planSortCol='category';
 let planSortDir='asc';
+let planCoreFilter='all'; // 'core' | 'all'
 let mdSortCol='productName';
 let mdSortDir='asc';
 let cadenceView='cat';
@@ -2828,6 +2835,15 @@ function setPlanSort(col){
   renderPlanning();
 }
 
+function setPlanCoreFilter(val){
+  planCoreFilter=val;
+  const allBtn=document.getElementById('plan-filter-all');
+  const coreBtn=document.getElementById('plan-filter-core');
+  if(allBtn){allBtn.style.background=val==='all'?'var(--teal)':'var(--surface)';allBtn.style.color=val==='all'?'white':'var(--text-secondary)';}
+  if(coreBtn){coreBtn.style.background=val==='core'?'var(--teal)':'var(--surface)';coreBtn.style.color=val==='core'?'white':'var(--text-secondary)';}
+  renderPlanning();
+}
+
 function renderPlanning(){
   if(!allVariantRows||allVariantRows.length===0){
     document.getElementById('planning-body').innerHTML=`<div class="insights-error">⚠️ No data loaded yet. Please upload your files and analyse first.</div>`;
@@ -2835,14 +2851,16 @@ function renderPlanning(){
   }
 
   const months=getPlanMonths();
-  const cats=[...new Set(allVariantRows.filter(r=>!r.amOnly).map(r=>r.category||'UNCATEGORISED'))].sort();
+  const activeBase=allVariantRows.filter(r=>!r.amOnly&&(r.category||'UNCATEGORISED').toUpperCase()!=='GWP');
+  const planRows=planCoreFilter==='core'?activeBase.filter(r=>(r.vendor||'').toUpperCase()==='CORE'):activeBase;
+  const cats=[...new Set(planRows.map(r=>r.category||'UNCATEGORISED'))].sort();
   const lyData=getLYSalesByCategory(months);
   const onOrderData=getAMOnOrderByCategory(months);
   const saved=getPlanningData();
   const coverMonths=Math.max(1,Math.min(12,parseInt(saved['cover_months'])||2));
 
   const catSoh={},catVel30={};
-  for(const r of allVariantRows){
+  for(const r of planRows){
     const c=r.category||'UNCATEGORISED';
     catSoh[c]=(catSoh[c]||0)+r.stock;
     catVel30[c]=(catVel30[c]||0)+(r.sold30||0)/30;
