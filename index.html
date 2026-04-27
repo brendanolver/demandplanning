@@ -3157,11 +3157,13 @@ function setPlanView(val){
 
 function setGlobalCoreFilter(val){
   globalCoreFilter=val;
-  _planLyDataProd=null; _planOnOrderDataProd=null; _planMonthsCache=null; // invalidate cache
+  _planLyDataProd=null; _planOnOrderDataProd=null; _planMonthsCache=null;
   const allBtn=document.getElementById('gcf-all');
   const coreBtn=document.getElementById('gcf-core');
   if(allBtn){allBtn.style.background=val==='all'?'var(--teal)':'transparent';allBtn.style.color=val==='all'?'white':'var(--navy-text)';}
   if(coreBtn){coreBtn.style.background=val==='core'?'var(--teal)':'transparent';coreBtn.style.color=val==='core'?'white':'var(--navy-text)';}
+  renderKPIs();
+  renderSidebarCounts();
   if(currentScreen==='dashboard'){currentPage=1;renderTable();}
   else if(currentScreen==='cadence')renderCadence();
   else if(currentScreen==='planning')renderPlanning();
@@ -3253,28 +3255,38 @@ function renderPlanning(){
     const soh=catSoh[cat]||0,vel=catVel30[cat]||0;
     const wksRaw=vel>0?(soh/(vel*7)):null,wks=wksRaw!==null?wksRaw.toFixed(1):null;
     const wksClass=wks===null?'plan-soh':parseFloat(wks)>=12?'plan-wks-ok':'plan-wks-warn';
-    const isExpanded=planExpandedCats.has(cat)||planView==='product';
+    const isExpanded=planExpandedCats.has(cat);
     const safeCat=cat.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
 
+    // Product view — skip category rows, just return product rows
+    if(planView==='product'){
+      if(planSelectedCats.size>0&&!planSelectedCats.has(cat))return'';
+      const prodRows=(productsByCat[cat]||[]).map(p=>{
+        if(planSelectedProds.size>0&&!planSelectedProds.has(p.pk))return'';
+        const pSoh=prodSoh[p.pk]||0,pVel=prodVel30[p.pk]||0;
+        const pWksRaw=pVel>0?(pSoh/(pVel*7)):null,pWks=pWksRaw!==null?pWksRaw.toFixed(1):null;
+        const pWksClass=pWks===null?'plan-soh':parseFloat(pWks)>=12?'plan-wks-ok':'plan-wks-warn';
+        return`<tr style="background:var(--surface2);">
+          <td style="padding-left:12px;font-size:12px;text-align:left;"><span style="font-weight:500;">${p.productName}</span><span style="color:var(--teal);"> — ${p.colour}</span></td>
+          <td class="plan-soh" style="font-size:12px;">${pSoh.toLocaleString()}</td>
+          <td class="${pWksClass}" style="font-size:12px;">${pWks!==null?pWks+'w':'—'}</td>
+          ${buildCells(lyDataProd[p.pk]||{},onOrderDataProd[p.pk]||{},`to_prod_${p.pk}`,pSoh)}</tr>`;
+      }).join('');
+      if(!prodRows.trim())return'';
+      return`<tr><td class="plan-cat" colspan="3" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);padding:6px 12px;background:var(--surface2);">${cat}</td>${months.map(()=>'<td colspan="5" style="background:var(--surface2);"></td>').join('')}</tr>${prodRows}`;
+    }
+
+    // Category view
     const prodRows=(productsByCat[cat]||[]).map(p=>{
       const pSoh=prodSoh[p.pk]||0,pVel=prodVel30[p.pk]||0;
       const pWksRaw=pVel>0?(pSoh/(pVel*7)):null,pWks=pWksRaw!==null?pWksRaw.toFixed(1):null;
       const pWksClass=pWks===null?'plan-soh':parseFloat(pWks)>=12?'plan-wks-ok':'plan-wks-warn';
-      // In product view, apply product filter
-      if(planView==='product'&&planSelectedProds.size>0&&!planSelectedProds.has(p.pk))return'';
       return`<tr style="background:var(--surface2);border-left:3px solid transparent;">
-        <td style="padding-left:${planView==='product'?'12':'28'}px;font-size:12px;text-align:left;"><span style="font-weight:500;">${p.productName}</span><span style="color:var(--teal);"> — ${p.colour}</span></td>
+        <td style="padding-left:28px;font-size:12px;text-align:left;"><span style="font-weight:500;">${p.productName}</span><span style="color:var(--teal);"> — ${p.colour}</span></td>
         <td class="plan-soh" style="font-size:12px;">${pSoh.toLocaleString()}</td>
         <td class="${pWksClass}" style="font-size:12px;">${pWks!==null?pWks+'w':'—'}</td>
         ${buildCells(lyDataProd[p.pk]||{},onOrderDataProd[p.pk]||{},`to_prod_${p.pk}`,pSoh)}</tr>`;
     }).join('');
-
-  if(planView==='product'){
-    // In product view, apply category filter
-    if(planSelectedCats.size>0&&!planSelectedCats.has(cat))return'';
-    if(!prodRows.trim())return'';
-    return`<tr style="background:var(--surface2);"><td class="plan-cat" colspan="3" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);padding:6px 12px;">${cat}</td>${months.map(()=>'<td colspan="5"></td>').join('')}</tr>${prodRows}`;
-  }
 
     const catRow=`<tr style="cursor:pointer;" onclick="togglePlanExpand('${safeCat}')">
       <td class="plan-cat"><span style="display:inline-block;width:16px;text-align:center;font-size:10px;transform:${isExpanded?'rotate(90deg)':'rotate(0deg)'};transition:transform 0.15s;">▶</span> ${cat}</td>
@@ -3284,7 +3296,8 @@ function renderPlanning(){
     if(!isExpanded)return catRow;
     return catRow+prodRows;
   }).join('');
-  // In product view with no selection, show prompt
+
+  // In product view with no selection, show prompt instead of table
   if(planView==='product'&&planSelectedProds.size===0&&planSelectedCats.size===0){
     document.getElementById('planning-body').innerHTML=`<div class="insights-empty" style="margin-top:40px;">
       <div class="insights-empty-ico">📦</div>
@@ -6777,17 +6790,22 @@ function buildDashboard(){
   showScreen('dashboard');
   buildVariantRows();
   console.log('🟢 buildVariantRows done, rows:',allVariantRows.length);
-  const oos=allVariantRows.filter(r=>r.flag==='oos').length;
-  const reorder=allVariantRows.filter(r=>r.flag==='reorder').length;
-  const onOrd=allVariantRows.filter(r=>r.flag==='on-order').length;
-  document.getElementById('sb-oos-count').textContent=oos;
-  document.getElementById('sb-crit-count').textContent=reorder;
-  document.getElementById('sb-onorder-count').textContent=onOrd;
+  renderSidebarCounts();
   }catch(err){console.error('❌ buildDashboard error:',err);}
 }
 
+function renderSidebarCounts(){
+  const rows=getActiveRows();
+  const oos=rows.filter(r=>r.flag==='oos').length;
+  const reorder=rows.filter(r=>r.flag==='reorder').length;
+  const onOrd=rows.filter(r=>r.flag==='on-order').length;
+  document.getElementById('sb-oos-count').textContent=oos;
+  document.getElementById('sb-crit-count').textContent=reorder;
+  document.getElementById('sb-onorder-count').textContent=onOrd;
+}
+
 function renderKPIs(){
-  const rows=allVariantRows;
+  const rows=getActiveRows();
   const totalSoh=rows.reduce((s,r)=>s+(r.stock||0),0);
   const totalSold=rows.reduce((s,r)=>s+(r.sold||0),0);
   const onOrder=rows.reduce((s,r)=>s+(r.onOrder||0),0);
