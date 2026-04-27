@@ -138,7 +138,7 @@ input[type="file"]{display:none;}
 .main{overflow-y:auto;padding:20px;background:var(--bg);min-height:0;}
 
 /* KPI GRID */
-.kpi-row{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:20px;}
+.kpi-row{display:grid;grid-template-columns:repeat(7,1fr);gap:12px;margin-bottom:20px;}
 .kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 18px;box-shadow:var(--shadow-xs);transition:box-shadow 0.15s;}
 .kpi-card.kpi-clickable:hover{box-shadow:var(--shadow-md);transform:translateY(-1px);}
 .kpi-card.kpi-clickable{transition:box-shadow 0.15s,transform 0.15s;}
@@ -149,7 +149,7 @@ input[type="file"]{display:none;}
 .kpi-sub{font-size:11px;color:var(--text-muted);}
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
 .kpi-card{animation:fadeUp 0.35s ease both;}
-.kpi-card:nth-child(1){animation-delay:0.04s}.kpi-card:nth-child(2){animation-delay:0.08s}.kpi-card:nth-child(3){animation-delay:0.12s}.kpi-card:nth-child(4){animation-delay:0.16s}.kpi-card:nth-child(5){animation-delay:0.20s}.kpi-card:nth-child(6){animation-delay:0.24s}
+.kpi-card:nth-child(1){animation-delay:0.04s}.kpi-card:nth-child(2){animation-delay:0.08s}.kpi-card:nth-child(3){animation-delay:0.12s}.kpi-card:nth-child(4){animation-delay:0.16s}.kpi-card:nth-child(5){animation-delay:0.20s}.kpi-card:nth-child(6){animation-delay:0.24s}.kpi-card:nth-child(7){animation-delay:0.28s}
 
 /* TOOLBAR */
 .toolbar{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:14px;box-shadow:var(--shadow-xs);}
@@ -527,7 +527,7 @@ th{position:relative;}
   .screen-nav{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;max-width:380px;}
   .screen-btn{white-space:nowrap;font-size:11px;padding:5px 8px;flex-shrink:0;}
   /* KPI: 3 columns on tablet, 2 on phone */
-  .kpi-row{grid-template-columns:repeat(3,1fr);gap:8px;}
+  .kpi-row{grid-template-columns:repeat(4,1fr);gap:8px;}
   /* SIDEBAR: completely removed from layout, hidden off-screen */
   .layout{grid-template-columns:1fr !important;display:block !important;}
   .sidebar{
@@ -1133,12 +1133,38 @@ th{position:relative;}
   <!-- PLANNING SCREEN -->
   <div id="planning-screen" style="display:none;padding:28px;overflow-y:auto;height:calc(100vh - 56px);">
     <div style="max-width:1400px;margin:0 auto;">
-      <div class="insights-header" style="margin-bottom:20px;">
+      <div class="insights-header" style="margin-bottom:16px;">
         <div>
           <div class="insights-title">Planning</div>
           <div class="insights-sub">Forward planning by category — next 12 months. Data saved automatically in your browser.</div>
         </div>
-        <button class="insights-refresh-btn" onclick="clearPlanningData()" style="background:var(--surface);border:1px solid var(--border);color:var(--text-secondary);">✕ Clear All</button>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button onclick="planSendToSizeWorkings()" style="padding:7px 16px;background:#8b5cf6;color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">📐 Send to Size Workings</button>
+          <button class="insights-refresh-btn" onclick="clearPlanningData()" style="background:var(--surface);border:1px solid var(--border);color:var(--text-secondary);">✕ Clear All</button>
+        </div>
+      </div>
+      <!-- PIN PRODUCTS search panel -->
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:16px;box-shadow:var(--shadow-xs);">
+        <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">📌 Pin Products</div>
+        <div style="position:relative;display:inline-block;width:360px;max-width:100%;">
+          <input type="text" id="plan-pin-search" placeholder="Search product to pin..." autocomplete="off"
+            oninput="planPinSearch()"
+            style="width:100%;padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;outline:none;"
+            onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
+          <div id="plan-pin-results" style="display:none;position:absolute;z-index:300;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);min-width:100%;max-height:280px;overflow-y:auto;top:100%;left:0;margin-top:2px;">
+            <div style="padding:6px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+              <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
+                <input type="checkbox" id="plan-pin-select-all" onchange="planPinSelectAll(this)"> Select All
+              </label>
+              <span id="plan-pin-count" style="font-size:11px;color:var(--text-muted);"></span>
+            </div>
+            <div id="plan-pin-list"></div>
+            <div style="padding:8px 12px;border-top:1px solid var(--border);display:flex;gap:8px;">
+              <button onclick="planPinApply()" style="flex:1;padding:6px;background:var(--teal);color:white;border:none;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">✓ Add Selected</button>
+            </div>
+          </div>
+        </div>
+        <div id="plan-pin-tags" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;"></div>
       </div>
       <div id="planning-body">
         <div class="insights-empty">
@@ -1376,7 +1402,6 @@ th{position:relative;}
           </div>
           <button onclick="swClearAll()" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✕ Clear All</button>
           <button onclick="swExport()" style="padding:7px 16px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">⬇ Export</button>
-          <button onclick="swExportAM()" style="padding:7px 16px;background:#0369a1;color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">⬇ Apparel Magic</button>
         </div>
         <!-- Filter bar -->
         <div class="filter-row" style="margin-bottom:12px;flex-wrap:wrap;">
@@ -1739,6 +1764,8 @@ let cadenceSortCol=null; // null = default order, 'soh', or period label
 let cadenceSortDir='desc';
 let planSortCol='category';
 let planSortDir='asc';
+const planExpandedCats=new Set();
+const planPinnedProds=new Set();
 let mdSortCol='productName';
 let mdSortDir='asc';
 let cadenceView='cat';
@@ -2822,6 +2849,194 @@ function getAMOnOrderByCategory(months){
   return result;
 }
 
+function getLYSalesByProduct(months){
+  const result={};
+  if(!window._salesBySkuDay||!allVariantRows)return result;
+  // Build sku → productName||colour map
+  const skuProdMap={};
+  for(const r of allVariantRows){
+    if(r.amOnly)continue;
+    skuProdMap[r.sku]=r.productName+'||'+r.colour;
+  }
+  for(const[sku,dayData] of Object.entries(window._salesBySkuDay)){
+    const pk=skuProdMap[sku];if(!pk)continue;
+    for(const[day,d] of Object.entries(dayData)){
+      const dt=new Date(day);dt.setHours(0,0,0,0);
+      for(const m of months){
+        if(dt>=m.lyStart&&dt<=m.lyEnd){
+          const qty=m.prorateRatio<1?d.qty*m.prorateRatio:d.qty;
+          if(!result[pk])result[pk]={};
+          result[pk][m.key]=(result[pk][m.key]||0)+qty;
+        }
+      }
+    }
+  }
+  for(const pk of Object.keys(result)){
+    for(const key of Object.keys(result[pk])){
+      result[pk][key]=Math.round(result[pk][key]);
+    }
+  }
+  return result;
+}
+
+function getAMOnOrderByProduct(months,rows){
+  const result={};
+  const src=rows||allVariantRows.filter(r=>!r.amOnly);
+  for(const row of src){
+    const pk=row.productName+'||'+row.colour;
+    const onOrder=row.onOrder||0;
+    if(onOrder<=0||!row.monthDue)continue;
+    const parts=row.monthDue.split(' - ');
+    if(parts.length<2)continue;
+    const yr=parseInt(parts[0]);
+    const MONTHS=['january','february','march','april','may','june','july','august','september','october','november','december'];
+    const mi=MONTHS.indexOf(parts[1].toLowerCase().trim());
+    if(mi<0||isNaN(yr))continue;
+    const mKey=`${yr}-${String(mi+1).padStart(2,'0')}`;
+    if(!result[pk])result[pk]={};
+    result[pk][mKey]=(result[pk][mKey]||0)+onOrder;
+  }
+  return result;
+}
+
+function togglePlanExpand(cat){
+  if(planExpandedCats.has(cat))planExpandedCats.delete(cat);
+  else planExpandedCats.add(cat);
+  renderPlanning();
+}
+
+function planPinSearch(){
+  const val=(document.getElementById('plan-pin-search')?.value||'').trim().toUpperCase();
+  const list=document.getElementById('plan-pin-list');
+  const res=document.getElementById('plan-pin-results');
+  if(!list||!res)return;
+  if(val.length<2){res.style.display='none';return;}
+  const activeRows=getActiveRows().filter(r=>!r.amOnly);
+  const seen=new Set();
+  const matches=[];
+  for(const r of activeRows){
+    const key=r.productName+'||'+r.colour;
+    if(seen.has(key))continue;seen.add(key);
+    if((r.productName+' '+r.colour).toUpperCase().includes(val))matches.push({key,productName:r.productName,colour:r.colour});
+  }
+  if(!matches.length){list.innerHTML='<div style="padding:10px 12px;font-size:12px;color:var(--text-muted);">No results</div>';res.style.display='block';return;}
+  list.innerHTML=matches.map(m=>{
+    const added=planPinnedProds.has(m.key);
+    const safeKey=m.key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    return`<label style="display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;${added?'opacity:0.45;':''}border-bottom:1px solid var(--border-light);" class="ms-item">
+      <input type="checkbox" value="${m.key}" ${added?'disabled checked':''}>
+      <span style="font-size:12px;">${m.productName}<span style="color:var(--teal);"> — ${m.colour}</span></span>
+      ${added?'<span style="margin-left:auto;font-size:10px;color:var(--teal);">✓ pinned</span>':''}
+    </label>`;
+  }).join('');
+  res.style.display='block';
+  planPinUpdateCount();
+}
+
+function planPinSelectAll(cb){
+  document.querySelectorAll('#plan-pin-list input[type="checkbox"]:not([disabled])').forEach(b=>b.checked=cb.checked);
+  planPinUpdateCount();
+}
+
+function planPinUpdateCount(){
+  const checked=[...document.querySelectorAll('#plan-pin-list input[type="checkbox"]:checked:not([disabled])')];
+  const count=document.getElementById('plan-pin-count');
+  if(count)count.textContent=checked.length?`${checked.length} selected`:'';
+  const all=document.querySelectorAll('#plan-pin-list input[type="checkbox"]:not([disabled])');
+  const allChecked=[...all].every(b=>b.checked);
+  const sa=document.getElementById('plan-pin-select-all');
+  if(sa){sa.checked=all.length>0&&allChecked;sa.indeterminate=!allChecked&&checked.length>0;}
+}
+
+function planPinApply(){
+  const checked=document.querySelectorAll('#plan-pin-list input[type="checkbox"]:checked:not([disabled])');
+  checked.forEach(cb=>{
+    planPinnedProds.add(cb.value);
+    const r=getActiveRows().find(r=>r.productName+'||'+r.colour===cb.value);
+    if(r)planExpandedCats.add(r.category||'UNCATEGORISED');
+  });
+  const inp=document.getElementById('plan-pin-search');if(inp)inp.value='';
+  const res=document.getElementById('plan-pin-results');if(res)res.style.display='none';
+  planPinRenderTags();
+  renderPlanning();
+}
+
+function planPinRemove(key){
+  planPinnedProds.delete(key);
+  planPinRenderTags();
+  renderPlanning();
+}
+
+function planPinClear(){
+  planPinnedProds.clear();
+  const inp=document.getElementById('plan-pin-search');if(inp)inp.value='';
+  const res=document.getElementById('plan-pin-results');if(res)res.style.display='none';
+  planPinRenderTags();
+  renderPlanning();
+}
+
+function planPinRenderTags(){
+  const wrap=document.getElementById('plan-pin-tags');
+  if(!wrap)return;
+  if(!planPinnedProds.size){wrap.innerHTML='';return;}
+  wrap.innerHTML=[...planPinnedProds].map(key=>{
+    const parts=key.split('||');
+    const safeKey=key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    return`<span style="display:inline-flex;align-items:center;gap:5px;background:var(--teal-light);color:var(--teal-dark);border:1px solid rgba(14,165,160,0.25);border-radius:var(--r-pill);padding:3px 10px;font-size:12px;font-weight:500;">
+      📌 ${parts[0]}${parts[1]?' — '+parts[1]:''}
+      <button onclick="planPinRemove('${safeKey}')" style="background:none;border:none;cursor:pointer;color:var(--teal);font-size:13px;line-height:1;padding:0 0 0 2px;">×</button>
+    </span>`;
+  }).join('')+`<button onclick="planPinClear()" style="padding:3px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-pill);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✕ Clear All</button>`;
+}
+
+function planSendToSizeWorkings(){
+  const saved=getPlanningData();
+  const months=getPlanMonths();
+  const currentMonthKey=months.find(m=>m.isCurrent)?.key;
+  if(!currentMonthKey){alert('Could not determine current month.');return;}
+
+  const prodPrefix='to_prod_';
+  const prodSuffix=`_${currentMonthKey}`;
+  const products=[];
+  for(const[key,val] of Object.entries(saved)){
+    if(!key.startsWith(prodPrefix)||!key.endsWith(prodSuffix))continue;
+    const qty=parseInt(val)||0;
+    if(!qty)continue;
+    const inner=key.slice(prodPrefix.length,key.length-prodSuffix.length);
+    const sepIdx=inner.indexOf('||');
+    if(sepIdx<0)continue;
+    const productName=inner.slice(0,sepIdx);
+    const colour=inner.slice(sepIdx+2);
+    const fullTitle=productName+' - '+colour;
+    products.push({fullTitle,productName,colour,qty});
+  }
+
+  if(!products.length){
+    alert('No current-month To Order quantities entered at product level yet.\n\nExpand a category row, then enter quantities in the product To Order column for the current month.');
+    return;
+  }
+
+  const swData=getSwData();
+  for(const{productName,colour,qty} of products){
+    const swKey=`${productName}||${colour}`;
+    if(!swData[swKey])swData[swKey]={};
+    swData[swKey].total=String(qty);
+  }
+  saveSwData(swData);
+
+  showScreen('markdowns');
+  setWorkingView('sizeworkings');
+  setSwTab('product');
+  window._roToSwProducts=products.map(p=>({fullTitle:p.fullTitle,qty:p.qty}));
+  renderRoSizeWorkings();
+}
+
+document.addEventListener('click',e=>{
+  if(!e.target.closest('#plan-pin-search')&&!e.target.closest('#plan-pin-results')){
+    const r=document.getElementById('plan-pin-results');if(r)r.style.display='none';
+  }
+});
+
 function setPlanSort(col){
   if(planSortCol===col){planSortDir=planSortDir==='asc'?'desc':'asc';}
   else{planSortCol=col;planSortDir=col==='category'?'asc':'desc';}
@@ -2833,11 +3048,14 @@ function renderPlanning(){
     document.getElementById('planning-body').innerHTML=`<div class="insights-error">⚠️ No data loaded yet. Please upload your files and analyse first.</div>`;
     return;
   }
+  planPinRenderTags();
 
   const months=getPlanMonths();
   const cats=[...new Set(allVariantRows.filter(r=>!r.amOnly).map(r=>r.category||'UNCATEGORISED'))].sort();
   const lyData=getLYSalesByCategory(months);
   const onOrderData=getAMOnOrderByCategory(months);
+  const lyDataProd=getLYSalesByProduct(months);
+  const onOrderDataProd=getAMOnOrderByProduct(months);
   const saved=getPlanningData();
   const coverMonths=Math.max(1,Math.min(12,parseInt(saved['cover_months'])||2));
 
@@ -2848,7 +3066,22 @@ function renderPlanning(){
     catVel30[c]=(catVel30[c]||0)+(r.sold30||0)/30;
   }
 
-  // Sort categories
+  // Build product list per category from getActiveRows
+  const activeRows=getActiveRows().filter(r=>!r.amOnly);
+  const productsByCat={};
+  const prodSoh={},prodVel30={};
+  for(const r of activeRows){
+    const cat=r.category||'UNCATEGORISED';
+    const pk=r.productName+'||'+r.colour;
+    if(!productsByCat[cat])productsByCat[cat]=[];
+    if(!prodSoh[pk]){
+      productsByCat[cat].push({pk,productName:r.productName,colour:r.colour,flag:r.flag,vendor:r.vendor});
+      prodSoh[pk]=0;prodVel30[pk]=0;
+    }
+    prodSoh[pk]+=(r.stock||0);
+    prodVel30[pk]+=(r.sold30||0)/30;
+  }
+
   const sortedCats=[...cats].sort((a,b)=>{
     let av,bv;
     if(planSortCol==='category'){av=a;bv=b;return planSortDir==='asc'?av.localeCompare(bv):bv.localeCompare(av);}
@@ -2874,16 +3107,47 @@ function renderPlanning(){
     <th>To Order</th>
     <th>Variance</th>`).join('');
 
-  const growthCells=months.map(m=>{
-    const gVal=saved[`growth_${m.key}`]||'';
-    return`<td colspan="5" style="border-left:2px solid var(--border);padding:4px 6px;">
-        <div style="display:flex;align-items:center;gap:4px;justify-content:center;">
-          <input class="plan-input growth-input" type="number" step="1" min="-100" max="200"
-            placeholder="0" value="${gVal}"
-            onchange="savePlanField('growth_${m.key}',this.value);renderPlanning();">
-          <span style="font-size:10px;color:var(--text-muted);">%</span>
-        </div></td>`;
-  }).join('');
+  // Shared monthly cells builder for both category and product levels
+  function buildMonthlyCells(lySource,onOrderSource,toOrderPrefix,soh){
+    return months.map((m,mi)=>{
+      const growth=parseFloat(saved[`growth_${m.key}`]||0)||0;
+      const lyQty=lySource[m.key]||0;
+      const budget=Math.round(lyQty*(1+growth/100));
+      const onOrder=Math.round(onOrderSource[m.key]||0);
+      const toOrderKey=`${toOrderPrefix}_${m.key}`;
+      const toOrderVal=saved[toOrderKey]||'';
+      let coverage2m=0;
+      if(!m.isCurrent&&months[0]?.isCurrent){
+        const cm=months[0];const cfg=parseFloat(saved[`growth_${cm.key}`]||0)||0;
+        coverage2m+=Math.round((lySource[cm.key]||0)*(1+cfg/100));
+      }
+      for(let j=0;j<coverMonths;j++){
+        const fm=months[mi+j];if(!fm)break;
+        const fg=parseFloat(saved[`growth_${fm.key}`]||0)||0;
+        coverage2m+=Math.round((lySource[fm.key]||0)*(1+fg/100));
+      }
+      const suggestOrder=coverage2m>0?Math.max(0,coverage2m-(soh+onOrder)):0;
+      const toOrder=parseInt(toOrderVal)||0;
+      const variance=(soh+onOrder+toOrder)-coverage2m;
+      const varClass=coverage2m===0?'':(variance>=0?'plan-variance-ok':'plan-variance-warn');
+      const varLabel=coverage2m===0?'—':(variance>=0?'+':'')+variance.toLocaleString();
+      const bg=m.isCurrent?'background:rgba(14,165,160,0.04);':'';;
+      return`
+        <td style="border-left:2px solid var(--border);${bg}"><span class="plan-budget">${budget>0?budget.toLocaleString():'—'}</span></td>
+        <td style="${bg}"><span class="${soh>0?'plan-soh':'cell-muted'}">${soh>0?soh.toLocaleString():'—'}</span></td>
+        <td style="${bg}"><span class="${onOrder>0?'plan-onorder':'cell-muted'}">${onOrder>0?onOrder.toLocaleString():'—'}</span></td>
+        <td style="padding:3px 5px;${bg}">
+          ${m.isCurrent
+            ? `<span style="font-size:11px;color:var(--text-muted);font-style:italic;">current</span>`
+            : `<input class="plan-input" type="number" min="0" step="1"
+                placeholder="${suggestOrder>0?suggestOrder:''}"
+                value="${toOrderVal}"
+                style="${!toOrderVal&&suggestOrder>0?'color:#f97316;':''}"
+                onchange="savePlanField('${toOrderKey}',this.value);renderPlanning();">`}
+        </td>
+        <td style="${bg}"><span class="${varClass}">${varLabel}</span></td>`;
+    }).join('');
+  }
 
   const catRows=sortedCats.map((cat)=>{
     const soh=catSoh[cat]||0;
@@ -2891,61 +3155,46 @@ function renderPlanning(){
     const wksRaw=vel>0?(soh/(vel*7)):null;
     const wks=wksRaw!==null?wksRaw.toFixed(1):null;
     const wksClass=wks===null?'plan-soh':parseFloat(wks)>=12?'plan-wks-ok':'plan-wks-warn';
+    const isExpanded=planExpandedCats.has(cat);
+    const safeCat=cat.replace(/\\/g,'\\\\').replace(/'/g,"\\\'");
 
-    const monthlyCells=months.map((m,mi)=>{
-      const growth=parseFloat(saved[`growth_${m.key}`]||0)||0;
-      const ly=Math.round(lyData[cat]?.[m.key]||0);
-      const budget=Math.round(ly*(1+growth/100));
-      const onOrder=Math.round(onOrderData[cat]?.[m.key]||0);
-      const toOrderVal=saved[`to_${cat}_${m.key}`]||'';
-      const toOrder=parseInt(toOrderVal)||0;
+    const monthlyCells=buildMonthlyCells(lyData[cat]||{},onOrderData[cat]||{},`to_${cat}`,soh);
 
-      // Variable months cover (set by user)
-      // For future month columns: always include prorated current month + coverMonths forward
-      // For the current month column itself: just coverMonths forward from current
-      let coverage2m=0;
-      const startIdx=m.isCurrent?mi:mi; // start from this column
-      // If this is a future month, first add the prorated current month
-      if(!m.isCurrent&&months[0]?.isCurrent){
-        const cm=months[0];
-        const cfg=parseFloat(saved[`growth_${cm.key}`]||0)||0;
-        const cfly=Math.round(lyData[cat]?.[cm.key]||0);
-        coverage2m+=Math.round(cfly*(1+cfg/100)); // already prorated via lyData
-      }
-      for(let j=0;j<coverMonths;j++){
-        const fm=months[m.isCurrent?mi+j:mi+j];
-        if(!fm)break;
-        const fg=parseFloat(saved[`growth_${fm.key}`]||0)||0;
-        const fly=Math.round(lyData[cat]?.[fm.key]||0);
-        coverage2m+=Math.round(fly*(1+fg/100));
-      }
-
-      const suggestOrder=coverage2m>0?Math.max(0,coverage2m-(soh+onOrder)):0;
-      const variance=(soh+onOrder+toOrder)-coverage2m;
-      const varClass=coverage2m===0?'':variance>=0?'plan-variance-ok':'plan-variance-warn';
-      const varLabel=coverage2m===0?'—':(variance>=0?'+':'')+variance.toLocaleString();
-      return`
-        <td style="border-left:2px solid var(--border);${m.isCurrent?'background:rgba(14,165,160,0.04);':''}">
-          <span class="plan-budget">${budget>0?budget.toLocaleString():'—'}</span></td>
-        <td style="${m.isCurrent?'background:rgba(14,165,160,0.04);':''}"><span class="${soh>0?'plan-soh':'cell-muted'}">${soh>0?soh.toLocaleString():'—'}</span></td>
-        <td style="${m.isCurrent?'background:rgba(14,165,160,0.04);':''}"><span class="${onOrder>0?'plan-onorder':'cell-muted'}">${onOrder>0?onOrder.toLocaleString():'—'}</span></td>
-        <td style="padding:3px 5px;${m.isCurrent?'background:rgba(14,165,160,0.04);':''}">
-          ${m.isCurrent
-            ? `<span style="font-size:11px;color:var(--text-muted);font-style:italic;">current</span>`
-            : `<input class="plan-input" type="number" min="0" step="1"
-                placeholder="${suggestOrder>0?suggestOrder:''}"
-                value="${toOrderVal}"
-                style="${!toOrderVal&&suggestOrder>0?'color:#f97316;':''}"
-                onchange="savePlanField('to_${cat}_${m.key}',this.value);renderPlanning();">`}
-        </td>
-        <td style="${m.isCurrent?'background:rgba(14,165,160,0.04);':''}"><span class="${varClass}">${varLabel}</span></td>`;
-    }).join('');
-
-    return`<tr>
-      <td class="plan-cat">${cat}</td>
+    const catRow=`<tr style="cursor:pointer;" onclick="togglePlanExpand('${safeCat}')">
+      <td class="plan-cat">
+        <span style="display:inline-block;width:16px;text-align:center;font-size:10px;transition:transform 0.15s;transform:${isExpanded?'rotate(90deg)':'rotate(0deg)'};">▶</span>
+        ${cat}
+      </td>
       <td class="plan-soh">${soh.toLocaleString()}</td>
       <td class="${wksClass}">${wks!==null?wks+'w':'—'}</td>
-      ${monthlyCells}</tr>`;
+      ${monthlyCells}
+    </tr>`;
+
+    if(!isExpanded)return catRow;
+
+    const prods=productsByCat[cat]||[];
+    const prodRows=prods.map(p=>{
+      const pSoh=prodSoh[p.pk]||0;
+      const pVel=prodVel30[p.pk]||0;
+      const pWksRaw=pVel>0?(pSoh/(pVel*7)):null;
+      const pWks=pWksRaw!==null?pWksRaw.toFixed(1):null;
+      const pWksClass=pWks===null?'plan-soh':parseFloat(pWks)>=12?'plan-wks-ok':'plan-wks-warn';
+      const isPinned=planPinnedProds.has(p.pk);
+      const safePK=`to_prod_${p.pk}`;
+
+      const prodMonthlyCells=buildMonthlyCells(lyDataProd[p.pk]||{},onOrderDataProd[p.pk]||{},safePK,pSoh);
+
+      return`<tr style="background:${isPinned?'rgba(14,165,160,0.06)':'var(--surface2)'};${isPinned?'border-left:3px solid var(--teal);':'border-left:3px solid transparent;'}">
+        <td style="padding-left:28px;font-size:12px;">
+          ${isPinned?'<span style="color:var(--teal);margin-right:4px;">📌</span>':''}<span style="font-weight:500;">${p.productName}</span><span style="color:var(--teal);"> — ${p.colour}</span>
+        </td>
+        <td class="${pWksClass==='plan-soh'?'plan-soh':''}" style="font-size:12px;color:var(--text-secondary);">${pSoh.toLocaleString()}</td>
+        <td class="${pWksClass}" style="font-size:12px;">${pWks!==null?pWks+'w':'—'}</td>
+        ${prodMonthlyCells}
+      </tr>`;
+    }).join('');
+
+    return catRow+prodRows;
   }).join('');
 
   const totalCells=months.map((m,mi)=>{
@@ -2957,25 +3206,18 @@ function renderPlanning(){
       too+=Math.round(onOrderData[cat]?.[m.key]||0);
       tto+=parseInt(saved[`to_${cat}_${m.key}`]||0)||0;
     }
-    // Variable months cover for totals — include prorated current month for future columns
     if(!m.isCurrent&&months[0]?.isCurrent){
-      const cm=months[0];
-      const cfg=parseFloat(saved[`growth_${cm.key}`]||0)||0;
-      for(const cat of sortedCats){
-        tcoverage2m+=Math.round((lyData[cat]?.[cm.key]||0)*(1+cfg/100));
-      }
+      const cm=months[0];const cfg=parseFloat(saved[`growth_${cm.key}`]||0)||0;
+      for(const cat of sortedCats)tcoverage2m+=Math.round((lyData[cat]?.[cm.key]||0)*(1+cfg/100));
     }
     for(let j=0;j<coverMonths;j++){
-      const fm=months[mi+j];
-      if(!fm)break;
+      const fm=months[mi+j];if(!fm)break;
       const fg=parseFloat(saved[`growth_${fm.key}`]||0)||0;
-      for(const cat of sortedCats){
-        tcoverage2m+=Math.round((lyData[cat]?.[fm.key]||0)*(1+fg/100));
-      }
+      for(const cat of sortedCats)tcoverage2m+=Math.round((lyData[cat]?.[fm.key]||0)*(1+fg/100));
     }
     const tsuggestOrder=tcoverage2m>0?Math.max(0,tcoverage2m-(tsoh+too)):0;
     const variance=(tsoh+too+tto)-tcoverage2m;
-    const varClass=tcoverage2m===0?'':variance>=0?'plan-variance-ok':'plan-variance-warn';
+    const varClass=tcoverage2m===0?'':(variance>=0?'plan-variance-ok':'plan-variance-warn');
     return`
       <td style="border-left:2px solid var(--border);font-weight:700;">${tb>0?tb.toLocaleString():'—'}</td>
       <td style="font-weight:700;color:var(--text-secondary);">${tsoh>0?tsoh.toLocaleString():'—'}</td>
@@ -2989,14 +3231,10 @@ function renderPlanning(){
       <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--teal)"></div>12w+ cover — healthy</div>
       <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--red)"></div>Under 12w — reorder risk</div>
       <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--purple)"></div>On Order from Apparel Magic</div>
-      <div class="plan-legend-item" style="color:var(--text-secondary);">Variance = SOH + On Order + To Order − Next 2 Months Budget | To Order pre-fills with suggested qty (orange) if nothing entered</div>
-      <div class="plan-legend-item" style="color:var(--teal);">▲ Green = covered &nbsp;|&nbsp; <span style="color:var(--red);">▼ Red = short</span></div>
+      <div class="plan-legend-item" style="color:var(--text-secondary);">Variance = SOH + On Order + To Order − Next ${coverMonths} Month${coverMonths>1?'s':''} Budget | Orange = suggested qty</div>
+      <div class="plan-legend-item" style="color:var(--teal);">▲ Green = covered &nbsp;|&nbsp; <span style="color:var(--red);">▼ Red = short</span> &nbsp;|&nbsp; Click category row to expand products</div>
     </div>
-
-    <!-- Growth % + Months Cover input panels -->
     <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
-
-      <!-- Growth % panel -->
       <div style="flex:1;min-width:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 20px;box-shadow:var(--shadow-xs);">
         <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:10px;letter-spacing:0.05em;">GROWTH % BY MONTH <span style="font-weight:400;color:var(--text-muted);">— tab across, negative for decline</span></div>
         <div style="display:flex;gap:8px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;">
@@ -3004,13 +3242,9 @@ function renderPlanning(){
             <div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:68px;">
               <div style="font-size:11px;font-weight:600;color:var(--text-secondary);white-space:nowrap;">${m.label}</div>
               <div style="display:flex;align-items:center;gap:2px;">
-                <input type="number" step="1" min="-100" max="200"
-                  placeholder="0" value="${saved[`growth_${m.key}`]||''}"
-                  tabindex="${i+1}"
-                  class="growth-quick-input"
-                  style="width:56px;padding:6px 6px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:13px;font-weight:700;text-align:center;outline:none;background:var(--surface);"
-                  onfocus="this.style.borderColor='var(--teal)';this.select()"
-                  onblur="this.style.borderColor='var(--border)'"
+                <input type="number" step="1" min="-100" max="200" placeholder="0" value="${saved[`growth_${m.key}`]||''}" tabindex="${i+1}" class="growth-quick-input"
+                  style="width:56px;padding:6px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:13px;font-weight:700;text-align:center;outline:none;background:var(--surface);"
+                  onfocus="this.style.borderColor='var(--teal)';this.select()" onblur="this.style.borderColor='var(--border)'"
                   onchange="savePlanField('growth_${m.key}',this.value);renderPlanning();"
                   onkeydown="if(event.key==='Enter'){event.preventDefault();const inputs=document.querySelectorAll('.growth-quick-input');const idx=Array.from(inputs).indexOf(this);if(inputs[idx+1])inputs[idx+1].focus();}">
                 <span style="font-size:11px;color:var(--text-muted);">%</span>
@@ -3021,34 +3255,29 @@ function renderPlanning(){
             </div>`).join('')}
         </div>
       </div>
-
-      <!-- Months cover panel -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 20px;box-shadow:var(--shadow-xs);min-width:200px;max-width:260px;">
         <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:10px;letter-spacing:0.05em;">MONTHS COVER</div>
         <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;line-height:1.5;">How many months of budget to cover when calculating Variance &amp; Suggest Order</div>
         <div style="display:flex;align-items:center;gap:8px;">
-          <select
-            id="plan-cover-months"
+          <select id="plan-cover-months"
             style="width:72px;padding:8px 10px;border:2px solid var(--teal);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:18px;font-weight:700;text-align:center;outline:none;background:#f0fdf4;color:var(--teal);cursor:pointer;"
             onchange="savePlanField('cover_months',this.value);renderPlanning();">
-            ${[1,2,3,4,5].map(n=>`<option value="${n}" ${(parseInt(saved['cover_months'])||2)===n?'selected':''}>${n}</option>`).join('')}
+            ${[1,2,3,4,5].map(n=>`<option value="${n}" ${(parseInt(saved['cover_months'])||2)===n?'selected':''}}>${n}</option>`).join('')}
           </select>
           <div>
-            <div style="font-size:13px;font-weight:600;color:var(--text);">${saved['cover_months']||2} month${(parseInt(saved['cover_months'])||2)===1?'':'s'} cover</div>
+            <div style="font-size:13px;font-weight:600;color:var(--text);">${saved['cover_months']||2} month${(parseInt(saved['cover_months'])||2)===1?'':' s'} cover</div>
             <div style="font-size:11px;color:var(--text-muted);">${(parseInt(saved['cover_months'])||2)===1?'Current month only':(parseInt(saved['cover_months'])||2)===2?'Current + next month':'Current + next '+(parseInt(saved['cover_months']-1)||1)+' months'}</div>
           </div>
         </div>
       </div>
-
     </div>
-
     <div class="plan-table-wrap">
       <table class="plan-table">
         <thead>
           <tr>
-            <th class="plan-th-left" rowspan="2" style="min-width:160px;${planThStyle}" onclick="setPlanSort('category')">Category${planArrow('category')}</th>
+            <th class="plan-th-left" rowspan="2" style="min-width:180px;${planThStyle}" onclick="setPlanSort('category')">Category${planArrow('category')}</th>
             <th rowspan="2" style="${planThStyle}" onclick="setPlanSort('soh')">SOH${planArrow('soh')}</th>
-            <th rowspan="2" title="SOH ÷ 30-day velocity" style="${planThStyle}" onclick="setPlanSort('wks')">Wks Cover${planArrow('wks')}<br><span style="font-weight:400;font-size:9px;opacity:0.7;">30d basis</span></th>
+            <th rowspan="2" title="SOH ÷ 30-day velocity" style="${planThStyle}" onclick="setPlanSort('wks')">Wks${planArrow('wks')}</th>
             ${monthHeaders}
           </tr>
           <tr>${subHeaders}</tr>
@@ -3063,7 +3292,6 @@ function renderPlanning(){
       </table>
     </div>`;
 }
-
 function savePlanField(key,value){
   const data=getPlanningData();
   if(value===''||value===null)delete data[key];
@@ -3905,95 +4133,6 @@ function swExport(){
   const a=document.createElement('a');a.href=url;
   a.download=`size_workings_${swProduct.productName.replace(/[^a-z0-9]/gi,'_')}_${colour}.csv`;
   a.click();URL.revokeObjectURL(url);
-}
-
-function swExportAM(){
-  // Collect product list — ro-mode (multi) or single product
-  let productList=[];
-  if(window._roToSwProducts&&window._roToSwProducts.length){
-    // Multi-product ro-mode
-    productList=window._roToSwProducts.map(({fullTitle,qty})=>{
-      const dashIdx=fullTitle.lastIndexOf(' - ');
-      return{
-        productName:dashIdx>=0?fullTitle.slice(0,dashIdx):fullTitle,
-        colour:dashIdx>=0?fullTitle.slice(dashIdx+3):'',
-        roQty:parseInt(qty)||0
-      };
-    });
-  } else if(swProduct){
-    // Single product mode — use Total Units Needed input as roQty
-    const swKey=`${swProduct.productName}||${swProduct.colour}`;
-    const saved=getSwData();
-    const roQty=parseInt(saved[swKey]?.total)||0;
-    productList=[{productName:swProduct.productName,colour:swProduct.colour,roQty}];
-  }
-  if(!productList.length){alert('No product loaded in Size Workings.');return;}
-
-  const customerPO=prompt('Enter Customer PO number:','');
-  if(customerPO===null)return;
-  if(!customerPO.trim()){alert('Customer PO is required.');return;}
-
-  const sizeOrder=['XXS','XS','S','M','L','XL','XXL','XXXL','XXXXL','28','30','32','34','36','38','40','42','44','46','48','50','OS'];
-  const swSaved=getSwData();
-  const csvRows=[];
-
-  for(const{productName,colour,roQty}of productList){
-    const swKey=`${productName}||${colour}`;
-    const swManual=swSaved[swKey]?.manual||{};
-
-    const variants=allVariantRows
-      .filter(r=>r.productName===productName&&r.colour===colour&&!r.amOnly)
-      .sort((a,b)=>{
-        const ai=sizeOrder.indexOf(a.size),bi=sizeOrder.indexOf(b.size);
-        if(ai>=0&&bi>=0)return ai-bi;
-        if(ai>=0)return-1;if(bi>=0)return 1;
-        return a.size.localeCompare(b.size);
-      });
-    if(!variants.length)continue;
-
-    // Priority 1: manual Size Workings values
-    const manualVals=variants.map(r=>parseInt(swManual[r.size])||0);
-    const manualTotal=manualVals.reduce((s,v)=>s+v,0);
-
-    let sizeQtys;
-    if(manualTotal>0){
-      sizeQtys=manualVals;
-    } else if(roQty>0){
-      // Priority 2: distribute roQty by sold% (largest remainder)
-      const soldBySize=variants.map(r=>r['sold'+(swPeriod===7?'7':swPeriod===14?'14':swPeriod===30?'30':swPeriod===60?'60':swPeriod===90?'90':'365')]||0);
-      const soldTotal=soldBySize.reduce((s,v)=>s+v,0);
-      const soldPct=soldBySize.map(v=>soldTotal>0?v/soldTotal:1/variants.length);
-      const exact=soldPct.map(p=>p*roQty);
-      const floored=exact.map(v=>Math.floor(v));
-      const remainders=exact.map((v,i)=>v-floored[i]);
-      const remainder=roQty-floored.reduce((s,v)=>s+v,0);
-      const indices=[...Array(variants.length).keys()].sort((a,b)=>remainders[b]-remainders[a]);
-      sizeQtys=[...floored];
-      for(let i=0;i<remainder;i++)sizeQtys[indices[i]]++;
-    } else {
-      continue; // no qty to export
-    }
-
-    for(let i=0;i<variants.length;i++){
-      const qty=sizeQtys[i];
-      if(!qty)continue;
-      const sku=variants[i].sku;
-      if(!sku||sku==='—')continue;
-      csvRows.push([customerPO.trim(),'WNDRR ONLINE STORE',sku,qty]);
-    }
-  }
-
-  if(!csvRows.length){
-    alert('No exportable rows — enter a Total Units Needed or Size Workings values first.');
-    return;
-  }
-
-  const headers=['customer_po','customer_name','sku_alt','qty'];
-  const csv=[headers,...csvRows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
-  const blob=new Blob([csv],{type:'text/csv'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');a.href=url;a.download='wndrr_apparel_magic.csv';a.click();
-  URL.revokeObjectURL(url);
 }
 
 /* ── WORKING SCREEN ── */
@@ -6567,11 +6706,32 @@ function renderKPIs(){
   const reorder=productRows.filter(p=>p.flag==='reorder').length;
   const reduce=productRows.filter(p=>p.flag==='reduce').length;
 
+  // Today's Margin — revenue-weighted GP% for today
+  // Revenue = soldToday × (price / 1.1) ex-GST; Cost = soldToday × avgCostPerUnit
+  let todayRevTotal=0, todayCostTotal=0;
+  const todayStr=localDateStr(nowLocal);
+  for(const r of rows){
+    if(r.amOnly)continue;
+    const qty=(window._salesBySkuDay?.[r.sku]||{})[todayStr]?.qty||0;
+    if(!qty)continue;
+    const exGstPrice=r.price>0?r.price/1.1:0;
+    // Use margin% back-calculated to derive cost if available, else skip
+    if(exGstPrice>0&&r.margin!=null){
+      const unitCost=exGstPrice*(1-r.margin/100);
+      todayRevTotal+=exGstPrice*qty;
+      todayCostTotal+=unitCost*qty;
+    }
+  }
+  const todayMarginPct=todayRevTotal>0?((todayRevTotal-todayCostTotal)/todayRevTotal*100):null;
+  const todayMarginFmt=todayMarginPct!=null?todayMarginPct.toFixed(1)+'%':'—';
+  const todayMarginColor=todayMarginPct==null?'var(--text-muted)':todayMarginPct>=70?'var(--green)':todayMarginPct>=60?'var(--amber)':'var(--red)';
+
   const kpis=[
     {name:'Total Products',val:totalProducts.toLocaleString(),sub:'Unique styles',ico:'📊',bg:'#eef1fe',ic:'#4f6ef7',click:null},
     {name:'SOH',val:totalSoh.toLocaleString(),sub:'Units on hand',ico:'📦',bg:'#e6f7f7',ic:'var(--teal)',click:null},
     {name:`Units Sold (${selectedPeriod}d)`,val:totalSold.toLocaleString(),sub:`Last ${selectedPeriod} days`,ico:'🛍️',bg:'#dcfce7',ic:'var(--green)',click:null},
     {name:'On Order',val:onOrder.toLocaleString(),sub:'Total units on order',ico:'🚚',bg:'#f3e8ff',ic:'#7c3aed',click:null},
+    {name:"Today's Margin",val:`<span style="color:${todayMarginColor}">${todayMarginFmt}</span>`,sub:'Revenue-weighted GP% today',ico:'💰',bg:'#dcfce7',ic:'var(--green)',click:null},
     {name:'Re-Order',val:reorder.toLocaleString(),sub:'≤14 weeks cover',ico:'⚠️',bg:'#fef9c3',ic:'#854d0e',click:"kpiDrillDown('reorder')"},
     {name:'Reduce',val:reduce.toLocaleString(),sub:'26w+ cover, no order',ico:'🏷️',bg:'#fee2e2',ic:'var(--red)',click:"kpiDrillDown('reduce')"},
   ];
