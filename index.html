@@ -3193,10 +3193,9 @@ function renderPlanning(){
   if(prodBtn){prodBtn.style.background=planView==='product'?'var(--teal)':'transparent';prodBtn.style.color=planView==='product'?'white':'var(--text-secondary)';}
   const pinPanel=document.getElementById('plan-pin-panel');
   if(pinPanel)pinPanel.style.display=planView==='product'?'block':'none';
-  // Populate filter dropdowns when switching to product view
+  // Populate category dropdown when switching to product view
   if(planView==='product'){
     planPopulateCatDropdown();
-    planPopulateProdDropdown();
   }
 
   const months=getPlanMonths();
@@ -3267,7 +3266,6 @@ function renderPlanning(){
     return;
   }
 
-  console.log('🗂 catRows render: planView='+planView+' planSelectedProds.size='+planSelectedProds.size+' cats='+sortedCats.length);
   const catRows=sortedCats.map(cat=>{
     const soh=catSoh[cat]||0,vel=catVel30[cat]||0;
     const wksRaw=vel>0?(soh/(vel*7)):null,wks=wksRaw!==null?wksRaw.toFixed(1):null;
