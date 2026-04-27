@@ -5421,22 +5421,25 @@ async function gdriveFetchFiles(){
       'All Products Sizes Sold Out':{loader:'soldout',exact:false,sheet:false},
       'Variants 0 inventory by Product':{loader:'variantssoldout',exact:false,sheet:false},
       'Core Styles':{loader:'corestyles',exact:false,sheet:false},
-        'All_Products_List':{loader:'allproductslist',exact:false,sheet:false,optional:true},
-        'All Products List':{loader:'allproductslist',exact:false,sheet:false,optional:true},
+      'All_Products_List':{loader:'allproductslist',exact:false,sheet:false,optional:true},
+      'All Products List':{loader:'allproductslist',exact:false,sheet:false,optional:true},
       'Current Bundle Styles':{loader:'bundlestyles',exact:false,sheet:false},
       'Order Item Analysis':{loader:'am',exact:false,sheet:false},
     };
+    // Track which Drive files have already been claimed to avoid double-matching
+    const claimedIds=new Set();
     let loaded=0,errors=[];
+    const requiredCount=Object.values(fileMap).filter(c=>!c.optional).length;
     status.textContent='⬇️ Downloading files...';
     for(const[filename,config]of Object.entries(fileMap)){
       let match;
       if(config.exact){
-        match=files.find(f=>f.name.toLowerCase()===filename.toLowerCase());
+        match=files.find(f=>!claimedIds.has(f.id)&&f.name.toLowerCase()===filename.toLowerCase());
       } else {
-        // Pick latest by modifiedTime (already sorted desc by API) — case insensitive
-        match=files.find(f=>f.name.toLowerCase().startsWith(filename.toLowerCase()));
+        match=files.find(f=>!claimedIds.has(f.id)&&f.name.toLowerCase().includes(filename.toLowerCase()));
       }
       if(!match){if(!config.optional)errors.push(`"${filename}" not found`);continue;}
+      claimedIds.add(match.id);
 
       let text;
       if(config.sheet||match.mimeType==='application/vnd.google-apps.spreadsheet'){
@@ -5466,9 +5469,9 @@ async function gdriveFetchFiles(){
     }
     checkReady();
     if(errors.length){
-      status.innerHTML=`<span style="color:var(--amber);">⚠️ Loaded ${loaded}/4 files. Missing: ${errors.join(', ')}</span>`;
+      status.innerHTML=`<span style="color:var(--amber);">⚠️ Loaded ${loaded}/${requiredCount} files. Missing: ${errors.join(', ')}</span>`;
     } else {
-      status.innerHTML=`<span style="color:var(--teal);">✓ All 4 files loaded! Click Analyse Stock to continue.</span>`;
+      status.innerHTML=`<span style="color:var(--teal);">✓ All ${loaded} files loaded! Click Analyse Stock to continue.</span>`;
     }
   } catch(err){
     status.innerHTML=`<span style="color:var(--red);">⚠️ Error: ${err.message}</span>`;
@@ -5629,12 +5632,13 @@ async function autoSyncFetch(){
       'All Products Sizes Sold Out':{loader:'soldout',exact:false,sheet:false},
       'Variants 0 inventory by Product':{loader:'variantssoldout',exact:false,sheet:false},
       'Core Styles':{loader:'corestyles',exact:false,sheet:false},
-        'All_Products_List':{loader:'allproductslist',exact:false,sheet:false,optional:true},
-        'All Products List':{loader:'allproductslist',exact:false,sheet:false,optional:true},
+      'All_Products_List':{loader:'allproductslist',exact:false,sheet:false,optional:true},
+      'All Products List':{loader:'allproductslist',exact:false,sheet:false,optional:true},
       'Current Bundle Styles':{loader:'bundlestyles',exact:false,sheet:false},
       'Order Item Analysis':{loader:'am',exact:false,sheet:false},
     };
     const fileLabels={inv:'Inventory',sales:'Sales History',soldout:'All Products',variantssoldout:'Variants Sold Out',corestyles:'Core Styles',bundlestyles:'Bundle Styles',am:'Apparel Magic'};
+    const claimedIds=new Set();
     let loaded=0;
     const total=Object.values(fileMap).filter(c=>!c.optional).length;
     const errors=[];
@@ -5642,8 +5646,11 @@ async function autoSyncFetch(){
     for(const[filename,config]of Object.entries(fileMap)){
       const pct=45+Math.round((loaded/total)*50);
       setLoadingProgress(pct,`Downloading ${fileLabels[config.loader]||''}...`);
-      let match=config.exact?files.find(f=>f.name.toLowerCase()===filename.toLowerCase()):files.find(f=>f.name.toLowerCase().startsWith(filename.toLowerCase()));
+      let match=config.exact
+        ?files.find(f=>!claimedIds.has(f.id)&&f.name.toLowerCase()===filename.toLowerCase())
+        :files.find(f=>!claimedIds.has(f.id)&&f.name.toLowerCase().includes(filename.toLowerCase()));
       if(!match){if(!config.optional){errors.push(fileLabels[config.loader]);loaded++;}continue;}
+      claimedIds.add(match.id);
       let text;
       if(config.sheet||match.mimeType==='application/vnd.google-apps.spreadsheet'){
         const dlRes=await fetch(`https://www.googleapis.com/drive/v3/files/${match.id}/export?mimeType=text/csv`,{headers:{Authorization:`Bearer ${gdriveToken}`}});
