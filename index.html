@@ -1138,16 +1138,22 @@ th{position:relative;}
   <div id="planning-screen" style="display:none;padding:28px;overflow-y:auto;height:calc(100vh - 56px);">
     <div style="max-width:1400px;margin:0 auto;">
       <div class="insights-header" style="margin-bottom:16px;">
-        <div>
-          <div class="insights-title">Planning</div>
-          <div class="insights-sub">Forward planning by category — next 12 months. Data saved automatically in your browser.</div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <div>
+            <div class="insights-title">Planning</div>
+            <div class="insights-sub">Forward planning by category — next 12 months. Data saved automatically in your browser.</div>
+          </div>
+          <div style="display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:3px;gap:2px;">
+            <button id="plan-view-cat" onclick="setPlanView('category')" style="border:none;cursor:pointer;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;padding:5px 16px;border-radius:999px;transition:all 0.15s;background:var(--teal);color:white;">🗂 Category</button>
+            <button id="plan-view-prod" onclick="setPlanView('product')" style="border:none;cursor:pointer;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;padding:5px 16px;border-radius:999px;transition:all 0.15s;background:transparent;color:var(--text-secondary);">📦 Products</button>
+          </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
           <button onclick="planSendToSizeWorkings()" style="padding:7px 16px;background:#8b5cf6;color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">📐 Send to Size Workings</button>
           <button class="insights-refresh-btn" onclick="clearPlanningData()" style="background:var(--surface);border:1px solid var(--border);color:var(--text-secondary);">✕ Clear All</button>
         </div>
       </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:16px;box-shadow:var(--shadow-xs);">
+      <div id="plan-pin-panel" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:16px;box-shadow:var(--shadow-xs);">
         <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">📌 Pin Products</div>
         <div style="position:relative;display:inline-block;width:360px;max-width:100%;">
           <input type="text" id="plan-pin-search" placeholder="Search product to pin..." autocomplete="off"
@@ -1758,6 +1764,7 @@ function showScreen(screen){
   if(screen==='insights'){
     document.getElementById('insights-period-label').textContent=selectedPeriod+'d';
     document.getElementById('insights-sku-count').textContent=allVariantRows.length.toLocaleString();
+    generateInsights();
   }
   if(screen==='cadence') renderCadence();
   if(screen==='planning') renderPlanning();
@@ -1773,6 +1780,7 @@ let planSortDir='asc';
 const planExpandedCats=new Set();
 const planPinnedProds=new Set();
 let globalCoreFilter='all';
+let planView='category'; // 'category' or 'product'
 
 function getActiveRows(){
   return globalCoreFilter==='core'?allVariantRows.filter(r=>r.vendor==='CORE'):allVariantRows;
@@ -3068,17 +3076,28 @@ function swExportAM(){
   URL.revokeObjectURL(url);
 }
 
+function setPlanView(val){
+  planView=val;
+  const catBtn=document.getElementById('plan-view-cat');
+  const prodBtn=document.getElementById('plan-view-prod');
+  if(catBtn){catBtn.style.background=val==='category'?'var(--teal)':'transparent';catBtn.style.color=val==='category'?'white':'var(--text-secondary)';}
+  if(prodBtn){prodBtn.style.background=val==='product'?'var(--teal)':'transparent';prodBtn.style.color=val==='product'?'white':'var(--text-secondary)';}
+  // Show/hide pin panel — only relevant in product view
+  const pinPanel=document.getElementById('plan-pin-panel');
+  if(pinPanel)pinPanel.style.display=val==='product'?'block':'none';
+  renderPlanning();
+}
+
 function setGlobalCoreFilter(val){
   globalCoreFilter=val;
   const allBtn=document.getElementById('gcf-all');
   const coreBtn=document.getElementById('gcf-core');
   if(allBtn){allBtn.style.background=val==='all'?'var(--teal)':'transparent';allBtn.style.color=val==='all'?'white':'var(--navy-text)';}
   if(coreBtn){coreBtn.style.background=val==='core'?'var(--teal)':'transparent';coreBtn.style.color=val==='core'?'white':'var(--navy-text)';}
-  const screen=document.querySelector('.screen-btn.active')?.id?.replace('btn-','');
-  if(screen==='dashboard'){currentPage=1;renderTable();}
-  else if(screen==='cadence')renderCadence();
-  else if(screen==='planning')renderPlanning();
-  else if(screen==='markdowns')setWorkingView(workingView);
+  if(currentScreen==='dashboard'){currentPage=1;renderTable();}
+  else if(currentScreen==='cadence')renderCadence();
+  else if(currentScreen==='planning')renderPlanning();
+  else if(currentScreen==='markdowns')setWorkingView(workingView);
 }
 
 function setPlanSort(col){
@@ -3092,6 +3111,14 @@ function renderPlanning(){
     document.getElementById('planning-body').innerHTML='<div class="insights-error">⚠️ No data loaded yet.</div>';
     return;
   }
+  // Sync toggle button states
+  const catBtn=document.getElementById('plan-view-cat');
+  const prodBtn=document.getElementById('plan-view-prod');
+  if(catBtn){catBtn.style.background=planView==='category'?'var(--teal)':'transparent';catBtn.style.color=planView==='category'?'white':'var(--text-secondary)';}
+  if(prodBtn){prodBtn.style.background=planView==='product'?'var(--teal)':'transparent';prodBtn.style.color=planView==='product'?'white':'var(--text-secondary)';}
+  const pinPanel=document.getElementById('plan-pin-panel');
+  if(pinPanel)pinPanel.style.display=planView==='product'?'block':'none';
+
   planPinRenderTags();
   const months=getPlanMonths();
   const cats=[...new Set(allVariantRows.filter(r=>!r.amOnly).map(r=>r.category||'UNCATEGORISED'))].sort();
@@ -3103,7 +3130,7 @@ function renderPlanning(){
   const coverMonths=Math.max(1,Math.min(12,parseInt(saved['cover_months'])||2));
   const catSoh={},catVel30={};
   for(const r of allVariantRows){const c=r.category||'UNCATEGORISED';catSoh[c]=(catSoh[c]||0)+r.stock;catVel30[c]=(catVel30[c]||0)+(r.sold30||0)/30;}
-  const activeRows=allVariantRows.filter(r=>!r.amOnly);
+  const activeRows=getActiveRows().filter(r=>!r.amOnly);
   const productsByCat={};const prodSoh={},prodVel30={};
   for(const r of activeRows){
     const cat=r.category||'UNCATEGORISED';const pk=r.productName+'||'+r.colour;
@@ -3148,25 +3175,35 @@ function renderPlanning(){
     const soh=catSoh[cat]||0,vel=catVel30[cat]||0;
     const wksRaw=vel>0?(soh/(vel*7)):null,wks=wksRaw!==null?wksRaw.toFixed(1):null;
     const wksClass=wks===null?'plan-soh':parseFloat(wks)>=12?'plan-wks-ok':'plan-wks-warn';
-    const isExpanded=planExpandedCats.has(cat);
+    const isExpanded=planExpandedCats.has(cat)||planView==='product';
     const safeCat=cat.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+
+    const prodRows=(productsByCat[cat]||[]).map(p=>{
+      const pSoh=prodSoh[p.pk]||0,pVel=prodVel30[p.pk]||0;
+      const pWksRaw=pVel>0?(pSoh/(pVel*7)):null,pWks=pWksRaw!==null?pWksRaw.toFixed(1):null;
+      const pWksClass=pWks===null?'plan-soh':parseFloat(pWks)>=12?'plan-wks-ok':'plan-wks-warn';
+      const isPinned=planPinnedProds.has(p.pk);
+      // In product view, skip non-pinned if pins exist
+      if(planView==='product'&&planPinnedProds.size>0&&!isPinned)return'';
+      return`<tr style="background:${isPinned?'rgba(14,165,160,0.06)':'var(--surface2)'};${isPinned?'border-left:3px solid var(--teal);':'border-left:3px solid transparent;'}">
+        <td style="padding-left:${planView==='product'?'12':'28'}px;font-size:12px;text-align:left;">${isPinned?'<span style="color:var(--teal);margin-right:4px;">📌</span>':''}<span style="font-weight:500;">${p.productName}</span><span style="color:var(--teal);"> — ${p.colour}</span></td>
+        <td class="plan-soh" style="font-size:12px;">${pSoh.toLocaleString()}</td>
+        <td class="${pWksClass}" style="font-size:12px;">${pWks!==null?pWks+'w':'—'}</td>
+        ${buildCells(lyDataProd[p.pk]||{},onOrderDataProd[p.pk]||{},`to_prod_${p.pk}`,pSoh)}</tr>`;
+    }).join('');
+
+    if(planView==='product'){
+      // Product view — show category as a non-clickable header, then all products
+      if(!prodRows.trim())return'';
+      return`<tr style="background:var(--surface2);"><td class="plan-cat" colspan="3" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);padding:6px 12px;">${cat}</td>${months.map(()=>'<td colspan="5"></td>').join('')}</tr>${prodRows}`;
+    }
+
     const catRow=`<tr style="cursor:pointer;" onclick="togglePlanExpand('${safeCat}')">
       <td class="plan-cat"><span style="display:inline-block;width:16px;text-align:center;font-size:10px;transform:${isExpanded?'rotate(90deg)':'rotate(0deg)'};transition:transform 0.15s;">▶</span> ${cat}</td>
       <td class="plan-soh">${soh.toLocaleString()}</td>
       <td class="${wksClass}">${wks!==null?wks+'w':'—'}</td>
       ${buildCells(lyData[cat]||{},onOrderData[cat]||{},`to_${cat}`,soh)}</tr>`;
     if(!isExpanded)return catRow;
-    const prodRows=(productsByCat[cat]||[]).map(p=>{
-      const pSoh=prodSoh[p.pk]||0,pVel=prodVel30[p.pk]||0;
-      const pWksRaw=pVel>0?(pSoh/(pVel*7)):null,pWks=pWksRaw!==null?pWksRaw.toFixed(1):null;
-      const pWksClass=pWks===null?'plan-soh':parseFloat(pWks)>=12?'plan-wks-ok':'plan-wks-warn';
-      const isPinned=planPinnedProds.has(p.pk);
-      return`<tr style="background:${isPinned?'rgba(14,165,160,0.06)':'var(--surface2)'};${isPinned?'border-left:3px solid var(--teal);':'border-left:3px solid transparent;'}">
-        <td style="padding-left:28px;font-size:12px;">${isPinned?'<span style="color:var(--teal);margin-right:4px;">📌</span>':''}<span style="font-weight:500;">${p.productName}</span><span style="color:var(--teal);"> — ${p.colour}</span></td>
-        <td class="plan-soh" style="font-size:12px;">${pSoh.toLocaleString()}</td>
-        <td class="${pWksClass}" style="font-size:12px;">${pWks!==null?pWks+'w':'—'}</td>
-        ${buildCells(lyDataProd[p.pk]||{},onOrderDataProd[p.pk]||{},`to_prod_${p.pk}`,pSoh)}</tr>`;
-    }).join('');
     return catRow+prodRows;
   }).join('');
   const totalCells=months.map((m,mi)=>{
@@ -3286,9 +3323,9 @@ async function generateInsights(){
 }
 
 function analyseStockData(){
-  // Aggregate variant rows to product level (productName + colour)
+  // Aggregate variant rows to product level using active (Core/All filtered) rows
   const productMap={};
-  for(const r of allVariantRows){
+  for(const r of getActiveRows()){
     if(r.amOnly)continue;
     const k=r.productName+'||'+r.colour;
     if(!productMap[k]){
@@ -3296,7 +3333,7 @@ function analyseStockData(){
         productName:r.productName,colour:r.colour,category:r.category,
         vendor:r.vendor,stock:0,sold7:0,sold14:0,sold30:0,sold90:0,
         onOrder:0,discountPct:r.discountPct||0,flag:r.flag,
-        price:r.price,daysDisplay:r.daysDisplay
+        price:r.price,daysDisplay:r.daysDisplay,soldOutSizes:r.soldOutSizes||0
       };
     }
     const p=productMap[k];
@@ -3306,6 +3343,7 @@ function analyseStockData(){
     p.sold30+=(r.sold30||0);
     p.sold90+=(r.sold90||0);
     p.onOrder+=(r.onOrder||0)+(r.productOnOrder||0);
+    if((r.soldOutSizes||0)>0)p.soldOutSizes=r.soldOutSizes;
   }
   const products=Object.values(productMap);
 
@@ -3387,10 +3425,10 @@ function analyseStockData(){
   // ── 6. ORDER PROBLEMS ──
   // Slow movers (< 20 sold in 30 days) but have units on order
   const orderProblems=products
-    .filter(p=>p.sold30<20&&hasOrder(p)&&!isReduced(p))
+    .filter(p=>p.sold30<20&&hasOrder(p)&&!isReduced(p)&&(p.soldOutSizes||0)===0)
     .sort((a,b)=>b.onOrder-a.onOrder)
-    .slice(0,20)
-    .map(p=>({text:`${fmt(p)} — ${p.onOrder} units on order but only ${p.sold30} sold in last 30 days. Review if this order is still needed.`}));
+    .slice(0,5)
+    .map(p=>({text:`${fmt(p)} — ${p.onOrder.toLocaleString()} units on order but only ${p.sold30} sold in last 30 days (all sizes available). Review if this order is still needed.`}));
 
   return{needsReorder,needsMetaAds,stylesToWatch,slowerMovers,deadStyles,orderProblems};
 }
