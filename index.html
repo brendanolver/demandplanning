@@ -3156,9 +3156,6 @@ function setPlanView(val){
 }
 
 function setGlobalCoreFilter(val){
-  console.log('🔄 setGlobalCoreFilter:',val,'screen:',currentScreen,'total rows:',allVariantRows.length);
-  console.log('🔄 CORE rows:',allVariantRows.filter(r=>r.vendor==='CORE').length);
-  console.log('🔄 Vendor sample:',[...new Set(allVariantRows.slice(0,50).map(r=>r.vendor))].join(','));
   globalCoreFilter=val;
   _planLyDataProd=null; _planOnOrderDataProd=null; _planMonthsCache=null;
   const allBtn=document.getElementById('gcf-all');
@@ -6349,7 +6346,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     // Use price list if uploaded (matched by product title), fall back to sales file prices
     const price=plEntry?plEntry.price:(pm.price||0);
     const compareAt=plEntry?plEntry.compareAt:(pm.compareAt||pm.price||0);
-    const isCore=(vendor||'').toUpperCase()==='CORE'||coreSet.has(productName+' - '+colour);
+    const isCore=(vendor||'').toUpperCase()==='CORE'||coreSet.has((productName+' - '+colour).toUpperCase());
 
     // Delivery month: SKU decode is authoritative; Better Reports as fallback; CORE always shows CORE; AM as last resort
     let deliveryMonth='';
@@ -6411,7 +6408,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     // - Not discounted (no markdown applied)
     // - CORE, OR delivered within last 2 months, OR 30d sell-through >= 30%
     const isDiscounted=(compareAt>0&&price>0&&price<compareAt);
-    const isCoreSku=(vendor||'').toUpperCase()==='CORE'||coreSet.has(productName+' - '+colour);
+    const isCoreSku=(vendor||'').toUpperCase()==='CORE'||coreSet.has((productName+' - '+colour).toUpperCase());
     // Delivered within last 2 months — check SKU decode
     const skuDeliveryRaw=decodeSkuDelivery(sku);
     let deliveredRecently=false;
