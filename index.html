@@ -2931,7 +2931,12 @@ function planProdDropdownOpen(){
 function planPopulateCatDropdown(){
   const opts=document.getElementById('ms-plan-cat-options');if(!opts)return;
   const cats=[...new Set(getActiveRows().filter(r=>!r.amOnly).map(r=>r.category||'UNCATEGORISED'))].sort();
-  opts.innerHTML=cats.map(c=>`<label class="ms-item"><input type="checkbox" value="${c}" checked onchange="planCatChange()"> ${c}</label>`).join('');
+  opts.innerHTML=cats.map(c=>{
+    const checked=planSelectedCats.size===0||planSelectedCats.has(c);
+    return`<label class="ms-item"><input type="checkbox" value="${c}" ${checked?'checked':''} onchange="planCatChange()"> ${c}</label>`;
+  }).join('');
+  const allBox=document.getElementById('plan-cat-all');
+  if(allBox){allBox.checked=planSelectedCats.size===0;allBox.indeterminate=planSelectedCats.size>0&&planSelectedCats.size<cats.length;}
 }
 
 function planCatToggleAll(cb){
@@ -3252,6 +3257,16 @@ function renderPlanning(){
         <td style="${bg}"><span class="${varClass}">${cov===0?'—':(variance>=0?'+':'')+variance.toLocaleString()}</span></td>`;
     }).join('');
   }
+  // In product view with no selection at all, show prompt before building table
+  if(planView==='product'&&planSelectedProds.size===0&&planSelectedCats.size===0){
+    document.getElementById('planning-body').innerHTML=`<div class="insights-empty" style="margin-top:40px;">
+      <div class="insights-empty-ico">📦</div>
+      <div class="insights-empty-title">Search for products</div>
+      <div class="insights-empty-sub">Type in the search box above to find and select products to plan.</div>
+    </div>`;
+    return;
+  }
+
   const catRows=sortedCats.map(cat=>{
     const soh=catSoh[cat]||0,vel=catVel30[cat]||0;
     const wksRaw=vel>0?(soh/(vel*7)):null,wks=wksRaw!==null?wksRaw.toFixed(1):null;
@@ -3259,7 +3274,7 @@ function renderPlanning(){
     const isExpanded=planExpandedCats.has(cat);
     const safeCat=cat.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
 
-    // Product view — skip category rows, just return product rows
+    // Product view — no category header rows, just product rows
     if(planView==='product'){
       if(planSelectedCats.size>0&&!planSelectedCats.has(cat))return'';
       const prodRows=(productsByCat[cat]||[]).map(p=>{
@@ -3273,8 +3288,7 @@ function renderPlanning(){
           <td class="${pWksClass}" style="font-size:12px;">${pWks!==null?pWks+'w':'—'}</td>
           ${buildCells(lyDataProd[p.pk]||{},onOrderDataProd[p.pk]||{},`to_prod_${p.pk}`,pSoh)}</tr>`;
       }).join('');
-      if(!prodRows.trim())return'';
-      return`<tr><td class="plan-cat" colspan="3" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);padding:6px 12px;background:var(--surface2);">${cat}</td>${months.map(()=>'<td colspan="5" style="background:var(--surface2);"></td>').join('')}</tr>${prodRows}`;
+      return prodRows;
     }
 
     // Category view
@@ -3297,16 +3311,6 @@ function renderPlanning(){
     if(!isExpanded)return catRow;
     return catRow+prodRows;
   }).join('');
-
-  // In product view with no selection, show prompt instead of table
-  if(planView==='product'&&planSelectedProds.size===0&&planSelectedCats.size===0){
-    document.getElementById('planning-body').innerHTML=`<div class="insights-empty" style="margin-top:40px;">
-      <div class="insights-empty-ico">📦</div>
-      <div class="insights-empty-title">Search for products</div>
-      <div class="insights-empty-sub">Type in the search box above to find and select products to plan.</div>
-    </div>`;
-    return;
-  }
 
   const totalCells=months.map((m,mi)=>{
     const growth=parseFloat(saved[`growth_${m.key}`]||0)||0;
