@@ -3267,6 +3267,7 @@ function renderPlanning(){
     return;
   }
 
+  console.log('🗂 catRows render: planView='+planView+' planSelectedProds.size='+planSelectedProds.size+' cats='+sortedCats.length);
   const catRows=sortedCats.map(cat=>{
     const soh=catSoh[cat]||0,vel=catVel30[cat]||0;
     const wksRaw=vel>0?(soh/(vel*7)):null,wks=wksRaw!==null?wksRaw.toFixed(1):null;
