@@ -1153,27 +1153,30 @@ th{position:relative;}
           <button class="insights-refresh-btn" onclick="clearPlanningData()" style="background:var(--surface);border:1px solid var(--border);color:var(--text-secondary);">✕ Clear All</button>
         </div>
       </div>
-      <div id="plan-pin-panel" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:16px;box-shadow:var(--shadow-xs);">
-        <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">📌 Pin Products</div>
-        <div style="position:relative;display:inline-block;width:360px;max-width:100%;">
-          <input type="text" id="plan-pin-search" placeholder="Search product to pin..." autocomplete="off"
-            oninput="planPinSearch()"
-            style="width:100%;padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;outline:none;"
-            onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
-          <div id="plan-pin-results" style="display:none;position:absolute;z-index:300;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);min-width:100%;max-height:280px;overflow-y:auto;top:100%;left:0;margin-top:2px;">
-            <div style="padding:6px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
-              <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
-                <input type="checkbox" id="plan-pin-select-all" onchange="planPinSelectAll(this)"> Select All
-              </label>
-              <span id="plan-pin-count" style="font-size:11px;color:var(--text-muted);"></span>
-            </div>
-            <div id="plan-pin-list"></div>
-            <div style="padding:8px 12px;border-top:1px solid var(--border);">
-              <button onclick="planPinApply()" style="width:100%;padding:6px;background:var(--teal);color:white;border:none;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">✓ Add Selected</button>
+      <div id="plan-pin-panel" style="display:none;margin-bottom:12px;">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <!-- Category filter -->
+          <div class="ms-wrap" id="ms-plan-cat">
+            <button class="ms-btn" onclick="toggleDropdown('ms-plan-cat')"><span id="ms-plan-cat-label">All Categories</span><span class="ms-arrow">▾</span></button>
+            <div class="ms-dropdown" id="ms-plan-cat-dropdown">
+              <label class="ms-item ms-all"><input type="checkbox" id="plan-cat-all" checked onchange="planCatToggleAll(this)"> All Categories</label>
+              <div id="ms-plan-cat-options"></div>
             </div>
           </div>
+          <!-- Product search -->
+          <div style="position:relative;">
+            <input type="text" id="plan-prod-search" placeholder="Search products..." autocomplete="off"
+              oninput="planProdSearchFilter()"
+              style="padding:7px 12px;border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;outline:none;width:280px;"
+              onfocus="this.style.borderColor='var(--teal)'" onblur="setTimeout(()=>{const d=document.getElementById('plan-prod-dropdown');if(d)d.style.display='none';},200);this.style.borderColor='var(--border)'">
+            <div id="plan-prod-dropdown" style="display:none;position:absolute;z-index:300;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);min-width:100%;max-height:260px;overflow-y:auto;top:100%;left:0;margin-top:2px;">
+              <label class="ms-item ms-all"><input type="checkbox" id="plan-prod-select-all" onchange="planProdToggleAll(this)"> Select All</label>
+              <div id="ms-plan-prod-options"></div>
+            </div>
+          </div>
+          <div id="plan-prod-tags" style="display:flex;flex-wrap:wrap;gap:5px;"></div>
+          <button onclick="planProdClearFilters()" class="clear-btn" id="plan-prod-clear" style="display:none;">✕ Clear</button>
         </div>
-        <div id="plan-pin-tags" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;"></div>
       </div>
       <div id="planning-body">
         <div class="insights-empty">
@@ -2915,78 +2918,142 @@ function togglePlanExpand(cat){
   renderPlanning();
 }
 
-function planPinSearch(){
-  const val=(document.getElementById('plan-pin-search')?.value||'').trim().toUpperCase();
-  const list=document.getElementById('plan-pin-list');
-  const res=document.getElementById('plan-pin-results');
-  if(!list||!res)return;
-  if(val.length<2){res.style.display='none';return;}
-  const seen=new Set();const matches=[];
-  for(const r of allVariantRows.filter(r=>!r.amOnly)){
-    const key=r.productName+'||'+r.colour;
-    if(seen.has(key))continue;seen.add(key);
-    if((r.productName+' '+r.colour).toUpperCase().includes(val))matches.push({key,productName:r.productName,colour:r.colour});
+// ── PLANNING PRODUCT VIEW FILTERS ──
+let _planLyDataProd=null, _planOnOrderDataProd=null, _planMonthsCache=null;
+let planSelectedCats=new Set(); // empty = all
+let planSelectedProds=new Set(); // empty = all
+
+function planProdDropdownOpen(){
+  toggleDropdown('ms-plan-prod');
+  planPopulateProdDropdown();
+}
+
+function planPopulateCatDropdown(){
+  const opts=document.getElementById('ms-plan-cat-options');if(!opts)return;
+  const cats=[...new Set(getActiveRows().filter(r=>!r.amOnly).map(r=>r.category||'UNCATEGORISED'))].sort();
+  opts.innerHTML=cats.map(c=>`<label class="ms-item"><input type="checkbox" value="${c}" checked onchange="planCatChange()"> ${c}</label>`).join('');
+}
+
+function planCatToggleAll(cb){
+  document.querySelectorAll('#ms-plan-cat-options input').forEach(b=>b.checked=cb.checked);
+  planCatChange();
+}
+
+function planCatChange(){
+  const boxes=[...document.querySelectorAll('#ms-plan-cat-options input')];
+  const checked=boxes.filter(b=>b.checked).map(b=>b.value);
+  planSelectedCats=checked.length===boxes.length?new Set():new Set(checked);
+  const allBox=document.getElementById('plan-cat-all');
+  if(allBox){allBox.checked=planSelectedCats.size===0;allBox.indeterminate=planSelectedCats.size>0&&planSelectedCats.size<boxes.length;}
+  const label=document.getElementById('ms-plan-cat-label');
+  if(label)label.textContent=planSelectedCats.size===0?'All Categories':planSelectedCats.size===1?[...planSelectedCats][0]:`${planSelectedCats.size} Categories`;
+  // Clear product selection when category changes
+  planSelectedProds=new Set();
+  planProdRenderTags();
+  renderPlanning();
+}
+
+function planProdSearchFilter(){
+  const val=(document.getElementById('plan-prod-search')?.value||'').trim();
+  const dd=document.getElementById('plan-prod-dropdown');
+  const opts=document.getElementById('ms-plan-prod-options');
+  if(!dd||!opts)return;
+  if(val.length<2){dd.style.display='none';opts.innerHTML='';return;}
+  const search=val.toUpperCase();
+  const rows=getActiveRows().filter(r=>!r.amOnly);
+  const seen=new Set();const prods=[];
+  for(const r of rows){
+    if(planSelectedCats.size>0&&!planSelectedCats.has(r.category||'UNCATEGORISED'))continue;
+    const pk=r.productName+'||'+r.colour;
+    if(seen.has(pk))continue;seen.add(pk);
+    if(!(r.productName+' '+r.colour).toUpperCase().includes(search))continue;
+    prods.push({pk,label:`${r.productName} — ${r.colour}`});
   }
-  if(!matches.length){list.innerHTML='<div style="padding:10px 12px;font-size:12px;color:var(--text-muted);">No results</div>';res.style.display='block';return;}
-  list.innerHTML=matches.map(m=>{
-    const added=planPinnedProds.has(m.key);
-    return`<label style="display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;${added?'opacity:0.45;':''}border-bottom:1px solid var(--border-light);">
-      <input type="checkbox" value="${m.key}" ${added?'disabled checked':''} onchange="planPinUpdateCount()">
-      <span style="font-size:12px;">${m.productName}<span style="color:var(--teal);"> — ${m.colour}</span></span>
-      ${added?'<span style="margin-left:auto;font-size:10px;color:var(--teal);">✓ pinned</span>':''}
-    </label>`;
+  if(!prods.length){opts.innerHTML='<div style="padding:8px 12px;font-size:12px;color:var(--text-muted);">No results</div>';dd.style.display='block';return;}
+  opts.innerHTML=prods.map(p=>{
+    const sel=planSelectedProds.has(p.pk);
+    return`<label class="ms-item"><input type="checkbox" value="${p.pk}" ${sel?'checked':''} onchange="planProdChange()"> <span style="font-size:12px;">${p.label}</span></label>`;
   }).join('');
-  res.style.display='block';
-  planPinUpdateCount();
+  const allBox=document.getElementById('plan-prod-select-all');
+  if(allBox)allBox.checked=prods.every(p=>planSelectedProds.has(p.pk));
+  dd.style.display='block';
 }
 
-function planPinSelectAll(cb){
-  document.querySelectorAll('#plan-pin-list input[type="checkbox"]:not([disabled])').forEach(b=>b.checked=cb.checked);
-  planPinUpdateCount();
+function planProdToggleAll(cb){
+  document.querySelectorAll('#ms-plan-prod-options input').forEach(b=>b.checked=cb.checked);
+  planProdChange();
 }
 
-function planPinUpdateCount(){
-  const checked=[...document.querySelectorAll('#plan-pin-list input[type="checkbox"]:checked:not([disabled])')];
-  const count=document.getElementById('plan-pin-count');
-  if(count)count.textContent=checked.length?`${checked.length} selected`:'';
-  const all=document.querySelectorAll('#plan-pin-list input[type="checkbox"]:not([disabled])');
-  const allChecked=[...all].every(b=>b.checked);
-  const sa=document.getElementById('plan-pin-select-all');
-  if(sa){sa.checked=all.length>0&&allChecked;sa.indeterminate=!allChecked&&checked.length>0;}
+function planProdChange(){
+  const boxes=[...document.querySelectorAll('#ms-plan-prod-options input')];
+  boxes.forEach(b=>{if(b.checked)planSelectedProds.add(b.value);else planSelectedProds.delete(b.value);});
+  planProdRenderTags();
+  renderPlanning();
 }
 
-function planPinApply(){
-  document.querySelectorAll('#plan-pin-list input[type="checkbox"]:checked:not([disabled])').forEach(cb=>{
-    planPinnedProds.add(cb.value);
-    const r=allVariantRows.find(r=>r.productName+'||'+r.colour===cb.value);
-    if(r)planExpandedCats.add(r.category||'UNCATEGORISED');
-  });
-  const inp=document.getElementById('plan-pin-search');if(inp)inp.value='';
-  const res=document.getElementById('plan-pin-results');if(res)res.style.display='none';
-  planPinRenderTags();renderPlanning();
-}
-
-function planPinRemove(key){planPinnedProds.delete(key);planPinRenderTags();renderPlanning();}
-
-function planPinClear(){
-  planPinnedProds.clear();
-  const inp=document.getElementById('plan-pin-search');if(inp)inp.value='';
-  const res=document.getElementById('plan-pin-results');if(res)res.style.display='none';
-  planPinRenderTags();renderPlanning();
-}
-
-function planPinRenderTags(){
-  const wrap=document.getElementById('plan-pin-tags');if(!wrap)return;
-  if(!planPinnedProds.size){wrap.innerHTML='';return;}
-  wrap.innerHTML=[...planPinnedProds].map(key=>{
-    const parts=key.split('||');
-    const safeKey=key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    return`<span style="display:inline-flex;align-items:center;gap:5px;background:var(--teal-light);color:var(--teal-dark);border:1px solid rgba(14,165,160,0.25);border-radius:var(--r-pill);padding:3px 10px;font-size:12px;font-weight:500;">
-      📌 ${parts[0]}${parts[1]?' — '+parts[1]:''}
-      <button onclick="planPinRemove('${safeKey}')" style="background:none;border:none;cursor:pointer;color:var(--teal);font-size:13px;line-height:1;padding:0 0 0 2px;">×</button>
+function planProdRenderTags(){
+  const wrap=document.getElementById('plan-prod-tags');
+  const clearBtn=document.getElementById('plan-prod-clear');
+  if(!wrap)return;
+  if(!planSelectedProds.size){wrap.innerHTML='';if(clearBtn)clearBtn.style.display='none';return;}
+  if(clearBtn)clearBtn.style.display='';
+  wrap.innerHTML=[...planSelectedProds].map(pk=>{
+    const parts=pk.split('||');
+    const safePk=pk.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    return`<span style="display:inline-flex;align-items:center;gap:4px;background:var(--teal-light);color:var(--teal-dark);border:1px solid rgba(14,165,160,0.25);border-radius:var(--r-pill);padding:2px 8px;font-size:11px;font-weight:500;">
+      ${parts[0]}${parts[1]?' — '+parts[1]:''}
+      <button onclick="planProdRemove('${safePk}')" style="background:none;border:none;cursor:pointer;color:var(--teal);font-size:12px;line-height:1;padding:0 0 0 2px;">×</button>
     </span>`;
-  }).join('')+`<button onclick="planPinClear()" style="padding:3px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-pill);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✕ Clear All</button>`;
+  }).join('');
 }
+
+function planProdRemove(pk){
+  planSelectedProds.delete(pk);
+  planProdRenderTags();
+  renderPlanning();
+}
+
+function planProdClearFilters(){
+  planSelectedCats=new Set();planSelectedProds=new Set();
+  document.querySelectorAll('#ms-plan-cat-options input').forEach(b=>b.checked=true);
+  const allCat=document.getElementById('plan-cat-all');if(allCat)allCat.checked=true;
+  document.getElementById('ms-plan-cat-label').textContent='All Categories';
+  const inp=document.getElementById('plan-prod-search');if(inp)inp.value='';
+  const dd=document.getElementById('plan-prod-dropdown');if(dd)dd.style.display='none';
+  planProdRenderTags();
+  renderPlanning();
+}
+
+// No-ops for old pin code that might be referenced
+function planPinRenderTags(){}
+
+function planSendToSizeWorkings(){
+  const saved=getPlanningData();
+  const months=getPlanMonths();
+  const currentMonthKey=months.find(m=>m.isCurrent)?.key;
+  if(!currentMonthKey){alert('Could not determine current month.');return;}
+  const products=[];
+  for(const[key,val]of Object.entries(saved)){
+    if(!key.startsWith('to_prod_')||!key.endsWith('_'+currentMonthKey))continue;
+    const qty=parseInt(val)||0;if(!qty)continue;
+    const inner=key.slice(8,key.length-currentMonthKey.length-1);
+    const si=inner.indexOf('||');if(si<0)continue;
+    const productName=inner.slice(0,si),colour=inner.slice(si+2);
+    products.push({fullTitle:productName+' - '+colour,productName,colour,qty});
+  }
+  if(!products.length){alert('No current-month To Order quantities entered at product level yet.\n\nExpand a category row and enter quantities in the To Order column.');return;}
+  const swData=getSwData();
+  for(const{productName,colour,qty}of products){
+    const swKey=`${productName}||${colour}`;
+    if(!swData[swKey])swData[swKey]={};
+    swData[swKey].total=String(qty);
+  }
+  saveSwData(swData);
+  showScreen('markdowns');setWorkingView('sizeworkings');setSwTab('product');
+  window._roToSwProducts=products.map(p=>({fullTitle:p.fullTitle,qty:p.qty}));
+  renderRoSizeWorkings();
+}
+
 
 function planSendToSizeWorkings(){
   const saved=getPlanningData();
@@ -3090,6 +3157,7 @@ function setPlanView(val){
 
 function setGlobalCoreFilter(val){
   globalCoreFilter=val;
+  _planLyDataProd=null; _planOnOrderDataProd=null; _planMonthsCache=null; // invalidate cache
   const allBtn=document.getElementById('gcf-all');
   const coreBtn=document.getElementById('gcf-core');
   if(allBtn){allBtn.style.background=val==='all'?'var(--teal)':'transparent';allBtn.style.color=val==='all'?'white':'var(--navy-text)';}
@@ -3118,14 +3186,24 @@ function renderPlanning(){
   if(prodBtn){prodBtn.style.background=planView==='product'?'var(--teal)':'transparent';prodBtn.style.color=planView==='product'?'white':'var(--text-secondary)';}
   const pinPanel=document.getElementById('plan-pin-panel');
   if(pinPanel)pinPanel.style.display=planView==='product'?'block':'none';
+  // Populate filter dropdowns when switching to product view
+  if(planView==='product'){
+    planPopulateCatDropdown();
+    planPopulateProdDropdown();
+  }
 
-  planPinRenderTags();
   const months=getPlanMonths();
   const cats=[...new Set(allVariantRows.filter(r=>!r.amOnly).map(r=>r.category||'UNCATEGORISED'))].sort();
   const lyData=getLYSalesByCategory(months);
   const onOrderData=getAMOnOrderByCategory(months);
-  const lyDataProd=getLYSalesByProduct(months);
-  const onOrderDataProd=getAMOnOrderByProduct(months);
+  // Cache expensive per-product LY/onOrder calculations
+  if(!_planLyDataProd||!_planMonthsCache||_planMonthsCache[0]?.key!==months[0]?.key){
+    _planLyDataProd=getLYSalesByProduct(months);
+    _planOnOrderDataProd=getAMOnOrderByProduct(months);
+    _planMonthsCache=months;
+  }
+  const lyDataProd=_planLyDataProd;
+  const onOrderDataProd=_planOnOrderDataProd;
   const saved=getPlanningData();
   const coverMonths=Math.max(1,Math.min(12,parseInt(saved['cover_months'])||2));
   const catSoh={},catVel30={};
@@ -3182,21 +3260,21 @@ function renderPlanning(){
       const pSoh=prodSoh[p.pk]||0,pVel=prodVel30[p.pk]||0;
       const pWksRaw=pVel>0?(pSoh/(pVel*7)):null,pWks=pWksRaw!==null?pWksRaw.toFixed(1):null;
       const pWksClass=pWks===null?'plan-soh':parseFloat(pWks)>=12?'plan-wks-ok':'plan-wks-warn';
-      const isPinned=planPinnedProds.has(p.pk);
-      // In product view, skip non-pinned if pins exist
-      if(planView==='product'&&planPinnedProds.size>0&&!isPinned)return'';
-      return`<tr style="background:${isPinned?'rgba(14,165,160,0.06)':'var(--surface2)'};${isPinned?'border-left:3px solid var(--teal);':'border-left:3px solid transparent;'}">
-        <td style="padding-left:${planView==='product'?'12':'28'}px;font-size:12px;text-align:left;">${isPinned?'<span style="color:var(--teal);margin-right:4px;">📌</span>':''}<span style="font-weight:500;">${p.productName}</span><span style="color:var(--teal);"> — ${p.colour}</span></td>
+      // In product view, apply product filter
+      if(planView==='product'&&planSelectedProds.size>0&&!planSelectedProds.has(p.pk))return'';
+      return`<tr style="background:var(--surface2);border-left:3px solid transparent;">
+        <td style="padding-left:${planView==='product'?'12':'28'}px;font-size:12px;text-align:left;"><span style="font-weight:500;">${p.productName}</span><span style="color:var(--teal);"> — ${p.colour}</span></td>
         <td class="plan-soh" style="font-size:12px;">${pSoh.toLocaleString()}</td>
         <td class="${pWksClass}" style="font-size:12px;">${pWks!==null?pWks+'w':'—'}</td>
         ${buildCells(lyDataProd[p.pk]||{},onOrderDataProd[p.pk]||{},`to_prod_${p.pk}`,pSoh)}</tr>`;
     }).join('');
 
-    if(planView==='product'){
-      // Product view — show category as a non-clickable header, then all products
-      if(!prodRows.trim())return'';
-      return`<tr style="background:var(--surface2);"><td class="plan-cat" colspan="3" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);padding:6px 12px;">${cat}</td>${months.map(()=>'<td colspan="5"></td>').join('')}</tr>${prodRows}`;
-    }
+  if(planView==='product'){
+    // In product view, apply category filter
+    if(planSelectedCats.size>0&&!planSelectedCats.has(cat))return'';
+    if(!prodRows.trim())return'';
+    return`<tr style="background:var(--surface2);"><td class="plan-cat" colspan="3" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;color:var(--text-muted);padding:6px 12px;">${cat}</td>${months.map(()=>'<td colspan="5"></td>').join('')}</tr>${prodRows}`;
+  }
 
     const catRow=`<tr style="cursor:pointer;" onclick="togglePlanExpand('${safeCat}')">
       <td class="plan-cat"><span style="display:inline-block;width:16px;text-align:center;font-size:10px;transform:${isExpanded?'rotate(90deg)':'rotate(0deg)'};transition:transform 0.15s;">▶</span> ${cat}</td>
@@ -3206,6 +3284,16 @@ function renderPlanning(){
     if(!isExpanded)return catRow;
     return catRow+prodRows;
   }).join('');
+  // In product view with no selection, show prompt
+  if(planView==='product'&&planSelectedProds.size===0&&planSelectedCats.size===0){
+    document.getElementById('planning-body').innerHTML=`<div class="insights-empty" style="margin-top:40px;">
+      <div class="insights-empty-ico">📦</div>
+      <div class="insights-empty-title">Search for products</div>
+      <div class="insights-empty-sub">Type in the search box above to find and select products to plan.</div>
+    </div>`;
+    return;
+  }
+
   const totalCells=months.map((m,mi)=>{
     const growth=parseFloat(saved[`growth_${m.key}`]||0)||0;
     let tb=0,tsoh=0,too=0,tto=0,tcov=0;
