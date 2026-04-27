@@ -5520,6 +5520,7 @@ function autoSyncAuth(){
     client_id:GDRIVE_CLIENT_ID,
     scope:GDRIVE_SCOPE,
     callback:(tokenResponse)=>{
+      console.log('🔑 Auth callback fired, error:',tokenResponse.error||'none');
       if(tokenResponse.error){
         setLoadingProgress(0,'⚠️ Google auth failed. Try manual upload.');
         setTimeout(showUploadScreen,2500);
@@ -5530,18 +5531,21 @@ function autoSyncAuth(){
       autoSyncFetch();
     }
   });
+  console.log('🔑 Requesting access token...');
   client.requestAccessToken();
 }
 
 async function autoSyncFetch(){
   const folderName='WNDRR Stock Demand Planning App';
   try{
+    console.log('📂 autoSyncFetch started');
     setLoadingProgress(35,'Finding Drive folder...');
     const folderRes=await fetch(
       `https://www.googleapis.com/drive/v3/files?q=name='${encodeURIComponent(folderName)}' and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id,name)`,
       {headers:{Authorization:`Bearer ${gdriveToken}`}}
     );
     const folderData=await folderRes.json();
+    console.log('📂 Folder search result:',JSON.stringify(folderData));
     if(!folderData.files?.length){
       setLoadingProgress(0,`⚠️ Folder "${folderName}" not found in Drive.`);
       setTimeout(showUploadScreen,2500);return;
@@ -5554,6 +5558,7 @@ async function autoSyncFetch(){
     );
     const filesData=await filesRes.json();
     const files=filesData.files||[];
+    console.log('📂 Files in folder:',files.map(f=>f.name));
 
     const fileMap={
       'shopify_inventory.csv':{loader:'inv',exact:true,sheet:false},
@@ -5561,21 +5566,26 @@ async function autoSyncFetch(){
       'All Products Sizes Sold Out':{loader:'soldout',exact:false,sheet:false},
       'Variants 0 inventory by Product':{loader:'variantssoldout',exact:false,sheet:false},
       'Core Styles':{loader:'corestyles',exact:false,sheet:false},
-        'All_Products_List':{loader:'allproductslist',exact:false,sheet:false},
-        'All Products List':{loader:'allproductslist',exact:false,sheet:false},
+      'All_Products_List':{loader:'allproductslist',exact:false,sheet:false,optional:true},
+      'All Products List':{loader:'allproductslist',exact:false,sheet:false,optional:true},
       'Current Bundle Styles':{loader:'bundlestyles',exact:false,sheet:false},
       'Order Item Analysis':{loader:'am',exact:false,sheet:false},
     };
     const fileLabels={inv:'Inventory',sales:'Sales History',soldout:'All Products',variantssoldout:'Variants Sold Out',corestyles:'Core Styles',bundlestyles:'Bundle Styles',am:'Apparel Magic'};
+    const claimedIds=new Set();
     let loaded=0;
-    const total=Object.keys(fileMap).length;
+    const total=Object.values(fileMap).filter(c=>!c.optional).length;
     const errors=[];
 
     for(const[filename,config]of Object.entries(fileMap)){
       const pct=45+Math.round((loaded/total)*50);
-      setLoadingProgress(pct,`Downloading ${fileLabels[config.loader]}...`);
-      let match=config.exact?files.find(f=>f.name.toLowerCase()===filename.toLowerCase()):files.find(f=>f.name.toLowerCase().startsWith(filename.toLowerCase()));
-      if(!match){errors.push(fileLabels[config.loader]);loaded++;continue;}
+      setLoadingProgress(pct,`Downloading ${fileLabels[config.loader]||''}...`);
+      let match=config.exact
+        ?files.find(f=>!claimedIds.has(f.id)&&f.name.toLowerCase()===filename.toLowerCase())
+        :files.find(f=>!claimedIds.has(f.id)&&f.name.toLowerCase().includes(filename.toLowerCase()));
+      console.log(`📄 ${filename} → ${match?match.name:'NOT FOUND'}${config.optional?' (optional)':''}`);
+      if(!match){if(!config.optional){errors.push(fileLabels[config.loader]);loaded++;}continue;}
+      claimedIds.add(match.id);
       let text;
       if(config.sheet||match.mimeType==='application/vnd.google-apps.spreadsheet'){
         const dlRes=await fetch(`https://www.googleapis.com/drive/v3/files/${match.id}/export?mimeType=text/csv`,{headers:{Authorization:`Bearer ${gdriveToken}`}});
@@ -5606,16 +5616,17 @@ async function autoSyncFetch(){
     await new Promise(r=>setTimeout(r,300));
 
     if(shopifyInvData&&shopifySalesData){
+      console.log('✅ Required files loaded, calling buildDashboard. Errors:',errors);
       setLoadingProgress(100,'Ready!');
       await new Promise(r=>setTimeout(r,400));
       document.getElementById('loading-screen').style.display='none';
       buildDashboard();
       if(errors.length){
-        // Show a subtle warning in topbar
         const pill=document.getElementById('nav-count');
         if(pill)pill.title=`⚠️ Missing files: ${errors.join(', ')}`;
       }
     } else {
+      console.error('❌ Missing required files. inv:',!!shopifyInvData,'sales:',!!shopifySalesData,'errors:',errors);
       setLoadingProgress(0,`⚠️ Missing required files: ${errors.join(', ')}. Please upload manually.`);
       setTimeout(showUploadScreen,2500);
     }
@@ -6607,21 +6618,22 @@ function buildVariantRows(){
 
 /* ── DASHBOARD ── */
 function buildDashboard(){
+  console.log('🟢 buildDashboard called');
+  try{
   document.getElementById('upload-screen').style.display='none';
   document.getElementById('app').style.display='flex';
-  currentView='category'; // always start on category view
-  // Clear AM cache to ensure style field is picked up from latest buildAMData logic
+  currentView='category';
   _cachedAMData=null;
-  // Ensure all screens are in correct state
   showScreen('dashboard');
   buildVariantRows();
-
+  console.log('🟢 buildVariantRows done, rows:',allVariantRows.length);
   const oos=allVariantRows.filter(r=>r.flag==='oos').length;
   const reorder=allVariantRows.filter(r=>r.flag==='reorder').length;
   const onOrd=allVariantRows.filter(r=>r.flag==='on-order').length;
   document.getElementById('sb-oos-count').textContent=oos;
   document.getElementById('sb-crit-count').textContent=reorder;
   document.getElementById('sb-onorder-count').textContent=onOrd;
+  }catch(err){console.error('❌ buildDashboard error:',err);}
 }
 
 function renderKPIs(){
