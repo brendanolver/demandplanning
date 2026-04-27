@@ -1165,7 +1165,7 @@ th{position:relative;}
           </div>
           <!-- Product search -->
           <div style="position:relative;">
-            <input type="text" id="plan-prod-search" placeholder="Search products..." autocomplete="off"
+            <input type="text" id="plan-prod-search" placeholder="Search & select specific products..." autocomplete="off"
               oninput="planProdSearchFilter()"
               style="padding:7px 12px;border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;outline:none;width:280px;"
               onfocus="this.style.borderColor='var(--teal)'" onblur="setTimeout(()=>{const d=document.getElementById('plan-prod-dropdown');if(d)d.style.display='none';},200);this.style.borderColor='var(--border)'">
@@ -2932,36 +2932,26 @@ function planPopulateCatDropdown(){
   const opts=document.getElementById('ms-plan-cat-options');if(!opts)return;
   const cats=[...new Set(getActiveRows().filter(r=>!r.amOnly).map(r=>r.category||'UNCATEGORISED'))].sort();
   opts.innerHTML=cats.map(c=>{
-    const checked=planSelectedCats.size===0||planSelectedCats.has(c);
+    const checked=planSelectedCats.has(c);
     return`<label class="ms-item"><input type="checkbox" value="${c}" ${checked?'checked':''} onchange="planCatChange()"> ${c}</label>`;
   }).join('');
   const allBox=document.getElementById('plan-cat-all');
-  if(allBox){allBox.checked=planSelectedCats.size===0;allBox.indeterminate=planSelectedCats.size>0&&planSelectedCats.size<cats.length;}
+  if(allBox){allBox.checked=false;allBox.indeterminate=planSelectedCats.size>0;}
 }
 
 function planCatToggleAll(cb){
-  if(cb.checked){
-    // Check all = no filter = show all
-    document.querySelectorAll('#ms-plan-cat-options input').forEach(b=>b.checked=true);
-    planSelectedCats=new Set();
-    const label=document.getElementById('ms-plan-cat-label');
-    if(label)label.textContent='All Categories';
-    planSelectedProds=new Set();planProdRenderTags();
-    renderPlanning();
-  } else {
-    planCatChange();
-  }
+  document.querySelectorAll('#ms-plan-cat-options input').forEach(b=>b.checked=cb.checked);
+  planCatChange();
 }
 
 function planCatChange(){
   const boxes=[...document.querySelectorAll('#ms-plan-cat-options input')];
   const checked=boxes.filter(b=>b.checked).map(b=>b.value);
-  planSelectedCats=checked.length===boxes.length?new Set():new Set(checked);
+  planSelectedCats=new Set(checked);
   const allBox=document.getElementById('plan-cat-all');
-  if(allBox){allBox.checked=planSelectedCats.size===0;allBox.indeterminate=planSelectedCats.size>0&&planSelectedCats.size<boxes.length;}
+  if(allBox){allBox.checked=boxes.length>0&&checked.length===boxes.length;allBox.indeterminate=checked.length>0&&checked.length<boxes.length;}
   const label=document.getElementById('ms-plan-cat-label');
   if(label)label.textContent=planSelectedCats.size===0?'All Categories':planSelectedCats.size===1?[...planSelectedCats][0]:`${planSelectedCats.size} Categories`;
-  // Clear product selection when category changes
   planSelectedProds=new Set();
   planProdRenderTags();
   renderPlanning();
@@ -3270,12 +3260,12 @@ function renderPlanning(){
         <td style="${bg}"><span class="${varClass}">${cov===0?'—':(variance>=0?'+':'')+variance.toLocaleString()}</span></td>`;
     }).join('');
   }
-  // In product view with no selection at all, show prompt before building table
+  // In product view with no selection, show prompt
   if(planView==='product'&&planSelectedProds.size===0&&planSelectedCats.size===0){
     document.getElementById('planning-body').innerHTML=`<div class="insights-empty" style="margin-top:40px;">
       <div class="insights-empty-ico">📦</div>
-      <div class="insights-empty-title">Search for products</div>
-      <div class="insights-empty-sub">Type in the search box above to find and select products to plan.</div>
+      <div class="insights-empty-title">Select a category or search for products</div>
+      <div class="insights-empty-sub">Use the Category dropdown or search box above to filter products.</div>
     </div>`;
     return;
   }
