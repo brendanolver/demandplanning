@@ -3034,46 +3034,49 @@ function planPinRenderTags(){}
 function planSendToSizeWorkings(){
   const saved=getPlanningData();
   const months=getPlanMonths();
-  const currentMonthKey=months.find(m=>m.isCurrent)?.key;
-  if(!currentMonthKey){alert('Could not determine current month.');return;}
+
+  // Find which months have product-level To Order quantities entered
+  const monthsWithQtys=new Set();
+  for(const key of Object.keys(saved)){
+    if(!key.startsWith('to_prod_'))continue;
+    const qty=parseInt(saved[key])||0;if(!qty)continue;
+    // Key format: to_prod_NAME||COLOUR_YYYY-MM
+    const lastUnderscore=key.lastIndexOf('_');
+    if(lastUnderscore<0)continue;
+    monthsWithQtys.add(key.slice(lastUnderscore+1));
+  }
+
+  if(!monthsWithQtys.size){
+    alert('No To Order quantities entered at product level yet.\n\nSwitch to Products view, expand products and enter quantities in the To Order column.');
+    return;
+  }
+
+  // Let user pick which month if multiple have quantities
+  let selectedMonthKey;
+  if(monthsWithQtys.size===1){
+    selectedMonthKey=[...monthsWithQtys][0];
+  } else {
+    const monthLabels=months.filter(m=>monthsWithQtys.has(m.key)).map(m=>`${m.label} (${m.key})`);
+    const choice=prompt(`Multiple months have To Order quantities.\n\nEnter the month number to use:\n${monthLabels.map((l,i)=>`${i+1}. ${l}`).join('\n')}`,'1');
+    if(choice===null)return;
+    const idx=(parseInt(choice)||1)-1;
+    const matching=months.filter(m=>monthsWithQtys.has(m.key));
+    if(!matching[idx]){alert('Invalid selection.');return;}
+    selectedMonthKey=matching[idx].key;
+  }
+
   const products=[];
   for(const[key,val]of Object.entries(saved)){
-    if(!key.startsWith('to_prod_')||!key.endsWith('_'+currentMonthKey))continue;
+    if(!key.startsWith('to_prod_')||!key.endsWith('_'+selectedMonthKey))continue;
     const qty=parseInt(val)||0;if(!qty)continue;
-    const inner=key.slice(8,key.length-currentMonthKey.length-1);
+    const inner=key.slice('to_prod_'.length,key.length-selectedMonthKey.length-1);
     const si=inner.indexOf('||');if(si<0)continue;
     const productName=inner.slice(0,si),colour=inner.slice(si+2);
     products.push({fullTitle:productName+' - '+colour,productName,colour,qty});
   }
-  if(!products.length){alert('No current-month To Order quantities entered at product level yet.\n\nExpand a category row and enter quantities in the To Order column.');return;}
-  const swData=getSwData();
-  for(const{productName,colour,qty}of products){
-    const swKey=`${productName}||${colour}`;
-    if(!swData[swKey])swData[swKey]={};
-    swData[swKey].total=String(qty);
-  }
-  saveSwData(swData);
-  showScreen('markdowns');setWorkingView('sizeworkings');setSwTab('product');
-  window._roToSwProducts=products.map(p=>({fullTitle:p.fullTitle,qty:p.qty}));
-  renderRoSizeWorkings();
-}
 
+  if(!products.length){alert('No quantities found for that month.');return;}
 
-function planSendToSizeWorkings(){
-  const saved=getPlanningData();
-  const months=getPlanMonths();
-  const currentMonthKey=months.find(m=>m.isCurrent)?.key;
-  if(!currentMonthKey){alert('Could not determine current month.');return;}
-  const products=[];
-  for(const[key,val]of Object.entries(saved)){
-    if(!key.startsWith('to_prod_')||!key.endsWith('_'+currentMonthKey))continue;
-    const qty=parseInt(val)||0;if(!qty)continue;
-    const inner=key.slice(8,key.length-currentMonthKey.length-1);
-    const si=inner.indexOf('||');if(si<0)continue;
-    const productName=inner.slice(0,si),colour=inner.slice(si+2);
-    products.push({fullTitle:productName+' - '+colour,productName,colour,qty});
-  }
-  if(!products.length){alert('No current-month To Order quantities entered at product level yet.\n\nExpand a category row and enter quantities in the To Order column.');return;}
   const swData=getSwData();
   for(const{productName,colour,qty}of products){
     const swKey=`${productName}||${colour}`;
