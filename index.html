@@ -3376,7 +3376,7 @@ function renderPlanning(){
       <table class="plan-table">
         <thead>
           <tr>
-            <th class="plan-th-left" rowspan="2" style="min-width:180px;${planThStyle}" onclick="setPlanSort('category')">Category${planArrow('category')}</th>
+            <th class="plan-th-left" rowspan="2" style="min-width:180px;${planThStyle}" onclick="setPlanSort('category')">${planView==='product'?'Product':'Category'}${planArrow('category')}</th>
             <th rowspan="2" style="${planThStyle}" onclick="setPlanSort('soh')">SOH${planArrow('soh')}</th>
             <th rowspan="2" style="${planThStyle}" onclick="setPlanSort('wks')">Wks${planArrow('wks')}</th>
             ${monthHeaders}
