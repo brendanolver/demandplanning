@@ -6650,10 +6650,11 @@ function renderKPIs(){
 
   // Today's Margin — revenue-weighted GP% using today's sales
   let todayRevTotal=0,todayCostTotal=0;
-  const todayStr=localDateStr(nowLocal);
+  const _now=new Date();
+  const _todayStr=`${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}`;
   for(const r of rows){
     if(r.amOnly)continue;
-    const qty=(window._salesBySkuDay?.[r.sku]||{})[todayStr]?.qty||0;
+    const qty=(window._salesBySkuDay?.[r.sku]||{})[_todayStr]?.qty||0;
     if(!qty)continue;
     const exGstPrice=r.price>0?r.price/1.1:0;
     if(exGstPrice>0&&r.margin!=null){
