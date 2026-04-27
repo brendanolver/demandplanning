@@ -272,6 +272,7 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .plan-onorder{color:var(--purple);font-weight:500;}
 .plan-variance-ok{color:var(--teal);font-weight:700;}
 .plan-variance-warn{color:var(--red);font-weight:700;}
+.plan-variance-over{color:#ea580c;font-weight:700;}
 .plan-section-header{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);padding:4px 0;border-bottom:2px solid var(--teal);margin-bottom:2px;}
 .plan-legend{display:flex;gap:16px;align-items:center;font-size:11px;color:var(--text-secondary);margin-bottom:14px;flex-wrap:wrap;}
 .plan-legend-item{display:flex;align-items:center;gap:5px;}
@@ -3303,7 +3304,7 @@ function renderPlanning(){
       const suggest=cov>0?Math.max(0,cov-(soh+onOrder)):0;
       const toOrder=parseInt(toOrderVal)||0;
       const variance=(soh+onOrder+toOrder)-cov;
-      const varClass=cov===0?'':(variance>=0?'plan-variance-ok':'plan-variance-warn');
+      const varClass=cov===0?'':(variance<0?'plan-variance-warn':variance>=budget*3?'plan-variance-over':'plan-variance-ok');
       const bg=m.isCurrent?'background:rgba(14,165,160,0.04);':'';
       return`<td style="border-left:2px solid var(--border);${bg}"><span class="plan-budget">${budget>0?budget.toLocaleString():'—'}</span></td>
         <td style="${bg}"><span class="${soh>0?'plan-soh':'cell-muted'}">${soh>0?soh.toLocaleString():'—'}</span></td>
@@ -3379,7 +3380,7 @@ function renderPlanning(){
     for(let j=0;j<coverMonths;j++){const fm=months[mi+j];if(!fm)break;const fg=parseFloat(saved[`growth_${fm.key}`]||0)||0;for(const cat of sortedCats)tcov+=Math.round((lyData[cat]?.[fm.key]||0)*(1+fg/100));}
     const tsuggest=tcov>0?Math.max(0,tcov-(tsoh+too)):0;
     const variance=(tsoh+too+tto)-tcov;
-    const varClass=tcov===0?'':(variance>=0?'plan-variance-ok':'plan-variance-warn');
+    const varClass=tcov===0?'':(variance<0?'plan-variance-warn':variance>=tb*3?'plan-variance-over':'plan-variance-ok');
     return`<td style="border-left:2px solid var(--border);font-weight:700;">${tb>0?tb.toLocaleString():'—'}</td>
       <td style="font-weight:700;color:var(--text-secondary);">${tsoh>0?tsoh.toLocaleString():'—'}</td>
       <td style="font-weight:700;color:var(--purple);">${too>0?too.toLocaleString():'—'}</td>
@@ -3390,6 +3391,7 @@ function renderPlanning(){
     <div class="plan-legend">
       <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--teal)"></div>12w+ cover — healthy</div>
       <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--red)"></div>Under 12w — reorder risk</div>
+      <div class="plan-legend-item"><div class="plan-legend-dot" style="background:#ea580c"></div>3+ months overstocked</div>
       <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--purple)"></div>On Order from Apparel Magic</div>
       <div class="plan-legend-item" style="color:var(--text-secondary);">Variance = SOH + On Order + To Order − Next ${coverMonths} Month${coverMonths>1?'s':''} Budget | Orange = suggested qty | Click category to expand products</div>
     </div>
