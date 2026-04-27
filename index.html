@@ -798,6 +798,10 @@ th{position:relative;}
       </div>
       <button class="tb-btn accent" id="export-btn" onclick="exportCSV()">↓ CSV</button>
       <button class="tb-btn accent" id="export-pdf-btn" onclick="exportPDF()" style="background:#e11d48;">↓ PDF</button>
+      <div id="global-core-toggle" style="display:none;align-items:center;background:rgba(255,255,255,0.7);border:1px solid var(--navy-border);border-radius:var(--r);overflow:hidden;">
+        <button id="gcf-all" onclick="setGlobalCoreFilter('all')" style="padding:5px 12px;border:none;font-family:'Inter',sans-serif;font-size:11.5px;font-weight:600;cursor:pointer;background:var(--teal);color:white;transition:all 0.15s;">All</button>
+        <button id="gcf-core" onclick="setGlobalCoreFilter('core')" style="padding:5px 12px;border:none;font-family:'Inter',sans-serif;font-size:11.5px;font-weight:600;cursor:pointer;background:transparent;color:var(--navy-text);transition:all 0.15s;">Core</button>
+      </div>
       <button class="tb-btn" onclick="startAutoSync()" title="Re-sync from Google Drive">↻ Refresh</button>
       <button class="tb-btn" onclick="showUploadScreen()" title="Manual file upload">↑ Upload</button>
     </div>
@@ -1749,6 +1753,8 @@ function showScreen(screen){
   periodSelector.style.display=(!isTouch&&screen==='dashboard')?'flex':'none';
   if(periodBar)periodBar.style.display=(isTouch&&screen==='dashboard')?'flex':'none';
   exportBtn.style.display=screen==='dashboard'?'':'none';
+  const globalToggle=document.getElementById('global-core-toggle');
+  if(globalToggle)globalToggle.style.display=['dashboard','cadence','planning','markdowns'].includes(screen)?'flex':'none';
   if(screen==='insights'){
     document.getElementById('insights-period-label').textContent=selectedPeriod+'d';
     document.getElementById('insights-sku-count').textContent=allVariantRows.length.toLocaleString();
@@ -1766,6 +1772,11 @@ let planSortCol='category';
 let planSortDir='asc';
 const planExpandedCats=new Set();
 const planPinnedProds=new Set();
+let globalCoreFilter='all';
+
+function getActiveRows(){
+  return globalCoreFilter==='core'?allVariantRows.filter(r=>r.vendor==='CORE'):allVariantRows;
+}
 let mdSortCol='productName';
 let mdSortDir='asc';
 let cadenceView='cat';
@@ -2406,14 +2417,14 @@ function renderCadence(){
     // Build product-level aggregates for disc/flag filtering
     const productDiscMap={};   // key → discountPct
     const productFlagMap={};   // key → flag
-    for(const r of allVariantRows){
+    for(const r of getActiveRows()){
       if(r.amOnly)continue;
       const k=r.productName+'||'+r.colour;
       if(productDiscMap[k]===undefined)productDiscMap[k]=r.discountPct||0;
       if(productFlagMap[k]===undefined)productFlagMap[k]=r.flag||'ok';
     }
     const prodSet=new Map();
-    for(const r of allVariantRows){
+    for(const r of getActiveRows()){
       if(r.amOnly)continue;
       if(selectedStatuses.length&&!selectedStatuses.includes(r.vendor))continue;
       if(selectedCats.length&&!selectedCats.includes(r.category))continue;
@@ -2903,7 +2914,7 @@ function planPinSearch(){
   if(!list||!res)return;
   if(val.length<2){res.style.display='none';return;}
   const seen=new Set();const matches=[];
-  for(const r of getActiveRows().filter(r=>!r.amOnly)){
+  for(const r of allVariantRows.filter(r=>!r.amOnly)){
     const key=r.productName+'||'+r.colour;
     if(seen.has(key))continue;seen.add(key);
     if((r.productName+' '+r.colour).toUpperCase().includes(val))matches.push({key,productName:r.productName,colour:r.colour});
@@ -2939,7 +2950,7 @@ function planPinUpdateCount(){
 function planPinApply(){
   document.querySelectorAll('#plan-pin-list input[type="checkbox"]:checked:not([disabled])').forEach(cb=>{
     planPinnedProds.add(cb.value);
-    const r=getActiveRows().find(r=>r.productName+'||'+r.colour===cb.value);
+    const r=allVariantRows.find(r=>r.productName+'||'+r.colour===cb.value);
     if(r)planExpandedCats.add(r.category||'UNCATEGORISED');
   });
   const inp=document.getElementById('plan-pin-search');if(inp)inp.value='';
@@ -3057,6 +3068,19 @@ function swExportAM(){
   URL.revokeObjectURL(url);
 }
 
+function setGlobalCoreFilter(val){
+  globalCoreFilter=val;
+  const allBtn=document.getElementById('gcf-all');
+  const coreBtn=document.getElementById('gcf-core');
+  if(allBtn){allBtn.style.background=val==='all'?'var(--teal)':'transparent';allBtn.style.color=val==='all'?'white':'var(--navy-text)';}
+  if(coreBtn){coreBtn.style.background=val==='core'?'var(--teal)':'transparent';coreBtn.style.color=val==='core'?'white':'var(--navy-text)';}
+  const screen=document.querySelector('.screen-btn.active')?.id?.replace('btn-','');
+  if(screen==='dashboard'){currentPage=1;renderTable();}
+  else if(screen==='cadence')renderCadence();
+  else if(screen==='planning')renderPlanning();
+  else if(screen==='markdowns')setWorkingView(workingView);
+}
+
 function setPlanSort(col){
   if(planSortCol===col){planSortDir=planSortDir==='asc'?'desc':'asc';}
   else{planSortCol=col;planSortDir=col==='category'?'asc':'desc';}
@@ -3079,7 +3103,7 @@ function renderPlanning(){
   const coverMonths=Math.max(1,Math.min(12,parseInt(saved['cover_months'])||2));
   const catSoh={},catVel30={};
   for(const r of allVariantRows){const c=r.category||'UNCATEGORISED';catSoh[c]=(catSoh[c]||0)+r.stock;catVel30[c]=(catVel30[c]||0)+(r.sold30||0)/30;}
-  const activeRows=getActiveRows().filter(r=>!r.amOnly);
+  const activeRows=allVariantRows.filter(r=>!r.amOnly);
   const productsByCat={};const prodSoh={},prodVel30={};
   for(const r of activeRows){
     const cat=r.category||'UNCATEGORISED';const pk=r.productName+'||'+r.colour;
@@ -4343,7 +4367,7 @@ function renderReorders(){
   const _stockSet=new Set(allVariantRows
     .filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)
     .map(r=>r.productName+'||'+r.colour));
-  const allProductsRo=[...toProduct(allVariantRows.filter(r=>
+  const allProductsRo=[...toProduct(getActiveRows().filter(r=>
     !r.amOnly&&((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)
   ))];
 
@@ -5070,9 +5094,9 @@ function renderMarkdowns(){
   // Get all products
   // Build product list — use ALL variants for sold figures (so OOS sizes contribute to sold totals)
   // but only show products that have stock or on order
-  const allProductsFullSales=[...toProduct(allVariantRows)];
+  const allProductsFullSales=[...toProduct(getActiveRows())];
   const hasStockOrOrder=new Set(
-    allVariantRows.filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)
+    getActiveRows().filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)
       .map(r=>r.productName+'||'+r.colour)
   );
   const allProducts=allProductsFullSales.filter(p=>hasStockOrOrder.has(p.productName+'||'+p.colour));
@@ -7146,7 +7170,7 @@ function getFilteredRows(){
   const search=document.getElementById('search-input').value.trim().toUpperCase();
 
   // Filter at variant level for variant view; post-aggregation for product view
-  let baseRows=[...allVariantRows];
+  let baseRows=[...getActiveRows()];
   // Vendor/status filter applied at variant level for all views
   if(vendors.length) baseRows=baseRows.filter(r=>vendors.includes(r.vendor||''));
   if(currentView==='variant'){
