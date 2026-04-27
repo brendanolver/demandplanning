@@ -527,7 +527,7 @@ th{position:relative;}
   .screen-nav{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;max-width:380px;}
   .screen-btn{white-space:nowrap;font-size:11px;padding:5px 8px;flex-shrink:0;}
   /* KPI: 3 columns on tablet, 2 on phone */
-  .kpi-row{grid-template-columns:repeat(4,1fr);gap:8px;}
+  .kpi-row{grid-template-columns:repeat(3,1fr);gap:8px;}
   /* SIDEBAR: completely removed from layout, hidden off-screen */
   .layout{grid-template-columns:1fr !important;display:block !important;}
   .sidebar{
@@ -1143,7 +1143,6 @@ th{position:relative;}
           <button class="insights-refresh-btn" onclick="clearPlanningData()" style="background:var(--surface);border:1px solid var(--border);color:var(--text-secondary);">✕ Clear All</button>
         </div>
       </div>
-      <!-- PIN PRODUCTS search panel -->
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:16px;box-shadow:var(--shadow-xs);">
         <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">📌 Pin Products</div>
         <div style="position:relative;display:inline-block;width:360px;max-width:100%;">
@@ -1159,8 +1158,8 @@ th{position:relative;}
               <span id="plan-pin-count" style="font-size:11px;color:var(--text-muted);"></span>
             </div>
             <div id="plan-pin-list"></div>
-            <div style="padding:8px 12px;border-top:1px solid var(--border);display:flex;gap:8px;">
-              <button onclick="planPinApply()" style="flex:1;padding:6px;background:var(--teal);color:white;border:none;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">✓ Add Selected</button>
+            <div style="padding:8px 12px;border-top:1px solid var(--border);">
+              <button onclick="planPinApply()" style="width:100%;padding:6px;background:var(--teal);color:white;border:none;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">✓ Add Selected</button>
             </div>
           </div>
         </div>
@@ -1402,6 +1401,7 @@ th{position:relative;}
           </div>
           <button onclick="swClearAll()" style="padding:7px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);">✕ Clear All</button>
           <button onclick="swExport()" style="padding:7px 16px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">⬇ Export</button>
+          <button onclick="swExportAM()" style="padding:7px 16px;background:#0369a1;color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">⬇ Apparel Magic</button>
         </div>
         <!-- Filter bar -->
         <div class="filter-row" style="margin-bottom:12px;flex-wrap:wrap;">
@@ -2852,15 +2852,11 @@ function getAMOnOrderByCategory(months){
 function getLYSalesByProduct(months){
   const result={};
   if(!window._salesBySkuDay||!allVariantRows)return result;
-  // Build sku → productName||colour map
   const skuProdMap={};
-  for(const r of allVariantRows){
-    if(r.amOnly)continue;
-    skuProdMap[r.sku]=r.productName+'||'+r.colour;
-  }
-  for(const[sku,dayData] of Object.entries(window._salesBySkuDay)){
+  for(const r of allVariantRows){if(r.amOnly)continue;skuProdMap[r.sku]=r.productName+'||'+r.colour;}
+  for(const[sku,dayData]of Object.entries(window._salesBySkuDay)){
     const pk=skuProdMap[sku];if(!pk)continue;
-    for(const[day,d] of Object.entries(dayData)){
+    for(const[day,d]of Object.entries(dayData)){
       const dt=new Date(day);dt.setHours(0,0,0,0);
       for(const m of months){
         if(dt>=m.lyStart&&dt<=m.lyEnd){
@@ -2871,26 +2867,21 @@ function getLYSalesByProduct(months){
       }
     }
   }
-  for(const pk of Object.keys(result)){
-    for(const key of Object.keys(result[pk])){
-      result[pk][key]=Math.round(result[pk][key]);
-    }
-  }
+  for(const pk of Object.keys(result))for(const k of Object.keys(result[pk]))result[pk][k]=Math.round(result[pk][k]);
   return result;
 }
 
-function getAMOnOrderByProduct(months,rows){
+function getAMOnOrderByProduct(months){
   const result={};
-  const src=rows||allVariantRows.filter(r=>!r.amOnly);
-  for(const row of src){
+  for(const row of allVariantRows){
+    if(row.amOnly)continue;
     const pk=row.productName+'||'+row.colour;
     const onOrder=row.onOrder||0;
     if(onOrder<=0||!row.monthDue)continue;
-    const parts=row.monthDue.split(' - ');
-    if(parts.length<2)continue;
+    const parts=row.monthDue.split(' - ');if(parts.length<2)continue;
     const yr=parseInt(parts[0]);
-    const MONTHS=['january','february','march','april','may','june','july','august','september','october','november','december'];
-    const mi=MONTHS.indexOf(parts[1].toLowerCase().trim());
+    const MI=['january','february','march','april','may','june','july','august','september','october','november','december'];
+    const mi=MI.indexOf(parts[1].toLowerCase().trim());
     if(mi<0||isNaN(yr))continue;
     const mKey=`${yr}-${String(mi+1).padStart(2,'0')}`;
     if(!result[pk])result[pk]={};
@@ -2911,10 +2902,8 @@ function planPinSearch(){
   const res=document.getElementById('plan-pin-results');
   if(!list||!res)return;
   if(val.length<2){res.style.display='none';return;}
-  const activeRows=getActiveRows().filter(r=>!r.amOnly);
-  const seen=new Set();
-  const matches=[];
-  for(const r of activeRows){
+  const seen=new Set();const matches=[];
+  for(const r of getActiveRows().filter(r=>!r.amOnly)){
     const key=r.productName+'||'+r.colour;
     if(seen.has(key))continue;seen.add(key);
     if((r.productName+' '+r.colour).toUpperCase().includes(val))matches.push({key,productName:r.productName,colour:r.colour});
@@ -2922,9 +2911,8 @@ function planPinSearch(){
   if(!matches.length){list.innerHTML='<div style="padding:10px 12px;font-size:12px;color:var(--text-muted);">No results</div>';res.style.display='block';return;}
   list.innerHTML=matches.map(m=>{
     const added=planPinnedProds.has(m.key);
-    const safeKey=m.key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    return`<label style="display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;${added?'opacity:0.45;':''}border-bottom:1px solid var(--border-light);" class="ms-item">
-      <input type="checkbox" value="${m.key}" ${added?'disabled checked':''}>
+    return`<label style="display:flex;align-items:center;gap:8px;padding:7px 12px;cursor:pointer;${added?'opacity:0.45;':''}border-bottom:1px solid var(--border-light);">
+      <input type="checkbox" value="${m.key}" ${added?'disabled checked':''} onchange="planPinUpdateCount()">
       <span style="font-size:12px;">${m.productName}<span style="color:var(--teal);"> — ${m.colour}</span></span>
       ${added?'<span style="margin-left:auto;font-size:10px;color:var(--teal);">✓ pinned</span>':''}
     </label>`;
@@ -2949,35 +2937,27 @@ function planPinUpdateCount(){
 }
 
 function planPinApply(){
-  const checked=document.querySelectorAll('#plan-pin-list input[type="checkbox"]:checked:not([disabled])');
-  checked.forEach(cb=>{
+  document.querySelectorAll('#plan-pin-list input[type="checkbox"]:checked:not([disabled])').forEach(cb=>{
     planPinnedProds.add(cb.value);
     const r=getActiveRows().find(r=>r.productName+'||'+r.colour===cb.value);
     if(r)planExpandedCats.add(r.category||'UNCATEGORISED');
   });
   const inp=document.getElementById('plan-pin-search');if(inp)inp.value='';
   const res=document.getElementById('plan-pin-results');if(res)res.style.display='none';
-  planPinRenderTags();
-  renderPlanning();
+  planPinRenderTags();renderPlanning();
 }
 
-function planPinRemove(key){
-  planPinnedProds.delete(key);
-  planPinRenderTags();
-  renderPlanning();
-}
+function planPinRemove(key){planPinnedProds.delete(key);planPinRenderTags();renderPlanning();}
 
 function planPinClear(){
   planPinnedProds.clear();
   const inp=document.getElementById('plan-pin-search');if(inp)inp.value='';
   const res=document.getElementById('plan-pin-results');if(res)res.style.display='none';
-  planPinRenderTags();
-  renderPlanning();
+  planPinRenderTags();renderPlanning();
 }
 
 function planPinRenderTags(){
-  const wrap=document.getElementById('plan-pin-tags');
-  if(!wrap)return;
+  const wrap=document.getElementById('plan-pin-tags');if(!wrap)return;
   if(!planPinnedProds.size){wrap.innerHTML='';return;}
   wrap.innerHTML=[...planPinnedProds].map(key=>{
     const parts=key.split('||');
@@ -2994,39 +2974,24 @@ function planSendToSizeWorkings(){
   const months=getPlanMonths();
   const currentMonthKey=months.find(m=>m.isCurrent)?.key;
   if(!currentMonthKey){alert('Could not determine current month.');return;}
-
-  const prodPrefix='to_prod_';
-  const prodSuffix=`_${currentMonthKey}`;
   const products=[];
-  for(const[key,val] of Object.entries(saved)){
-    if(!key.startsWith(prodPrefix)||!key.endsWith(prodSuffix))continue;
-    const qty=parseInt(val)||0;
-    if(!qty)continue;
-    const inner=key.slice(prodPrefix.length,key.length-prodSuffix.length);
-    const sepIdx=inner.indexOf('||');
-    if(sepIdx<0)continue;
-    const productName=inner.slice(0,sepIdx);
-    const colour=inner.slice(sepIdx+2);
-    const fullTitle=productName+' - '+colour;
-    products.push({fullTitle,productName,colour,qty});
+  for(const[key,val]of Object.entries(saved)){
+    if(!key.startsWith('to_prod_')||!key.endsWith('_'+currentMonthKey))continue;
+    const qty=parseInt(val)||0;if(!qty)continue;
+    const inner=key.slice(8,key.length-currentMonthKey.length-1);
+    const si=inner.indexOf('||');if(si<0)continue;
+    const productName=inner.slice(0,si),colour=inner.slice(si+2);
+    products.push({fullTitle:productName+' - '+colour,productName,colour,qty});
   }
-
-  if(!products.length){
-    alert('No current-month To Order quantities entered at product level yet.\n\nExpand a category row, then enter quantities in the product To Order column for the current month.');
-    return;
-  }
-
+  if(!products.length){alert('No current-month To Order quantities entered at product level yet.\n\nExpand a category row and enter quantities in the To Order column.');return;}
   const swData=getSwData();
-  for(const{productName,colour,qty} of products){
+  for(const{productName,colour,qty}of products){
     const swKey=`${productName}||${colour}`;
     if(!swData[swKey])swData[swKey]={};
     swData[swKey].total=String(qty);
   }
   saveSwData(swData);
-
-  showScreen('markdowns');
-  setWorkingView('sizeworkings');
-  setSwTab('product');
+  showScreen('markdowns');setWorkingView('sizeworkings');setSwTab('product');
   window._roToSwProducts=products.map(p=>({fullTitle:p.fullTitle,qty:p.qty}));
   renderRoSizeWorkings();
 }
@@ -3037,6 +3002,61 @@ document.addEventListener('click',e=>{
   }
 });
 
+function swExportAM(){
+  let productList=[];
+  if(window._roToSwProducts&&window._roToSwProducts.length){
+    productList=window._roToSwProducts.map(({fullTitle,qty})=>{
+      const di=fullTitle.lastIndexOf(' - ');
+      return{productName:di>=0?fullTitle.slice(0,di):fullTitle,colour:di>=0?fullTitle.slice(di+3):'',roQty:parseInt(qty)||0};
+    });
+  } else if(swProduct){
+    const swKey=`${swProduct.productName}||${swProduct.colour}`;
+    const saved=getSwData();
+    productList=[{productName:swProduct.productName,colour:swProduct.colour,roQty:parseInt(saved[swKey]?.total)||0}];
+  }
+  if(!productList.length){alert('No product loaded in Size Workings.');return;}
+  const customerPO=prompt('Enter Customer PO number:','');
+  if(customerPO===null)return;
+  if(!customerPO.trim()){alert('Customer PO is required.');return;}
+  const sizeOrder=['XXS','XS','S','M','L','XL','XXL','XXXL','XXXXL','28','30','32','34','36','38','40','42','44','46','48','50','OS'];
+  const swSaved=getSwData();
+  const csvRows=[];
+  for(const{productName,colour,roQty}of productList){
+    const swKey=`${productName}||${colour}`;
+    const swManual=swSaved[swKey]?.manual||{};
+    const variants=allVariantRows.filter(r=>r.productName===productName&&r.colour===colour&&!r.amOnly)
+      .sort((a,b)=>{const ai=sizeOrder.indexOf(a.size),bi=sizeOrder.indexOf(b.size);if(ai>=0&&bi>=0)return ai-bi;if(ai>=0)return-1;if(bi>=0)return 1;return a.size.localeCompare(b.size);});
+    if(!variants.length)continue;
+    const manualVals=variants.map(r=>parseInt(swManual[r.size])||0);
+    const manualTotal=manualVals.reduce((s,v)=>s+v,0);
+    let sizeQtys;
+    if(manualTotal>0){
+      sizeQtys=manualVals;
+    } else if(roQty>0){
+      const soldBySize=variants.map(r=>r['sold'+(swPeriod===7?'7':swPeriod===14?'14':swPeriod===30?'30':swPeriod===60?'60':swPeriod===90?'90':'365')]||0);
+      const soldTotal=soldBySize.reduce((s,v)=>s+v,0);
+      const soldPct=soldBySize.map(v=>soldTotal>0?v/soldTotal:1/variants.length);
+      const exact=soldPct.map(p=>p*roQty);const floored=exact.map(v=>Math.floor(v));
+      const remainders=exact.map((v,i)=>v-floored[i]);
+      const remainder=roQty-floored.reduce((s,v)=>s+v,0);
+      const indices=[...Array(variants.length).keys()].sort((a,b)=>remainders[b]-remainders[a]);
+      sizeQtys=[...floored];for(let i=0;i<remainder;i++)sizeQtys[indices[i]]++;
+    } else continue;
+    for(let i=0;i<variants.length;i++){
+      const qty=sizeQtys[i];if(!qty)continue;
+      const sku=variants[i].sku;if(!sku||sku==='—')continue;
+      csvRows.push([customerPO.trim(),'WNDRR ONLINE STORE',sku,qty]);
+    }
+  }
+  if(!csvRows.length){alert('No exportable rows — enter a Total Units Needed or Size Workings values first.');return;}
+  const headers=['customer_po','customer_name','sku_alt','qty'];
+  const csv=[headers,...csvRows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='wndrr_apparel_magic.csv';a.click();
+  URL.revokeObjectURL(url);
+}
+
 function setPlanSort(col){
   if(planSortCol===col){planSortDir=planSortDir==='asc'?'desc':'asc';}
   else{planSortCol=col;planSortDir=col==='category'?'asc':'desc';}
@@ -3045,11 +3065,10 @@ function setPlanSort(col){
 
 function renderPlanning(){
   if(!allVariantRows||allVariantRows.length===0){
-    document.getElementById('planning-body').innerHTML=`<div class="insights-error">⚠️ No data loaded yet. Please upload your files and analyse first.</div>`;
+    document.getElementById('planning-body').innerHTML='<div class="insights-error">⚠️ No data loaded yet.</div>';
     return;
   }
   planPinRenderTags();
-
   const months=getPlanMonths();
   const cats=[...new Set(allVariantRows.filter(r=>!r.amOnly).map(r=>r.category||'UNCATEGORISED'))].sort();
   const lyData=getLYSalesByCategory(months);
@@ -3058,214 +3077,129 @@ function renderPlanning(){
   const onOrderDataProd=getAMOnOrderByProduct(months);
   const saved=getPlanningData();
   const coverMonths=Math.max(1,Math.min(12,parseInt(saved['cover_months'])||2));
-
   const catSoh={},catVel30={};
-  for(const r of allVariantRows){
-    const c=r.category||'UNCATEGORISED';
-    catSoh[c]=(catSoh[c]||0)+r.stock;
-    catVel30[c]=(catVel30[c]||0)+(r.sold30||0)/30;
-  }
-
-  // Build product list per category from getActiveRows
+  for(const r of allVariantRows){const c=r.category||'UNCATEGORISED';catSoh[c]=(catSoh[c]||0)+r.stock;catVel30[c]=(catVel30[c]||0)+(r.sold30||0)/30;}
   const activeRows=getActiveRows().filter(r=>!r.amOnly);
-  const productsByCat={};
-  const prodSoh={},prodVel30={};
+  const productsByCat={};const prodSoh={},prodVel30={};
   for(const r of activeRows){
-    const cat=r.category||'UNCATEGORISED';
-    const pk=r.productName+'||'+r.colour;
+    const cat=r.category||'UNCATEGORISED';const pk=r.productName+'||'+r.colour;
     if(!productsByCat[cat])productsByCat[cat]=[];
-    if(!prodSoh[pk]){
-      productsByCat[cat].push({pk,productName:r.productName,colour:r.colour,flag:r.flag,vendor:r.vendor});
-      prodSoh[pk]=0;prodVel30[pk]=0;
-    }
-    prodSoh[pk]+=(r.stock||0);
-    prodVel30[pk]+=(r.sold30||0)/30;
+    if(!prodSoh[pk]){productsByCat[cat].push({pk,productName:r.productName,colour:r.colour,flag:r.flag});prodSoh[pk]=0;prodVel30[pk]=0;}
+    prodSoh[pk]+=(r.stock||0);prodVel30[pk]+=(r.sold30||0)/30;
   }
-
   const sortedCats=[...cats].sort((a,b)=>{
     let av,bv;
-    if(planSortCol==='category'){av=a;bv=b;return planSortDir==='asc'?av.localeCompare(bv):bv.localeCompare(av);}
+    if(planSortCol==='category'){return planSortDir==='asc'?a.localeCompare(b):b.localeCompare(a);}
     if(planSortCol==='soh'){av=catSoh[a]||0;bv=catSoh[b]||0;}
-    else if(planSortCol==='wks'){
-      const va=catVel30[a]||0;const vb=catVel30[b]||0;
-      av=va>0?(catSoh[a]||0)/(va*7):9999;
-      bv=vb>0?(catSoh[b]||0)/(vb*7):9999;
-    }
+    else if(planSortCol==='wks'){const va=catVel30[a]||0,vb=catVel30[b]||0;av=va>0?(catSoh[a]||0)/(va*7):9999;bv=vb>0?(catSoh[b]||0)/(vb*7):9999;}
     return planSortDir==='asc'?av-bv:bv-av;
   });
-
   const planArrow=col=>planSortCol===col?(planSortDir==='asc'?' ↑':' ↓'):'';
   const planThStyle='cursor:pointer;user-select:none;';
-
-  const monthHeaders=months.map(m=>`
-    <th class="plan-month" colspan="5" style="border-left:2px solid var(--border);${m.isCurrent?'background:rgba(14,165,160,0.12);color:var(--teal);':''}">${m.label}${m.isCurrent?` <span style="font-size:9px;opacity:0.8;">(${Math.round(m.prorateRatio*100)}% of month)</span>`:''}</th>`).join('');
-
-  const subHeaders=months.map(()=>`
-    <th style="border-left:2px solid var(--border);">Budget</th>
-    <th>SOH</th>
-    <th>On Order</th>
-    <th>To Order</th>
-    <th>Variance</th>`).join('');
-
-  // Shared monthly cells builder for both category and product levels
-  function buildMonthlyCells(lySource,onOrderSource,toOrderPrefix,soh){
+  const monthHeaders=months.map(m=>`<th class="plan-month" colspan="5" style="border-left:2px solid var(--border);${m.isCurrent?'background:rgba(14,165,160,0.12);color:var(--teal);':''}">${m.label}${m.isCurrent?` <span style="font-size:9px;opacity:0.8;">(${Math.round(m.prorateRatio*100)}%)</span>`:''}</th>`).join('');
+  const subHeaders=months.map(()=>`<th style="border-left:2px solid var(--border);">Budget</th><th>SOH</th><th>On Order</th><th>To Order</th><th>Variance</th>`).join('');
+  function buildCells(lySource,onOrderSource,toOrderPrefix,soh){
     return months.map((m,mi)=>{
       const growth=parseFloat(saved[`growth_${m.key}`]||0)||0;
-      const lyQty=lySource[m.key]||0;
-      const budget=Math.round(lyQty*(1+growth/100));
+      const budget=Math.round((lySource[m.key]||0)*(1+growth/100));
       const onOrder=Math.round(onOrderSource[m.key]||0);
       const toOrderKey=`${toOrderPrefix}_${m.key}`;
       const toOrderVal=saved[toOrderKey]||'';
-      let coverage2m=0;
-      if(!m.isCurrent&&months[0]?.isCurrent){
-        const cm=months[0];const cfg=parseFloat(saved[`growth_${cm.key}`]||0)||0;
-        coverage2m+=Math.round((lySource[cm.key]||0)*(1+cfg/100));
-      }
-      for(let j=0;j<coverMonths;j++){
-        const fm=months[mi+j];if(!fm)break;
-        const fg=parseFloat(saved[`growth_${fm.key}`]||0)||0;
-        coverage2m+=Math.round((lySource[fm.key]||0)*(1+fg/100));
-      }
-      const suggestOrder=coverage2m>0?Math.max(0,coverage2m-(soh+onOrder)):0;
+      let cov=0;
+      if(!m.isCurrent&&months[0]?.isCurrent){const cm=months[0];const cfg=parseFloat(saved[`growth_${cm.key}`]||0)||0;cov+=Math.round((lySource[cm.key]||0)*(1+cfg/100));}
+      for(let j=0;j<coverMonths;j++){const fm=months[mi+j];if(!fm)break;const fg=parseFloat(saved[`growth_${fm.key}`]||0)||0;cov+=Math.round((lySource[fm.key]||0)*(1+fg/100));}
+      const suggest=cov>0?Math.max(0,cov-(soh+onOrder)):0;
       const toOrder=parseInt(toOrderVal)||0;
-      const variance=(soh+onOrder+toOrder)-coverage2m;
-      const varClass=coverage2m===0?'':(variance>=0?'plan-variance-ok':'plan-variance-warn');
-      const varLabel=coverage2m===0?'—':(variance>=0?'+':'')+variance.toLocaleString();
-      const bg=m.isCurrent?'background:rgba(14,165,160,0.04);':'';;
-      return`
-        <td style="border-left:2px solid var(--border);${bg}"><span class="plan-budget">${budget>0?budget.toLocaleString():'—'}</span></td>
+      const variance=(soh+onOrder+toOrder)-cov;
+      const varClass=cov===0?'':(variance>=0?'plan-variance-ok':'plan-variance-warn');
+      const bg=m.isCurrent?'background:rgba(14,165,160,0.04);':'';
+      return`<td style="border-left:2px solid var(--border);${bg}"><span class="plan-budget">${budget>0?budget.toLocaleString():'—'}</span></td>
         <td style="${bg}"><span class="${soh>0?'plan-soh':'cell-muted'}">${soh>0?soh.toLocaleString():'—'}</span></td>
         <td style="${bg}"><span class="${onOrder>0?'plan-onorder':'cell-muted'}">${onOrder>0?onOrder.toLocaleString():'—'}</span></td>
-        <td style="padding:3px 5px;${bg}">
-          ${m.isCurrent
-            ? `<span style="font-size:11px;color:var(--text-muted);font-style:italic;">current</span>`
-            : `<input class="plan-input" type="number" min="0" step="1"
-                placeholder="${suggestOrder>0?suggestOrder:''}"
-                value="${toOrderVal}"
-                style="${!toOrderVal&&suggestOrder>0?'color:#f97316;':''}"
-                onchange="savePlanField('${toOrderKey}',this.value);renderPlanning();">`}
-        </td>
-        <td style="${bg}"><span class="${varClass}">${varLabel}</span></td>`;
+        <td style="padding:3px 5px;${bg}">${m.isCurrent?`<span style="font-size:11px;color:var(--text-muted);font-style:italic;">current</span>`:`<input class="plan-input" type="number" min="0" step="1" placeholder="${suggest>0?suggest:''}" value="${toOrderVal}" style="${!toOrderVal&&suggest>0?'color:#f97316;':''}" onchange="savePlanField('${toOrderKey}',this.value);renderPlanning();">`}</td>
+        <td style="${bg}"><span class="${varClass}">${cov===0?'—':(variance>=0?'+':'')+variance.toLocaleString()}</span></td>`;
     }).join('');
   }
-
-  const catRows=sortedCats.map((cat)=>{
-    const soh=catSoh[cat]||0;
-    const vel=catVel30[cat]||0;
-    const wksRaw=vel>0?(soh/(vel*7)):null;
-    const wks=wksRaw!==null?wksRaw.toFixed(1):null;
+  const catRows=sortedCats.map(cat=>{
+    const soh=catSoh[cat]||0,vel=catVel30[cat]||0;
+    const wksRaw=vel>0?(soh/(vel*7)):null,wks=wksRaw!==null?wksRaw.toFixed(1):null;
     const wksClass=wks===null?'plan-soh':parseFloat(wks)>=12?'plan-wks-ok':'plan-wks-warn';
     const isExpanded=planExpandedCats.has(cat);
-    const safeCat=cat.replace(/\\/g,'\\\\').replace(/'/g,"\\\'");
-
-    const monthlyCells=buildMonthlyCells(lyData[cat]||{},onOrderData[cat]||{},`to_${cat}`,soh);
-
+    const safeCat=cat.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     const catRow=`<tr style="cursor:pointer;" onclick="togglePlanExpand('${safeCat}')">
-      <td class="plan-cat">
-        <span style="display:inline-block;width:16px;text-align:center;font-size:10px;transition:transform 0.15s;transform:${isExpanded?'rotate(90deg)':'rotate(0deg)'};">▶</span>
-        ${cat}
-      </td>
+      <td class="plan-cat"><span style="display:inline-block;width:16px;text-align:center;font-size:10px;transform:${isExpanded?'rotate(90deg)':'rotate(0deg)'};transition:transform 0.15s;">▶</span> ${cat}</td>
       <td class="plan-soh">${soh.toLocaleString()}</td>
       <td class="${wksClass}">${wks!==null?wks+'w':'—'}</td>
-      ${monthlyCells}
-    </tr>`;
-
+      ${buildCells(lyData[cat]||{},onOrderData[cat]||{},`to_${cat}`,soh)}</tr>`;
     if(!isExpanded)return catRow;
-
-    const prods=productsByCat[cat]||[];
-    const prodRows=prods.map(p=>{
-      const pSoh=prodSoh[p.pk]||0;
-      const pVel=prodVel30[p.pk]||0;
-      const pWksRaw=pVel>0?(pSoh/(pVel*7)):null;
-      const pWks=pWksRaw!==null?pWksRaw.toFixed(1):null;
+    const prodRows=(productsByCat[cat]||[]).map(p=>{
+      const pSoh=prodSoh[p.pk]||0,pVel=prodVel30[p.pk]||0;
+      const pWksRaw=pVel>0?(pSoh/(pVel*7)):null,pWks=pWksRaw!==null?pWksRaw.toFixed(1):null;
       const pWksClass=pWks===null?'plan-soh':parseFloat(pWks)>=12?'plan-wks-ok':'plan-wks-warn';
       const isPinned=planPinnedProds.has(p.pk);
-      const safePK=`to_prod_${p.pk}`;
-
-      const prodMonthlyCells=buildMonthlyCells(lyDataProd[p.pk]||{},onOrderDataProd[p.pk]||{},safePK,pSoh);
-
       return`<tr style="background:${isPinned?'rgba(14,165,160,0.06)':'var(--surface2)'};${isPinned?'border-left:3px solid var(--teal);':'border-left:3px solid transparent;'}">
-        <td style="padding-left:28px;font-size:12px;">
-          ${isPinned?'<span style="color:var(--teal);margin-right:4px;">📌</span>':''}<span style="font-weight:500;">${p.productName}</span><span style="color:var(--teal);"> — ${p.colour}</span>
-        </td>
-        <td class="${pWksClass==='plan-soh'?'plan-soh':''}" style="font-size:12px;color:var(--text-secondary);">${pSoh.toLocaleString()}</td>
+        <td style="padding-left:28px;font-size:12px;">${isPinned?'<span style="color:var(--teal);margin-right:4px;">📌</span>':''}<span style="font-weight:500;">${p.productName}</span><span style="color:var(--teal);"> — ${p.colour}</span></td>
+        <td class="plan-soh" style="font-size:12px;">${pSoh.toLocaleString()}</td>
         <td class="${pWksClass}" style="font-size:12px;">${pWks!==null?pWks+'w':'—'}</td>
-        ${prodMonthlyCells}
-      </tr>`;
+        ${buildCells(lyDataProd[p.pk]||{},onOrderDataProd[p.pk]||{},`to_prod_${p.pk}`,pSoh)}</tr>`;
     }).join('');
-
     return catRow+prodRows;
   }).join('');
-
   const totalCells=months.map((m,mi)=>{
     const growth=parseFloat(saved[`growth_${m.key}`]||0)||0;
-    let tb=0,tsoh=0,too=0,tto=0,tcoverage2m=0;
+    let tb=0,tsoh=0,too=0,tto=0,tcov=0;
     for(const cat of sortedCats){
       tb+=Math.round((lyData[cat]?.[m.key]||0)*(1+growth/100));
-      tsoh+=catSoh[cat]||0;
-      too+=Math.round(onOrderData[cat]?.[m.key]||0);
+      tsoh+=catSoh[cat]||0;too+=Math.round(onOrderData[cat]?.[m.key]||0);
       tto+=parseInt(saved[`to_${cat}_${m.key}`]||0)||0;
     }
-    if(!m.isCurrent&&months[0]?.isCurrent){
-      const cm=months[0];const cfg=parseFloat(saved[`growth_${cm.key}`]||0)||0;
-      for(const cat of sortedCats)tcoverage2m+=Math.round((lyData[cat]?.[cm.key]||0)*(1+cfg/100));
-    }
-    for(let j=0;j<coverMonths;j++){
-      const fm=months[mi+j];if(!fm)break;
-      const fg=parseFloat(saved[`growth_${fm.key}`]||0)||0;
-      for(const cat of sortedCats)tcoverage2m+=Math.round((lyData[cat]?.[fm.key]||0)*(1+fg/100));
-    }
-    const tsuggestOrder=tcoverage2m>0?Math.max(0,tcoverage2m-(tsoh+too)):0;
-    const variance=(tsoh+too+tto)-tcoverage2m;
-    const varClass=tcoverage2m===0?'':(variance>=0?'plan-variance-ok':'plan-variance-warn');
-    return`
-      <td style="border-left:2px solid var(--border);font-weight:700;">${tb>0?tb.toLocaleString():'—'}</td>
+    if(!m.isCurrent&&months[0]?.isCurrent){const cm=months[0];const cfg=parseFloat(saved[`growth_${cm.key}`]||0)||0;for(const cat of sortedCats)tcov+=Math.round((lyData[cat]?.[cm.key]||0)*(1+cfg/100));}
+    for(let j=0;j<coverMonths;j++){const fm=months[mi+j];if(!fm)break;const fg=parseFloat(saved[`growth_${fm.key}`]||0)||0;for(const cat of sortedCats)tcov+=Math.round((lyData[cat]?.[fm.key]||0)*(1+fg/100));}
+    const tsuggest=tcov>0?Math.max(0,tcov-(tsoh+too)):0;
+    const variance=(tsoh+too+tto)-tcov;
+    const varClass=tcov===0?'':(variance>=0?'plan-variance-ok':'plan-variance-warn');
+    return`<td style="border-left:2px solid var(--border);font-weight:700;">${tb>0?tb.toLocaleString():'—'}</td>
       <td style="font-weight:700;color:var(--text-secondary);">${tsoh>0?tsoh.toLocaleString():'—'}</td>
       <td style="font-weight:700;color:var(--purple);">${too>0?too.toLocaleString():'—'}</td>
-      <td style="font-weight:700;color:${tto>0?'var(--text)':'#f97316'};">${tto>0?tto.toLocaleString():tsuggestOrder>0?tsuggestOrder.toLocaleString():'—'}</td>
-      <td><span class="${varClass}" style="font-size:12px;">${tcoverage2m===0?'—':((variance>=0?'+':'')+variance.toLocaleString())}</span></td>`;
+      <td style="font-weight:700;color:${tto>0?'var(--text)':'#f97316'};">${tto>0?tto.toLocaleString():tsuggest>0?tsuggest.toLocaleString():'—'}</td>
+      <td><span class="${varClass}" style="font-size:12px;">${tcov===0?'—':((variance>=0?'+':'')+variance.toLocaleString())}</span></td>`;
   }).join('');
-
   document.getElementById('planning-body').innerHTML=`
     <div class="plan-legend">
       <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--teal)"></div>12w+ cover — healthy</div>
       <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--red)"></div>Under 12w — reorder risk</div>
       <div class="plan-legend-item"><div class="plan-legend-dot" style="background:var(--purple)"></div>On Order from Apparel Magic</div>
-      <div class="plan-legend-item" style="color:var(--text-secondary);">Variance = SOH + On Order + To Order − Next ${coverMonths} Month${coverMonths>1?'s':''} Budget | Orange = suggested qty</div>
-      <div class="plan-legend-item" style="color:var(--teal);">▲ Green = covered &nbsp;|&nbsp; <span style="color:var(--red);">▼ Red = short</span> &nbsp;|&nbsp; Click category row to expand products</div>
+      <div class="plan-legend-item" style="color:var(--text-secondary);">Variance = SOH + On Order + To Order − Next ${coverMonths} Month${coverMonths>1?'s':''} Budget | Orange = suggested qty | Click category to expand products</div>
     </div>
     <div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
       <div style="flex:1;min-width:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 20px;box-shadow:var(--shadow-xs);">
         <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:10px;letter-spacing:0.05em;">GROWTH % BY MONTH <span style="font-weight:400;color:var(--text-muted);">— tab across, negative for decline</span></div>
-        <div style="display:flex;gap:8px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;">
-          ${months.map((m,i)=>`
-            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:68px;">
-              <div style="font-size:11px;font-weight:600;color:var(--text-secondary);white-space:nowrap;">${m.label}</div>
-              <div style="display:flex;align-items:center;gap:2px;">
-                <input type="number" step="1" min="-100" max="200" placeholder="0" value="${saved[`growth_${m.key}`]||''}" tabindex="${i+1}" class="growth-quick-input"
-                  style="width:56px;padding:6px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:13px;font-weight:700;text-align:center;outline:none;background:var(--surface);"
-                  onfocus="this.style.borderColor='var(--teal)';this.select()" onblur="this.style.borderColor='var(--border)'"
-                  onchange="savePlanField('growth_${m.key}',this.value);renderPlanning();"
-                  onkeydown="if(event.key==='Enter'){event.preventDefault();const inputs=document.querySelectorAll('.growth-quick-input');const idx=Array.from(inputs).indexOf(this);if(inputs[idx+1])inputs[idx+1].focus();}">
-                <span style="font-size:11px;color:var(--text-muted);">%</span>
-              </div>
-              <div style="font-size:10px;color:${(parseFloat(saved[`growth_${m.key}`])||0)>0?'var(--teal)':(parseFloat(saved[`growth_${m.key}`])||0)<0?'var(--red)':'var(--text-muted)'};">
-                ${(parseFloat(saved[`growth_${m.key}`])||0)>0?'▲':(parseFloat(saved[`growth_${m.key}`])||0)<0?'▼':'—'}
-              </div>
-            </div>`).join('')}
+        <div style="display:flex;gap:8px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;">
+          ${months.map((m,i)=>`<div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:68px;">
+            <div style="font-size:11px;font-weight:600;color:var(--text-secondary);white-space:nowrap;">${m.label}</div>
+            <div style="display:flex;align-items:center;gap:2px;">
+              <input type="number" step="1" min="-100" max="200" placeholder="0" value="${saved[`growth_${m.key}`]||''}" tabindex="${i+1}" class="growth-quick-input"
+                style="width:56px;padding:6px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:13px;font-weight:700;text-align:center;outline:none;background:var(--surface);"
+                onfocus="this.style.borderColor='var(--teal)';this.select()" onblur="this.style.borderColor='var(--border)'"
+                onchange="savePlanField('growth_${m.key}',this.value);renderPlanning();"
+                onkeydown="if(event.key==='Enter'){event.preventDefault();const inputs=document.querySelectorAll('.growth-quick-input');const idx=Array.from(inputs).indexOf(this);if(inputs[idx+1])inputs[idx+1].focus();}">
+              <span style="font-size:11px;color:var(--text-muted);">%</span>
+            </div>
+            <div style="font-size:10px;color:${(parseFloat(saved[`growth_${m.key}`])||0)>0?'var(--teal)':(parseFloat(saved[`growth_${m.key}`])||0)<0?'var(--red)':'var(--text-muted)'};">
+              ${(parseFloat(saved[`growth_${m.key}`])||0)>0?'▲':(parseFloat(saved[`growth_${m.key}`])||0)<0?'▼':'—'}
+            </div>
+          </div>`).join('')}
         </div>
       </div>
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px 20px;box-shadow:var(--shadow-xs);min-width:200px;max-width:260px;">
         <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:10px;letter-spacing:0.05em;">MONTHS COVER</div>
         <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;line-height:1.5;">How many months of budget to cover when calculating Variance &amp; Suggest Order</div>
         <div style="display:flex;align-items:center;gap:8px;">
-          <select id="plan-cover-months"
-            style="width:72px;padding:8px 10px;border:2px solid var(--teal);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:18px;font-weight:700;text-align:center;outline:none;background:#f0fdf4;color:var(--teal);cursor:pointer;"
-            onchange="savePlanField('cover_months',this.value);renderPlanning();">
-            ${[1,2,3,4,5].map(n=>`<option value="${n}" ${(parseInt(saved['cover_months'])||2)===n?'selected':''}}>${n}</option>`).join('')}
+          <select id="plan-cover-months" style="width:72px;padding:8px 10px;border:2px solid var(--teal);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:18px;font-weight:700;text-align:center;outline:none;background:#f0fdf4;color:var(--teal);cursor:pointer;" onchange="savePlanField('cover_months',this.value);renderPlanning();">
+            ${[1,2,3,4,5].map(n=>`<option value="${n}" ${(parseInt(saved['cover_months'])||2)===n?'selected':''}>${n}</option>`).join('')}
           </select>
           <div>
-            <div style="font-size:13px;font-weight:600;color:var(--text);">${saved['cover_months']||2} month${(parseInt(saved['cover_months'])||2)===1?'':' s'} cover</div>
+            <div style="font-size:13px;font-weight:600;color:var(--text);">${saved['cover_months']||2} month${(parseInt(saved['cover_months'])||2)===1?'':'s'} cover</div>
             <div style="font-size:11px;color:var(--text-muted);">${(parseInt(saved['cover_months'])||2)===1?'Current month only':(parseInt(saved['cover_months'])||2)===2?'Current + next month':'Current + next '+(parseInt(saved['cover_months']-1)||1)+' months'}</div>
           </div>
         </div>
@@ -3277,21 +3211,19 @@ function renderPlanning(){
           <tr>
             <th class="plan-th-left" rowspan="2" style="min-width:180px;${planThStyle}" onclick="setPlanSort('category')">Category${planArrow('category')}</th>
             <th rowspan="2" style="${planThStyle}" onclick="setPlanSort('soh')">SOH${planArrow('soh')}</th>
-            <th rowspan="2" title="SOH ÷ 30-day velocity" style="${planThStyle}" onclick="setPlanSort('wks')">Wks${planArrow('wks')}</th>
+            <th rowspan="2" style="${planThStyle}" onclick="setPlanSort('wks')">Wks${planArrow('wks')}</th>
             ${monthHeaders}
           </tr>
           <tr>${subHeaders}</tr>
         </thead>
         <tbody>
           ${catRows}
-          <tr class="plan-total-row">
-            <td class="plan-cat" colspan="3">TOTAL</td>
-            ${totalCells}
-          </tr>
+          <tr class="plan-total-row"><td class="plan-cat" colspan="3">TOTAL</td>${totalCells}</tr>
         </tbody>
       </table>
     </div>`;
 }
+
 function savePlanField(key,value){
   const data=getPlanningData();
   if(value===''||value===null)delete data[key];
@@ -5421,25 +5353,22 @@ async function gdriveFetchFiles(){
       'All Products Sizes Sold Out':{loader:'soldout',exact:false,sheet:false},
       'Variants 0 inventory by Product':{loader:'variantssoldout',exact:false,sheet:false},
       'Core Styles':{loader:'corestyles',exact:false,sheet:false},
-      'All_Products_List':{loader:'allproductslist',exact:false,sheet:false,optional:true},
-      'All Products List':{loader:'allproductslist',exact:false,sheet:false,optional:true},
+        'All_Products_List':{loader:'allproductslist',exact:false,sheet:false},
+        'All Products List':{loader:'allproductslist',exact:false,sheet:false},
       'Current Bundle Styles':{loader:'bundlestyles',exact:false,sheet:false},
       'Order Item Analysis':{loader:'am',exact:false,sheet:false},
     };
-    // Track which Drive files have already been claimed to avoid double-matching
-    const claimedIds=new Set();
     let loaded=0,errors=[];
-    const requiredCount=Object.values(fileMap).filter(c=>!c.optional).length;
     status.textContent='⬇️ Downloading files...';
     for(const[filename,config]of Object.entries(fileMap)){
       let match;
       if(config.exact){
-        match=files.find(f=>!claimedIds.has(f.id)&&f.name.toLowerCase()===filename.toLowerCase());
+        match=files.find(f=>f.name.toLowerCase()===filename.toLowerCase());
       } else {
-        match=files.find(f=>!claimedIds.has(f.id)&&f.name.toLowerCase().includes(filename.toLowerCase()));
+        // Pick latest by modifiedTime (already sorted desc by API) — case insensitive
+        match=files.find(f=>f.name.toLowerCase().startsWith(filename.toLowerCase()));
       }
-      if(!match){if(!config.optional)errors.push(`"${filename}" not found`);continue;}
-      claimedIds.add(match.id);
+      if(!match){errors.push(`"${filename}" not found`);continue;}
 
       let text;
       if(config.sheet||match.mimeType==='application/vnd.google-apps.spreadsheet'){
@@ -5469,14 +5398,9 @@ async function gdriveFetchFiles(){
     }
     checkReady();
     if(errors.length){
-      status.innerHTML=`<span style="color:var(--amber);">⚠️ Loaded ${loaded}/${requiredCount} files. Missing: ${errors.join(', ')}</span>`;
+      status.innerHTML=`<span style="color:var(--amber);">⚠️ Loaded ${loaded}/4 files. Missing: ${errors.join(', ')}</span>`;
     } else {
-      status.innerHTML=`<span style="color:var(--teal);">✓ All ${loaded} files loaded! Click Analyse Stock to continue.</span>`;
-    }
-    // Auto-advance if we have the two required files
-    if(shopifyInvData&&shopifySalesData){
-      status.innerHTML=`<span style="color:var(--teal);">✓ Files loaded — launching dashboard...</span>`;
-      setTimeout(()=>buildDashboard(),600);
+      status.innerHTML=`<span style="color:var(--teal);">✓ All 4 files loaded! Click Analyse Stock to continue.</span>`;
     }
   } catch(err){
     status.innerHTML=`<span style="color:var(--red);">⚠️ Error: ${err.message}</span>`;
@@ -5637,25 +5561,21 @@ async function autoSyncFetch(){
       'All Products Sizes Sold Out':{loader:'soldout',exact:false,sheet:false},
       'Variants 0 inventory by Product':{loader:'variantssoldout',exact:false,sheet:false},
       'Core Styles':{loader:'corestyles',exact:false,sheet:false},
-      'All_Products_List':{loader:'allproductslist',exact:false,sheet:false,optional:true},
-      'All Products List':{loader:'allproductslist',exact:false,sheet:false,optional:true},
+        'All_Products_List':{loader:'allproductslist',exact:false,sheet:false},
+        'All Products List':{loader:'allproductslist',exact:false,sheet:false},
       'Current Bundle Styles':{loader:'bundlestyles',exact:false,sheet:false},
       'Order Item Analysis':{loader:'am',exact:false,sheet:false},
     };
     const fileLabels={inv:'Inventory',sales:'Sales History',soldout:'All Products',variantssoldout:'Variants Sold Out',corestyles:'Core Styles',bundlestyles:'Bundle Styles',am:'Apparel Magic'};
-    const claimedIds=new Set();
     let loaded=0;
-    const total=Object.values(fileMap).filter(c=>!c.optional).length;
+    const total=Object.keys(fileMap).length;
     const errors=[];
 
     for(const[filename,config]of Object.entries(fileMap)){
       const pct=45+Math.round((loaded/total)*50);
-      setLoadingProgress(pct,`Downloading ${fileLabels[config.loader]||''}...`);
-      let match=config.exact
-        ?files.find(f=>!claimedIds.has(f.id)&&f.name.toLowerCase()===filename.toLowerCase())
-        :files.find(f=>!claimedIds.has(f.id)&&f.name.toLowerCase().includes(filename.toLowerCase()));
-      if(!match){if(!config.optional){errors.push(fileLabels[config.loader]);loaded++;}continue;}
-      claimedIds.add(match.id);
+      setLoadingProgress(pct,`Downloading ${fileLabels[config.loader]}...`);
+      let match=config.exact?files.find(f=>f.name.toLowerCase()===filename.toLowerCase()):files.find(f=>f.name.toLowerCase().startsWith(filename.toLowerCase()));
+      if(!match){errors.push(fileLabels[config.loader]);loaded++;continue;}
       let text;
       if(config.sheet||match.mimeType==='application/vnd.google-apps.spreadsheet'){
         const dlRes=await fetch(`https://www.googleapis.com/drive/v3/files/${match.id}/export?mimeType=text/csv`,{headers:{Authorization:`Bearer ${gdriveToken}`}});
@@ -6710,24 +6630,20 @@ function renderKPIs(){
   const totalSold=rows.reduce((s,r)=>s+(r.sold||0),0);
   const onOrder=rows.reduce((s,r)=>s+(r.onOrder||0),0);
 
-  // Use toProduct() so all flag overrides (MOQ, status exclusions) are correctly applied
-  // Match the same filter the product view table uses so counts are consistent
   const productRows=toProduct(rows.filter(r=>!r.amOnly))
     .filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0);
   const totalProducts=productRows.length;
   const reorder=productRows.filter(p=>p.flag==='reorder').length;
   const reduce=productRows.filter(p=>p.flag==='reduce').length;
 
-  // Today's Margin — revenue-weighted GP% for today
-  // Revenue = soldToday × (price / 1.1) ex-GST; Cost = soldToday × avgCostPerUnit
-  let todayRevTotal=0, todayCostTotal=0;
+  // Today's Margin — revenue-weighted GP% using today's sales
+  let todayRevTotal=0,todayCostTotal=0;
   const todayStr=localDateStr(nowLocal);
   for(const r of rows){
     if(r.amOnly)continue;
     const qty=(window._salesBySkuDay?.[r.sku]||{})[todayStr]?.qty||0;
     if(!qty)continue;
     const exGstPrice=r.price>0?r.price/1.1:0;
-    // Use margin% back-calculated to derive cost if available, else skip
     if(exGstPrice>0&&r.margin!=null){
       const unitCost=exGstPrice*(1-r.margin/100);
       todayRevTotal+=exGstPrice*qty;
