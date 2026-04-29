@@ -1746,7 +1746,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.0.1';
+const APP_VERSION='v1.0.2';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -2858,7 +2858,13 @@ function getPlanMonths(){
 function getLYSalesByCategory(months){
   const result={};
   if(!window._salesBySkuDay||!window._skuCategoryMap)return result;
-  for(const[sku,cat] of Object.entries(window._skuCategoryMap)){
+  const skuCatMapFull=window._skuCategoryMap;
+  let skuCatMap=skuCatMapFull;
+  if(globalCoreFilter==='core'){
+    const coreSkus=new Set(allVariantRows.filter(r=>r.vendor==='CORE').map(r=>r.sku));
+    skuCatMap=Object.fromEntries(Object.entries(skuCatMapFull).filter(([sku])=>coreSkus.has(sku)));
+  }
+  for(const[sku,cat] of Object.entries(skuCatMap)){
     const dayData=window._salesBySkuDay[sku]||{};
     if(!result[cat])result[cat]={};
     for(const[day,d] of Object.entries(dayData)){
@@ -2902,8 +2908,9 @@ function getAMOnOrderByCategory(months){
 function getLYSalesByProduct(months){
   const result={};
   if(!window._salesBySkuDay||!allVariantRows)return result;
+  const coreSkus=globalCoreFilter==='core'?new Set(allVariantRows.filter(r=>r.vendor==='CORE').map(r=>r.sku)):null;
   const skuProdMap={};
-  for(const r of allVariantRows){if(r.amOnly)continue;skuProdMap[r.sku]=r.productName+'||'+r.colour;}
+  for(const r of allVariantRows){if(r.amOnly)continue;if(coreSkus&&!coreSkus.has(r.sku))continue;skuProdMap[r.sku]=r.productName+'||'+r.colour;}
   for(const[sku,dayData]of Object.entries(window._salesBySkuDay)){
     const pk=skuProdMap[sku];if(!pk)continue;
     for(const[day,d]of Object.entries(dayData)){
@@ -3284,11 +3291,12 @@ function renderPlanning(){
   const cats=[...new Set(activeBase.map(r=>r.category||'UNCATEGORISED'))].sort();
   const lyData=getLYSalesByCategory(months);
   const onOrderData=getAMOnOrderByCategory(months);
-  // Cache expensive per-product LY/onOrder calculations — invalidate when filter changes
-  if(!_planLyDataProd||!_planMonthsCache||_planMonthsCache[0]?.key!==months[0]?.key){
+  // Cache expensive per-product LY/onOrder calculations — invalidate when filter or core mode changes
+  if(!_planLyDataProd||!_planMonthsCache||_planMonthsCache[0]?.key!==months[0]?.key||_planMonthsCache._coreFilter!==globalCoreFilter){
     _planLyDataProd=getLYSalesByProduct(months);
     _planOnOrderDataProd=getAMOnOrderByProduct(months);
     _planMonthsCache=months;
+    _planMonthsCache._coreFilter=globalCoreFilter;
   }
   const lyDataProd=_planLyDataProd;
   const onOrderDataProd=_planOnOrderDataProd;
