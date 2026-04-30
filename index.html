@@ -810,10 +810,10 @@ th{position:relative;}
       </div>
       <button class="tb-btn accent" id="export-btn" onclick="exportCSV()">↓ CSV</button>
       <button class="tb-btn accent" id="export-pdf-btn" onclick="exportPDF()" style="background:#e11d48;">↓ PDF</button>
-      <div id="global-core-toggle" style="display:none;align-items:center;background:rgba(255,255,255,0.7);border:1px solid var(--navy-border);border-radius:var(--r);overflow:hidden;">
-        <button id="gcf-all" onclick="setGlobalCoreFilter('all')" style="padding:5px 12px;border:none;font-family:'Inter',sans-serif;font-size:11.5px;font-weight:600;cursor:pointer;background:var(--teal);color:white;transition:all 0.15s;">All</button>
-        <button id="gcf-core" onclick="setGlobalCoreFilter('core')" style="padding:5px 12px;border:none;font-family:'Inter',sans-serif;font-size:11.5px;font-weight:600;cursor:pointer;background:transparent;color:var(--navy-text);transition:all 0.15s;">Core</button>
-        <button id="gcf-noncore" onclick="setGlobalCoreFilter('noncore')" style="padding:5px 12px;border:none;font-family:'Inter',sans-serif;font-size:11.5px;font-weight:600;cursor:pointer;background:transparent;color:var(--navy-text);transition:all 0.15s;">Non-Core</button>
+      <div id="global-core-toggle" style="display:none;align-items:center;gap:2px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:3px;">
+        <button id="gcf-all" onclick="setGlobalCoreFilter('all')" class="period-btn active" style="font-size:11.5px;font-weight:600;">All</button>
+        <button id="gcf-core" onclick="setGlobalCoreFilter('core')" class="period-btn" style="font-size:11.5px;font-weight:600;">Core</button>
+        <button id="gcf-noncore" onclick="setGlobalCoreFilter('noncore')" class="period-btn" style="font-size:11.5px;font-weight:600;">Non-Core</button>
       </div>
       <button class="tb-btn" onclick="startAutoSync()" title="Re-sync from Google Drive">↻ Refresh</button>
       <button class="tb-btn" onclick="showUploadScreen()" title="Manual file upload">↑ Upload</button>
@@ -1757,7 +1757,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.0.5';
+const APP_VERSION='v1.0.6';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -3270,12 +3270,10 @@ function setPlanView(val){
 function setGlobalCoreFilter(val){
   globalCoreFilter=val;
   _planLyDataProd=null; _planOnOrderDataProd=null; _planMonthsCache=null;
-  const allBtn=document.getElementById('gcf-all');
-  const coreBtn=document.getElementById('gcf-core');
-  const noncoreBtn=document.getElementById('gcf-noncore');
-  if(allBtn){allBtn.style.background=val==='all'?'var(--teal)':'transparent';allBtn.style.color=val==='all'?'white':'var(--navy-text)';}
-  if(coreBtn){coreBtn.style.background=val==='core'?'var(--teal)':'transparent';coreBtn.style.color=val==='core'?'white':'var(--navy-text)';}
-  if(noncoreBtn){noncoreBtn.style.background=val==='noncore'?'var(--teal)':'transparent';noncoreBtn.style.color=val==='noncore'?'white':'var(--navy-text)';}
+  ['all','core','noncore'].forEach(v=>{
+    const btn=document.getElementById('gcf-'+v);
+    if(btn){btn.classList.toggle('active',v===val);}
+  });
   renderKPIs();
   renderSidebarCounts();
   if(currentScreen==='dashboard'){currentPage=1;renderTable();}
@@ -7018,20 +7016,20 @@ function renderKPIs(){
   const reorder=productRows.filter(p=>p.flag==='reorder').length;
   const reduce=productRows.filter(p=>p.flag==='reduce').length;
 
-  // Today's Margin — revenue-weighted GP% using today's sales
+  // Today's Margin — uses actual COGS from _salesBySkuDay (same source as Shopify)
   let todayRevTotal=0,todayCostTotal=0;
   const _now=new Date();
   const _todayStr=`${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}`;
   for(const r of rows){
     if(r.amOnly)continue;
-    const qty=(window._salesBySkuDay?.[r.sku]||{})[_todayStr]?.qty||0;
-    if(!qty)continue;
+    const dayEntry=(window._salesBySkuDay?.[r.sku]||{})[_todayStr]||null;
+    if(!dayEntry||!dayEntry.qty)continue;
+    const qty=dayEntry.qty;
     const exGstPrice=r.price>0?r.price/1.1:0;
-    if(exGstPrice>0&&r.margin!=null){
-      const unitCost=exGstPrice*(1-r.margin/100);
-      todayRevTotal+=exGstPrice*qty;
-      todayCostTotal+=unitCost*qty;
-    }
+    if(exGstPrice<=0)continue;
+    todayRevTotal+=exGstPrice*qty;
+    if(dayEntry.cogs>0){todayCostTotal+=dayEntry.cogs;}
+    else if(r.margin!=null){todayCostTotal+=exGstPrice*(1-r.margin/100)*qty;}
   }
   const todayMarginPct=todayRevTotal>0?((todayRevTotal-todayCostTotal)/todayRevTotal*100):null;
   const todayMarginFmt=todayMarginPct!=null?todayMarginPct.toFixed(1)+'%':'—';
@@ -7365,13 +7363,7 @@ function toCategory(vr){
     c.vel30Sum+=(r.vel30||0);
     c.sohValue+=(r.sohValue||0);
     c.sellValue+=(r.sellValue||0);
-    if(r.margin!=null&&r.price>0){
-      const _exGst=r.price/1.1;
-      const _unitCost=_exGst*(1-r.margin/100);
-      const _units=r.sold||1; // weight by units sold; min 1 to include SOH-only products
-      c.marginRevSum+=_exGst*_units;
-      c.marginCostSum+=_unitCost*_units;
-    }
+    if(r.margin!=null&&r.price>0){const _ex=r.price/1.1;const _u=r.sold>0?r.sold:r.stock>0?r.stock:1;c.marginRevSum+=_ex*_u;c.marginCostSum+=_ex*(1-r.margin/100)*_u;}
     c.onOrder+=(r.onOrder!==null?(r.onOrder||0):(r.productOnOrder||0));
     c.productSet.add(r.productName+'||'+r.colour);
     if(r.flag==='oos')c.oosCount++;
@@ -7721,11 +7713,12 @@ function renderTotalsRow(rows,headers){
   const avgST=stRows.length?+(stRows.reduce((s,r)=>s+r.sellThru7,0)/stRows.length).toFixed(2):null;
   const wkRows=rows.filter(r=>r.daysDisplay!=='—'&&r.flag!=='on-order');
   const avgWks=wkRows.length?+(wkRows.reduce((s,r)=>s+parseFloat(r.daysDisplay),0)/wkRows.length).toFixed(1):null;
-  // Revenue-weighted margin for totals row
-  const _mgRows=rows.filter(r=>r.margin!=null&&r.price>0);
-  let _mgRevSum=0,_mgCostSum=0;
-  for(const r of _mgRows){const ex=r.price/1.1;const units=r.sold||1;_mgRevSum+=ex*units;_mgCostSum+=ex*(1-r.margin/100)*units;}
-  const avgMargin=_mgRevSum>0?+((_mgRevSum-_mgCostSum)/_mgRevSum*100).toFixed(2):null;
+  let _totRevSum=0,_totCostSum=0;
+  for(const r of rows){
+    if(r.marginRevSum>0){_totRevSum+=r.marginRevSum;_totCostSum+=r.marginCostSum;}
+    else if(r.margin!=null&&r.price>0){const _ex=r.price/1.1;const _u=r.sold>0?r.sold:r.stock>0?r.stock:1;_totRevSum+=_ex*_u;_totCostSum+=_ex*(1-r.margin/100)*_u;}
+  }
+  const avgMargin=_totRevSum>0?+((_totRevSum-_totCostSum)/_totRevSum*100).toFixed(2):null;
 
   const firstLabel=headers[0]?.k;
 
