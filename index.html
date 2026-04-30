@@ -813,6 +813,7 @@ th{position:relative;}
       <div id="global-core-toggle" style="display:none;align-items:center;background:rgba(255,255,255,0.7);border:1px solid var(--navy-border);border-radius:var(--r);overflow:hidden;">
         <button id="gcf-all" onclick="setGlobalCoreFilter('all')" style="padding:5px 12px;border:none;font-family:'Inter',sans-serif;font-size:11.5px;font-weight:600;cursor:pointer;background:var(--teal);color:white;transition:all 0.15s;">All</button>
         <button id="gcf-core" onclick="setGlobalCoreFilter('core')" style="padding:5px 12px;border:none;font-family:'Inter',sans-serif;font-size:11.5px;font-weight:600;cursor:pointer;background:transparent;color:var(--navy-text);transition:all 0.15s;">Core</button>
+        <button id="gcf-noncore" onclick="setGlobalCoreFilter('noncore')" style="padding:5px 12px;border:none;font-family:'Inter',sans-serif;font-size:11.5px;font-weight:600;cursor:pointer;background:transparent;color:var(--navy-text);transition:all 0.15s;">Non-Core</button>
       </div>
       <button class="tb-btn" onclick="startAutoSync()" title="Re-sync from Google Drive">↻ Refresh</button>
       <button class="tb-btn" onclick="showUploadScreen()" title="Manual file upload">↑ Upload</button>
@@ -1756,7 +1757,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.0.3';
+const APP_VERSION='v1.0.5';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -1817,7 +1818,9 @@ let globalCoreFilter='all';
 let planView='category'; // 'category' or 'product'
 
 function getActiveRows(){
-  return globalCoreFilter==='core'?allVariantRows.filter(r=>r.vendor==='CORE'):allVariantRows;
+  if(globalCoreFilter==='core')return allVariantRows.filter(r=>r.vendor==='CORE');
+  if(globalCoreFilter==='noncore')return allVariantRows.filter(r=>r.vendor!=='CORE');
+  return allVariantRows;
 }
 let mdSortCol='productName';
 let mdSortDir='asc';
@@ -2442,6 +2445,9 @@ function renderCadence(){
     if(globalCoreFilter==='core'){
       const coreSkus=new Set(allVariantRows.filter(r=>r.vendor==='CORE').map(r=>r.sku));
       skuCatMap=Object.fromEntries(Object.entries(skuCatMapFull).filter(([sku])=>coreSkus.has(sku)));
+    }else if(globalCoreFilter==='noncore'){
+      const coreSkus=new Set(allVariantRows.filter(r=>r.vendor==='CORE').map(r=>r.sku));
+      skuCatMap=Object.fromEntries(Object.entries(skuCatMapFull).filter(([sku])=>!coreSkus.has(sku)));
     }
     rowKeys=[...new Set(Object.values(skuCatMap).filter(Boolean))].sort();
     rowLabel='Category';
@@ -2873,6 +2879,9 @@ function getLYSalesByCategory(months){
   if(globalCoreFilter==='core'){
     const coreSkus=new Set(allVariantRows.filter(r=>r.vendor==='CORE').map(r=>r.sku));
     skuCatMap=Object.fromEntries(Object.entries(skuCatMapFull).filter(([sku])=>coreSkus.has(sku)));
+  }else if(globalCoreFilter==='noncore'){
+    const coreSkus=new Set(allVariantRows.filter(r=>r.vendor==='CORE').map(r=>r.sku));
+    skuCatMap=Object.fromEntries(Object.entries(skuCatMapFull).filter(([sku])=>!coreSkus.has(sku)));
   }
   for(const[sku,cat] of Object.entries(skuCatMap)){
     const dayData=window._salesBySkuDay[sku]||{};
@@ -2918,9 +2927,9 @@ function getAMOnOrderByCategory(months){
 function getLYSalesByProduct(months){
   const result={};
   if(!window._salesBySkuDay||!allVariantRows)return result;
-  const coreSkus=globalCoreFilter==='core'?new Set(allVariantRows.filter(r=>r.vendor==='CORE').map(r=>r.sku)):null;
+  const coreSkus=(globalCoreFilter==='core'||globalCoreFilter==='noncore')?new Set(allVariantRows.filter(r=>r.vendor==='CORE').map(r=>r.sku)):null;
   const skuProdMap={};
-  for(const r of allVariantRows){if(r.amOnly)continue;if(coreSkus&&!coreSkus.has(r.sku))continue;skuProdMap[r.sku]=r.productName+'||'+r.colour;}
+  for(const r of allVariantRows){if(r.amOnly)continue;if(globalCoreFilter==='core'&&coreSkus&&!coreSkus.has(r.sku))continue;if(globalCoreFilter==='noncore'&&coreSkus&&coreSkus.has(r.sku))continue;skuProdMap[r.sku]=r.productName+'||'+r.colour;}
   for(const[sku,dayData]of Object.entries(window._salesBySkuDay)){
     const pk=skuProdMap[sku];if(!pk)continue;
     for(const[day,d]of Object.entries(dayData)){
@@ -3263,8 +3272,10 @@ function setGlobalCoreFilter(val){
   _planLyDataProd=null; _planOnOrderDataProd=null; _planMonthsCache=null;
   const allBtn=document.getElementById('gcf-all');
   const coreBtn=document.getElementById('gcf-core');
+  const noncoreBtn=document.getElementById('gcf-noncore');
   if(allBtn){allBtn.style.background=val==='all'?'var(--teal)':'transparent';allBtn.style.color=val==='all'?'white':'var(--navy-text)';}
   if(coreBtn){coreBtn.style.background=val==='core'?'var(--teal)':'transparent';coreBtn.style.color=val==='core'?'white':'var(--navy-text)';}
+  if(noncoreBtn){noncoreBtn.style.background=val==='noncore'?'var(--teal)':'transparent';noncoreBtn.style.color=val==='noncore'?'white':'var(--navy-text)';}
   renderKPIs();
   renderSidebarCounts();
   if(currentScreen==='dashboard'){currentPage=1;renderTable();}
@@ -7340,7 +7351,7 @@ function toCategory(vr){
     if(!map[key])map[key]={category:key,stock:0,sold:0,sold7:0,sold30:0,sold90:0,sold365:0,
       soldToday:0,soldYesterday:0,suggestedOrder:0,
       onOrder:0,velSum:0,vel7Sum:0,vel30Sum:0,sohValue:0,sellValue:0,
-      marginSum:0,marginCount:0,
+      marginRevSum:0,marginCostSum:0,
       productSet:new Set(),
       oosCount:0,critCount:0,earliestDue:'',earliestKey:999999};
     const c=map[key];
@@ -7354,7 +7365,13 @@ function toCategory(vr){
     c.vel30Sum+=(r.vel30||0);
     c.sohValue+=(r.sohValue||0);
     c.sellValue+=(r.sellValue||0);
-    if(r.margin!=null){c.marginSum+=r.margin;c.marginCount++;}
+    if(r.margin!=null&&r.price>0){
+      const _exGst=r.price/1.1;
+      const _unitCost=_exGst*(1-r.margin/100);
+      const _units=r.sold||1; // weight by units sold; min 1 to include SOH-only products
+      c.marginRevSum+=_exGst*_units;
+      c.marginCostSum+=_unitCost*_units;
+    }
     c.onOrder+=(r.onOrder!==null?(r.onOrder||0):(r.productOnOrder||0));
     c.productSet.add(r.productName+'||'+r.colour);
     if(r.flag==='oos')c.oosCount++;
@@ -7375,7 +7392,7 @@ function toCategory(vr){
     }
     return{...c,products:c.productSet.size,monthDue,
       sellThru7:(c.sold>0&&(c.stock+c.sold)>0)?+(c.sold/(c.stock+c.sold)*100).toFixed(2):null,
-      margin:c.marginCount>0?+(c.marginSum/c.marginCount).toFixed(2):null,
+      margin:c.marginRevSum>0?+((c.marginRevSum-c.marginCostSum)/c.marginRevSum*100).toFixed(2):null,
       vel7:c.vel7Sum||null,vel30:c.vel30Sum||null,
       days:days===null?9999:days,
       daysDisplay:days===null?'—':+(days/7).toFixed(1),
@@ -7704,8 +7721,11 @@ function renderTotalsRow(rows,headers){
   const avgST=stRows.length?+(stRows.reduce((s,r)=>s+r.sellThru7,0)/stRows.length).toFixed(2):null;
   const wkRows=rows.filter(r=>r.daysDisplay!=='—'&&r.flag!=='on-order');
   const avgWks=wkRows.length?+(wkRows.reduce((s,r)=>s+parseFloat(r.daysDisplay),0)/wkRows.length).toFixed(1):null;
-  const avgMargin=rows.filter(r=>r.margin!=null).length?
-    +(rows.filter(r=>r.margin!=null).reduce((s,r)=>s+r.margin,0)/rows.filter(r=>r.margin!=null).length).toFixed(2):null;
+  // Revenue-weighted margin for totals row
+  const _mgRows=rows.filter(r=>r.margin!=null&&r.price>0);
+  let _mgRevSum=0,_mgCostSum=0;
+  for(const r of _mgRows){const ex=r.price/1.1;const units=r.sold||1;_mgRevSum+=ex*units;_mgCostSum+=ex*(1-r.margin/100)*units;}
+  const avgMargin=_mgRevSum>0?+((_mgRevSum-_mgCostSum)/_mgRevSum*100).toFixed(2):null;
 
   const firstLabel=headers[0]?.k;
 
