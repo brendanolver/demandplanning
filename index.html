@@ -1727,8 +1727,9 @@ th{position:relative;}
           <div class="ms-dropdown" id="ms-perf-tier-dropdown">
             <label class="ms-item ms-all"><input type="checkbox" checked onchange="perfToggleAll('tier',this)"> All Tiers</label>
             <div id="ms-perf-tier-options">
-              <label class="ms-item"><input type="checkbox" value="rocket" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 🚀 Rocket (60+ units)</label>
-              <label class="ms-item"><input type="checkbox" value="surfer" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 🏄 Surfer (20–59 units)</label>
+              <label class="ms-item"><input type="checkbox" value="platinum" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 💎 Platinum (100+ units)</label>
+              <label class="ms-item"><input type="checkbox" value="rocket" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 🚀 Rocket (80–99 units)</label>
+              <label class="ms-item"><input type="checkbox" value="surfer" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 🏄 Surfer (20–79 units)</label>
               <label class="ms-item"><input type="checkbox" value="dog" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 🐶 Dog (&lt;20 units)</label>
             </div>
           </div>
@@ -1821,7 +1822,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.1.1';
+const APP_VERSION='v1.1.3';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -8169,18 +8170,21 @@ function exportCSV(){
 // Uses Month Delivery field as the drop month anchor for grouping/filtering
 
 function getPerfTier(units4w){
-  if(units4w>=60)return'rocket';
+  if(units4w>=100)return'platinum';
+  if(units4w>=80)return'rocket';
   if(units4w>=20)return'surfer';
   return'dog';
 }
 
 function getPerfEmoji(tier){
+  if(tier==='platinum')return'💎';
   if(tier==='rocket')return'🚀';
   if(tier==='surfer')return'🏄';
   return'🐶';
 }
 
 function getPerfLabel(tier){
+  if(tier==='platinum')return'Platinum';
   if(tier==='rocket')return'Rocket';
   if(tier==='surfer')return'Surfer';
   return'Dog';
@@ -8262,8 +8266,8 @@ function buildPerfData(){
     });
   }
 
-  // Sort by tier (rocket→surfer→dog) then product name
-  const tierOrder={rocket:0,surfer:1,dog:2};
+  // Sort by tier (platinum→rocket→surfer→dog) then product name
+  const tierOrder={platinum:0,rocket:1,surfer:2,dog:3};
   results.sort((a,b)=>{
     if(tierOrder[a.tier]!==tierOrder[b.tier])return tierOrder[a.tier]-tierOrder[b.tier];
     return a.productName.localeCompare(b.productName)||(a.colour||'').localeCompare(b.colour||'');
@@ -8345,6 +8349,19 @@ function perfClearFilters(){
 }
 
 let _perfDataCache=null;
+let _perfSortCol='units4w'; // default: 4-week units descending
+let _perfSortDir='desc';
+
+function setPerfSort(col){
+  if(_perfSortCol===col){
+    _perfSortDir=_perfSortDir==='desc'?'asc':'desc';
+  } else {
+    _perfSortCol=col;
+    // Text cols default asc, numeric cols default desc
+    _perfSortDir=(col==='productName'||col==='category'||col==='deliveryMonth'||col==='firstSaleDay'||col==='tier')?'asc':'desc';
+  }
+  renderPerformance();
+}
 
 function renderPerformance(){
   const body=document.getElementById('performance-body');
@@ -8369,28 +8386,36 @@ function renderPerformance(){
   const cats=perfGetSelected('cat');
   const delmonths=perfGetSelected('delmonth');
 
-  let data=allData;
+  let data=[...allData];
   if(tiers.length)data=data.filter(p=>tiers.includes(p.tier));
   if(cats.length)data=data.filter(p=>cats.includes(p.category||''));
   if(delmonths.length)data=data.filter(p=>delmonths.includes(p.deliveryMonth||''));
 
-  // Summary badges
-  const tierCounts={rocket:0,surfer:0,dog:0};
+  // Summary badges (always from full dataset)
+  const tierCounts={platinum:0,rocket:0,surfer:0,dog:0};
   allData.forEach(p=>tierCounts[p.tier]=(tierCounts[p.tier]||0)+1);
+  // Counts for currently filtered view (for % calculation)
+  const filteredTierCounts={platinum:0,rocket:0,surfer:0,dog:0};
+  data.forEach(p=>filteredTierCounts[p.tier]=(filteredTierCounts[p.tier]||0)+1);
+  const filteredTotal=data.length;
   if(summaryEl){
     summaryEl.innerHTML=[
-      {tier:'rocket',bg:'#f0fdf4',border:'#86efac',text:'#15803d'},
-      {tier:'surfer',bg:'#eff6ff',border:'#93c5fd',text:'#1d4ed8'},
-      {tier:'dog',bg:'#fff7ed',border:'#fdba74',text:'#c2410c'}
-    ].map(s=>`
-      <div style="background:${s.bg};border:1px solid ${s.border};border-radius:var(--r-lg);padding:12px 20px;display:flex;align-items:center;gap:10px;">
+      {tier:'platinum',bg:'#faf5ff',border:'#c4b5fd',text:'#6d28d9'},
+      {tier:'rocket',  bg:'#f0fdf4',border:'#86efac',text:'#15803d'},
+      {tier:'surfer',  bg:'#eff6ff',border:'#93c5fd',text:'#1d4ed8'},
+      {tier:'dog',     bg:'#fff7ed',border:'#fdba74',text:'#c2410c'}
+    ].map(s=>{
+      const count=filteredTierCounts[s.tier];
+      const pct=filteredTotal>0?Math.round(count/filteredTotal*100):0;
+      return`<div style="background:${s.bg};border:1px solid ${s.border};border-radius:var(--r-lg);padding:12px 20px;display:flex;align-items:center;gap:10px;">
         <span style="font-size:22px;">${getPerfEmoji(s.tier)}</span>
         <div>
-          <div style="font-size:18px;font-weight:700;color:${s.text};">${tierCounts[s.tier]}</div>
+          <div style="font-size:18px;font-weight:700;color:${s.text};">${count}</div>
           <div style="font-size:11px;font-weight:600;color:${s.text};text-transform:uppercase;letter-spacing:0.5px;">${getPerfLabel(s.tier)}</div>
+          <div style="font-size:11px;color:${s.text};opacity:0.75;margin-top:1px;">${filteredTotal>0?pct+'% of shown':''}</div>
         </div>
-      </div>`
-    ).join('');
+      </div>`;
+    }).join('');
   }
 
   if(!data.length){
@@ -8410,9 +8435,10 @@ function renderPerformance(){
     weeks.push({label,start,end});
   }
 
-  // Compute weekly units per product
+  // Compute weekly units per product (for all filtered products)
   const prodWeekly={};
   for(const p of data){
+    const key=p.productName+'||'+p.colour;
     const row=new Array(52).fill(0);
     for(const sku of p.skus){
       const dayData=window._salesBySkuDay[sku]||{};
@@ -8423,32 +8449,89 @@ function renderPerformance(){
         }
       }
     }
-    prodWeekly[p.productName+'||'+p.colour]=row.map(v=>Math.round(v));
+    prodWeekly[key]=row.map(v=>Math.round(v));
   }
 
-  // Render table
-  const thBase='cursor:default;user-select:none;white-space:nowrap;text-align:right;padding:6px 8px;font-size:10px;font-weight:600;color:var(--text-secondary);border-bottom:2px solid var(--border);background:var(--surface2);';
-  const thFixed='padding:6px 10px;font-size:11px;font-weight:600;color:var(--text-secondary);border-bottom:2px solid var(--border);background:var(--surface2);white-space:nowrap;';
+  // Apply sort
+  const tierOrder={platinum:0,rocket:1,surfer:2,dog:3};
+  const monthOrder={Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
+  function deliveryMonthKey(dm){
+    if(!dm||dm==='CORE')return dm==='CORE'?0:999999;
+    const[m,y]=dm.split('-');
+    const yr=parseInt(y)<50?2000+parseInt(y):1900+parseInt(y);
+    return yr*100+(monthOrder[m]||0);
+  }
+  data.sort((a,b)=>{
+    let av,bv;
+    const dir=_perfSortDir==='asc'?1:-1;
+    switch(_perfSortCol){
+      case'productName':
+        return dir*((a.productName||'').localeCompare(b.productName||'')||((a.colour||'').localeCompare(b.colour||'')));
+      case'category':
+        return dir*((a.category||'').localeCompare(b.category||''));
+      case'deliveryMonth':
+        av=deliveryMonthKey(a.deliveryMonth);bv=deliveryMonthKey(b.deliveryMonth);
+        return dir*(av-bv);
+      case'tier':
+        av=tierOrder[a.tier]??9;bv=tierOrder[b.tier]??9;
+        if(av!==bv)return dir*(av-bv);
+        return(b.units4w-a.units4w); // secondary: units desc
+      case'units4w':
+        return dir*(a.units4w-b.units4w);
+      case'firstSaleDay':
+        return dir*((a.firstSaleDay||'').localeCompare(b.firstSaleDay||''));
+      default:
+        // Week column sort — col is the week label string
+        if(_perfSortCol.startsWith('W')){
+          const wi=weeks.findIndex(w=>w.label===_perfSortCol);
+          if(wi>=0){
+            av=(prodWeekly[a.productName+'||'+a.colour]||[])[wi]||0;
+            bv=(prodWeekly[b.productName+'||'+b.colour]||[])[wi]||0;
+            return dir*(av-bv);
+          }
+        }
+        return 0;
+    }
+  });
 
-  const weekHeaders=weeks.map(w=>`<th style="${thBase}">${w.label}</th>`).join('');
+  // Sort arrow helper
+  const arrow=col=>_perfSortCol===col?(_perfSortDir==='desc'?' ↓':' ↑'):'';
+  const thS='cursor:pointer;user-select:none;white-space:nowrap;padding:6px 8px;font-size:10px;font-weight:600;border-bottom:2px solid var(--border);background:var(--surface2);text-align:right;';
+  const thSActive='cursor:pointer;user-select:none;white-space:nowrap;padding:6px 8px;font-size:10px;font-weight:700;border-bottom:2px solid var(--teal);background:var(--surface2);text-align:right;color:var(--teal);';
+  const thFixed='cursor:pointer;user-select:none;padding:6px 10px;font-size:11px;font-weight:600;border-bottom:2px solid var(--border);background:var(--surface2);white-space:nowrap;';
+  const thFixedActive='cursor:pointer;user-select:none;padding:6px 10px;font-size:11px;font-weight:700;border-bottom:2px solid var(--teal);background:var(--surface2);white-space:nowrap;color:var(--teal);';
 
-  const tierBg={rocket:'rgba(21,128,61,0.06)',surfer:'rgba(29,78,216,0.06)',dog:'rgba(194,65,12,0.06)'};
-  const tierBorder={rocket:'#86efac',surfer:'#93c5fd',dog:'#fdba74'};
-  const tierColor={rocket:'#15803d',surfer:'#1d4ed8',dog:'#c2410c'};
+  const th=(col,label,numeric=false)=>{
+    const active=_perfSortCol===col;
+    const base=numeric?(active?thSActive:thS):(active?thFixedActive:thFixed);
+    return`<th style="${base}" onclick="setPerfSort('${col}')">${label}${arrow(col)}</th>`;
+  };
+
+  const weekHeaders=weeks.map(w=>{
+    const active=_perfSortCol===w.label;
+    const s=active?thSActive:thS;
+    return`<th style="${s}" onclick="setPerfSort('${w.label}')">${w.label}${arrow(w.label)}</th>`;
+  }).join('');
+
+  const tierBg={platinum:'rgba(109,40,217,0.06)',rocket:'rgba(21,128,61,0.06)',surfer:'rgba(29,78,216,0.06)',dog:'rgba(194,65,12,0.06)'};
+  const tierBorder={platinum:'#c4b5fd',rocket:'#86efac',surfer:'#93c5fd',dog:'#fdba74'};
+  const tierColor={platinum:'#6d28d9',rocket:'#15803d',surfer:'#1d4ed8',dog:'#c2410c'};
 
   const rows=data.map(p=>{
-    const weekly=prodWeekly[p.productName+'||'+p.colour]||new Array(52).fill(0);
+    const key=p.productName+'||'+p.colour;
+    const weekly=prodWeekly[key]||new Array(52).fill(0);
     const maxW=Math.max(...weekly,1);
     const cells=weekly.map(v=>{
       if(!v)return`<td style="text-align:right;padding:4px 6px;font-size:11px;color:var(--text-muted);">—</td>`;
-      const pct=Math.min(100,Math.round(v/maxW*100));
-      const intensity=Math.round(pct*2);
-      return`<td style="text-align:right;padding:4px 6px;font-size:11px;font-weight:${v>0?'600':'400'};background:rgba(14,165,160,${(intensity/1000).toFixed(3)});color:${v>0?'var(--teal-dark)':'var(--text-muted)'};">${v}</td>`;
+      const intensity=Math.round(Math.min(100,v/maxW*100)*2);
+      return`<td style="text-align:right;padding:4px 6px;font-size:11px;font-weight:600;background:rgba(14,165,160,${(intensity/1000).toFixed(3)});color:var(--teal-dark);">${v}</td>`;
     }).join('');
     const tierBadge=`<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:var(--r-pill);background:${tierBg[p.tier]};color:${tierColor[p.tier]};border:1px solid ${tierBorder[p.tier]};">${p.emoji} ${getPerfLabel(p.tier)}</span>`;
     const firstSale=p.firstSaleDay?p.firstSaleDay.slice(0,10):'—';
     const catBadge=p.category?`<span style="font-size:11px;color:var(--text-muted);">${p.category}</span>`:'';
-    const dmBadge=p.deliveryMonth&&p.deliveryMonth!=='CORE'?`<span style="font-size:11px;color:var(--text-secondary);font-weight:500;">${p.deliveryMonth}</span>`:(p.deliveryMonth==='CORE'?`<span style="font-size:11px;color:var(--blue);font-weight:600;">CORE</span>`:'');
+    const dmBadge=p.deliveryMonth&&p.deliveryMonth!=='CORE'
+      ?`<span style="font-size:11px;color:var(--text-secondary);font-weight:500;">${p.deliveryMonth}</span>`
+      :(p.deliveryMonth==='CORE'?`<span style="font-size:11px;color:var(--blue);font-weight:600;">CORE</span>`:'');
     return`<tr style="border-bottom:1px solid var(--border-light);">
       <td style="padding:6px 10px;min-width:220px;max-width:280px;">
         <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.productName} ${p.emoji}</div>
@@ -8467,12 +8550,12 @@ function renderPerformance(){
   <div class="tbl-wrap" style="overflow-x:auto;">
     <table style="width:100%;border-collapse:collapse;min-width:900px;">
       <thead><tr>
-        <th style="${thFixed}">Product</th>
-        <th style="${thFixed}">Category</th>
-        <th style="${thFixed}">Month Del</th>
-        <th style="${thFixed}">Tier</th>
-        <th style="${thFixed}text-align:right;">4-Week Units</th>
-        <th style="${thFixed}">First Sale</th>
+        ${th('productName','Product')}
+        ${th('category','Category')}
+        ${th('deliveryMonth','Month Del')}
+        ${th('tier','Tier')}
+        ${th('units4w','4-Week Units',true)}
+        ${th('firstSaleDay','First Sale')}
         ${weekHeaders}
       </tr></thead>
       <tbody>${rows}</tbody>
