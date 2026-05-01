@@ -798,6 +798,7 @@ th{position:relative;}
         <button class="screen-btn" id="btn-insights" onclick="showScreen('insights')">💡 Insights</button>
         <button class="screen-btn" id="btn-planning" onclick="showScreen('planning')">📋 Planning</button>
         <button class="screen-btn" id="btn-markdowns" onclick="showScreen('markdowns')">📝 Working</button>
+        <button class="screen-btn" id="btn-performance" onclick="showScreen('performance')">🏅 Performance</button>
       </div>
       <div class="period-selector" id="period-selector" style="display:none;">
         <span class="period-label">Period:</span>
@@ -1704,6 +1705,69 @@ th{position:relative;}
 
       </div><!-- end working-margins -->
 
+    </div><!-- end markdowns max-width wrapper -->
+  </div><!-- end markdowns-screen -->
+
+  <!-- PERFORMANCE SCREEN -->
+  <div id="performance-screen" style="display:none;padding:28px;overflow-y:auto;height:calc(100vh - 56px);">
+    <div style="max-width:1400px;margin:0 auto;">
+      <div class="insights-header" style="flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+        <div>
+          <div class="insights-title">Drop Performance</div>
+          <div class="insights-sub">4-week sell-through classification by product — anchored to first sale date</div>
+        </div>
+      </div>
+      <!-- Filters -->
+      <div class="filter-row" style="margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+        <!-- Performance Tier filter -->
+        <div class="ms-wrap" id="ms-perf-tier">
+          <button class="ms-btn" onclick="toggleDropdown('ms-perf-tier')">
+            <span id="ms-perf-tier-label">All Tiers</span><span class="ms-arrow">▾</span>
+          </button>
+          <div class="ms-dropdown" id="ms-perf-tier-dropdown">
+            <label class="ms-item ms-all"><input type="checkbox" checked onchange="perfToggleAll('tier',this)"> All Tiers</label>
+            <div id="ms-perf-tier-options">
+              <label class="ms-item"><input type="checkbox" value="rocket" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 🚀 Rocket (60+ units)</label>
+              <label class="ms-item"><input type="checkbox" value="surfer" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 🏄 Surfer (20–59 units)</label>
+              <label class="ms-item"><input type="checkbox" value="dog" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 🐶 Dog (&lt;20 units)</label>
+            </div>
+          </div>
+        </div>
+        <!-- Category filter -->
+        <div class="ms-wrap" id="ms-perf-cat">
+          <button class="ms-btn" onclick="toggleDropdown('ms-perf-cat')">
+            <span id="ms-perf-cat-label">All Categories</span><span class="ms-arrow">▾</span>
+          </button>
+          <div class="ms-dropdown" id="ms-perf-cat-dropdown">
+            <label class="ms-item ms-all"><input type="checkbox" checked onchange="perfToggleAll('cat',this)"> All Categories</label>
+            <div id="ms-perf-cat-options"></div>
+          </div>
+        </div>
+        <!-- Month Delivery filter -->
+        <div class="ms-wrap" id="ms-perf-delmonth">
+          <button class="ms-btn" onclick="toggleDropdown('ms-perf-delmonth')">
+            <span id="ms-perf-delmonth-label">Month Delivery</span><span class="ms-arrow">▾</span>
+          </button>
+          <div class="ms-dropdown" id="ms-perf-delmonth-dropdown">
+            <label class="ms-item ms-all"><input type="checkbox" checked onchange="perfToggleAll('delmonth',this)"> All</label>
+            <div id="ms-perf-delmonth-options"></div>
+          </div>
+        </div>
+        <button class="clear-btn" onclick="perfClearFilters()">✕ Clear</button>
+      </div>
+      <!-- Summary badges -->
+      <div id="perf-summary" style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;"></div>
+      <!-- Table -->
+      <div id="performance-body">
+        <div class="insights-empty">
+          <div class="insights-empty-ico">🏅</div>
+          <div class="insights-empty-title">Ready to analyse</div>
+          <div class="insights-empty-sub">Load your data to view drop performance classifications.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -1757,7 +1821,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.0.6';
+const APP_VERSION='v1.1.1';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -1768,7 +1832,7 @@ let currentScreen='dashboard';
 
 function showScreen(screen){
   currentScreen=screen;
-  ['dashboard','insights','cadence','planning','markdowns'].forEach(s=>{
+  ['dashboard','insights','cadence','planning','markdowns','performance'].forEach(s=>{
     const btn=document.getElementById('btn-'+s);
     if(btn)btn.classList.toggle('active',s===screen);
   });
@@ -1777,6 +1841,7 @@ function showScreen(screen){
   const cadenceScreen=document.getElementById('cadence-screen');
   const planningScreen=document.getElementById('planning-screen');
   const markdownsScreen=document.getElementById('markdowns-screen');
+  const performanceScreen=document.getElementById('performance-screen');
   const periodSelector=document.getElementById('period-selector');
   const periodBar=document.getElementById('period-bar');
   const exportBtn=document.getElementById('export-btn');
@@ -1785,6 +1850,7 @@ function showScreen(screen){
   cadenceScreen.style.display=screen==='cadence'?'block':'none';
   planningScreen.style.display=screen==='planning'?'block':'none';
   markdownsScreen.style.display=screen==='markdowns'?'block':'none';
+  if(performanceScreen)performanceScreen.style.display=screen==='performance'?'block':'none';
   // Period selector: CSS hides #period-selector on touch via media query / touch-device class
   // JS manages period-bar (below topbar) — only show on dashboard on touch devices
   const isTouch=document.documentElement.classList.contains('touch-device')||
@@ -1804,6 +1870,7 @@ function showScreen(screen){
   if(screen==='cadence') renderCadence();
   if(screen==='planning') renderPlanning();
   if(screen==='markdowns') setWorkingView(workingView);
+  if(screen==='performance') renderPerformance();
 }
 
 /* ── SALES CADENCE ── */
@@ -6879,6 +6946,7 @@ function buildVariantRows(){
   const{variantMap:amVariantMap,productMap:amProductMap,products:amProducts}=_cachedAMData;
   const{soMap}=_cachedSoldOutData;
   allVariantRows=processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap,coreSet,bundleSet,draftSet,activeSet);
+  _perfDataCache=null; // clear performance cache so it rebuilds with fresh data
 
 
   document.getElementById('nav-count').textContent=allVariantRows.length.toLocaleString()+' SKUs';
@@ -8095,12 +8163,330 @@ function exportCSV(){
   a.click();
 }
 
+/* ── PERFORMANCE VIEW ── */
+// v1.1.1 — Drop Performance Classification
+// Classifies each product by total units sold in the 4 weeks following first sale date
+// Uses Month Delivery field as the drop month anchor for grouping/filtering
+
+function getPerfTier(units4w){
+  if(units4w>=60)return'rocket';
+  if(units4w>=20)return'surfer';
+  return'dog';
+}
+
+function getPerfEmoji(tier){
+  if(tier==='rocket')return'🚀';
+  if(tier==='surfer')return'🏄';
+  return'🐶';
+}
+
+function getPerfLabel(tier){
+  if(tier==='rocket')return'Rocket';
+  if(tier==='surfer')return'Surfer';
+  return'Dog';
+}
+
+function buildPerfData(){
+  // Returns array of product-level objects with 4w classification
+  if(!window._salesBySkuDay||!allVariantRows||!allVariantRows.length)return[];
+
+  // Build product map: productName||colour → {deliveryMonth, category, variants:[sku,...], firstSaleDay}
+  const prodMap={};
+  for(const r of allVariantRows){
+    if(r.amOnly)continue;
+    const k=r.productName+'||'+r.colour;
+    if(!prodMap[k]){
+      prodMap[k]={
+        productName:r.productName,
+        colour:r.colour,
+        category:r.category||'',
+        deliveryMonth:r.deliveryMonth||'',
+        vendor:r.vendor||'',
+        skus:[],
+        firstSaleDay:null
+      };
+    }
+    if(r.sku&&!prodMap[k].skus.includes(r.sku))prodMap[k].skus.push(r.sku);
+  }
+
+  // Find first sale day per product across all skus
+  for(const k of Object.keys(prodMap)){
+    const p=prodMap[k];
+    for(const sku of p.skus){
+      const dayData=window._salesBySkuDay[sku]||{};
+      for(const day of Object.keys(dayData)){
+        const d=dayData[day];
+        if((d.qty||0)>0){
+          if(!p.firstSaleDay||day<p.firstSaleDay)p.firstSaleDay=day;
+        }
+      }
+    }
+  }
+
+  // For each product, sum units sold in the 28 days (4 weeks) from first sale date (inclusive)
+  const results=[];
+  for(const k of Object.keys(prodMap)){
+    const p=prodMap[k];
+    if(!p.firstSaleDay){
+      // No sales — classify as dog with 0
+      const tier=getPerfTier(0);
+      results.push({
+        ...p,
+        units4w:0,
+        tier,
+        emoji:getPerfEmoji(tier)
+      });
+      continue;
+    }
+    const startDate=new Date(p.firstSaleDay);
+    startDate.setHours(0,0,0,0);
+    const endDate=new Date(startDate);
+    endDate.setDate(startDate.getDate()+27); // 28 days inclusive
+
+    let units4w=0;
+    for(const sku of p.skus){
+      const dayData=window._salesBySkuDay[sku]||{};
+      for(const[day,d] of Object.entries(dayData)){
+        const dt=new Date(day);dt.setHours(0,0,0,0);
+        if(dt>=startDate&&dt<=endDate)units4w+=d.qty||0;
+      }
+    }
+    units4w=Math.round(units4w);
+    const tier=getPerfTier(units4w);
+    results.push({
+      ...p,
+      units4w,
+      tier,
+      emoji:getPerfEmoji(tier),
+      firstSaleDay:p.firstSaleDay
+    });
+  }
+
+  // Sort by tier (rocket→surfer→dog) then product name
+  const tierOrder={rocket:0,surfer:1,dog:2};
+  results.sort((a,b)=>{
+    if(tierOrder[a.tier]!==tierOrder[b.tier])return tierOrder[a.tier]-tierOrder[b.tier];
+    return a.productName.localeCompare(b.productName)||(a.colour||'').localeCompare(b.colour||'');
+  });
+  return results;
+}
+
+function perfGetSelected(type){
+  const boxes=[...document.querySelectorAll(`#ms-perf-${type}-options input[type="checkbox"]`)];
+  if(!boxes.length)return[];
+  const checked=boxes.filter(b=>b.checked).map(b=>b.value);
+  if(checked.length===0||checked.length===boxes.length)return[];
+  return checked;
+}
+
+function perfToggleAll(type,allCb){
+  document.querySelectorAll(`#ms-perf-${type}-options input`).forEach(b=>b.checked=allCb.checked);
+  perfUpdateLabel(type);
+  renderPerformance();
+}
+
+function perfUpdateLabel(type){
+  const defaults={tier:'All Tiers',cat:'All Categories',delmonth:'Month Delivery'};
+  const boxes=[...document.querySelectorAll(`#ms-perf-${type}-options input`)];
+  const checked=boxes.filter(b=>b.checked);
+  const label=document.getElementById(`ms-perf-${type}-label`);
+  const btn=document.querySelector(`#ms-perf-${type} .ms-btn`);
+  const allBox=document.querySelector(`#ms-perf-${type} .ms-all input`);
+  if(allBox)allBox.checked=checked.length===boxes.length;
+  if(label){
+    if(checked.length===0||checked.length===boxes.length){
+      label.textContent=defaults[type];if(btn)btn.classList.remove('filtered');
+    } else {
+      label.textContent=checked.length===1?checked[0].value:`${checked.length} selected`;
+      if(btn)btn.classList.add('filtered');
+    }
+  }
+}
+
+function perfPopulateFilters(data){
+  // Categories
+  const cats=[...new Set(data.map(p=>p.category).filter(Boolean))].sort();
+  const catCounts={};data.forEach(p=>{if(p.category)catCounts[p.category]=(catCounts[p.category]||0)+1;});
+  const catContainer=document.getElementById('ms-perf-cat-options');
+  if(catContainer){
+    catContainer.innerHTML=cats.map(c=>
+      `<label class="ms-item"><input type="checkbox" value="${c}" checked onchange="perfUpdateLabel('cat');renderPerformance()"> ${c} <span class="ms-count">(${catCounts[c]||0})</span></label>`
+    ).join('');
+  }
+  // Month Delivery
+  const monthOrder={Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
+  const delCounts={};data.forEach(p=>{if(p.deliveryMonth)delCounts[p.deliveryMonth]=(delCounts[p.deliveryMonth]||0)+1;});
+  const delMonths=[...new Set(data.map(p=>p.deliveryMonth).filter(d=>d&&d!=='CORE'))];
+  delMonths.sort((a,b)=>{
+    const[am,ay]=a.split('-');const[bm,by]=b.split('-');
+    const ayF=parseInt(ay)<50?2000+parseInt(ay):1900+parseInt(ay);
+    const byF=parseInt(by)<50?2000+parseInt(by):1900+parseInt(by);
+    if(ayF!==byF)return byF-ayF;
+    return(monthOrder[bm]||0)-(monthOrder[am]||0);
+  });
+  const dmContainer=document.getElementById('ms-perf-delmonth-options');
+  if(dmContainer){
+    const coreCount=delCounts['CORE']||0;
+    const coreHtml=coreCount?`<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="perfUpdateLabel('delmonth');renderPerformance()"> CORE <span class="ms-count">(${coreCount})</span></label>`:'';
+    dmContainer.innerHTML=coreHtml+delMonths.map(m=>
+      `<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="perfUpdateLabel('delmonth');renderPerformance()"> ${m} <span class="ms-count">(${delCounts[m]||0})</span></label>`
+    ).join('');
+  }
+}
+
+function perfClearFilters(){
+  ['tier','cat','delmonth'].forEach(type=>{
+    document.querySelectorAll(`#ms-perf-${type}-options input`).forEach(b=>b.checked=true);
+    const allBox=document.querySelector(`#ms-perf-${type} .ms-all input`);
+    if(allBox)allBox.checked=true;
+    perfUpdateLabel(type);
+  });
+  renderPerformance();
+}
+
+let _perfDataCache=null;
+
+function renderPerformance(){
+  const body=document.getElementById('performance-body');
+  const summaryEl=document.getElementById('perf-summary');
+  if(!body)return;
+
+  if(!allVariantRows||!allVariantRows.length||!window._salesBySkuDay){
+    body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">🏅</div><div class="insights-empty-title">No data loaded</div><div class="insights-empty-sub">Load your data to view drop performance classifications.</div></div>`;
+    return;
+  }
+
+  // Build full dataset (cached until data reloads)
+  if(!_perfDataCache)_perfDataCache=buildPerfData();
+  const allData=_perfDataCache;
+
+  // Populate filters on first render
+  const filtersPopulated=document.querySelectorAll('#ms-perf-cat-options input').length>0;
+  if(!filtersPopulated)perfPopulateFilters(allData);
+
+  // Apply filters
+  const tiers=perfGetSelected('tier');
+  const cats=perfGetSelected('cat');
+  const delmonths=perfGetSelected('delmonth');
+
+  let data=allData;
+  if(tiers.length)data=data.filter(p=>tiers.includes(p.tier));
+  if(cats.length)data=data.filter(p=>cats.includes(p.category||''));
+  if(delmonths.length)data=data.filter(p=>delmonths.includes(p.deliveryMonth||''));
+
+  // Summary badges
+  const tierCounts={rocket:0,surfer:0,dog:0};
+  allData.forEach(p=>tierCounts[p.tier]=(tierCounts[p.tier]||0)+1);
+  if(summaryEl){
+    summaryEl.innerHTML=[
+      {tier:'rocket',bg:'#f0fdf4',border:'#86efac',text:'#15803d'},
+      {tier:'surfer',bg:'#eff6ff',border:'#93c5fd',text:'#1d4ed8'},
+      {tier:'dog',bg:'#fff7ed',border:'#fdba74',text:'#c2410c'}
+    ].map(s=>`
+      <div style="background:${s.bg};border:1px solid ${s.border};border-radius:var(--r-lg);padding:12px 20px;display:flex;align-items:center;gap:10px;">
+        <span style="font-size:22px;">${getPerfEmoji(s.tier)}</span>
+        <div>
+          <div style="font-size:18px;font-weight:700;color:${s.text};">${tierCounts[s.tier]}</div>
+          <div style="font-size:11px;font-weight:600;color:${s.text};text-transform:uppercase;letter-spacing:0.5px;">${getPerfLabel(s.tier)}</div>
+        </div>
+      </div>`
+    ).join('');
+  }
+
+  if(!data.length){
+    body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No results</div><div class="insights-empty-sub">Try adjusting your filters.</div></div>`;
+    return;
+  }
+
+  // Build 52-week columns (weekly, oldest first)
+  const today=new Date();today.setHours(0,0,0,0);
+  const weeks=[];
+  for(let i=51;i>=0;i--){
+    const start=new Date(today);
+    start.setDate(today.getDate()-i*7-6);
+    const end=new Date(today);
+    end.setDate(today.getDate()-i*7);
+    const label=`W${String(start.getDate()).padStart(2,'0')}/${String(start.getMonth()+1).padStart(2,'0')}`;
+    weeks.push({label,start,end});
+  }
+
+  // Compute weekly units per product
+  const prodWeekly={};
+  for(const p of data){
+    const row=new Array(52).fill(0);
+    for(const sku of p.skus){
+      const dayData=window._salesBySkuDay[sku]||{};
+      for(const[day,d] of Object.entries(dayData)){
+        const dt=new Date(day);dt.setHours(0,0,0,0);
+        for(let wi=0;wi<52;wi++){
+          if(dt>=weeks[wi].start&&dt<=weeks[wi].end){row[wi]+=d.qty||0;break;}
+        }
+      }
+    }
+    prodWeekly[p.productName+'||'+p.colour]=row.map(v=>Math.round(v));
+  }
+
+  // Render table
+  const thBase='cursor:default;user-select:none;white-space:nowrap;text-align:right;padding:6px 8px;font-size:10px;font-weight:600;color:var(--text-secondary);border-bottom:2px solid var(--border);background:var(--surface2);';
+  const thFixed='padding:6px 10px;font-size:11px;font-weight:600;color:var(--text-secondary);border-bottom:2px solid var(--border);background:var(--surface2);white-space:nowrap;';
+
+  const weekHeaders=weeks.map(w=>`<th style="${thBase}">${w.label}</th>`).join('');
+
+  const tierBg={rocket:'rgba(21,128,61,0.06)',surfer:'rgba(29,78,216,0.06)',dog:'rgba(194,65,12,0.06)'};
+  const tierBorder={rocket:'#86efac',surfer:'#93c5fd',dog:'#fdba74'};
+  const tierColor={rocket:'#15803d',surfer:'#1d4ed8',dog:'#c2410c'};
+
+  const rows=data.map(p=>{
+    const weekly=prodWeekly[p.productName+'||'+p.colour]||new Array(52).fill(0);
+    const maxW=Math.max(...weekly,1);
+    const cells=weekly.map(v=>{
+      if(!v)return`<td style="text-align:right;padding:4px 6px;font-size:11px;color:var(--text-muted);">—</td>`;
+      const pct=Math.min(100,Math.round(v/maxW*100));
+      const intensity=Math.round(pct*2);
+      return`<td style="text-align:right;padding:4px 6px;font-size:11px;font-weight:${v>0?'600':'400'};background:rgba(14,165,160,${(intensity/1000).toFixed(3)});color:${v>0?'var(--teal-dark)':'var(--text-muted)'};">${v}</td>`;
+    }).join('');
+    const tierBadge=`<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:var(--r-pill);background:${tierBg[p.tier]};color:${tierColor[p.tier]};border:1px solid ${tierBorder[p.tier]};">${p.emoji} ${getPerfLabel(p.tier)}</span>`;
+    const firstSale=p.firstSaleDay?p.firstSaleDay.slice(0,10):'—';
+    const catBadge=p.category?`<span style="font-size:11px;color:var(--text-muted);">${p.category}</span>`:'';
+    const dmBadge=p.deliveryMonth&&p.deliveryMonth!=='CORE'?`<span style="font-size:11px;color:var(--text-secondary);font-weight:500;">${p.deliveryMonth}</span>`:(p.deliveryMonth==='CORE'?`<span style="font-size:11px;color:var(--blue);font-weight:600;">CORE</span>`:'');
+    return`<tr style="border-bottom:1px solid var(--border-light);">
+      <td style="padding:6px 10px;min-width:220px;max-width:280px;">
+        <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.productName} ${p.emoji}</div>
+        ${p.colour?`<div style="font-size:11px;color:var(--teal);">${p.colour}</div>`:''}
+      </td>
+      <td style="padding:6px 10px;white-space:nowrap;">${catBadge}</td>
+      <td style="padding:6px 10px;white-space:nowrap;">${dmBadge}</td>
+      <td style="padding:6px 10px;white-space:nowrap;">${tierBadge}</td>
+      <td style="text-align:right;padding:6px 10px;font-weight:700;color:${tierColor[p.tier]};">${p.units4w}</td>
+      <td style="padding:6px 10px;white-space:nowrap;font-size:11px;color:var(--text-muted);">${firstSale}</td>
+      ${cells}
+    </tr>`;
+  }).join('');
+
+  body.innerHTML=`<div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">${data.length} products shown</div>
+  <div class="tbl-wrap" style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;min-width:900px;">
+      <thead><tr>
+        <th style="${thFixed}">Product</th>
+        <th style="${thFixed}">Category</th>
+        <th style="${thFixed}">Month Del</th>
+        <th style="${thFixed}">Tier</th>
+        <th style="${thFixed}text-align:right;">4-Week Units</th>
+        <th style="${thFixed}">First Sale</th>
+        ${weekHeaders}
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+
 /* ── RESET ── */
 function resetApp(){
   shopifyInvData=null;shopifySalesData=null;amData=null;soldOutData=null;variantsSoldOutData=null;
   coreStylesData=null;bundleStylesData=null;allProductsListData=null;
   _cachedSalesMaps=null;_cachedAMData=null;_cachedSoldOutData=null;
   allVariantRows=[];
+  _perfDataCache=null;
   document.getElementById('upload-screen').style.display='flex';
   document.getElementById('app').style.display='none';
   ['shopify-card','sales-card','am-card','soldout-card','variants-soldout-card'].forEach(id=>document.getElementById(id).classList.remove('loaded'));
