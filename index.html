@@ -1858,7 +1858,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.1.7';
+const APP_VERSION='v1.1.8';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -1882,6 +1882,7 @@ function showScreen(screen){
   const periodSelector=document.getElementById('period-selector');
   const periodBar=document.getElementById('period-bar');
   const exportBtn=document.getElementById('export-btn');
+  const exportPdfBtn=document.getElementById('export-pdf-btn');
   layout.style.display=screen==='dashboard'?'':'none';
   insightsScreen.style.display=screen==='insights'?'block':'none';
   cadenceScreen.style.display=screen==='cadence'?'block':'none';
@@ -1897,6 +1898,7 @@ function showScreen(screen){
   periodSelector.style.display=(!isTouch&&screen==='dashboard')?'flex':'none';
   if(periodBar)periodBar.style.display=(isTouch&&screen==='dashboard')?'flex':'none';
   exportBtn.style.display=screen==='dashboard'?'':'none';
+  if(exportPdfBtn)exportPdfBtn.style.display=screen==='dashboard'?'':'none';
   const globalToggle=document.getElementById('global-core-toggle');
   if(globalToggle)globalToggle.style.display=['dashboard','cadence','planning','markdowns'].includes(screen)?'flex':'none';
   if(screen==='insights'){
