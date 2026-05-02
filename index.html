@@ -1103,6 +1103,11 @@ th{position:relative;}
               </div>
             </div>
           </div>
+          <div style="display:flex;align-items:center;gap:2px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:3px;">
+            <button id="gcf2-all" onclick="setGlobalCoreFilter('all')" class="period-btn active" style="font-size:11.5px;font-weight:600;">All</button>
+            <button id="gcf2-core" onclick="setGlobalCoreFilter('core')" class="period-btn" style="font-size:11.5px;font-weight:600;">Core</button>
+            <button id="gcf2-noncore" onclick="setGlobalCoreFilter('noncore')" class="period-btn" style="font-size:11.5px;font-weight:600;">Non-Core</button>
+          </div>
         </div>
       </div>
       <!-- Compare panel -->
@@ -1163,6 +1168,11 @@ th{position:relative;}
           </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
+          <div style="display:flex;align-items:center;gap:2px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:3px;">
+            <button id="gcf3-all" onclick="setGlobalCoreFilter('all')" class="period-btn active" style="font-size:11.5px;font-weight:600;">All</button>
+            <button id="gcf3-core" onclick="setGlobalCoreFilter('core')" class="period-btn" style="font-size:11.5px;font-weight:600;">Core</button>
+            <button id="gcf3-noncore" onclick="setGlobalCoreFilter('noncore')" class="period-btn" style="font-size:11.5px;font-weight:600;">Non-Core</button>
+          </div>
           <button onclick="planSendToSizeWorkings()" style="padding:7px 16px;background:#8b5cf6;color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">📐 Send to Size Workings</button>
           <button class="insights-refresh-btn" onclick="clearPlanningData()" style="background:var(--surface);border:1px solid var(--border);color:var(--text-secondary);">✕ Clear All</button>
         </div>
@@ -1858,7 +1868,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.1.8';
+const APP_VERSION='v1.1.9';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -3371,8 +3381,10 @@ function setGlobalCoreFilter(val){
   globalCoreFilter=val;
   _planLyDataProd=null; _planOnOrderDataProd=null; _planMonthsCache=null;
   ['all','core','noncore'].forEach(v=>{
-    const btn=document.getElementById('gcf-'+v);
-    if(btn){btn.classList.toggle('active',v===val);}
+    ['gcf','gcf2','gcf3'].forEach(prefix=>{
+      const btn=document.getElementById(prefix+'-'+v);
+      if(btn){btn.classList.toggle('active',v===val);}
+    });
   });
   renderKPIs();
   renderSidebarCounts();
