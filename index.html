@@ -473,11 +473,9 @@ th{position:relative;}
 .sw-result-item:hover{background:var(--surface2);}
 /* Touch devices detected via JS — force hamburger regardless of screen width */
 .touch-device .hamburger{display:flex !important;align-items:center;}
-.touch-device #period-selector{display:none !important;}
 /* Also catch via CSS pointer media query (iPad landscape etc) */
 @media(pointer:coarse){
   .hamburger{display:flex !important;align-items:center;}
-  #period-selector{display:none !important;}
 }
 .touch-device .layout{display:block !important;}
 .touch-device .sidebar{
@@ -533,8 +531,6 @@ th{position:relative;}
   .topbar-brand{font-size:12px;}
   .topbar-pill{display:none;}
   #nav-count{display:none;}
-  /* Hide topbar period selector — period-bar below topbar used instead */
-  #period-selector{display:none !important;}
   /* Screen nav scrolls horizontally */
   .screen-nav{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;max-width:380px;}
   .screen-btn{white-space:nowrap;font-size:11px;padding:5px 8px;flex-shrink:0;}
@@ -800,15 +796,6 @@ th{position:relative;}
         <button class="screen-btn" id="btn-markdowns" onclick="showScreen('markdowns')">📝 Working</button>
         <button class="screen-btn" id="btn-performance" onclick="showScreen('performance')">🏅 Performance</button>
       </div>
-      <div class="period-selector" id="period-selector" style="display:none;">
-        <span class="period-label">Period:</span>
-        <button class="period-btn active" data-days="7" onclick="setPeriod(7)">7d</button>
-        <button class="period-btn" data-days="14" onclick="setPeriod(14)">14d</button>
-        <button class="period-btn" data-days="30" onclick="setPeriod(30)">30d</button>
-        <button class="period-btn" data-days="60" onclick="setPeriod(60)">60d</button>
-        <button class="period-btn" data-days="90" onclick="setPeriod(90)">90d</button>
-        <button class="period-btn" data-days="365" onclick="setPeriod(365)">365d</button>
-      </div>
       <button class="tb-btn" onclick="startAutoSync()" title="Re-sync from Google Drive">↻ Refresh</button>
       <button class="tb-btn" onclick="showUploadScreen()" title="Manual file upload">↑ Upload</button>
     </div>
@@ -872,6 +859,19 @@ th{position:relative;}
         <div class="toolbar-top">
           <div class="toolbar-title" id="toolbar-title">Category View</div>
           <div style="display:flex;align-items:center;gap:8px;">
+            <div class="ms-wrap" id="ms-period" style="position:relative;">
+              <button class="ms-btn" onclick="toggleDropdown('ms-period')" style="font-weight:600;">
+                <span id="ms-period-label">Period: 7d</span><span class="ms-arrow">▾</span>
+              </button>
+              <div class="ms-dropdown" id="ms-period-dropdown" style="min-width:120px;">
+                <label class="ms-item"><input type="radio" name="period-radio" value="7" checked onchange="setPeriod(7);toggleDropdown('ms-period')"> 7 days</label>
+                <label class="ms-item"><input type="radio" name="period-radio" value="14" onchange="setPeriod(14);toggleDropdown('ms-period')"> 14 days</label>
+                <label class="ms-item"><input type="radio" name="period-radio" value="30" onchange="setPeriod(30);toggleDropdown('ms-period')"> 30 days</label>
+                <label class="ms-item"><input type="radio" name="period-radio" value="60" onchange="setPeriod(60);toggleDropdown('ms-period')"> 60 days</label>
+                <label class="ms-item"><input type="radio" name="period-radio" value="90" onchange="setPeriod(90);toggleDropdown('ms-period')"> 90 days</label>
+                <label class="ms-item"><input type="radio" name="period-radio" value="365" onchange="setPeriod(365);toggleDropdown('ms-period')"> 365 days</label>
+              </div>
+            </div>
             <button class="tb-btn accent" id="export-btn" onclick="exportCSV()" style="padding:5px 12px;font-size:11.5px;">↓ CSV</button>
             <button class="tb-btn accent" id="export-pdf-btn" onclick="exportPDF()" style="background:#e11d48;border-color:#e11d48;padding:5px 12px;font-size:11.5px;">↓ PDF</button>
             <div id="global-core-toggle" style="display:flex;align-items:center;gap:2px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:3px;">
@@ -1868,7 +1868,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.2.0';
+const APP_VERSION='v1.2.2';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -1889,7 +1889,6 @@ function showScreen(screen){
   const planningScreen=document.getElementById('planning-screen');
   const markdownsScreen=document.getElementById('markdowns-screen');
   const performanceScreen=document.getElementById('performance-screen');
-  const periodSelector=document.getElementById('period-selector');
   const periodBar=document.getElementById('period-bar');
   layout.style.display=screen==='dashboard'?'':'none';
   insightsScreen.style.display=screen==='insights'?'block':'none';
@@ -1897,13 +1896,11 @@ function showScreen(screen){
   planningScreen.style.display=screen==='planning'?'block':'none';
   markdownsScreen.style.display=screen==='markdowns'?'block':'none';
   if(performanceScreen)performanceScreen.style.display=screen==='performance'?'block':'none';
-  // Period selector: CSS hides #period-selector on touch via media query / touch-device class
-  // JS manages period-bar (below topbar) — only show on dashboard on touch devices
+  // period-bar (below topbar) — touch/mobile only, still needed for scrollable access
   const isTouch=document.documentElement.classList.contains('touch-device')||
     ('ontouchstart' in window)||navigator.maxTouchPoints>0||
     window.matchMedia('(max-width:1024px)').matches||
     window.matchMedia('(pointer:coarse)').matches;
-  periodSelector.style.display=(!isTouch&&screen==='dashboard')?'flex':'none';
   if(periodBar)periodBar.style.display=(isTouch&&screen==='dashboard')?'flex':'none';
   if(screen==='insights'){
     document.getElementById('insights-period-label').textContent=selectedPeriod+'d';
@@ -6137,6 +6134,10 @@ let filteredRows=[], allVariantRows=[];
 function setPeriod(days){
   selectedPeriod=days;
   document.querySelectorAll('[data-days]').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.days)===days));
+  const lbl=document.getElementById('ms-period-label');
+  if(lbl)lbl.textContent='Period: '+days+'d';
+  const radio=document.querySelector(`input[name="period-radio"][value="${days}"]`);
+  if(radio)radio.checked=true;
   if(allVariantRows.length) buildVariantRows();
 }
 
