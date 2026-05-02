@@ -1766,6 +1766,7 @@ th{position:relative;}
               <label class="ms-item"><input type="checkbox" value="rocket" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 🚀 Rocket (Index 100–149)</label>
               <label class="ms-item"><input type="checkbox" value="surfer" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 🏄 Surfer (Index 50–99)</label>
               <label class="ms-item"><input type="checkbox" value="dog" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 🐶 Dog (Index &lt;50)</label>
+              <label class="ms-item"><input type="checkbox" value="egg" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 🥚 Egg (No sales recorded)</label>
             </div>
           </div>
         </div>
@@ -1868,7 +1869,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.2.2';
+const APP_VERSION='v1.2.3';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -8216,7 +8217,8 @@ function exportCSV(){
 //   cohort peers' first N days only (where N = days elapsed for the new product) for a fair comparison
 // Tier thresholds: Platinum >=150 | Rocket 100-149 | Surfer 50-99 | Dog <50
 
-function getPerfTier(indexScore){
+function getPerfTier(indexScore,noSales){
+  if(noSales)return'egg';
   if(indexScore>=150)return'platinum';
   if(indexScore>=100)return'rocket';
   if(indexScore>=50)return'surfer';
@@ -8227,6 +8229,7 @@ function getPerfEmoji(tier){
   if(tier==='platinum')return'💎';
   if(tier==='rocket')return'🚀';
   if(tier==='surfer')return'🏄';
+  if(tier==='egg')return'🥚';
   return'🐶';
 }
 
@@ -8234,6 +8237,7 @@ function getPerfLabel(tier){
   if(tier==='platinum')return'Platinum';
   if(tier==='rocket')return'Rocket';
   if(tier==='surfer')return'Surfer';
+  if(tier==='egg')return'Egg';
   return'Dog';
 }
 
@@ -8390,7 +8394,7 @@ function buildPerfData(){
         indexScore=avg>0?Math.round(p.units4w/avg*100):0;
       }
     }
-    const tier=getPerfTier(indexScore);
+    const tier=getPerfTier(indexScore,!p.firstSaleDay);
     results.push({
       ...p,
       indexScore,
@@ -8400,7 +8404,7 @@ function buildPerfData(){
   }
 
   // Sort by tier then product name
-  const tierOrder={platinum:0,rocket:1,surfer:2,dog:3};
+  const tierOrder={platinum:0,rocket:1,surfer:2,dog:3,egg:4};
   results.sort((a,b)=>{
     if(tierOrder[a.tier]!==tierOrder[b.tier])return tierOrder[a.tier]-tierOrder[b.tier];
     return a.productName.localeCompare(b.productName)||(a.colour||'').localeCompare(b.colour||'');
@@ -8681,7 +8685,7 @@ function renderPerformance(){
   }
 
   // Summary badges (always from full dataset)
-  const tierCounts={platinum:0,rocket:0,surfer:0,dog:0};
+  const tierCounts={platinum:0,rocket:0,surfer:0,dog:0,egg:0};
   allData.forEach(p=>tierCounts[p.tier]=(tierCounts[p.tier]||0)+1);
   // Counts for currently filtered view (for % calculation)
   const filteredTierCounts={platinum:0,rocket:0,surfer:0,dog:0};
@@ -8692,7 +8696,8 @@ function renderPerformance(){
       {tier:'platinum',bg:'#faf5ff',border:'#c4b5fd',text:'#6d28d9'},
       {tier:'rocket',  bg:'#f0fdf4',border:'#86efac',text:'#15803d'},
       {tier:'surfer',  bg:'#eff6ff',border:'#93c5fd',text:'#1d4ed8'},
-      {tier:'dog',     bg:'#fff7ed',border:'#fdba74',text:'#c2410c'}
+      {tier:'dog',     bg:'#fff7ed',border:'#fdba74',text:'#c2410c'},
+      {tier:'egg',     bg:'#fefce8',border:'#fde047',text:'#a16207'}
     ].map(s=>{
       const count=filteredTierCounts[s.tier];
       const pct=filteredTotal>0?Math.round(count/filteredTotal*100):0;
@@ -8744,7 +8749,7 @@ function renderPerformance(){
   }
 
   // Apply sort
-  const tierOrder={platinum:0,rocket:1,surfer:2,dog:3};
+  const tierOrder={platinum:0,rocket:1,surfer:2,dog:3,egg:4};
   const monthOrder={Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
   function deliveryMonthKey(dm){
     if(!dm||dm==='CORE')return dm==='CORE'?0:999999;
@@ -8806,9 +8811,9 @@ function renderPerformance(){
     return`<th style="${s}" onclick="setPerfSort('${w.label}')">${w.label}${arrow(w.label)}</th>`;
   }).join('');
 
-  const tierBg={platinum:'rgba(109,40,217,0.06)',rocket:'rgba(21,128,61,0.06)',surfer:'rgba(29,78,216,0.06)',dog:'rgba(194,65,12,0.06)'};
-  const tierBorder={platinum:'#c4b5fd',rocket:'#86efac',surfer:'#93c5fd',dog:'#fdba74'};
-  const tierColor={platinum:'#6d28d9',rocket:'#15803d',surfer:'#1d4ed8',dog:'#c2410c'};
+  const tierBg={platinum:'rgba(109,40,217,0.06)',rocket:'rgba(21,128,61,0.06)',surfer:'rgba(29,78,216,0.06)',dog:'rgba(194,65,12,0.06)',egg:'rgba(161,98,7,0.06)'};
+  const tierBorder={platinum:'#c4b5fd',rocket:'#86efac',surfer:'#93c5fd',dog:'#fdba74',egg:'#fde047'};
+  const tierColor={platinum:'#6d28d9',rocket:'#15803d',surfer:'#1d4ed8',dog:'#c2410c',egg:'#a16207'};
 
   const rows=data.map(p=>{
     const key=p.productName+'||'+p.colour;
