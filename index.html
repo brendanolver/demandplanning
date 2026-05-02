@@ -1752,10 +1752,10 @@ th{position:relative;}
           <div class="ms-dropdown" id="ms-perf-tier-dropdown">
             <label class="ms-item ms-all"><input type="checkbox" checked onchange="perfToggleAll('tier',this)"> All Tiers</label>
             <div id="ms-perf-tier-options">
-              <label class="ms-item"><input type="checkbox" value="platinum" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 💎 Platinum (Index 200+)</label>
-              <label class="ms-item"><input type="checkbox" value="rocket" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 🚀 Rocket (Index 130–199)</label>
-              <label class="ms-item"><input type="checkbox" value="surfer" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 🏄 Surfer (Index 70–129)</label>
-              <label class="ms-item"><input type="checkbox" value="dog" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 🐶 Dog (Index &lt;70)</label>
+              <label class="ms-item"><input type="checkbox" value="platinum" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 💎 Platinum (Index 150+)</label>
+              <label class="ms-item"><input type="checkbox" value="rocket" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 🚀 Rocket (Index 100–149)</label>
+              <label class="ms-item"><input type="checkbox" value="surfer" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 🏄 Surfer (Index 50–99)</label>
+              <label class="ms-item"><input type="checkbox" value="dog" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 🐶 Dog (Index &lt;50)</label>
             </div>
           </div>
         </div>
@@ -1858,7 +1858,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.1.6';
+const APP_VERSION='v1.1.7';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -8205,12 +8205,12 @@ function exportCSV(){
 // Completed products (first sale >32 days ago): index = actual 4w units / cohort avg 4w units * 100
 // New products (first sale <=32 days ago): daily run rate projected to 28 days, compared against
 //   cohort peers' first N days only (where N = days elapsed for the new product) for a fair comparison
-// Tier thresholds: Platinum >=200 | Rocket 130-199 | Surfer 70-129 | Dog <70
+// Tier thresholds: Platinum >=150 | Rocket 100-149 | Surfer 50-99 | Dog <50
 
 function getPerfTier(indexScore){
-  if(indexScore>=200)return'platinum';
-  if(indexScore>=130)return'rocket';
-  if(indexScore>=70)return'surfer';
+  if(indexScore>=150)return'platinum';
+  if(indexScore>=100)return'rocket';
+  if(indexScore>=50)return'surfer';
   return'dog';
 }
 
