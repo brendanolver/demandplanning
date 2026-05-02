@@ -809,13 +809,6 @@ th{position:relative;}
         <button class="period-btn" data-days="90" onclick="setPeriod(90)">90d</button>
         <button class="period-btn" data-days="365" onclick="setPeriod(365)">365d</button>
       </div>
-      <button class="tb-btn accent" id="export-btn" onclick="exportCSV()">↓ CSV</button>
-      <button class="tb-btn accent" id="export-pdf-btn" onclick="exportPDF()" style="background:#e11d48;">↓ PDF</button>
-      <div id="global-core-toggle" style="display:none;align-items:center;gap:2px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:3px;">
-        <button id="gcf-all" onclick="setGlobalCoreFilter('all')" class="period-btn active" style="font-size:11.5px;font-weight:600;">All</button>
-        <button id="gcf-core" onclick="setGlobalCoreFilter('core')" class="period-btn" style="font-size:11.5px;font-weight:600;">Core</button>
-        <button id="gcf-noncore" onclick="setGlobalCoreFilter('noncore')" class="period-btn" style="font-size:11.5px;font-weight:600;">Non-Core</button>
-      </div>
       <button class="tb-btn" onclick="startAutoSync()" title="Re-sync from Google Drive">↻ Refresh</button>
       <button class="tb-btn" onclick="showUploadScreen()" title="Manual file upload">↑ Upload</button>
     </div>
@@ -879,6 +872,13 @@ th{position:relative;}
         <div class="toolbar-top">
           <div class="toolbar-title" id="toolbar-title">Category View</div>
           <div style="display:flex;align-items:center;gap:8px;">
+            <button class="tb-btn accent" id="export-btn" onclick="exportCSV()" style="padding:5px 12px;font-size:11.5px;">↓ CSV</button>
+            <button class="tb-btn accent" id="export-pdf-btn" onclick="exportPDF()" style="background:#e11d48;border-color:#e11d48;padding:5px 12px;font-size:11.5px;">↓ PDF</button>
+            <div id="global-core-toggle" style="display:flex;align-items:center;gap:2px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:3px;">
+              <button id="gcf-all" onclick="setGlobalCoreFilter('all')" class="period-btn active" style="font-size:11.5px;font-weight:600;">All</button>
+              <button id="gcf-core" onclick="setGlobalCoreFilter('core')" class="period-btn" style="font-size:11.5px;font-weight:600;">Core</button>
+              <button id="gcf-noncore" onclick="setGlobalCoreFilter('noncore')" class="period-btn" style="font-size:11.5px;font-weight:600;">Non-Core</button>
+            </div>
             <div class="view-switch">
               <button class="view-btn active" data-view="category" onclick="setView('category')">Category</button>
               <button class="view-btn" data-view="product" onclick="setView('product')">Product</button>
@@ -1881,8 +1881,6 @@ function showScreen(screen){
   const performanceScreen=document.getElementById('performance-screen');
   const periodSelector=document.getElementById('period-selector');
   const periodBar=document.getElementById('period-bar');
-  const exportBtn=document.getElementById('export-btn');
-  const exportPdfBtn=document.getElementById('export-pdf-btn');
   layout.style.display=screen==='dashboard'?'':'none';
   insightsScreen.style.display=screen==='insights'?'block':'none';
   cadenceScreen.style.display=screen==='cadence'?'block':'none';
@@ -1897,10 +1895,6 @@ function showScreen(screen){
     window.matchMedia('(pointer:coarse)').matches;
   periodSelector.style.display=(!isTouch&&screen==='dashboard')?'flex':'none';
   if(periodBar)periodBar.style.display=(isTouch&&screen==='dashboard')?'flex':'none';
-  exportBtn.style.display=screen==='dashboard'?'':'none';
-  if(exportPdfBtn)exportPdfBtn.style.display=screen==='dashboard'?'':'none';
-  const globalToggle=document.getElementById('global-core-toggle');
-  if(globalToggle)globalToggle.style.display=['dashboard','cadence','planning','markdowns'].includes(screen)?'flex':'none';
   if(screen==='insights'){
     document.getElementById('insights-period-label').textContent=selectedPeriod+'d';
     document.getElementById('insights-sku-count').textContent=allVariantRows.length.toLocaleString();
