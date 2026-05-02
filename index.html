@@ -983,6 +983,21 @@ th{position:relative;}
               </div>
             </div>
           </div>
+          <div class="ms-wrap" id="ms-tier" style="display:none;">
+            <button class="ms-btn" onclick="toggleDropdown('ms-tier')">
+              <span id="ms-tier-label">All Tiers</span><span class="ms-arrow">▾</span>
+            </button>
+            <div class="ms-dropdown" id="ms-tier-dropdown">
+              <label class="ms-item ms-all"><input type="checkbox" checked onchange="toggleAll('tier',this);updateTierLabel()"> All Tiers</label>
+              <div id="ms-tier-options">
+                <label class="ms-item"><input type="checkbox" value="platinum" checked onchange="updateTierLabel();applyFilters()"> 💎 Platinum</label>
+                <label class="ms-item"><input type="checkbox" value="rocket" checked onchange="updateTierLabel();applyFilters()"> 🚀 Rocket</label>
+                <label class="ms-item"><input type="checkbox" value="surfer" checked onchange="updateTierLabel();applyFilters()"> 🏄 Surfer</label>
+                <label class="ms-item"><input type="checkbox" value="dog" checked onchange="updateTierLabel();applyFilters()"> 🐶 Dog</label>
+                <label class="ms-item"><input type="checkbox" value="egg" checked onchange="updateTierLabel();applyFilters()"> 🥚 Egg</label>
+              </div>
+            </div>
+          </div>
           <button class="clear-btn" onclick="clearFilters()">✕ Clear</button>
         </div><!-- end dashboard-filter-row -->
       </div><!-- end toolbar -->
@@ -1100,6 +1115,23 @@ th{position:relative;}
               <div class="ms-dropdown" id="ms-cad-flag-dropdown">
                 <label class="ms-item ms-all"><input type="checkbox" checked onchange="toggleCadenceFlagAll(this)"> All Stock Status</label>
                 <div id="ms-cad-flag-options"></div>
+              </div>
+            </div>
+          </div>
+          <div id="cadence-tier-wrap" style="display:none;">
+            <div class="ms-wrap" id="ms-cad-tier">
+              <button class="ms-btn" onclick="toggleDropdown('ms-cad-tier')">
+                <span id="ms-cad-tier-label">All Tiers</span><span class="ms-arrow">▾</span>
+              </button>
+              <div class="ms-dropdown" id="ms-cad-tier-dropdown">
+                <label class="ms-item ms-all"><input type="checkbox" checked onchange="toggleCadenceTierAll(this)"> All Tiers</label>
+                <div id="ms-cad-tier-options">
+                  <label class="ms-item"><input type="checkbox" value="platinum" checked onchange="cadenceUpdateTierLabel();renderCadence()"> 💎 Platinum</label>
+                  <label class="ms-item"><input type="checkbox" value="rocket" checked onchange="cadenceUpdateTierLabel();renderCadence()"> 🚀 Rocket</label>
+                  <label class="ms-item"><input type="checkbox" value="surfer" checked onchange="cadenceUpdateTierLabel();renderCadence()"> 🏄 Surfer</label>
+                  <label class="ms-item"><input type="checkbox" value="dog" checked onchange="cadenceUpdateTierLabel();renderCadence()"> 🐶 Dog</label>
+                  <label class="ms-item"><input type="checkbox" value="egg" checked onchange="cadenceUpdateTierLabel();renderCadence()"> 🥚 Egg</label>
+                </div>
               </div>
             </div>
           </div>
@@ -1291,6 +1323,19 @@ th{position:relative;}
               <label class="ms-item"><input type="checkbox" id="ro-sugord-no" checked onchange="roToggleSugOrd('no',this)"> No</label>
             </div>
           </div>
+          <div class="ms-wrap" id="ms-ro-tier">
+            <button class="ms-btn" onclick="toggleDropdown('ms-ro-tier')"><span id="ms-ro-tier-label">All Tiers</span><span class="ms-arrow">▾</span></button>
+            <div class="ms-dropdown" id="ms-ro-tier-dropdown">
+              <label class="ms-item ms-all"><input type="checkbox" checked onchange="roToggleTierAll(this)"> All Tiers</label>
+              <div id="ms-ro-tier-options">
+                <label class="ms-item"><input type="checkbox" value="platinum" checked onchange="roUpdateTierLabel();renderReorders()"> 💎 Platinum</label>
+                <label class="ms-item"><input type="checkbox" value="rocket" checked onchange="roUpdateTierLabel();renderReorders()"> 🚀 Rocket</label>
+                <label class="ms-item"><input type="checkbox" value="surfer" checked onchange="roUpdateTierLabel();renderReorders()"> 🏄 Surfer</label>
+                <label class="ms-item"><input type="checkbox" value="dog" checked onchange="roUpdateTierLabel();renderReorders()"> 🐶 Dog</label>
+                <label class="ms-item"><input type="checkbox" value="egg" checked onchange="roUpdateTierLabel();renderReorders()"> 🥚 Egg</label>
+              </div>
+            </div>
+          </div>
           <button class="clear-btn" onclick="roClearFilters()">✕ Clear</button>
         </div>
         <!-- Period selector -->
@@ -1389,6 +1434,19 @@ th{position:relative;}
             <div class="ms-dropdown" id="ms-md-delmonth-dropdown">
               <label class="ms-item ms-all"><input type="checkbox" checked onchange="mdToggleAll('delmonth',this)"> All</label>
               <div id="ms-md-delmonth-options"></div>
+            </div>
+          </div>
+          <div class="ms-wrap" id="ms-md-tier">
+            <button class="ms-btn" onclick="toggleDropdown('ms-md-tier')"><span id="ms-md-tier-label">All Tiers</span><span class="ms-arrow">▾</span></button>
+            <div class="ms-dropdown" id="ms-md-tier-dropdown">
+              <label class="ms-item ms-all"><input type="checkbox" checked onchange="mdToggleTierAll(this)"> All Tiers</label>
+              <div id="ms-md-tier-options">
+                <label class="ms-item"><input type="checkbox" value="platinum" checked onchange="mdUpdateTierLabel();renderMarkdowns()"> 💎 Platinum</label>
+                <label class="ms-item"><input type="checkbox" value="rocket" checked onchange="mdUpdateTierLabel();renderMarkdowns()"> 🚀 Rocket</label>
+                <label class="ms-item"><input type="checkbox" value="surfer" checked onchange="mdUpdateTierLabel();renderMarkdowns()"> 🏄 Surfer</label>
+                <label class="ms-item"><input type="checkbox" value="dog" checked onchange="mdUpdateTierLabel();renderMarkdowns()"> 🐶 Dog</label>
+                <label class="ms-item"><input type="checkbox" value="egg" checked onchange="mdUpdateTierLabel();renderMarkdowns()"> 🥚 Egg</label>
+              </div>
             </div>
           </div>
           <button class="clear-btn" onclick="mdClearFilters()">✕ Clear</button>
@@ -1869,7 +1927,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.2.3';
+const APP_VERSION='v1.2.4';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -2193,6 +2251,7 @@ function setCadenceView(view){
   document.getElementById('cadence-delmonth-wrap').style.display=view==='prod'?'':'none';
   document.getElementById('cadence-disc-wrap').style.display=view==='prod'?'':'none';
   document.getElementById('cadence-flag-wrap').style.display=view==='prod'?'':'none';
+  document.getElementById('cadence-tier-wrap').style.display=view==='prod'?'':'none';
   if(view==='cat'){document.getElementById('cadence-search').value='';cadenceCompareProducts=[];}
   if(view==='prod'){populateCadenceStatusFilter();populateCadenceCatFilter();populateCadenceDelMonthFilter();populateCadenceDiscFilter();populateCadenceFlagFilter();}
   renderCadence();
@@ -2382,6 +2441,28 @@ function updateCadenceFlagLabel(){
 }
 function getCadenceSelectedFlags(){
   const boxes=[...document.querySelectorAll('#ms-cad-flag-options input')];
+  if(!boxes.length)return[];
+  const checked=boxes.filter(b=>b.checked).map(b=>b.value);
+  if(checked.length===0||checked.length===boxes.length)return[];
+  return checked;
+}
+
+function toggleCadenceTierAll(cb){
+  document.querySelectorAll('#ms-cad-tier-options input').forEach(b=>b.checked=cb.checked);
+  cadenceUpdateTierLabel();renderCadence();
+}
+function cadenceUpdateTierLabel(){
+  const boxes=[...document.querySelectorAll('#ms-cad-tier-options input')];
+  const checked=boxes.filter(b=>b.checked);
+  const label=document.getElementById('ms-cad-tier-label');
+  const btn=document.querySelector('#ms-cad-tier .ms-btn');
+  const allBox=document.querySelector('#ms-cad-tier .ms-all input');
+  if(allBox)allBox.checked=checked.length===boxes.length;
+  if(checked.length===0||checked.length===boxes.length){if(label)label.textContent='All Tiers';if(btn)btn.classList.remove('filtered');}
+  else{const names={platinum:'💎 Platinum',rocket:'🚀 Rocket',surfer:'🏄 Surfer',dog:'🐶 Dog',egg:'🥚 Egg'};if(label)label.textContent=checked.length===1?(names[checked[0].value]||checked[0].value):`${checked.length} Tiers`;if(btn)btn.classList.add('filtered');}
+}
+function getCadenceSelectedTiers(){
+  const boxes=[...document.querySelectorAll('#ms-cad-tier-options input')];
   if(!boxes.length)return[];
   const checked=boxes.filter(b=>b.checked).map(b=>b.value);
   if(checked.length===0||checked.length===boxes.length)return[];
@@ -2606,6 +2687,12 @@ function renderCadence(){
       }
       // Stock status filter
       if(selectedFlags.length&&!selectedFlags.includes(productFlagMap[k]||'ok'))continue;
+      // Tier filter
+      const selectedTiersCad=getCadenceSelectedTiers();
+      if(selectedTiersCad.length&&window._tierMap){
+        const t=getTierForProduct(r.productName,r.colour);
+        if(!t||!selectedTiersCad.includes(t.tier))continue;
+      }
       prodSet.set(k,r.productName+(r.colour?' — '+r.colour:''));
     }
     rowKeys=[...prodSet.keys()].filter(k=>{
@@ -2668,7 +2755,9 @@ function renderCadence(){
   const displayLabel=k=>{
     if(cadenceView==='cat')return k;
     const parts=k.split('||');
-    return parts[0]+(parts[1]?' <span style="color:var(--text-muted);font-weight:400">'+parts[1]+'</span>':'');
+    const tierInfo=window._tierMap?getTierForProduct(parts[0],parts[1]||''):null;
+    const tierBadge=tierInfo?`<span style="font-size:12px;margin-right:4px;" title="${getPerfLabel(tierInfo.tier)}">${tierInfo.emoji}</span>`:'';
+    return tierBadge+parts[0]+(parts[1]?' <span style="color:var(--text-muted);font-weight:400">'+parts[1]+'</span>':'');
   };
 
   // Apply sort to rowKeys BEFORE limiting
@@ -4855,6 +4944,9 @@ function renderReorders(){
   if(delmonths.length)products=products.filter(p=>delmonths.includes(p.deliveryMonth||''));
   if(search)products=products.filter(p=>(p.productName+' - '+p.colour).toUpperCase().includes(search)||(p.productName||'').toUpperCase().includes(search));
   if(roViewSelectedOnly)products=products.filter(p=>saved[p.fullTitle]?.checked||saved[p.fullTitle]?.qty);
+  // Tier filter
+  const roTiers=roGetSelectedTiers();
+  if(roTiers.length&&window._tierMap) products=products.filter(p=>{const t=getTierForProduct(p.productName,p.colour);return t&&roTiers.includes(t.tier);});
   // Suggest Order filter
   const sugYes=document.getElementById('ro-sugord-yes')?.checked??true;
   const sugNo=document.getElementById('ro-sugord-no')?.checked??true;
@@ -4933,7 +5025,7 @@ function renderReorders(){
     const safeKey=key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     return`<tr style="background:${isChecked?'rgba(20,184,166,0.05)':''};">
       <td style="padding:6px 8px;text-align:center;"><input type="checkbox" ${isChecked?'checked':''} style="width:16px;height:16px;accent-color:var(--teal);cursor:pointer;" onchange="roToggle('${safeKey}',this.checked)"></td>
-      <td class="cell-product"><div class="prod-name">${p.productName}${p.colour?" - "+p.colour:""}</div></td>
+      <td class="cell-product"><div class="prod-name">${(()=>{const t=getTierForProduct(p.productName,p.colour);return t?`<span style="margin-right:3px;">${t.emoji}</span>`:''})()}${p.productName}${p.colour?" - "+p.colour:""}</div></td>
       <td class="cell-muted">${p.category||'—'}</td>
       <td style="padding:6px 10px;"><span class="range-pill ${vendorCls(p.vendor)}">${p.vendor||'—'}</span></td>
       <td style="padding:6px 10px;font-size:12px;">${p.deliveryMonth==='CORE'?'<span style="font-size:11px;font-weight:600;color:var(--blue);">CORE</span>':p.deliveryMonth||'—'}</td>
@@ -5002,6 +5094,28 @@ function roUpdateLabel(type){
     else{label.textContent=checked.length===1?checked[0].value:`${checked.length} selected`;if(btn)btn.classList.add('filtered');}
   }
 }
+function roToggleTierAll(cb){
+  document.querySelectorAll('#ms-ro-tier-options input').forEach(b=>b.checked=cb.checked);
+  roUpdateTierLabel();renderReorders();
+}
+function roUpdateTierLabel(){
+  const boxes=[...document.querySelectorAll('#ms-ro-tier-options input')];
+  const checked=boxes.filter(b=>b.checked);
+  const lbl=document.getElementById('ms-ro-tier-label');
+  const btn=document.querySelector('#ms-ro-tier .ms-btn');
+  const allBox=document.querySelector('#ms-ro-tier .ms-all input');
+  if(allBox)allBox.checked=checked.length===boxes.length;
+  const names={platinum:'💎 Platinum',rocket:'🚀 Rocket',surfer:'🏄 Surfer',dog:'🐶 Dog',egg:'🥚 Egg'};
+  if(checked.length===0||checked.length===boxes.length){if(lbl)lbl.textContent='All Tiers';if(btn)btn.classList.remove('filtered');}
+  else{if(lbl)lbl.textContent=checked.length===1?(names[checked[0].value]||checked[0].value):`${checked.length} Tiers`;if(btn)btn.classList.add('filtered');}
+}
+function roGetSelectedTiers(){
+  const boxes=[...document.querySelectorAll('#ms-ro-tier-options input')];
+  if(!boxes.length)return[];
+  const checked=boxes.filter(b=>b.checked).map(b=>b.value);
+  if(checked.length===0||checked.length===boxes.length)return[];
+  return checked;
+}
 function roClearFilters(){
   ['cat','vendor','flag','disc','delmonth'].forEach(type=>{
     document.querySelectorAll(`#ms-ro-${type}-options input`).forEach(b=>b.checked=true);
@@ -5009,6 +5123,11 @@ function roClearFilters(){
     if(allBox)allBox.checked=true;
     roUpdateLabel(type);
   });
+  // Reset tier filter
+  document.querySelectorAll('#ms-ro-tier-options input').forEach(b=>b.checked=true);
+  const roTierAll=document.querySelector('#ms-ro-tier .ms-all input');
+  if(roTierAll)roTierAll.checked=true;
+  roUpdateTierLabel();
   const s=document.getElementById('ro-search');if(s)s.value='';
   // Reset suggest order filter
   const yesChk=document.getElementById('ro-sugord-yes');
@@ -5376,6 +5495,28 @@ function mdUpdateLabel(type){
   }
 }
 
+function mdToggleTierAll(cb){
+  document.querySelectorAll('#ms-md-tier-options input').forEach(b=>b.checked=cb.checked);
+  mdUpdateTierLabel();renderMarkdowns();
+}
+function mdUpdateTierLabel(){
+  const boxes=[...document.querySelectorAll('#ms-md-tier-options input')];
+  const checked=boxes.filter(b=>b.checked);
+  const lbl=document.getElementById('ms-md-tier-label');
+  const btn=document.querySelector('#ms-md-tier .ms-btn');
+  const allBox=document.querySelector('#ms-md-tier .ms-all input');
+  if(allBox)allBox.checked=checked.length===boxes.length;
+  const names={platinum:'💎 Platinum',rocket:'🚀 Rocket',surfer:'🏄 Surfer',dog:'🐶 Dog',egg:'🥚 Egg'};
+  if(checked.length===0||checked.length===boxes.length){if(lbl)lbl.textContent='All Tiers';if(btn)btn.classList.remove('filtered');}
+  else{if(lbl)lbl.textContent=checked.length===1?(names[checked[0].value]||checked[0].value):`${checked.length} Tiers`;if(btn)btn.classList.add('filtered');}
+}
+function mdGetSelectedTiers(){
+  const boxes=[...document.querySelectorAll('#ms-md-tier-options input')];
+  if(!boxes.length)return[];
+  const checked=boxes.filter(b=>b.checked).map(b=>b.value);
+  if(checked.length===0||checked.length===boxes.length)return[];
+  return checked;
+}
 function mdClearFilters(){
   // Clear filters
   ['cat','vendor','flag','disc','soldout','delmonth'].forEach(type=>{
@@ -5384,6 +5525,11 @@ function mdClearFilters(){
     if(allBox)allBox.checked=true;
     mdUpdateLabel(type);
   });
+  // Reset tier filter
+  document.querySelectorAll('#ms-md-tier-options input').forEach(b=>b.checked=true);
+  const mdTierAll=document.querySelector('#ms-md-tier .ms-all input');
+  if(mdTierAll)mdTierAll.checked=true;
+  mdUpdateTierLabel();
   const s=document.getElementById('md-search');if(s)s.value='';
   // Clear all ticked boxes and proposed % from localStorage
   saveMdData({});
@@ -5601,6 +5747,9 @@ function renderMarkdowns(){
     return full.includes(search)||(p.productName||'').toUpperCase().includes(search)||(p.colour||'').toUpperCase().includes(search);
   });
   if(mdViewSelectedOnly)products=products.filter(p=>saved[p.fullTitle]?.checked||saved[p.fullTitle]?.pct);
+  // Tier filter
+  const mdTiers=mdGetSelectedTiers();
+  if(mdTiers.length&&window._tierMap) products=products.filter(p=>{const t=getTierForProduct(p.productName,p.colour);return t&&mdTiers.includes(t.tier);});
 
   const selectedCount=products.filter(p=>saved[p.fullTitle]?.checked||saved[p.fullTitle]?.pct).length;
   if(countEl)countEl.textContent=`${products.length} products shown — ${selectedCount} selected for markdown`;
@@ -5679,7 +5828,7 @@ function renderMarkdowns(){
     const safeCollection=collection.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     return`<tr style="background:${isChecked?'rgba(20,184,166,0.05)':''};">
       <td class="md-sticky-cb" style="padding:6px 8px;text-align:center;"><input type="checkbox" ${isChecked?'checked':''} style="width:16px;height:16px;accent-color:var(--teal);cursor:pointer;" onchange="mdToggle('${safeKey}',this.checked)"></td>
-      <td class="md-sticky-product cell-product"><div class="prod-name">${p.productName}${p.colour?" - "+p.colour:""}</div></td>
+      <td class="md-sticky-product cell-product"><div class="prod-name">${(()=>{const t=getTierForProduct(p.productName,p.colour);return t?`<span style="margin-right:3px;">${t.emoji}</span>`:''})()}${p.productName}${p.colour?" - "+p.colour:""}</div></td>
       <td style="padding:5px 8px;">
         <input type="text" placeholder="e.g. BUNDLE TEES 3 FOR $150" value="${collection}"
           style="width:180px;padding:6px 9px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;outline:none;background:var(--surface);"
@@ -6993,7 +7142,7 @@ function buildVariantRows(){
   const{variantMap:amVariantMap,productMap:amProductMap,products:amProducts}=_cachedAMData;
   const{soMap}=_cachedSoldOutData;
   allVariantRows=processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap,coreSet,bundleSet,draftSet,activeSet);
-  _perfDataCache=null; // clear performance cache so it rebuilds with fresh data
+  _perfDataCache=null; window._tierMap=null; // clear performance cache so it rebuilds with fresh data
 
 
   document.getElementById('nav-count').textContent=allVariantRows.length.toLocaleString()+' SKUs';
@@ -7105,6 +7254,11 @@ function buildDashboard(){
   showScreen('dashboard');
   buildVariantRows();
   console.log('🟢 buildVariantRows done, rows:',allVariantRows.length);
+  // Build tier map eagerly so tier badges/filters are available immediately
+  if(!_perfDataCache&&window._salesBySkuDay&&allVariantRows.length){
+    _perfDataCache=buildPerfData();
+    window._tierMap=buildTierMap(_perfDataCache);
+  }
   renderSidebarCounts();
   }catch(err){console.error('❌ buildDashboard error:',err);}
 }
@@ -7297,6 +7451,24 @@ function quickVendor(v){
   applyFilters();
 }
 
+function updateTierLabel(){
+  const boxes=[...document.querySelectorAll('#ms-tier-options input[type="checkbox"]')];
+  const checked=boxes.filter(b=>b.checked).map(b=>b.value);
+  const allBox=document.querySelector('#ms-tier .ms-all input');
+  const allChecked=checked.length===boxes.length;
+  if(allBox)allBox.checked=allChecked;
+  const lbl=document.getElementById('ms-tier-label');
+  const btn=document.querySelector('#ms-tier .ms-btn');
+  if(allChecked){if(lbl)lbl.textContent='All Tiers';if(btn)btn.classList.remove('filtered');}
+  else{if(lbl)lbl.textContent=checked.length===1?{platinum:'💎 Platinum',rocket:'🚀 Rocket',surfer:'🏄 Surfer',dog:'🐶 Dog',egg:'🥚 Egg'}[checked[0]]||'Tier':checked.length+' Tiers';if(btn)btn.classList.add('filtered');}
+}
+
+function getSelectedTiers(){
+  const boxes=[...document.querySelectorAll('#ms-tier-options input[type="checkbox"]')];
+  if(!boxes.length)return[];
+  return boxes.filter(b=>b.checked).map(b=>b.value);
+}
+
 function applyFilters(){
   updateLabel('cat','All Categories');
   updateLabel('vendor','All Statuses');
@@ -7309,16 +7481,15 @@ function applyFilters(){
 }
 
 function clearFilters(){
-  ['cat','vendor','flag','disc','soldout','delmonth'].forEach(type=>{
+  ['cat','vendor','flag','disc','soldout','delmonth','tier'].forEach(type=>{
     const boxes=document.querySelectorAll('#ms-'+type+'-options input[type="checkbox"]');
     boxes.forEach(b=>b.checked=true);
     const allBox=document.querySelector('#ms-'+type+' .ms-all input');
     if(allBox)allBox.checked=true;
-    const labelEl=document.getElementById('ms-'+type+'-label');
     const btnEl=document.querySelector('#ms-'+type+' .ms-btn');
     if(btnEl)btnEl.classList.remove('filtered');
   });
-  const labels={cat:'All Categories',vendor:'All Statuses',flag:'All Stock Status',disc:'Discount %',soldout:'Sizes Sold Out',delmonth:'Month Del'};
+  const labels={cat:'All Categories',vendor:'All Statuses',flag:'All Stock Status',disc:'Discount %',soldout:'Sizes Sold Out',delmonth:'Month Del',tier:'All Tiers'};
   Object.entries(labels).forEach(([t,l])=>{const el=document.getElementById('ms-'+t+'-label');if(el)el.textContent=l;});
   document.getElementById('search-input').value='';
   // Reset suggest order filter
@@ -7358,6 +7529,9 @@ function setView(v){
   // Show Suggest Order filter on all views
   const suggestWrap=document.getElementById('ms-suggestorder');
   if(suggestWrap)suggestWrap.style.display='';
+  // Show Tier filter on product and variant views only
+  const tierWrap=document.getElementById('ms-tier');
+  if(tierWrap)tierWrap.style.display=(v==='product'||v==='variant')?'':'none';
   renderTable();
 }
 
@@ -7702,6 +7876,17 @@ function getFilteredRows(){
   // Apply column-level filters
   rows=applyColFilterToRows(rows);
 
+  // Tier filter (product and variant views only — requires _tierMap)
+  if(currentView!=='category'&&window._tierMap){
+    const tiers=getSelectedTiers();
+    if(tiers.length&&tiers.length<5){
+      rows=rows.filter(r=>{
+        const t=getTierForProduct(r.productName,r.colour);
+        return t&&tiers.includes(t.tier);
+      });
+    }
+  }
+
   // Suggest Order filter
   const suggestOrderFilter=getSuggestOrderFilter();
   if(suggestOrderFilter==='yes') rows=rows.filter(r=>(r.suggestedOrder||0)>0);
@@ -7752,6 +7937,7 @@ function renderTable(){
     {k:'oosCount',l:'OOS'},{k:'critCount',l:'Re-Order'},{k:'flag',l:'Stock Status'}
   ];
   const prodHeaders=[
+    {k:'tier',l:'Tier'},
     {k:'productName',l:'Product'},{k:'category',l:'Category'},{k:'discountPct',l:'Disc%'},{k:'vendor',l:'Status'},
     {k:'deliveryMonth',l:'Month Del'},
     {k:'sellThru7',l:stLabel},{k:'margin',l:'Margin%'},{k:'stock',l:'SOH'},{k:'sohValue',l:'SOH Value'},{k:'sellValue',l:'Sell Value'},
@@ -7763,6 +7949,7 @@ function renderTable(){
     {k:'days',l:'Weeks Cover'},{k:'suggestedOrder',l:'Suggest Order'},{k:'flag',l:'Stock Status'}
   ];
   const varHeaders=[
+    {k:'tier',l:'Tier'},
     {k:'productName',l:'Product'},{k:'size',l:'Size'},{k:'sku',l:'SKU'},
     {k:'category',l:'Category'},{k:'discountPct',l:'Disc%'},{k:'vendor',l:'Status'},
     {k:'deliveryMonth',l:'Month Del'},
@@ -7866,6 +8053,13 @@ function renderCategoryTotals(rows,headers){
 function renderRow(row,headers){
   return'<tr>'+headers.map(h=>{
     const val=row[h.k];
+    if(h.k==='tier'){
+      const t=getTierForProduct(row.productName,row.colour);
+      if(!t)return`<td class="cell-muted">—</td>`;
+      const colors={platinum:'#6d28d9',rocket:'#15803d',surfer:'#1d4ed8',dog:'#c2410c',egg:'#a16207'};
+      const bgs={platinum:'#faf5ff',rocket:'#f0fdf4',surfer:'#eff6ff',dog:'#fff7ed',egg:'#fefce8'};
+      return`<td><span style="font-size:13px;background:${bgs[t.tier]||''};color:${colors[t.tier]||'var(--text)'};padding:2px 7px;border-radius:20px;font-weight:600;white-space:nowrap;">${t.emoji} ${getPerfLabel(t.tier)}</span></td>`;
+    }
     if(h.k==='productName'){
       const amTag=row.amOnly?'<span class="am-tag">AM</span>':'';
       return`<td class="cell-product"><div class="prod-name">${row.productName||''}${amTag}</div>${row.colour?`<div class="prod-colour">${row.colour}</div>`:''}</td>`;
@@ -8239,6 +8433,17 @@ function getPerfLabel(tier){
   if(tier==='surfer')return'Surfer';
   if(tier==='egg')return'Egg';
   return'Dog';
+}
+
+function buildTierMap(perfData){
+  const m={};
+  for(const p of perfData) m[p.productName+'||'+p.colour]={tier:p.tier,emoji:p.emoji};
+  return m;
+}
+
+function getTierForProduct(productName,colour){
+  const m=window._tierMap||{};
+  return m[productName+'||'+colour]||null;
 }
 
 function buildPerfData(){
@@ -8658,7 +8863,7 @@ function renderPerformance(){
   }
 
   // Build full dataset (cached until data reloads)
-  if(!_perfDataCache)_perfDataCache=buildPerfData();
+  if(!_perfDataCache){_perfDataCache=buildPerfData();window._tierMap=buildTierMap(_perfDataCache);}
   const allData=_perfDataCache;
 
   // Populate filters on first render
@@ -8878,7 +9083,7 @@ function resetApp(){
   coreStylesData=null;bundleStylesData=null;allProductsListData=null;
   _cachedSalesMaps=null;_cachedAMData=null;_cachedSoldOutData=null;
   allVariantRows=[];
-  _perfDataCache=null;
+  _perfDataCache=null;window._tierMap=null;
   _perfSelectedProducts=[];
   document.getElementById('upload-screen').style.display='flex';
   document.getElementById('app').style.display='none';
