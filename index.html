@@ -1868,7 +1868,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.1.9';
+const APP_VERSION='v1.2.0';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -8439,6 +8439,16 @@ function perfUpdateLabel(type){
   }
 }
 
+function perfFilterToTier(tier){
+  const boxes=[...document.querySelectorAll('#ms-perf-tier-options input[type="checkbox"]')];
+  const activeTiers=perfGetSelected('tier');
+  // If already filtered to just this tier, clicking again resets to all
+  const alreadyActive=activeTiers.length===1&&activeTiers[0]===tier;
+  boxes.forEach(b=>b.checked=alreadyActive?true:b.value===tier);
+  perfUpdateLabel('tier');
+  renderPerformance();
+}
+
 function perfPopulateFilters(data){
   // Categories
   const cats=[...new Set(data.map(p=>p.category).filter(Boolean))].sort();
@@ -8685,7 +8695,9 @@ function renderPerformance(){
     ].map(s=>{
       const count=filteredTierCounts[s.tier];
       const pct=filteredTotal>0?Math.round(count/filteredTotal*100):0;
-      return`<div style="background:${s.bg};border:1px solid ${s.border};border-radius:var(--r-lg);padding:12px 20px;display:flex;align-items:center;gap:10px;">
+      const activeTiers=perfGetSelected('tier');
+      const isActive=activeTiers.length===1&&activeTiers[0]===s.tier;
+      return`<div onclick="perfFilterToTier('${s.tier}')" style="background:${s.bg};border:2px solid ${isActive?s.text:s.border};border-radius:var(--r-lg);padding:12px 20px;display:flex;align-items:center;gap:10px;cursor:pointer;transition:all 0.15s;box-shadow:${isActive?`0 0 0 3px ${s.border}`:'none'};" onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.12)'" onmouseout="this.style.boxShadow='${isActive?`0 0 0 3px ${s.border}`:'none'}'">
         <span style="font-size:22px;">${getPerfEmoji(s.tier)}</span>
         <div>
           <div style="font-size:18px;font-weight:700;color:${s.text};">${count}</div>
