@@ -1752,10 +1752,10 @@ th{position:relative;}
           <div class="ms-dropdown" id="ms-perf-tier-dropdown">
             <label class="ms-item ms-all"><input type="checkbox" checked onchange="perfToggleAll('tier',this)"> All Tiers</label>
             <div id="ms-perf-tier-options">
-              <label class="ms-item"><input type="checkbox" value="platinum" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 💎 Platinum (100+ units)</label>
-              <label class="ms-item"><input type="checkbox" value="rocket" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 🚀 Rocket (80–99 units)</label>
-              <label class="ms-item"><input type="checkbox" value="surfer" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 🏄 Surfer (20–79 units)</label>
-              <label class="ms-item"><input type="checkbox" value="dog" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 🐶 Dog (&lt;20 units)</label>
+              <label class="ms-item"><input type="checkbox" value="platinum" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 💎 Platinum (Index 200+)</label>
+              <label class="ms-item"><input type="checkbox" value="rocket" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 🚀 Rocket (Index 130–199)</label>
+              <label class="ms-item"><input type="checkbox" value="surfer" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 🏄 Surfer (Index 70–129)</label>
+              <label class="ms-item"><input type="checkbox" value="dog" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 🐶 Dog (Index &lt;70)</label>
             </div>
           </div>
         </div>
@@ -1779,7 +1779,18 @@ th{position:relative;}
             <div id="ms-perf-delmonth-options"></div>
           </div>
         </div>
-        <button class="clear-btn" onclick="perfClearFilters()">✕ Clear</button>
+        <!-- New/Completed filter -->
+        <div class="ms-wrap" id="ms-perf-newstatus">
+          <button class="ms-btn" onclick="toggleDropdown('ms-perf-newstatus')">
+            <span id="ms-perf-newstatus-label">All Products</span><span class="ms-arrow">&#9662;</span>
+          </button>
+          <div class="ms-dropdown" id="ms-perf-newstatus-dropdown" style="min-width:180px;">
+            <label class="ms-item"><input type="radio" name="perf-newstatus" value="all" checked onchange="perfNewStatusChange()"> All Products</label>
+            <label class="ms-item"><input type="radio" name="perf-newstatus" value="new" onchange="perfNewStatusChange()"> New Only (&lt;32 days)</label>
+            <label class="ms-item"><input type="radio" name="perf-newstatus" value="completed" onchange="perfNewStatusChange()"> Completed Only</label>
+          </div>
+        </div>
+        <button class="clear-btn" onclick="perfClearFilters()">&#10005; Clear</button>
       </div>
       <!-- Summary badges -->
       <div id="perf-summary" style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;"></div>
@@ -1847,7 +1858,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.1.4';
+const APP_VERSION='v1.1.6';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -8190,14 +8201,16 @@ function exportCSV(){
 }
 
 /* ── PERFORMANCE VIEW ── */
-// v1.1.1 — Drop Performance Classification
-// Classifies each product by total units sold in the 4 weeks following first sale date
-// Uses Month Delivery field as the drop month anchor for grouping/filtering
+// v1.1.6 — Drop Performance Classification (Cohort Index + New Product Projection)
+// Completed products (first sale >32 days ago): index = actual 4w units / cohort avg 4w units * 100
+// New products (first sale <=32 days ago): daily run rate projected to 28 days, compared against
+//   cohort peers' first N days only (where N = days elapsed for the new product) for a fair comparison
+// Tier thresholds: Platinum >=200 | Rocket 130-199 | Surfer 70-129 | Dog <70
 
-function getPerfTier(units4w){
-  if(units4w>=100)return'platinum';
-  if(units4w>=80)return'rocket';
-  if(units4w>=20)return'surfer';
+function getPerfTier(indexScore){
+  if(indexScore>=200)return'platinum';
+  if(indexScore>=130)return'rocket';
+  if(indexScore>=70)return'surfer';
   return'dog';
 }
 
@@ -8216,10 +8229,12 @@ function getPerfLabel(tier){
 }
 
 function buildPerfData(){
-  // Returns array of product-level objects with 4w classification
   if(!window._salesBySkuDay||!allVariantRows||!allVariantRows.length)return[];
 
-  // Build product map: productName||colour → {deliveryMonth, category, variants:[sku,...], firstSaleDay}
+  const today=new Date();today.setHours(0,0,0,0);
+  const NEW_THRESHOLD_DAYS=32; // products within this many days of first sale are "new"
+
+  // Build product map
   const prodMap={};
   for(const r of allVariantRows){
     if(r.amOnly)continue;
@@ -8238,60 +8253,144 @@ function buildPerfData(){
     if(r.sku&&!prodMap[k].skus.includes(r.sku))prodMap[k].skus.push(r.sku);
   }
 
-  // Find first sale day per product across all skus
+  // Find first sale day per product
   for(const k of Object.keys(prodMap)){
     const p=prodMap[k];
     for(const sku of p.skus){
       const dayData=window._salesBySkuDay[sku]||{};
       for(const day of Object.keys(dayData)){
-        const d=dayData[day];
-        if((d.qty||0)>0){
+        if((dayData[day].qty||0)>0){
           if(!p.firstSaleDay||day<p.firstSaleDay)p.firstSaleDay=day;
         }
       }
     }
   }
 
-  // For each product, sum units sold in the 28 days (4 weeks) from first sale date (inclusive)
-  const results=[];
-  for(const k of Object.keys(prodMap)){
-    const p=prodMap[k];
-    if(!p.firstSaleDay){
-      // No sales — classify as dog with 0
-      const tier=getPerfTier(0);
-      results.push({
-        ...p,
-        units4w:0,
-        tier,
-        emoji:getPerfEmoji(tier)
-      });
-      continue;
-    }
-    const startDate=new Date(p.firstSaleDay);
-    startDate.setHours(0,0,0,0);
-    const endDate=new Date(startDate);
-    endDate.setDate(startDate.getDate()+27); // 28 days inclusive
+  // Helper: get cohort week key (Monday of first sale week)
+  function getCohortWeek(firstSaleDay){
+    const fsd=new Date(firstSaleDay);fsd.setHours(0,0,0,0);
+    const dow=(fsd.getDay()+6)%7; // Mon=0
+    const mon=new Date(fsd);mon.setDate(fsd.getDate()-dow);
+    return mon.toISOString().slice(0,10);
+  }
 
-    let units4w=0;
-    for(const sku of p.skus){
+  // Helper: sum units for a product within a date window (inclusive)
+  function sumUnitsInWindow(skus,startDate,endDate){
+    let total=0;
+    for(const sku of skus){
       const dayData=window._salesBySkuDay[sku]||{};
       for(const[day,d] of Object.entries(dayData)){
         const dt=new Date(day);dt.setHours(0,0,0,0);
-        if(dt>=startDate&&dt<=endDate)units4w+=d.qty||0;
+        if(dt>=startDate&&dt<=endDate)total+=d.qty||0;
       }
     }
-    units4w=Math.round(units4w);
-    const tier=getPerfTier(units4w);
+    return Math.round(total);
+  }
+
+  // First pass: collect raw data per product
+  const interim=[];
+  for(const k of Object.keys(prodMap)){
+    const p=prodMap[k];
+    if(!p.firstSaleDay){
+      interim.push({...p,units4w:0,daysElapsed:null,isNew:false,cohortWeek:null,projectedUnits:0});
+      continue;
+    }
+    const fsd=new Date(p.firstSaleDay);fsd.setHours(0,0,0,0);
+    const daysElapsed=Math.floor((today-fsd)/(1000*60*60*24));
+    const isNew=daysElapsed<=NEW_THRESHOLD_DAYS;
+    const cohortWeek=getCohortWeek(p.firstSaleDay);
+
+    // Full 4-week window units (used for completed products and as cohort data)
+    const endFull=new Date(fsd);endFull.setDate(fsd.getDate()+27);
+    const units4w=sumUnitsInWindow(p.skus,fsd,endFull);
+
+    // For new products: units in elapsed days so far
+    const windowEnd=isNew?new Date(today):new Date(fsd);
+    if(isNew)windowEnd.setHours(0,0,0,0);
+    else windowEnd.setDate(fsd.getDate()+27);
+    const unitsActual=isNew?sumUnitsInWindow(p.skus,fsd,today):units4w;
+    const effectiveDays=isNew?Math.max(daysElapsed,1):28;
+    const projectedUnits=isNew?Math.round((unitsActual/effectiveDays)*28):units4w;
+
+    interim.push({...p,units4w,unitsActual,daysElapsed,isNew,cohortWeek,projectedUnits,effectiveDays});
+  }
+
+  // Build cohort stats for BOTH completed and new products
+  // For completed products: use their full 4w units
+  // For cohort average used against new products: use only first N days of each peer
+  // We build per-cohort per-N-day averages lazily when needed
+
+  // Cohort full-28-day stats (for completed product indexing)
+  const cohortFull={};
+  for(const p of interim){
+    if(!p.cohortWeek||p.isNew)continue;
+    if(!cohortFull[p.cohortWeek])cohortFull[p.cohortWeek]={sum:0,count:0};
+    cohortFull[p.cohortWeek].sum+=p.units4w;
+    cohortFull[p.cohortWeek].count+=1;
+  }
+
+  // For new products: build cohort average using first N days of ALL cohort peers
+  // Cache per cohortWeek+daysElapsed to avoid recomputing
+  const cohortNDayCache={};
+  function getCohortNDayAvg(cohortWeek,nDays,excludeKey){
+    const cacheKey=cohortWeek+'|'+nDays;
+    if(!cohortNDayCache[cacheKey]){
+      // Find all products in this cohort week (including completed ones)
+      const peers=interim.filter(p=>p.cohortWeek===cohortWeek&&p.firstSaleDay);
+      let sum=0,count=0;
+      for(const peer of peers){
+        if(peer.productName+'||'+peer.colour===excludeKey)continue;
+        const fsd=new Date(peer.firstSaleDay);fsd.setHours(0,0,0,0);
+        const windowEnd=new Date(fsd);windowEnd.setDate(fsd.getDate()+nDays-1);
+        const peerUnits=sumUnitsInWindow(peer.skus,fsd,windowEnd);
+        // Project peer's N-day units to 28 days for a fair comparison
+        const peerProjected=Math.round((peerUnits/Math.max(nDays,1))*28);
+        sum+=peerProjected;count+=1;
+      }
+      cohortNDayCache[cacheKey]={sum,count};
+    }
+    const cached=cohortNDayCache[cacheKey];
+    // Subtract the excluded product's contribution if it was included
+    // (simpler: just compute without it each time for new products — small N so acceptable)
+    // Recompute excluding the specific product
+    const peers=interim.filter(p=>p.cohortWeek===cohortWeek&&p.firstSaleDay&&(p.productName+'||'+p.colour)!==excludeKey);
+    let sum=0,count=0;
+    for(const peer of peers){
+      const fsd=new Date(peer.firstSaleDay);fsd.setHours(0,0,0,0);
+      const windowEnd=new Date(fsd);windowEnd.setDate(fsd.getDate()+nDays-1);
+      const peerUnits=sumUnitsInWindow(peer.skus,fsd,windowEnd);
+      const peerProjected=Math.round((peerUnits/Math.max(nDays,1))*28);
+      sum+=peerProjected;count+=1;
+    }
+    return count>0?sum/count:0;
+  }
+
+  // Classify all products
+  const results=[];
+  for(const p of interim){
+    let indexScore=0;
+    if(p.cohortWeek){
+      if(p.isNew){
+        // Compare projected units against cohort N-day projected average
+        const cohortAvg=getCohortNDayAvg(p.cohortWeek,p.effectiveDays,p.productName+'||'+p.colour);
+        indexScore=cohortAvg>0?Math.round(p.projectedUnits/cohortAvg*100):0;
+      } else {
+        // Compare actual 4w units against cohort full 4w average
+        const stats=cohortFull[p.cohortWeek];
+        const avg=stats&&stats.count>0?stats.sum/stats.count:0;
+        indexScore=avg>0?Math.round(p.units4w/avg*100):0;
+      }
+    }
+    const tier=getPerfTier(indexScore);
     results.push({
       ...p,
-      units4w,
+      indexScore,
       tier,
-      emoji:getPerfEmoji(tier),
-      firstSaleDay:p.firstSaleDay
+      emoji:getPerfEmoji(tier)
     });
   }
 
-  // Sort by tier (platinum→rocket→surfer→dog) then product name
+  // Sort by tier then product name
   const tierOrder={platinum:0,rocket:1,surfer:2,dog:3};
   results.sort((a,b)=>{
     if(tierOrder[a.tier]!==tierOrder[b.tier])return tierOrder[a.tier]-tierOrder[b.tier];
@@ -8363,6 +8462,18 @@ function perfPopulateFilters(data){
   }
 }
 
+function perfNewStatusChange(){
+  const val=document.querySelector('input[name="perf-newstatus"]:checked')?.value||'all';
+  const label=document.getElementById('ms-perf-newstatus-label');
+  const btn=document.querySelector('#ms-perf-newstatus .ms-btn');
+  if(label){
+    if(val==='new'){label.textContent='New Only';if(btn)btn.classList.add('filtered');}
+    else if(val==='completed'){label.textContent='Completed Only';if(btn)btn.classList.add('filtered');}
+    else{label.textContent='All Products';if(btn)btn.classList.remove('filtered');}
+  }
+  renderPerformance();
+}
+
 function perfClearFilters(){
   ['tier','cat','delmonth'].forEach(type=>{
     document.querySelectorAll(`#ms-perf-${type}-options input`).forEach(b=>b.checked=true);
@@ -8370,6 +8481,9 @@ function perfClearFilters(){
     if(allBox)allBox.checked=true;
     perfUpdateLabel(type);
   });
+  // Reset new/completed radio
+  const allRadio=document.querySelector('input[name="perf-newstatus"][value="all"]');
+  if(allRadio){allRadio.checked=true;perfNewStatusChange();}
   perfClearSelected();
 }
 
@@ -8505,7 +8619,7 @@ function setPerfSort(col){
   } else {
     _perfSortCol=col;
     // Text cols default asc, numeric cols default desc
-    _perfSortDir=(col==='productName'||col==='category'||col==='deliveryMonth'||col==='firstSaleDay'||col==='tier')?'asc':'desc';
+    _perfSortDir=(col==='productName'||col==='category'||col==='deliveryMonth'||col==='firstSaleDay'||col==='tier'||col==='isNew')?'asc':'desc';
   }
   renderPerformance();
 }
@@ -8537,6 +8651,10 @@ function renderPerformance(){
   if(tiers.length)data=data.filter(p=>tiers.includes(p.tier));
   if(cats.length)data=data.filter(p=>cats.includes(p.category||''));
   if(delmonths.length)data=data.filter(p=>delmonths.includes(p.deliveryMonth||''));
+  // New/completed filter
+  const newStatus=document.querySelector('input[name="perf-newstatus"]:checked')?.value||'all';
+  if(newStatus==='new')data=data.filter(p=>p.isNew);
+  else if(newStatus==='completed')data=data.filter(p=>!p.isNew);
   // Selection filter — if products are selected, show only those
   if(_perfSelectedProducts.length){
     const selKeys=new Set(_perfSelectedProducts.map(s=>s.key));
@@ -8627,9 +8745,11 @@ function renderPerformance(){
       case'tier':
         av=tierOrder[a.tier]??9;bv=tierOrder[b.tier]??9;
         if(av!==bv)return dir*(av-bv);
-        return(b.units4w-a.units4w); // secondary: units desc
+        return(b.indexScore-a.indexScore); // secondary: index desc
       case'units4w':
         return dir*(a.units4w-b.units4w);
+      case'indexScore':
+        return dir*(a.indexScore-b.indexScore);
       case'firstSaleDay':
         return dir*((a.firstSaleDay||'').localeCompare(b.firstSaleDay||''));
       default:
@@ -8679,11 +8799,20 @@ function renderPerformance(){
       return`<td style="text-align:right;padding:4px 6px;font-size:11px;font-weight:600;background:rgba(14,165,160,${(intensity/1000).toFixed(3)});color:var(--teal-dark);">${v}</td>`;
     }).join('');
     const tierBadge=`<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:var(--r-pill);background:${tierBg[p.tier]};color:${tierColor[p.tier]};border:1px solid ${tierBorder[p.tier]};">${p.emoji} ${getPerfLabel(p.tier)}</span>`;
+    const newBadge=p.isNew?`<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:var(--r-pill);background:#fef9c3;color:#92400e;border:1px solid #fde68a;margin-left:5px;">NEW ${p.daysElapsed}d</span>`:'';
     const firstSale=p.firstSaleDay?p.firstSaleDay.slice(0,10):'—';
     const catBadge=p.category?`<span style="font-size:11px;color:var(--text-muted);">${p.category}</span>`:'';
     const dmBadge=p.deliveryMonth&&p.deliveryMonth!=='CORE'
       ?`<span style="font-size:11px;color:var(--text-secondary);font-weight:500;">${p.deliveryMonth}</span>`
       :(p.deliveryMonth==='CORE'?`<span style="font-size:11px;color:var(--blue);font-weight:600;">CORE</span>`:'');
+    // Index display: projected (est) for new, actual for completed
+    const indexDisplay=p.isNew
+      ?`<span style="font-weight:700;color:${tierColor[p.tier]};">${p.indexScore}</span><span style="font-size:10px;color:var(--text-muted);margin-left:3px;">est</span>`
+      :`<span style="font-weight:700;color:${tierColor[p.tier]};">${p.indexScore}</span>`;
+    // Units display: show actual/projected for new products
+    const unitsDisplay=p.isNew
+      ?`<span style="font-weight:600;color:var(--text-secondary);">${p.unitsActual||0}</span><span style="font-size:10px;color:var(--text-muted);margin-left:3px;">→ ${p.projectedUnits} proj</span>`
+      :`<span style="font-weight:600;color:var(--text-secondary);">${p.units4w}</span>`;
     return`<tr style="border-bottom:1px solid var(--border-light);">
       <td style="padding:6px 10px;min-width:220px;max-width:280px;">
         <div style="font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.productName} ${p.emoji}</div>
@@ -8691,8 +8820,9 @@ function renderPerformance(){
       </td>
       <td style="padding:6px 10px;white-space:nowrap;">${catBadge}</td>
       <td style="padding:6px 10px;white-space:nowrap;">${dmBadge}</td>
-      <td style="padding:6px 10px;white-space:nowrap;">${tierBadge}</td>
-      <td style="text-align:right;padding:6px 10px;font-weight:700;color:${tierColor[p.tier]};">${p.units4w}</td>
+      <td style="padding:6px 10px;white-space:nowrap;">${tierBadge}${newBadge}</td>
+      <td style="text-align:right;padding:6px 10px;white-space:nowrap;">${indexDisplay}</td>
+      <td style="text-align:right;padding:6px 10px;white-space:nowrap;">${unitsDisplay}</td>
       <td style="padding:6px 10px;white-space:nowrap;font-size:11px;color:var(--text-muted);">${firstSale}</td>
       ${cells}
     </tr>`;
@@ -8706,6 +8836,7 @@ function renderPerformance(){
         ${th('category','Category')}
         ${th('deliveryMonth','Month Del')}
         ${th('tier','Tier')}
+        ${th('indexScore','Index',true)}
         ${th('units4w','4-Week Units',true)}
         ${th('firstSaleDay','First Sale')}
         ${weekHeaders}
