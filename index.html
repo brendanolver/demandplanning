@@ -887,25 +887,30 @@ th{position:relative;}
               <button class="ms-btn" onclick="toggleDropdown('ms-period')" style="font-weight:600;">
                 <span id="ms-period-label">Period: 7d</span><span class="ms-arrow">▾</span>
               </button>
-              <div class="ms-dropdown" id="ms-period-dropdown" style="min-width:120px;">
+              <div class="ms-dropdown" id="ms-period-dropdown" style="min-width:180px;">
                 <label class="ms-item"><input type="radio" name="period-radio" value="7" checked onchange="setPeriod(7);toggleDropdown('ms-period')"> 7 days</label>
                 <label class="ms-item"><input type="radio" name="period-radio" value="14" onchange="setPeriod(14);toggleDropdown('ms-period')"> 14 days</label>
                 <label class="ms-item"><input type="radio" name="period-radio" value="30" onchange="setPeriod(30);toggleDropdown('ms-period')"> 30 days</label>
                 <label class="ms-item"><input type="radio" name="period-radio" value="60" onchange="setPeriod(60);toggleDropdown('ms-period')"> 60 days</label>
                 <label class="ms-item"><input type="radio" name="period-radio" value="90" onchange="setPeriod(90);toggleDropdown('ms-period')"> 90 days</label>
                 <label class="ms-item"><input type="radio" name="period-radio" value="365" onchange="setPeriod(365);toggleDropdown('ms-period')"> 365 days</label>
-              </div>
-              <div class="date-range-wrap" style="padding:4px 4px 0;">
-                <div style="border-top:1px solid var(--border);margin:4px 0 8px;"></div>
-                <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;padding:0 6px;">Custom date range</div>
-                <div style="padding:0 6px 6px;">
-                  <label style="font-size:11px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:3px;">From</label>
-                  <input type="date" id="period-date-from" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;color:var(--text);background:var(--surface2);outline:none;margin-bottom:8px;" onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
-                  <label style="font-size:11px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:3px;">To</label>
-                  <input type="date" id="period-date-to" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;color:var(--text);background:var(--surface2);outline:none;margin-bottom:10px;" onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
-                  <div style="display:flex;gap:6px;">
-                    <button onclick="applyCustomDateRange()" style="flex:1;background:var(--teal);color:white;border:none;padding:7px;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">Apply</button>
-                    <button onclick="clearCustomDateRange()" style="flex:1;background:var(--surface);color:var(--text-secondary);border:1px solid var(--border);padding:7px;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;">Clear</button>
+                <label class="ms-item" style="border-top:1px solid var(--border);margin-top:3px;padding-top:8px;">
+                  <input type="radio" name="period-radio" value="custom" onchange="showPeriodDatePicker()"> 📅 Custom range…
+                </label>
+                <div id="period-date-picker" style="display:none;padding:8px 10px 4px;border-top:1px solid var(--border);margin-top:4px;">
+                  <div style="display:flex;gap:6px;margin-bottom:6px;">
+                    <div style="flex:1;">
+                      <div style="font-size:10px;font-weight:600;color:var(--text-muted);margin-bottom:3px;">FROM</div>
+                      <input type="date" id="period-date-from" style="width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;color:var(--text);background:var(--surface2);outline:none;" onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
+                    </div>
+                    <div style="flex:1;">
+                      <div style="font-size:10px;font-weight:600;color:var(--text-muted);margin-bottom:3px;">TO</div>
+                      <input type="date" id="period-date-to" style="width:100%;padding:5px 7px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;color:var(--text);background:var(--surface2);outline:none;" onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
+                    </div>
+                  </div>
+                  <div style="display:flex;gap:5px;padding-bottom:4px;">
+                    <button onclick="applyCustomDateRange()" style="flex:1;background:var(--teal);color:white;border:none;padding:6px;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">Apply</button>
+                    <button onclick="clearCustomDateRange()" style="flex:1;background:var(--surface);color:var(--text-secondary);border:1px solid var(--border);padding:6px;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;">Clear</button>
                   </div>
                 </div>
               </div>
@@ -6424,9 +6429,17 @@ let filteredRows=[], allVariantRows=[];
 /* ── PERIOD SELECTOR ── */
 let _periodCustomVarsInit=true; // customDateFrom/To declared in state block above
 
+function showPeriodDatePicker(){
+  const picker=document.getElementById('period-date-picker');
+  if(picker)picker.style.display='block';
+}
+
 function setPeriod(days){
   // Clear custom date range when switching to preset
   customDateFrom=null;customDateTo=null;
+  // Hide date picker sub-panel
+  const picker=document.getElementById('period-date-picker');
+  if(picker)picker.style.display='none';
   const lbl=document.getElementById('ms-period-label');
   if(lbl)lbl.textContent='Period: '+days+'d';
   const radio=document.querySelector(`input[name="period-radio"][value="${days}"]`);
@@ -6449,16 +6462,13 @@ function applyCustomDateRange(){
   if(from>to){alert('Start date must be before end date.');return;}
   customDateFrom=from;
   customDateTo=to;
-  // Compute days between the two dates (inclusive)
   const d1=new Date(from),d2=new Date(to);
   const days=Math.round((d2-d1)/(1000*60*60*24))+1;
-  // Deselect preset radio buttons
-  document.querySelectorAll('input[name="period-radio"]').forEach(r=>r.checked=false);
   const lbl=document.getElementById('ms-period-label');
-  if(lbl)lbl.textContent=`📅 ${from.slice(5)} → ${to.slice(5)}`;
-  // Close the dropdown
+  // Format label: MM/DD → MM/DD
+  const fmt=s=>s.slice(5).replace('-','/');
+  if(lbl)lbl.textContent=`📅 ${fmt(from)} → ${fmt(to)}`;
   document.querySelectorAll('.ms-wrap.open').forEach(w=>w.classList.remove('open'));
-  // Use computed days for velocity/sold calcs, but override getSoldInPeriod with date range
   _doSetPeriodCustom(days);
 }
 
@@ -6468,7 +6478,8 @@ function clearCustomDateRange(){
   const toEl=document.getElementById('period-date-to');
   if(fromEl)fromEl.value='';
   if(toEl)toEl.value='';
-  // Restore to current selectedPeriod
+  const picker=document.getElementById('period-date-picker');
+  if(picker)picker.style.display='none';
   const lbl=document.getElementById('ms-period-label');
   if(lbl)lbl.textContent='Period: '+selectedPeriod+'d';
   const radio=document.querySelector(`input[name="period-radio"][value="${selectedPeriod}"]`);
@@ -7437,11 +7448,6 @@ function buildVariantRows(){
       delMonths.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="applyFilters()"> ${m} (${delMonthCounts[m]||0})</label>`).join('');
   }
 
-  // Build tier map before rendering so emoji appears in product name cell on first load
-  if(window._salesBySkuDay&&allVariantRows.length){
-    _perfDataCache=buildPerfData();
-    window._tierMap=buildTierMap(_perfDataCache);
-  }
   setView(currentView);
   // Reset markdown filters so they repopulate with new data
   ['cat','vendor','flag','disc','delmonth'].forEach(t=>{const el=document.getElementById(`ms-md-${t}-options`);if(el)el.innerHTML='';});
@@ -7458,6 +7464,11 @@ function buildDashboard(){
   showScreen('dashboard');
   buildVariantRows();
   console.log('🟢 buildVariantRows done, rows:',allVariantRows.length);
+  // Build tier map eagerly so tier badges/filters are available immediately
+  if(!_perfDataCache&&window._salesBySkuDay&&allVariantRows.length){
+    _perfDataCache=buildPerfData();
+    window._tierMap=buildTierMap(_perfDataCache);
+  }
   renderSidebarCounts();
   }catch(err){console.error('❌ buildDashboard error:',err);}
 }
@@ -8424,8 +8435,8 @@ function exportPDF(){
       SL[r.flag]||r.flag||'—'
     ];
   } else if(currentView==='product'){
-    headers=['Product','Category','Status','Month Del',stLabel,'Margin%','SOH','SOH Val','Sell Val','Today','Yest',soldLabel,'On Order','S/O','Price','RRP','Disc%','Wks Cover','Stock Status'];
-    rowFn=r=>[
+    headers=['Product','Category','Status','Month Del',stLabel,'Margin%','SOH','SOH Val','Sell Val','Today','Yest',soldLabel,'On Order','S/O','Price','RRP','Disc%','Wks Cover','Tier','Stock Status'];
+    rowFn=r=>{const ti=getTierForProduct(r.productName,r.colour);return[
       r.productName+(r.colour?' - '+r.colour:''),
       r.category,r.vendor,r.deliveryMonth||'—',
       r.sellThru7!=null?r.sellThru7.toFixed(1)+'%':'—',
@@ -8441,11 +8452,12 @@ function exportPDF(){
       r.compareAt?'$'+r.compareAt.toFixed(2):'—',
       r.discountPct?r.discountPct.toFixed(0)+'%':'—',
       r.daysDisplay||'—',
+      ti?`${ti.emoji} ${getPerfLabel(ti.tier)}`:'—',
       SL[r.flag]||r.flag||'—'
-    ];
+    ];};
   } else {
-    headers=['Product','Size','SKU','Category','Status','Month Del',stLabel,'Margin%','SOH',soldLabel,'On Order','Price','RRP','Disc%','Wks Cover','Stock Status'];
-    rowFn=r=>[
+    headers=['Product','Size','SKU','Category','Status','Month Del',stLabel,'Margin%','SOH',soldLabel,'On Order','Price','RRP','Disc%','Wks Cover','Tier','Stock Status'];
+    rowFn=r=>{const ti=getTierForProduct(r.productName,r.colour);return[
       r.productName+(r.colour?' - '+r.colour:''),
       r.size,r.sku,r.category,r.vendor,r.deliveryMonth||'—',
       r.sellThru7!=null?r.sellThru7.toFixed(1)+'%':'—',
@@ -8457,8 +8469,9 @@ function exportPDF(){
       r.compareAt?'$'+r.compareAt.toFixed(2):'—',
       r.discountPct?r.discountPct.toFixed(0)+'%':'—',
       r.daysDisplay||'—',
+      ti?`${ti.emoji} ${getPerfLabel(ti.tier)}`:'—',
       SL[r.flag]||r.flag||'—'
-    ];
+    ];};
   }
 
   // Flag colour helper for status pills
@@ -8576,8 +8589,8 @@ function exportCSV(){
   const h=currentView==='category'
     ?['Category','Products',stLabel,'Margin%','SOH','SOH Value','Sell Value','Today','Yest',soldLabel,'On Order','Month Due','Weeks Cover','OOS','Re-Order','Stock Status']
     :currentView==='product'
-    ?['Product','Category','Status','Month Del',stLabel,'Margin%','SOH','SOH Value','Sell Value','Today','Yest',soldLabel,'On Order','Month Due','Sizes Sold Out','Price','RRP','Disc%','Weeks Cover','Stock Status']
-    :['Product','Size','SKU','Category','Status','Month Del',stLabel,'Margin%','SOH',soldLabel,'On Order','Month Due','Price','RRP','Disc%','Weeks Cover','Stock Status'];
+    ?['Product','Category','Status','Month Del',stLabel,'Margin%','SOH','SOH Value','Sell Value','Today','Yest',soldLabel,'On Order','Month Due','Sizes Sold Out','Price','RRP','Disc%','Weeks Cover','Tier','Stock Status']
+    :['Product','Size','SKU','Category','Status','Month Del',stLabel,'Margin%','SOH',soldLabel,'On Order','Month Due','Price','RRP','Disc%','Weeks Cover','Tier','Stock Status'];
   const lines=[h.join(',')];
   for(const r of rows){
     let v;
@@ -8588,12 +8601,14 @@ function exportCSV(){
     const disc=r.discountPct!=null?r.discountPct.toFixed(1)+'%':'';
     const sohVal=r.sohValue?Math.round(r.sohValue):'';
     const sellVal=r.sellValue?Math.round(r.sellValue):'';
+    const tierInfo=getTierForProduct(r.productName,r.colour);
+    const tierLabel=tierInfo?`${tierInfo.emoji} ${getPerfLabel(tierInfo.tier)}`:'—';
     if(currentView==='category')
       v=[r.category,r.products,st7,r.margin!=null?r.margin.toFixed(1):'',r.stock,sohVal,sellVal,r.soldToday||'',r.soldYesterday||'',r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.daysDisplay,r.oosCount,r.critCount,SL[r.flag]||r.flag];
     else if(currentView==='product')
-      v=[r.productName+(r.colour?' - '+r.colour:''),r.category,r.vendor,r.deliveryMonth||'',st7,r.stock,sohVal,sellVal,r.soldToday||'',r.soldYesterday||'',r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.soldOutSizes||'',r.price??'',r.compareAt??'',disc,mg,r.daysDisplay,SL[r.flag]||r.flag];
+      v=[r.productName+(r.colour?' - '+r.colour:''),r.category,r.vendor,r.deliveryMonth||'',st7,r.stock,sohVal,sellVal,r.soldToday||'',r.soldYesterday||'',r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.soldOutSizes||'',r.price??'',r.compareAt??'',disc,mg,r.daysDisplay,tierLabel,SL[r.flag]||r.flag];
     else
-      v=[r.productName+(r.colour?' - '+r.colour:''),r.size,r.sku,r.category,r.vendor,r.deliveryMonth||'',st7,r.stock,r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.price??'',r.compareAt??'',disc,mg,r.daysDisplay,SL[r.flag]||r.flag];
+      v=[r.productName+(r.colour?' - '+r.colour:''),r.size,r.sku,r.category,r.vendor,r.deliveryMonth||'',st7,r.stock,r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.price??'',r.compareAt??'',disc,mg,r.daysDisplay,tierLabel,SL[r.flag]||r.flag];
     lines.push(v.map(x=>`"${x??''}"`).join(','));
   }
   const a=document.createElement('a');
