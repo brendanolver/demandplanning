@@ -1927,7 +1927,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.2.4';
+const APP_VERSION='v1.2.5';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -2213,7 +2213,7 @@ function renderCadenceCompareTags(){
           <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:${p.color}12;border:1px solid ${p.color}40;border-radius:var(--r);min-width:0;">
             <div style="width:8px;height:8px;border-radius:50%;background:${p.color};flex-shrink:0;"></div>
             <div style="min-width:0;flex:1;overflow:hidden;">
-              <div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.productName}</div>
+              <div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.productName}${(()=>{const t=getTierForProduct(p.productName,p.colour);return t?` ${t.emoji}`:''})()}</div>
               <div style="font-size:11px;color:var(--teal);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.colour}</div>
             </div>
             <button onclick="cadenceCompareRemove('${p.key.replace(/'/g,"\\'")}');event.stopPropagation()" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:13px;line-height:1;padding:0;flex-shrink:0;" title="Remove">✕</button>
@@ -2558,7 +2558,7 @@ function renderCadenceCompare(){
         <div style="display:flex;align-items:center;gap:8px;">
           <div style="width:10px;height:10px;border-radius:50%;background:${cp.color};flex-shrink:0;"></div>
           <div>
-            <div style="font-weight:600;font-size:13px;">${cp.productName}</div>
+            <div style="font-weight:600;font-size:13px;">${cp.productName}${(()=>{const t=getTierForProduct(cp.productName,cp.colour);return t?` <span style="font-size:13px;" title="${getPerfLabel(t.tier)}">${t.emoji}</span>`:'';})()}</div>
             <div style="font-size:11px;color:var(--teal);">${cp.colour}</div>
           </div>
         </div>
@@ -7937,7 +7937,6 @@ function renderTable(){
     {k:'oosCount',l:'OOS'},{k:'critCount',l:'Re-Order'},{k:'flag',l:'Stock Status'}
   ];
   const prodHeaders=[
-    {k:'tier',l:'Tier'},
     {k:'productName',l:'Product'},{k:'category',l:'Category'},{k:'discountPct',l:'Disc%'},{k:'vendor',l:'Status'},
     {k:'deliveryMonth',l:'Month Del'},
     {k:'sellThru7',l:stLabel},{k:'margin',l:'Margin%'},{k:'stock',l:'SOH'},{k:'sohValue',l:'SOH Value'},{k:'sellValue',l:'Sell Value'},
@@ -7949,7 +7948,6 @@ function renderTable(){
     {k:'days',l:'Weeks Cover'},{k:'suggestedOrder',l:'Suggest Order'},{k:'flag',l:'Stock Status'}
   ];
   const varHeaders=[
-    {k:'tier',l:'Tier'},
     {k:'productName',l:'Product'},{k:'size',l:'Size'},{k:'sku',l:'SKU'},
     {k:'category',l:'Category'},{k:'discountPct',l:'Disc%'},{k:'vendor',l:'Status'},
     {k:'deliveryMonth',l:'Month Del'},
@@ -8053,16 +8051,11 @@ function renderCategoryTotals(rows,headers){
 function renderRow(row,headers){
   return'<tr>'+headers.map(h=>{
     const val=row[h.k];
-    if(h.k==='tier'){
-      const t=getTierForProduct(row.productName,row.colour);
-      if(!t)return`<td class="cell-muted">—</td>`;
-      const colors={platinum:'#6d28d9',rocket:'#15803d',surfer:'#1d4ed8',dog:'#c2410c',egg:'#a16207'};
-      const bgs={platinum:'#faf5ff',rocket:'#f0fdf4',surfer:'#eff6ff',dog:'#fff7ed',egg:'#fefce8'};
-      return`<td><span style="font-size:13px;background:${bgs[t.tier]||''};color:${colors[t.tier]||'var(--text)'};padding:2px 7px;border-radius:20px;font-weight:600;white-space:nowrap;">${t.emoji} ${getPerfLabel(t.tier)}</span></td>`;
-    }
     if(h.k==='productName'){
       const amTag=row.amOnly?'<span class="am-tag">AM</span>':'';
-      return`<td class="cell-product"><div class="prod-name">${row.productName||''}${amTag}</div>${row.colour?`<div class="prod-colour">${row.colour}</div>`:''}</td>`;
+      const t=getTierForProduct(row.productName,row.colour);
+      const tierEmoji=t?` <span style="font-size:13px;" title="${getPerfLabel(t.tier)}">${t.emoji}</span>`:'';
+      return`<td class="cell-product"><div class="prod-name">${row.productName||''}${tierEmoji}${amTag}</div>${row.colour?`<div class="prod-colour">${row.colour}</div>`:''}</td>`;
     }
     if(h.k==='category') return`<td class="cell-muted">${val||'—'}</td>`;
     if(h.k==='vendor'){
@@ -8824,8 +8817,9 @@ function perfRenderTags(){
   }
   tags.innerHTML=_perfSelectedProducts.map(p=>{
     const safeKey=(p.key).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    const t=getTierForProduct(p.productName,p.colour);
     return`<div style="display:inline-flex;align-items:center;gap:6px;background:var(--teal-light);border:1px solid rgba(14,165,160,0.3);border-radius:var(--r-pill);padding:4px 10px 4px 8px;font-size:12px;">
-      <span style="color:var(--teal);font-weight:600;">${p.productName}${p.colour?' — '+p.colour:''}</span>
+      <span style="color:var(--teal);font-weight:600;">${p.productName}${p.colour?' — '+p.colour:''}${t?` ${t.emoji}`:''}</span>
       <button onclick="perfRemove('${safeKey}')" style="background:none;border:none;cursor:pointer;color:var(--teal);font-size:13px;line-height:1;padding:0 0 0 2px;">×</button>
     </div>`;
   }).join('');
