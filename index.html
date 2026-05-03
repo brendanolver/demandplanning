@@ -1998,7 +1998,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.2.8';
+const APP_VERSION='v1.2.9';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -7900,7 +7900,7 @@ function toCategory(vr){
 const colFilters={};  // {colKey: {op1, v1, op2, v2}}
 
 // Numeric columns use number operators; text/flag columns use text operators
-const NUM_COLS=new Set(['stock','sold7','sold30','sold90','sold365','soldToday','soldYesterday','onOrder','vel7','vel30','days','products','oosCount','critCount','sellThru7','price','compareAt','discountPct','margin','soldOutSizes','sohValue','sellValue','suggestedOrder']);
+const NUM_COLS=new Set(['stock','sold','sold7','sold30','sold90','sold365','soldToday','soldYesterday','onOrder','vel7','vel30','days','products','oosCount','critCount','sellThru7','price','compareAt','discountPct','margin','soldOutSizes','sohValue','sellValue','suggestedOrder']);
 const TEXT_COLS=new Set(['productName','category','vendor','size','sku','flag','monthDue']);
 
 function getCondOpts(colKey){
@@ -8623,7 +8623,7 @@ function exportCSV(){
 }
 
 /* ── PERFORMANCE VIEW ── */
-// v1.2.8 — Fix tier emoji dropping on period/custom date change in Dashboard Product & Variant views
+// v1.2.9 — Add numeric conditions (greater/less than) to SOLD period column filter
 // Completed products (first sale >32 days ago): index = actual 4w units / cohort avg 4w units * 100
 // New products (first sale <=32 days ago): daily run rate projected to 28 days, compared against
 //   cohort peers' first N days only (where N = days elapsed for the new product) for a fair comparison
