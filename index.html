@@ -1998,7 +1998,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.2.7';
+const APP_VERSION='v1.2.8';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -7353,6 +7353,11 @@ function buildVariantRows(){
   const{soMap}=_cachedSoldOutData;
   allVariantRows=processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap,coreSet,bundleSet,draftSet,activeSet);
   _perfDataCache=null; window._tierMap=null; // clear performance cache so it rebuilds with fresh data
+  // Immediately rebuild tier map so tier emoji/badges remain valid after period or custom date changes
+  if(window._salesBySkuDay&&allVariantRows.length){
+    _perfDataCache=buildPerfData();
+    window._tierMap=buildTierMap(_perfDataCache);
+  }
 
 
   document.getElementById('nav-count').textContent=allVariantRows.length.toLocaleString()+' SKUs';
@@ -8618,7 +8623,7 @@ function exportCSV(){
 }
 
 /* ── PERFORMANCE VIEW ── */
-// v1.1.6 — Drop Performance Classification (Cohort Index + New Product Projection)
+// v1.2.8 — Fix tier emoji dropping on period/custom date change in Dashboard Product & Variant views
 // Completed products (first sale >32 days ago): index = actual 4w units / cohort avg 4w units * 100
 // New products (first sale <=32 days ago): daily run rate projected to 28 days, compared against
 //   cohort peers' first N days only (where N = days elapsed for the new product) for a fair comparison
