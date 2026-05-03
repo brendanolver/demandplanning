@@ -401,6 +401,30 @@ th{position:relative;}
 .dn-on-order{color:var(--text-muted);font-style:italic;font-weight:400;font-size:11px;}
 
 .on-order-num{color:var(--teal);font-weight:600;}
+
+/* Tier pills */
+.tier-pill{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:var(--r-pill);font-size:11.5px;font-weight:600;white-space:nowrap;border:1.5px solid;}
+.tier-platinum{background:#faf5ff;color:#6d28d9;border-color:#c4b5fd;}
+.tier-rocket{background:#f0fdf4;color:#15803d;border-color:#86efac;}
+.tier-surfer{background:#eff6ff;color:#1d4ed8;border-color:#93c5fd;}
+.tier-dog{background:#fff7ed;color:#c2410c;border-color:#fdba74;}
+.tier-egg{background:#fefce8;color:#a16207;border-color:#fde047;}
+
+/* Date range picker */
+.date-range-wrap{position:relative;}
+.date-range-btn{display:flex;align-items:center;gap:6px;padding:4px 10px;border:none;background:transparent;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;color:var(--text-secondary);cursor:pointer;border-radius:var(--r-sm);transition:all 0.12s;white-space:nowrap;}
+.date-range-btn:hover{color:var(--teal);}
+.date-range-btn.active{background:var(--teal);color:white;font-weight:600;}
+.date-range-popup{display:none;position:absolute;top:calc(100% + 4px);right:0;z-index:400;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow);padding:14px 16px;min-width:280px;}
+.date-range-popup.open{display:block;}
+.date-range-popup label{font-size:11px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:4px;}
+.date-range-popup input[type=date]{width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;color:var(--text);background:var(--surface2);outline:none;margin-bottom:10px;}
+.date-range-popup input[type=date]:focus{border-color:var(--teal);}
+.date-range-actions{display:flex;gap:6px;margin-top:4px;}
+.date-range-apply{flex:1;background:var(--teal);color:white;border:none;padding:7px;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;}
+.date-range-apply:hover{background:var(--teal-dark);}
+.date-range-clear{flex:1;background:var(--surface);color:var(--text-secondary);border:1px solid var(--border);padding:7px;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;}
+.date-range-clear:hover{border-color:var(--red);color:var(--red);}
 .no-num{color:var(--border);}
 
 /* Table footer */
@@ -871,6 +895,20 @@ th{position:relative;}
                 <label class="ms-item"><input type="radio" name="period-radio" value="90" onchange="setPeriod(90);toggleDropdown('ms-period')"> 90 days</label>
                 <label class="ms-item"><input type="radio" name="period-radio" value="365" onchange="setPeriod(365);toggleDropdown('ms-period')"> 365 days</label>
               </div>
+              <div class="date-range-wrap" style="padding:4px 4px 0;">
+                <div style="border-top:1px solid var(--border);margin:4px 0 8px;"></div>
+                <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;padding:0 6px;">Custom date range</div>
+                <div style="padding:0 6px 6px;">
+                  <label style="font-size:11px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:3px;">From</label>
+                  <input type="date" id="period-date-from" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;color:var(--text);background:var(--surface2);outline:none;margin-bottom:8px;" onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
+                  <label style="font-size:11px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:3px;">To</label>
+                  <input type="date" id="period-date-to" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;color:var(--text);background:var(--surface2);outline:none;margin-bottom:10px;" onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
+                  <div style="display:flex;gap:6px;">
+                    <button onclick="applyCustomDateRange()" style="flex:1;background:var(--teal);color:white;border:none;padding:7px;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">Apply</button>
+                    <button onclick="clearCustomDateRange()" style="flex:1;background:var(--surface);color:var(--text-secondary);border:1px solid var(--border);padding:7px;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;">Clear</button>
+                  </div>
+                </div>
+              </div>
             </div>
             <button class="tb-btn accent" id="export-btn" onclick="exportCSV()" style="padding:5px 12px;font-size:11.5px;">↓ CSV</button>
             <button class="tb-btn accent" id="export-pdf-btn" onclick="exportPDF()" style="background:#e11d48;border-color:#e11d48;padding:5px 12px;font-size:11.5px;">↓ PDF</button>
@@ -1339,7 +1377,7 @@ th{position:relative;}
           <button class="clear-btn" onclick="roClearFilters()">✕ Clear</button>
         </div>
         <!-- Period selector -->
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
           <span style="font-size:12px;color:var(--text-muted);font-weight:500;">Period:</span>
           <div class="period-selector" style="position:relative;display:flex;gap:4px;">
             <button class="period-btn active" data-ro-days="7" onclick="setRoPeriod(7)">7d</button>
@@ -1348,6 +1386,20 @@ th{position:relative;}
             <button class="period-btn" data-ro-days="60" onclick="setRoPeriod(60)">60d</button>
             <button class="period-btn" data-ro-days="90" onclick="setRoPeriod(90)">90d</button>
             <button class="period-btn" data-ro-days="365" onclick="setRoPeriod(365)">365d</button>
+          </div>
+          <div class="ms-wrap" id="ms-ro-daterange" style="position:relative;">
+            <button class="ms-btn" id="ro-daterange-btn" onclick="toggleDropdown('ms-ro-daterange')" style="min-width:auto;padding:4px 10px;gap:4px;font-size:12px;">📅 Custom<span class="ms-arrow">▾</span></button>
+            <div class="ms-dropdown" id="ms-ro-daterange-dropdown" style="min-width:240px;padding:12px;">
+              <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Custom date range</div>
+              <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px;">From</label>
+              <input type="date" id="ro-date-from" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;margin-bottom:8px;outline:none;" onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
+              <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px;">To</label>
+              <input type="date" id="ro-date-to" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;margin-bottom:10px;outline:none;" onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
+              <div style="display:flex;gap:6px;">
+                <button onclick="applyRoCustomDateRange()" style="flex:1;background:var(--teal);color:white;border:none;padding:7px;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">Apply</button>
+                <button onclick="clearRoCustomDateRange()" style="flex:1;background:var(--surface);color:var(--text-secondary);border:1px solid var(--border);padding:7px;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;">Clear</button>
+              </div>
+            </div>
           </div>
         </div>
         <div id="reorders-count" style="font-size:12px;color:var(--text-muted);margin-bottom:8px;"></div>
@@ -1452,7 +1504,7 @@ th{position:relative;}
           <button class="clear-btn" onclick="mdClearFilters()">✕ Clear</button>
         </div>
         <!-- Period selector -->
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
           <span style="font-size:12px;color:var(--text-muted);font-weight:500;">Period:</span>
           <div class="period-selector" style="position:relative;display:flex;gap:4px;">
             <button class="period-btn active" data-md-days="7" onclick="setMdPeriod(7)">7d</button>
@@ -1461,6 +1513,20 @@ th{position:relative;}
             <button class="period-btn" data-md-days="60" onclick="setMdPeriod(60)">60d</button>
             <button class="period-btn" data-md-days="90" onclick="setMdPeriod(90)">90d</button>
             <button class="period-btn" data-md-days="365" onclick="setMdPeriod(365)">365d</button>
+          </div>
+          <div class="ms-wrap" id="ms-md-daterange" style="position:relative;">
+            <button class="ms-btn" id="md-daterange-btn" onclick="toggleDropdown('ms-md-daterange')" style="min-width:auto;padding:4px 10px;gap:4px;font-size:12px;">📅 Custom<span class="ms-arrow">▾</span></button>
+            <div class="ms-dropdown" id="ms-md-daterange-dropdown" style="min-width:240px;padding:12px;">
+              <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Custom date range</div>
+              <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px;">From</label>
+              <input type="date" id="md-date-from" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;margin-bottom:8px;outline:none;" onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
+              <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px;">To</label>
+              <input type="date" id="md-date-to" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;margin-bottom:10px;outline:none;" onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
+              <div style="display:flex;gap:6px;">
+                <button onclick="applyMdCustomDateRange()" style="flex:1;background:var(--teal);color:white;border:none;padding:7px;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">Apply</button>
+                <button onclick="clearMdCustomDateRange()" style="flex:1;background:var(--surface);color:var(--text-secondary);border:1px solid var(--border);padding:7px;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;">Clear</button>
+              </div>
+            </div>
           </div>
         </div>
         <div id="markdowns-count" style="font-size:12px;color:var(--text-muted);margin-bottom:8px;"></div>
@@ -1927,7 +1993,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.2.5';
+const APP_VERSION='v1.2.6';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -5003,7 +5069,21 @@ function renderReorders(){
   const vendorCls=v=>v==='CORE'?'rp-core':v==='NEW'?'rp-new':v==='CURRENT'?'rp-current':v==='OLD'?'rp-old':v==='REDUCED'?'rp-reduced':v==='DRAFT'?'rp-draft':v==='PRE-RELEASE'?'rp-prerelease':'rp-other';
 
   const soldLabel=`Sold (${roPeriod}d)`;
-  const getSoldRo=p=>{if(roPeriod===7)return p.sold7||0;if(roPeriod===14)return Math.round((p.sold7||0)/7*14);if(roPeriod===30)return p.sold30||0;if(roPeriod===60)return p.sold60||0;if(roPeriod===90)return p.sold90||0;if(roPeriod===365)return p.sold365||0;return p.sold7||0;};
+  const getSoldRo=p=>{
+    if(window._roDateFrom&&window._roDateTo&&window._salesBySkuDay){
+      // Sum across all variant SKUs for this product
+      const variantRows=allVariantRows.filter(r=>r.productName===p.productName&&r.colour===p.colour&&!r.amOnly);
+      let total=0;
+      for(const vr of variantRows){
+        const dayData=window._salesBySkuDay[vr.sku]||{};
+        for(const[day,d] of Object.entries(dayData)){
+          if(day>=window._roDateFrom&&day<=window._roDateTo)total+=d.qty||0;
+        }
+      }
+      return Math.round(total);
+    }
+    if(roPeriod===7)return p.sold7||0;if(roPeriod===14)return Math.round((p.sold7||0)/7*14);if(roPeriod===30)return p.sold30||0;if(roPeriod===60)return p.sold60||0;if(roPeriod===90)return p.sold90||0;if(roPeriod===365)return p.sold365||0;return p.sold7||0;
+  };
 
   const rows=products.map(p=>{
     const key=p.fullTitle;
@@ -5399,12 +5479,61 @@ function roToggleViewSelected(){
 function setRoPeriod(days){
   roPeriod=days;
   document.querySelectorAll('[data-ro-days]').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.roDays)===days));
+  const btn=document.getElementById('ro-daterange-btn');if(btn)btn.classList.remove('filtered');
+  renderReorders();
+}
+
+function applyRoCustomDateRange(){
+  const from=document.getElementById('ro-date-from')?.value;
+  const to=document.getElementById('ro-date-to')?.value;
+  if(!from||!to){alert('Please select both dates.');return;}
+  if(from>to){alert('Start date must be before end date.');return;}
+  const days=Math.round((new Date(to)-new Date(from))/(1000*60*60*24))+1;
+  roPeriod=days;
+  // Store for getSoldRo override
+  window._roDateFrom=from;window._roDateTo=to;
+  document.querySelectorAll('[data-ro-days]').forEach(b=>b.classList.remove('active'));
+  const btn=document.getElementById('ro-daterange-btn');if(btn)btn.classList.add('filtered');
+  document.querySelectorAll('.ms-wrap.open').forEach(w=>w.classList.remove('open'));
+  renderReorders();
+}
+
+function clearRoCustomDateRange(){
+  window._roDateFrom=null;window._roDateTo=null;
+  const f=document.getElementById('ro-date-from');const t=document.getElementById('ro-date-to');
+  if(f)f.value='';if(t)t.value='';
+  const btn=document.getElementById('ro-daterange-btn');if(btn)btn.classList.remove('filtered');
+  document.querySelectorAll('.ms-wrap.open').forEach(w=>w.classList.remove('open'));
   renderReorders();
 }
 
 function setMdPeriod(days){
   mdPeriod=days;
   document.querySelectorAll('[data-md-days]').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.mdDays)===days));
+  const btn=document.getElementById('md-daterange-btn');if(btn)btn.classList.remove('filtered');
+  renderMarkdowns();
+}
+
+function applyMdCustomDateRange(){
+  const from=document.getElementById('md-date-from')?.value;
+  const to=document.getElementById('md-date-to')?.value;
+  if(!from||!to){alert('Please select both dates.');return;}
+  if(from>to){alert('Start date must be before end date.');return;}
+  const days=Math.round((new Date(to)-new Date(from))/(1000*60*60*24))+1;
+  mdPeriod=days;
+  window._mdDateFrom=from;window._mdDateTo=to;
+  document.querySelectorAll('[data-md-days]').forEach(b=>b.classList.remove('active'));
+  const btn=document.getElementById('md-daterange-btn');if(btn)btn.classList.add('filtered');
+  document.querySelectorAll('.ms-wrap.open').forEach(w=>w.classList.remove('open'));
+  renderMarkdowns();
+}
+
+function clearMdCustomDateRange(){
+  window._mdDateFrom=null;window._mdDateTo=null;
+  const f=document.getElementById('md-date-from');const t=document.getElementById('md-date-to');
+  if(f)f.value='';if(t)t.value='';
+  const btn=document.getElementById('md-daterange-btn');if(btn)btn.classList.remove('filtered');
+  document.querySelectorAll('.ms-wrap.open').forEach(w=>w.classList.remove('open'));
   renderMarkdowns();
 }
 
@@ -5799,6 +5928,17 @@ function renderMarkdowns(){
 
   // Period-based sold
   const getSold=p=>{
+    if(window._mdDateFrom&&window._mdDateTo&&window._salesBySkuDay){
+      const variantRows=allVariantRows.filter(r=>r.productName===p.productName&&r.colour===p.colour&&!r.amOnly);
+      let total=0;
+      for(const vr of variantRows){
+        const dayData=window._salesBySkuDay[vr.sku]||{};
+        for(const[day,d] of Object.entries(dayData)){
+          if(day>=window._mdDateFrom&&day<=window._mdDateTo)total+=d.qty||0;
+        }
+      }
+      return Math.round(total);
+    }
     if(mdPeriod===7)return p.sold7||0;
     if(mdPeriod===30)return p.sold30||0;
     if(mdPeriod===60)return p.sold60||0;
@@ -6277,18 +6417,70 @@ let shopifyInvData=null, shopifySalesData=null, amData=null, soldOutData=null, v
 let coreStylesData=null, bundleStylesData=null, allProductsListData=null;
 let currentView='category', sortCol='days', sortDir='asc', currentPage=1;
 let selectedPeriod=7;
+let customDateFrom=null, customDateTo=null;
 let PAGE_SIZE=50;
 let filteredRows=[], allVariantRows=[];
 
 /* ── PERIOD SELECTOR ── */
+let _periodCustomVarsInit=true; // customDateFrom/To declared in state block above
+
 function setPeriod(days){
-  selectedPeriod=days;
-  document.querySelectorAll('[data-days]').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.days)===days));
+  // Clear custom date range when switching to preset
+  customDateFrom=null;customDateTo=null;
   const lbl=document.getElementById('ms-period-label');
   if(lbl)lbl.textContent='Period: '+days+'d';
   const radio=document.querySelector(`input[name="period-radio"][value="${days}"]`);
   if(radio)radio.checked=true;
+  _doSetPeriod(days);
+}
+
+function _doSetPeriod(days){
+  selectedPeriod=days;
+  document.querySelectorAll('[data-days]').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.days)===days));
   if(allVariantRows.length) buildVariantRows();
+}
+
+function applyCustomDateRange(){
+  const fromEl=document.getElementById('period-date-from');
+  const toEl=document.getElementById('period-date-to');
+  const from=fromEl?.value;
+  const to=toEl?.value;
+  if(!from||!to){alert('Please select both a start and end date.');return;}
+  if(from>to){alert('Start date must be before end date.');return;}
+  customDateFrom=from;
+  customDateTo=to;
+  // Compute days between the two dates (inclusive)
+  const d1=new Date(from),d2=new Date(to);
+  const days=Math.round((d2-d1)/(1000*60*60*24))+1;
+  // Deselect preset radio buttons
+  document.querySelectorAll('input[name="period-radio"]').forEach(r=>r.checked=false);
+  const lbl=document.getElementById('ms-period-label');
+  if(lbl)lbl.textContent=`📅 ${from.slice(5)} → ${to.slice(5)}`;
+  // Close the dropdown
+  document.querySelectorAll('.ms-wrap.open').forEach(w=>w.classList.remove('open'));
+  // Use computed days for velocity/sold calcs, but override getSoldInPeriod with date range
+  _doSetPeriodCustom(days);
+}
+
+function clearCustomDateRange(){
+  customDateFrom=null;customDateTo=null;
+  const fromEl=document.getElementById('period-date-from');
+  const toEl=document.getElementById('period-date-to');
+  if(fromEl)fromEl.value='';
+  if(toEl)toEl.value='';
+  // Restore to current selectedPeriod
+  const lbl=document.getElementById('ms-period-label');
+  if(lbl)lbl.textContent='Period: '+selectedPeriod+'d';
+  const radio=document.querySelector(`input[name="period-radio"][value="${selectedPeriod}"]`);
+  if(radio)radio.checked=true;
+  document.querySelectorAll('.ms-wrap.open').forEach(w=>w.classList.remove('open'));
+  if(allVariantRows.length)buildVariantRows();
+}
+
+function _doSetPeriodCustom(days){
+  selectedPeriod=days;
+  document.querySelectorAll('[data-days]').forEach(b=>b.classList.remove('active'));
+  if(allVariantRows.length)buildVariantRows();
 }
 
 /* ── LOADERS ── */
@@ -6522,10 +6714,17 @@ function buildSalesMaps(){
 function getSoldInPeriod(salesBySkuDay, sku, days){
   // Sum qty sold in last N days from today inclusive (local date)
   const now=new Date();
-  const todayLocal=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-  // cutoff = today - (days-1) so range is exactly N days including today
-  const cutoffDate=new Date(now.getFullYear(),now.getMonth(),now.getDate()-(days-1));
-  const cutoffLocal=`${cutoffDate.getFullYear()}-${String(cutoffDate.getMonth()+1).padStart(2,'0')}-${String(cutoffDate.getDate()).padStart(2,'0')}`;
+  let cutoffLocal, todayLocal;
+  if(customDateFrom&&customDateTo){
+    // Custom date range mode
+    cutoffLocal=customDateFrom;
+    todayLocal=customDateTo;
+  } else {
+    todayLocal=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    // cutoff = today - (days-1) so range is exactly N days including today
+    const cutoffDate=new Date(now.getFullYear(),now.getMonth(),now.getDate()-(days-1));
+    cutoffLocal=`${cutoffDate.getFullYear()}-${String(cutoffDate.getMonth()+1).padStart(2,'0')}-${String(cutoffDate.getDate()).padStart(2,'0')}`;
+  }
   const dayData=salesBySkuDay[sku]||{};
   let qty=0, cogs=0;
   for(const[day,d] of Object.entries(dayData)){
@@ -7945,7 +8144,7 @@ function renderTable(){
     {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},
     {k:'soldOutSizes',l:'Sizes Sold Out'},
     {k:'price',l:'Price'},{k:'compareAt',l:'RRP'},
-    {k:'days',l:'Weeks Cover'},{k:'suggestedOrder',l:'Suggest Order'},{k:'flag',l:'Stock Status'}
+    {k:'days',l:'Weeks Cover'},{k:'tier',l:'Tier'},{k:'suggestedOrder',l:'Suggest Order'},{k:'flag',l:'Stock Status'}
   ];
   const varHeaders=[
     {k:'productName',l:'Product'},{k:'size',l:'Size'},{k:'sku',l:'SKU'},
@@ -7954,7 +8153,7 @@ function renderTable(){
     {k:'sellThru7',l:stLabel},{k:'margin',l:'Margin%'},{k:'stock',l:'SOH'},{k:'soldToday',l:'Today'},{k:'soldYesterday',l:'Yest'},{k:'sold',l:soldLabel},
     {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},
     {k:'price',l:'Price'},{k:'compareAt',l:'RRP'},
-    {k:'days',l:'Weeks Cover'},{k:'suggestedOrder',l:'Suggest Order'},{k:'flag',l:'Stock Status'}
+    {k:'days',l:'Weeks Cover'},{k:'tier',l:'Tier'},{k:'suggestedOrder',l:'Suggest Order'},{k:'flag',l:'Stock Status'}
   ];
 
   const headers=currentView==='category'?catHeaders:currentView==='product'?prodHeaders:varHeaders;
@@ -8116,6 +8315,12 @@ function renderRow(row,headers){
       return`<td><div class="days-wrap"><div class="days-track"><div class="days-fill" style="width:${pct}%;background:${color}"></div></div><span class="days-num dn-${row.flag}">${label}</span></div></td>`;
     }
     if(h.k==='flag') return`<td><span class="status-pill sp-${row.flag}">${SL[row.flag]||val}</span></td>`;
+    if(h.k==='tier'){
+      const t=getTierForProduct(row.productName,row.colour);
+      if(!t)return`<td class="cell-muted">—</td>`;
+      const cls={platinum:'tier-platinum',rocket:'tier-rocket',surfer:'tier-surfer',dog:'tier-dog',egg:'tier-egg'}[t.tier]||'';
+      return`<td><span class="tier-pill ${cls}">${t.emoji} ${getPerfLabel(t.tier)}</span></td>`;
+    }
     if(h.k==='monthDue') return`<td>${renderMonthDue(val)}</td>`;
     if(h.k==='onOrder') return`<td class="cell-num"><span class="${(val||0)>0?'on-order-num':'cell-muted'}" style="text-align:right;">${(val||0)>0?(val).toLocaleString():'—'}</span></td>`;
     if(h.k==='vel7'||h.k==='vel30') return`<td>${renderVel(val)}</td>`;
