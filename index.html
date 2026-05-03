@@ -1993,7 +1993,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.2.6';
+const APP_VERSION='v1.2.7';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -7437,6 +7437,11 @@ function buildVariantRows(){
       delMonths.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="applyFilters()"> ${m} (${delMonthCounts[m]||0})</label>`).join('');
   }
 
+  // Build tier map before rendering so emoji appears in product name cell on first load
+  if(window._salesBySkuDay&&allVariantRows.length){
+    _perfDataCache=buildPerfData();
+    window._tierMap=buildTierMap(_perfDataCache);
+  }
   setView(currentView);
   // Reset markdown filters so they repopulate with new data
   ['cat','vendor','flag','disc','delmonth'].forEach(t=>{const el=document.getElementById(`ms-md-${t}-options`);if(el)el.innerHTML='';});
@@ -7453,11 +7458,6 @@ function buildDashboard(){
   showScreen('dashboard');
   buildVariantRows();
   console.log('🟢 buildVariantRows done, rows:',allVariantRows.length);
-  // Build tier map eagerly so tier badges/filters are available immediately
-  if(!_perfDataCache&&window._salesBySkuDay&&allVariantRows.length){
-    _perfDataCache=buildPerfData();
-    window._tierMap=buildTierMap(_perfDataCache);
-  }
   renderSidebarCounts();
   }catch(err){console.error('❌ buildDashboard error:',err);}
 }
