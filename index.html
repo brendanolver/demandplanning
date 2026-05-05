@@ -1999,7 +1999,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.3.2';
+const APP_VERSION='v1.3.5';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -2698,13 +2698,11 @@ function renderCadence(){
   for(const p of periods)totals[p.label]=0;
 
   let rowKeys, rowLabel, getKey;
-  // skuCatMap declared here so LY MTD block (below) can access the filtered version
-  let skuCatMap=window._skuCategoryMap||{};
   if(cadenceView==='cat'){
     // Use ALL SKUs including draft for accurate historical category totals
     // When CORE filter active, restrict to SKUs whose variant is CORE status
     const skuCatMapFull=window._skuCategoryMap||{};
-    skuCatMap=skuCatMapFull;
+    let skuCatMap=skuCatMapFull;
     if(globalCoreFilter==='core'){
       const coreSkus=new Set(allVariantRows.filter(r=>r.vendor==='CORE').map(r=>r.sku));
       skuCatMap=Object.fromEntries(Object.entries(skuCatMapFull).filter(([sku])=>coreSkus.has(sku)));
@@ -2885,11 +2883,13 @@ function renderCadence(){
   lyMtdEnd.setHours(0,0,0,0);
   const lyMtdData={};
   let lyMtdTotal=0;
-  // skuCatMap already set above with CORE filter applied — do not re-declare here
+  const skuCatMap=window._skuCategoryMap||{};
   if(showLyMtd&&window._salesBySkuDay){
-    const activeSkuMap=cadenceView==='prod'?new Map(getActiveRows().filter(r=>!r.amOnly).map(r=>[r.sku,r.productName+'||'+r.colour])):null;
     for(const[sku,dayData] of Object.entries(window._salesBySkuDay)){
-      const rowKey=cadenceView==='cat'?(skuCatMap[sku]||null):(activeSkuMap?.get(sku)||null);
+      const rowKey=cadenceView==='cat'?(skuCatMap[sku]||null):(()=>{
+        const r=allVariantRows.find(r=>r.sku===sku);
+        return r?r.productName+'||'+r.colour:null;
+      })();
       if(!rowKey||!rowKeys.includes(rowKey))continue;
       if(!lyMtdData[rowKey])lyMtdData[rowKey]=0;
       for(const[day,d] of Object.entries(dayData)){
@@ -3815,6 +3815,7 @@ async function generateInsights(){
 function analyseStockData(){
   // Aggregate variant rows to product level using active (Core/All filtered) rows
   const productMap={};
+  const _onOrderSeen=new Set(); // deduplicate productOnOrder — it's a product-level total stored on every variant
   for(const r of getActiveRows()){
     if(r.amOnly)continue;
     const k=r.productName+'||'+r.colour;
@@ -3832,27 +3833,34 @@ function analyseStockData(){
     p.sold14+=getSoldInPeriod(window._salesBySkuDay,r.sku,14).qty;
     p.sold30+=(r.sold30||0);
     p.sold90+=(r.sold90||0);
-    p.onOrder+=(r.onOrder||0)+(r.productOnOrder||0);
+    // productOnOrder is product-level total — only add once per product+colour key
+    if(!_onOrderSeen.has(k)){
+      _onOrderSeen.add(k);
+      p.onOrder+=(r.productOnOrder||0)||(r.onOrder||0);
+    }
     if((r.soldOutSizes||0)>0)p.soldOutSizes=r.soldOutSizes;
   }
   const products=Object.values(productMap);
 
   // Helper
   const fmt=p=>`<strong>${toTitleCase(p.productName)} — ${toTitleCase(p.colour)}</strong>`;
-  const isReduced=p=>(p.discountPct||0)>0;
+  const isReduced=p=>(p.discountPct||0)>0||(p.vendor||'').toUpperCase()==='REDUCED';
+  const isDraft  =p=>(p.vendor||'').toUpperCase()==='DRAFT';
+  const isBundle =p=>(p.vendor||'').toUpperCase()==='BUNDLE';
+  const exclude  =p=>isReduced(p)||isDraft(p)||isBundle(p);
   const hasOrder=p=>(p.onOrder||0)>0;
 
   // ── 1. NEEDS RE-ORDER ──
   // ST% ≥ 20% over last 7 or 14 days, not reduced, not on order, has stock
   const needsReorder=products
-    .filter(p=>p.stock>0&&!isReduced(p)&&!hasOrder(p))
+    .filter(p=>p.stock>0&&!exclude(p)&&!hasOrder(p))
     .filter(p=>{
       const st7=p.sold7>0&&(p.stock+p.sold7)>0?p.sold7/(p.stock+p.sold7)*100:0;
       const st14=p.sold14>0&&(p.stock+p.sold14)>0?p.sold14/(p.stock+p.sold14)*100:0;
       return st7>=20||st14>=20;
     })
     .sort((a,b)=>b.sold7-a.sold7)
-    .slice(0,20)
+    .slice(0,10)
     .map(p=>{
       const st7=p.sold7>0&&(p.stock+p.sold7)>0?(p.sold7/(p.stock+p.sold7)*100).toFixed(1):null;
       const st14=p.sold14>0&&(p.stock+p.sold14)>0?(p.sold14/(p.stock+p.sold14)*100).toFixed(1):null;
@@ -3862,7 +3870,7 @@ function analyseStockData(){
   // ── 2. NEEDS META ADS ──
   // Strong early ST% (≥15% in first 7-14 days) but now slow (sold30 < sold7*4) with high stock (>50)
   const needsMetaAds=products
-    .filter(p=>p.stock>=50&&!isReduced(p))
+    .filter(p=>p.stock>=50&&!exclude(p))
     .filter(p=>{
       const st7=p.sold7>0&&(p.stock+p.sold7)>0?p.sold7/(p.stock+p.sold7)*100:0;
       const st14=p.sold14>0&&(p.stock+p.sold14)>0?p.sold14/(p.stock+p.sold14)*100:0;
@@ -3873,7 +3881,7 @@ function analyseStockData(){
       return hadStrongStart&&nowSlow;
     })
     .sort((a,b)=>b.stock-a.stock)
-    .slice(0,20)
+    .slice(0,10)
     .map(p=>{
       const st14=p.sold14>0&&(p.stock+p.sold14)>0?(p.sold14/(p.stock+p.sold14)*100).toFixed(1):null;
       return{text:`${fmt(p)} — ${p.stock} SOH, ${p.sold30} sold in last 30d. Strong early ST% (${st14||'—'}% in 14d) but pace has dropped — consider Meta Ads to push inventory.`};
@@ -3882,7 +3890,7 @@ function analyseStockData(){
   // ── 3. STYLES TO WATCH ──
   // ST% ≥ 15% over last 14 days, not reduced, not on order — worth watching for reorder
   const stylesToWatch=products
-    .filter(p=>p.stock>0&&!isReduced(p)&&!hasOrder(p))
+    .filter(p=>p.stock>0&&!exclude(p)&&!hasOrder(p))
     .filter(p=>{
       const st7=p.sold7>0&&(p.stock+p.sold7)>0?p.sold7/(p.stock+p.sold7)*100:0;
       const st14=p.sold14>0&&(p.stock+p.sold14)>0?p.sold14/(p.stock+p.sold14)*100:0;
@@ -3890,32 +3898,32 @@ function analyseStockData(){
       return (st7>=15&&st7<20)||(st14>=15&&st14<20);
     })
     .sort((a,b)=>b.sold14-a.sold14)
-    .slice(0,20)
+    .slice(0,10)
     .map(p=>{
       const st14=p.sold14>0&&(p.stock+p.sold14)>0?(p.sold14/(p.stock+p.sold14)*100).toFixed(1):null;
       return{text:`${fmt(p)} — ${p.stock} SOH, ${st14||'—'}% ST in 14d. Keep an eye on this one for reorder potential.`};
     });
 
   // ── 4. SLOWER MOVERS ──
-  // < 20 units sold in last 30 days, not reduced, not on order, has stock
+  // < 10 units sold in last 7 or 14 days, not reduced, not on order, has stock
   const slowerMovers=products
-    .filter(p=>p.stock>0&&!isReduced(p)&&!hasOrder(p)&&p.sold30<20&&p.sold30>9)
+    .filter(p=>p.stock>0&&!exclude(p)&&!hasOrder(p)&&(p.sold7<10||p.sold14<10))
     .sort((a,b)=>b.stock-a.stock)
-    .slice(0,20)
-    .map(p=>({text:`${fmt(p)} — ${p.stock} SOH, only ${p.sold30} units sold in last 30 days. Consider a promotion to move stock.`}));
+    .slice(0,10)
+    .map(p=>({text:`${fmt(p)} — ${p.stock} SOH, ${p.sold7} units sold in last 7 days / ${p.sold14} in last 14 days. Consider a promotion to move stock.`}));
 
   // ── 5. DEAD STYLES ──
   // < 10 sales in last 30 days, not reduced, has stock
   const deadStyles=products
-    .filter(p=>p.stock>0&&!isReduced(p)&&p.sold30<10)
+    .filter(p=>p.stock>0&&!exclude(p)&&p.sold30<10)
     .sort((a,b)=>b.stock-a.stock)
-    .slice(0,20)
+    .slice(0,10)
     .map(p=>({text:`${fmt(p)} — ${p.stock} SOH, only ${p.sold30} units sold in last 30 days. Consider marking down or delisting.`}));
 
   // ── 6. ORDER PROBLEMS ──
   // Slow movers (< 20 sold in 30 days) but have units on order
   const orderProblems=products
-    .filter(p=>p.sold30<20&&hasOrder(p)&&!isReduced(p)&&(p.soldOutSizes||0)===0)
+    .filter(p=>p.sold30<20&&hasOrder(p)&&!exclude(p)&&(p.soldOutSizes||0)===0)
     .sort((a,b)=>b.onOrder-a.onOrder)
     .slice(0,5)
     .map(p=>({text:`${fmt(p)} — ${p.onOrder.toLocaleString()} units on order but only ${p.sold30} sold in last 30 days (all sizes available). Review if this order is still needed.`}));
@@ -3937,7 +3945,7 @@ function renderInsights(data){
     {key:'stylesToWatch',  ico:'👀',title:'Styles to Watch',     dotClass:'insight-dot-teal',
      sub:'ST% 15–19% in last 14 days — monitor for reorder potential'},
     {key:'slowerMovers',   ico:'🐢',title:'Slower Movers',       dotClass:'insight-dot-blue',
-     sub:'10–19 units sold in last 30 days — not reduced or on order'},
+     sub:'Under 10 units sold in last 7 or 14 days — not reduced or on order'},
     {key:'deadStyles',     ico:'💀',title:'Dead Styles',          dotClass:'insight-dot-purple',
      sub:'Less than 10 units sold in last 30 days — not reduced'},
     {key:'orderProblems',  ico:'⚠️',title:'Order Problems',      dotClass:'insight-dot-red',
