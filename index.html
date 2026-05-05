@@ -2026,7 +2026,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.3.7';
+const APP_VERSION='v1.3.8';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -8673,9 +8673,9 @@ function exportCSV(){
     if(currentView==='category')
       v=[r.category,r.products,st7,r.margin!=null?r.margin.toFixed(1):'',r.stock,sohVal,sellVal,r.soldToday||'',r.soldYesterday||'',r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.daysDisplay,r.oosCount,r.critCount,SL[r.flag]||r.flag];
     else if(currentView==='product')
-      v=[r.productName+(r.colour?' - '+r.colour:''),r.category,r.vendor,r.deliveryMonth||'',st7,r.stock,sohVal,sellVal,r.soldToday||'',r.soldYesterday||'',r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.soldOutSizes||'',r.price??'',r.compareAt??'',disc,mg,r.daysDisplay,tierLabel,SL[r.flag]||r.flag];
+      v=[r.productName+(r.colour?' - '+r.colour:''),r.category,r.vendor,r.deliveryMonth||'',st7,mg,r.stock,sohVal,sellVal,r.soldToday||'',r.soldYesterday||'',r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.soldOutSizes||'',r.price??'',r.compareAt??'',disc,r.daysDisplay,tierLabel,SL[r.flag]||r.flag];
     else
-      v=[r.productName+(r.colour?' - '+r.colour:''),r.size,r.sku,r.category,r.vendor,r.deliveryMonth||'',st7,r.stock,r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.price??'',r.compareAt??'',disc,mg,r.daysDisplay,tierLabel,SL[r.flag]||r.flag];
+      v=[r.productName+(r.colour?' - '+r.colour:''),r.size,r.sku,r.category,r.vendor,r.deliveryMonth||'',st7,mg,r.stock,r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.price??'',r.compareAt??'',disc,r.daysDisplay,tierLabel,SL[r.flag]||r.flag];
     lines.push(v.map(x=>`"${x??''}"`).join(','));
   }
   const a=document.createElement('a');
