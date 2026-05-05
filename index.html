@@ -326,17 +326,19 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
   .no-print{display:none!important;}
   .print-only{display:block!important;}
   body{background:#fff!important;height:auto!important;overflow:visible!important;}
-  /* Break the app shell out of its fixed-height viewport box */
+  /* Hide everything except the insights screen */
+  #topbar,#sidebar,#dashboard-layout,
+  #cadence-screen,#planning-screen,#markdowns-screen,#performance-screen,
+  #upload-screen,#password-screen,#loading-screen,
+  .sidebar-overlay{display:none!important;}
+  /* Release the app shell from its fixed viewport box */
   #app{display:block!important;height:auto!important;overflow:visible!important;}
-  .layout{display:block!important;height:auto!important;overflow:visible!important;}
-  #topbar,#sidebar,.screen-btn,.insights-refresh-btn{display:none!important;}
-  /* All non-insights screens hidden */
-  #dashboard-screen,#cadence-screen,#planning-screen,#performance-screen{display:none!important;}
+  /* Show and fully expand the insights screen */
   #insights-screen{display:block!important;height:auto!important;overflow:visible!important;padding:16px!important;}
   .insights-wrap{max-width:100%!important;}
-  /* Sections: allow page breaks BETWEEN items but keep the header with its first item */
-  .insight-section{border:1px solid #d1d5db!important;box-shadow:none!important;margin-bottom:12px!important;break-after:auto;}
-  .insight-section-header{background:#f3f4f6!important;break-after:avoid;}
+  /* Section break behaviour: keep header pinned to first item, allow breaks between items */
+  .insight-section{border:1px solid #d1d5db!important;box-shadow:none!important;margin-bottom:14px!important;break-after:auto;}
+  .insight-section-header{break-after:avoid;}
   .insight-item{break-inside:avoid;}
   a{color:#000!important;}
 }
@@ -2024,7 +2026,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.3.4';
+const APP_VERSION='v1.3.5';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
