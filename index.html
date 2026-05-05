@@ -2026,7 +2026,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.3.8';
+const APP_VERSION='v1.3.9';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -8669,7 +8669,7 @@ function exportCSV(){
     const sohVal=r.sohValue?Math.round(r.sohValue):'';
     const sellVal=r.sellValue?Math.round(r.sellValue):'';
     const tierInfo=getTierForProduct(r.productName,r.colour);
-    const tierLabel=tierInfo?`${tierInfo.emoji} ${getPerfLabel(tierInfo.tier)}`:'—';
+    const tierLabel=tierInfo?getPerfLabel(tierInfo.tier):'—';
     if(currentView==='category')
       v=[r.category,r.products,st7,r.margin!=null?r.margin.toFixed(1):'',r.stock,sohVal,sellVal,r.soldToday||'',r.soldYesterday||'',r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.daysDisplay,r.oosCount,r.critCount,SL[r.flag]||r.flag];
     else if(currentView==='product')
