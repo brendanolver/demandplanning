@@ -2026,7 +2026,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.3.6';
+const APP_VERSION='v1.3.7';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -3940,7 +3940,7 @@ function analyseStockData(){
   // ── 4. SLOWER MOVERS ──
   // < 20 units sold in last 30 days, not excluded, not reduced, not on order, has stock
   const slowerMovers=products
-    .filter(p=>!isExcluded(p)&&p.stock>0&&!isReduced(p)&&!hasOrder(p)&&p.sold30<20&&p.sold30>9)
+    .filter(p=>!isExcluded(p)&&p.vendor!=='NEW'&&p.stock>0&&!isReduced(p)&&!hasOrder(p)&&p.sold30<20&&p.sold30>9)
     .sort((a,b)=>b.stock-a.stock)
     .slice(0,10)
     .map(p=>({text:`${fmt(p)} — ${p.stock} SOH, only ${p.sold30} units sold in last 30 days. Consider a promotion to move stock.`}));
