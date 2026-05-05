@@ -1999,7 +1999,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.3.0';
+const APP_VERSION='v1.3.1';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -2780,7 +2780,7 @@ function renderCadence(){
     for(const k of rowKeys)data[k]={};
     for(const p of periods)totals[p.label]=0;
 
-    for(const row of allVariantRows){
+    for(const row of getActiveRows()){
       if(row.amOnly)continue;
       const k=getKey(row);
       if(!data[k])continue;
@@ -2801,7 +2801,7 @@ function renderCadence(){
   const onOrderByKey={};
   const _onOrderSeen=new Set();
   if(cadenceView==='cat'){
-    for(const r of allVariantRows){
+    for(const r of getActiveRows()){
       const c=r.category||'UNCATEGORISED';
       sohByKey[c]=(sohByKey[c]||0)+(r.stock||0);
       const dedupeKey=c+'||'+r.productName+'||'+r.colour;
@@ -2812,7 +2812,7 @@ function renderCadence(){
       }
     }
   } else {
-    for(const r of allVariantRows){
+    for(const r of getActiveRows()){
       const k=r.productName+'||'+r.colour;
       sohByKey[k]=(sohByKey[k]||0)+(r.stock||0);
       if(!_onOrderSeen.has(k)){
