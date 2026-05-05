@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>WNDRR — Stock Demand Planning</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💎</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -1891,11 +1892,11 @@ th{position:relative;}
           <div class="ms-dropdown" id="ms-perf-tier-dropdown">
             <label class="ms-item ms-all"><input type="checkbox" checked onchange="perfToggleAll('tier',this)"> All Tiers</label>
             <div id="ms-perf-tier-options">
-              <label class="ms-item"><input type="checkbox" value="platinum" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 💎 Platinum (Index 150+)</label>
-              <label class="ms-item"><input type="checkbox" value="rocket" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 🚀 Rocket (Index 100–149)</label>
-              <label class="ms-item"><input type="checkbox" value="surfer" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 🏄 Surfer (Index 50–99)</label>
-              <label class="ms-item"><input type="checkbox" value="dog" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 🐶 Dog (Index &lt;50)</label>
-              <label class="ms-item"><input type="checkbox" value="egg" checked onchange="perfUpdateLabel('tier');renderPerformance()"> 🥚 Egg (No sales recorded)</label>
+              <label class="ms-item"><input type="checkbox" value="platinum" checked onchange="perfUpdateLabel('tier');renderPerformanceDeferred()"> 💎 Platinum (Index 150+)</label>
+              <label class="ms-item"><input type="checkbox" value="rocket" checked onchange="perfUpdateLabel('tier');renderPerformanceDeferred()"> 🚀 Rocket (Index 100–149)</label>
+              <label class="ms-item"><input type="checkbox" value="surfer" checked onchange="perfUpdateLabel('tier');renderPerformanceDeferred()"> 🏄 Surfer (Index 50–99)</label>
+              <label class="ms-item"><input type="checkbox" value="dog" checked onchange="perfUpdateLabel('tier');renderPerformanceDeferred()"> 🐶 Dog (Index &lt;50)</label>
+              <label class="ms-item"><input type="checkbox" value="egg" checked onchange="perfUpdateLabel('tier');renderPerformanceDeferred()"> 🥚 Egg (No sales recorded)</label>
             </div>
           </div>
         </div>
@@ -1998,7 +1999,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.2.9';
+const APP_VERSION='v1.3.0';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -7352,11 +7353,12 @@ function buildVariantRows(){
   const{variantMap:amVariantMap,productMap:amProductMap,products:amProducts}=_cachedAMData;
   const{soMap}=_cachedSoldOutData;
   allVariantRows=processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap,coreSet,bundleSet,draftSet,activeSet);
-  _perfDataCache=null; window._tierMap=null; // clear performance cache so it rebuilds with fresh data
+  _perfDataCache=null;_perfWeeklyCache=null;_perfWeekDefs=null;window._tierMap=null; // clear performance cache so it rebuilds with fresh data
   // Immediately rebuild tier map so tier emoji/badges remain valid after period or custom date changes
   if(window._salesBySkuDay&&allVariantRows.length){
     _perfDataCache=buildPerfData();
     window._tierMap=buildTierMap(_perfDataCache);
+    _buildPerfWeeklyCache();
   }
 
 
@@ -7473,6 +7475,7 @@ function buildDashboard(){
   if(!_perfDataCache&&window._salesBySkuDay&&allVariantRows.length){
     _perfDataCache=buildPerfData();
     window._tierMap=buildTierMap(_perfDataCache);
+    _buildPerfWeeklyCache();
   }
   renderSidebarCounts();
   }catch(err){console.error('❌ buildDashboard error:',err);}
@@ -8664,6 +8667,47 @@ function getTierForProduct(productName,colour){
   return m[productName+'||'+colour]||null;
 }
 
+function _buildPerfWeeklyCache(){
+  // Pre-compute week definitions as timestamps (no Date objects in hot loop)
+  const today=new Date();today.setHours(0,0,0,0);
+  const todayMs=today.getTime();
+  const weekDefs=[];
+  for(let i=51;i>=0;i--){
+    const startMs=todayMs-(i*7+6)*86400000;
+    const endMs=todayMs-i*7*86400000;
+    const startD=new Date(startMs);
+    const label=`W${String(startD.getDate()).padStart(2,'0')}/${String(startD.getMonth()+1).padStart(2,'0')}`;
+    weekDefs.push({label,startMs,endMs});
+  }
+  _perfWeekDefs=weekDefs;
+
+  if(!_perfDataCache||!window._salesBySkuDay){_perfWeeklyCache={};return;}
+  const weekly={};
+  for(const p of _perfDataCache){
+    const key=p.productName+'||'+p.colour;
+    const row=new Array(52).fill(0);
+    for(const sku of p.skus){
+      const dayData=window._salesBySkuDay[sku];
+      if(!dayData)continue;
+      for(const day of Object.keys(dayData)){
+        const d=dayData[day];
+        if(!(d.qty>0))continue;
+        // Parse date string to ms without constructing a Date in the inner loop
+        const dtMs=Date.parse(day);
+        if(isNaN(dtMs))continue;
+        // Binary-search equivalent: find which week bucket this day falls in
+        // weeks are ordered oldest→newest; use range check
+        for(let wi=0;wi<52;wi++){
+          if(dtMs>=weekDefs[wi].startMs&&dtMs<=weekDefs[wi].endMs){row[wi]+=d.qty;break;}
+        }
+      }
+    }
+    weekly[key]=row.map(v=>Math.round(v));
+  }
+  _perfWeeklyCache=weekly;
+}
+
+
 function buildPerfData(){
   if(!window._salesBySkuDay||!allVariantRows||!allVariantRows.length)return[];
 
@@ -8843,10 +8887,15 @@ function perfGetSelected(type){
   return checked;
 }
 
+// Deferred render: allows the browser to paint checkbox/label state first, then render
+function renderPerformanceDeferred(){
+  requestAnimationFrame(()=>setTimeout(renderPerformance,0));
+}
+
 function perfToggleAll(type,allCb){
   document.querySelectorAll(`#ms-perf-${type}-options input`).forEach(b=>b.checked=allCb.checked);
   perfUpdateLabel(type);
-  renderPerformance();
+  renderPerformanceDeferred();
 }
 
 function perfUpdateLabel(type){
@@ -8874,7 +8923,7 @@ function perfFilterToTier(tier){
   const alreadyActive=activeTiers.length===1&&activeTiers[0]===tier;
   boxes.forEach(b=>b.checked=alreadyActive?true:b.value===tier);
   perfUpdateLabel('tier');
-  renderPerformance();
+  renderPerformanceDeferred();
 }
 
 function perfPopulateFilters(data){
@@ -8884,7 +8933,7 @@ function perfPopulateFilters(data){
   const catContainer=document.getElementById('ms-perf-cat-options');
   if(catContainer){
     catContainer.innerHTML=cats.map(c=>
-      `<label class="ms-item"><input type="checkbox" value="${c}" checked onchange="perfUpdateLabel('cat');renderPerformance()"> ${c} <span class="ms-count">(${catCounts[c]||0})</span></label>`
+      `<label class="ms-item"><input type="checkbox" value="${c}" checked onchange="perfUpdateLabel('cat');renderPerformanceDeferred()"> ${c} <span class="ms-count">(${catCounts[c]||0})</span></label>`
     ).join('');
   }
   // Month Delivery
@@ -8901,9 +8950,9 @@ function perfPopulateFilters(data){
   const dmContainer=document.getElementById('ms-perf-delmonth-options');
   if(dmContainer){
     const coreCount=delCounts['CORE']||0;
-    const coreHtml=coreCount?`<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="perfUpdateLabel('delmonth');renderPerformance()"> CORE <span class="ms-count">(${coreCount})</span></label>`:'';
+    const coreHtml=coreCount?`<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="perfUpdateLabel('delmonth');renderPerformanceDeferred()"> CORE <span class="ms-count">(${coreCount})</span></label>`:'';
     dmContainer.innerHTML=coreHtml+delMonths.map(m=>
-      `<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="perfUpdateLabel('delmonth');renderPerformance()"> ${m} <span class="ms-count">(${delCounts[m]||0})</span></label>`
+      `<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="perfUpdateLabel('delmonth');renderPerformanceDeferred()"> ${m} <span class="ms-count">(${delCounts[m]||0})</span></label>`
     ).join('');
   }
 }
@@ -8917,7 +8966,7 @@ function perfNewStatusChange(){
     else if(val==='completed'){label.textContent='Completed Only';if(btn)btn.classList.add('filtered');}
     else{label.textContent='All Products';if(btn)btn.classList.remove('filtered');}
   }
-  renderPerformance();
+  renderPerformanceDeferred();
 }
 
 function perfClearFilters(){
@@ -8934,6 +8983,8 @@ function perfClearFilters(){
 }
 
 let _perfDataCache=null;
+let _perfWeeklyCache=null; // {key: [52 weekly unit values]} — computed once alongside _perfDataCache
+let _perfWeekDefs=null;    // [{label,startMs,endMs}] — 52 week definitions as timestamps
 let _perfSelectedProducts=[]; // [{productName, colour, key}]
 
 function perfSearch(){
@@ -9143,34 +9194,11 @@ function renderPerformance(){
     return;
   }
 
-  // Build 52-week columns (weekly, oldest first)
-  const today=new Date();today.setHours(0,0,0,0);
-  const weeks=[];
-  for(let i=51;i>=0;i--){
-    const start=new Date(today);
-    start.setDate(today.getDate()-i*7-6);
-    const end=new Date(today);
-    end.setDate(today.getDate()-i*7);
-    const label=`W${String(start.getDate()).padStart(2,'0')}/${String(start.getMonth()+1).padStart(2,'0')}`;
-    weeks.push({label,start,end});
-  }
-
-  // Compute weekly units per product (for all filtered products)
-  const prodWeekly={};
-  for(const p of data){
-    const key=p.productName+'||'+p.colour;
-    const row=new Array(52).fill(0);
-    for(const sku of p.skus){
-      const dayData=window._salesBySkuDay[sku]||{};
-      for(const[day,d] of Object.entries(dayData)){
-        const dt=new Date(day);dt.setHours(0,0,0,0);
-        for(let wi=0;wi<52;wi++){
-          if(dt>=weeks[wi].start&&dt<=weeks[wi].end){row[wi]+=d.qty||0;break;}
-        }
-      }
-    }
-    prodWeekly[key]=row.map(v=>Math.round(v));
-  }
+  // Use pre-computed week definitions and weekly data (built once in _buildPerfWeeklyCache)
+  // If cache missing for any reason, build it now
+  if(!_perfWeekDefs||!_perfWeeklyCache){_buildPerfWeeklyCache();}
+  const weeks=_perfWeekDefs||[];
+  const prodWeekly=_perfWeeklyCache||{};
 
   // Apply sort
   const tierOrder={platinum:0,rocket:1,surfer:2,dog:3,egg:4};
@@ -9302,7 +9330,7 @@ function resetApp(){
   coreStylesData=null;bundleStylesData=null;allProductsListData=null;
   _cachedSalesMaps=null;_cachedAMData=null;_cachedSoldOutData=null;
   allVariantRows=[];
-  _perfDataCache=null;window._tierMap=null;
+  _perfDataCache=null;_perfWeeklyCache=null;_perfWeekDefs=null;window._tierMap=null;
   _perfSelectedProducts=[];
   document.getElementById('upload-screen').style.display='flex';
   document.getElementById('app').style.display='none';
