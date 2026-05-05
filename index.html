@@ -2026,7 +2026,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.3.5';
+const APP_VERSION='v1.3.6';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -3857,7 +3857,8 @@ function analyseStockData(){
         productName:r.productName,colour:r.colour,category:r.category,
         vendor:r.vendor,stock:0,sold7:0,sold14:0,sold30:0,sold90:0,
         onOrder:0,discountPct:r.discountPct||0,flag:r.flag,
-        price:r.price,daysDisplay:r.daysDisplay,soldOutSizes:r.soldOutSizes||0
+        price:r.price,daysDisplay:r.daysDisplay,soldOutSizes:r.soldOutSizes||0,
+        deliveryMonth:r.deliveryMonth||''
       };
     }
     const p=productMap[k];
@@ -3878,7 +3879,8 @@ function analyseStockData(){
   const products=Object.values(productMap);
 
   // Helpers
-  const fmt=p=>`<strong>${toTitleCase(p.productName)} — ${toTitleCase(p.colour)}</strong>`;
+  const delLabel=p=>p.deliveryMonth&&p.deliveryMonth!=='CORE'?` <span style="font-size:11px;font-weight:500;color:var(--text-muted);background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:1px 5px;">${p.deliveryMonth}</span>`:(p.deliveryMonth==='CORE'?` <span style="font-size:11px;font-weight:600;color:var(--blue);">CORE</span>`:'');
+  const fmt=p=>`<strong>${toTitleCase(p.productName)} — ${toTitleCase(p.colour)}</strong>${delLabel(p)}`;
   const isReduced=p=>(p.discountPct||0)>0;
   const hasOrder=p=>(p.onOrder||0)>0;
 
