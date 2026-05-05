@@ -322,14 +322,22 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .insights-print-btn:hover{background:#243352;box-shadow:0 2px 8px rgba(26,39,64,0.25);}
 .print-only{display:none!important;}
 @media print{
+  @page{size:A4 portrait;margin:14mm 12mm;}
   .no-print{display:none!important;}
   .print-only{display:block!important;}
-  body{background:#fff!important;}
+  body{background:#fff!important;height:auto!important;overflow:visible!important;}
+  /* Break the app shell out of its fixed-height viewport box */
+  #app{display:block!important;height:auto!important;overflow:visible!important;}
+  .layout{display:block!important;height:auto!important;overflow:visible!important;}
   #topbar,#sidebar,.screen-btn,.insights-refresh-btn{display:none!important;}
-  #insights-screen{display:block!important;height:auto!important;overflow:visible!important;padding:24px!important;}
+  /* All non-insights screens hidden */
+  #dashboard-screen,#cadence-screen,#planning-screen,#performance-screen{display:none!important;}
+  #insights-screen{display:block!important;height:auto!important;overflow:visible!important;padding:16px!important;}
   .insights-wrap{max-width:100%!important;}
-  .insight-section{break-inside:avoid;border:1px solid #e0e0e0!important;box-shadow:none!important;}
-  .insight-section-header{background:#f5f7fa!important;}
+  /* Sections: allow page breaks BETWEEN items but keep the header with its first item */
+  .insight-section{border:1px solid #d1d5db!important;box-shadow:none!important;margin-bottom:12px!important;break-after:auto;}
+  .insight-section-header{background:#f3f4f6!important;break-after:avoid;}
+  .insight-item{break-inside:avoid;}
   a{color:#000!important;}
 }
 
@@ -2016,7 +2024,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.3.3';
+const APP_VERSION='v1.3.4';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -3944,7 +3952,7 @@ function analyseStockData(){
   // ── 6. ORDER PROBLEMS ──
   // Slow movers (< 20 sold in 30 days) but have units on order, not excluded (BUNDLE exclusion applies; CORE allowed here)
   const orderProblems=products
-    .filter(p=>!isBundle(p)&&!EXCLUDED_STATUSES.has(p.vendor)&&p.sold30<20&&hasOrder(p)&&!isReduced(p)&&(p.soldOutSizes||0)===0)
+    .filter(p=>!isBundle(p)&&!EXCLUDED_STATUSES.has(p.vendor)&&p.stock>0&&p.sold30<20&&hasOrder(p)&&!isReduced(p)&&(p.soldOutSizes||0)===0)
     .sort((a,b)=>b.onOrder-a.onOrder)
     .slice(0,10)
     .map(p=>({text:`${fmt(p)} — ${p.onOrder.toLocaleString()} units on order but only ${p.sold30} sold in last 30 days (all sizes available). Review if this order is still needed.`}));
