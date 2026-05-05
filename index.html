@@ -1999,7 +1999,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.3.1';
+const APP_VERSION='v1.3.2';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -2698,11 +2698,13 @@ function renderCadence(){
   for(const p of periods)totals[p.label]=0;
 
   let rowKeys, rowLabel, getKey;
+  // skuCatMap declared here so LY MTD block (below) can access the filtered version
+  let skuCatMap=window._skuCategoryMap||{};
   if(cadenceView==='cat'){
     // Use ALL SKUs including draft for accurate historical category totals
     // When CORE filter active, restrict to SKUs whose variant is CORE status
     const skuCatMapFull=window._skuCategoryMap||{};
-    let skuCatMap=skuCatMapFull;
+    skuCatMap=skuCatMapFull;
     if(globalCoreFilter==='core'){
       const coreSkus=new Set(allVariantRows.filter(r=>r.vendor==='CORE').map(r=>r.sku));
       skuCatMap=Object.fromEntries(Object.entries(skuCatMapFull).filter(([sku])=>coreSkus.has(sku)));
@@ -2883,13 +2885,11 @@ function renderCadence(){
   lyMtdEnd.setHours(0,0,0,0);
   const lyMtdData={};
   let lyMtdTotal=0;
-  const skuCatMap=window._skuCategoryMap||{};
+  // skuCatMap already set above with CORE filter applied — do not re-declare here
   if(showLyMtd&&window._salesBySkuDay){
+    const activeSkuMap=cadenceView==='prod'?new Map(getActiveRows().filter(r=>!r.amOnly).map(r=>[r.sku,r.productName+'||'+r.colour])):null;
     for(const[sku,dayData] of Object.entries(window._salesBySkuDay)){
-      const rowKey=cadenceView==='cat'?(skuCatMap[sku]||null):(()=>{
-        const r=allVariantRows.find(r=>r.sku===sku);
-        return r?r.productName+'||'+r.colour:null;
-      })();
+      const rowKey=cadenceView==='cat'?(skuCatMap[sku]||null):(activeSkuMap?.get(sku)||null);
       if(!rowKey||!rowKeys.includes(rowKey))continue;
       if(!lyMtdData[rowKey])lyMtdData[rowKey]=0;
       for(const[day,d] of Object.entries(dayData)){
