@@ -2083,8 +2083,8 @@ let globalCoreFilter='all';
 let planView='category'; // 'category' or 'product'
 
 function getActiveRows(){
-  if(globalCoreFilter==='core')return allVariantRows.filter(r=>r.vendor==='CORE'||r.vendor==='BUNDLE');
-  if(globalCoreFilter==='noncore')return allVariantRows.filter(r=>r.vendor!=='CORE'&&r.vendor!=='BUNDLE');
+  if(globalCoreFilter==='core')return allVariantRows.filter(r=>r.vendor==='CORE');
+  if(globalCoreFilter==='noncore')return allVariantRows.filter(r=>r.vendor!=='CORE');
   return allVariantRows;
 }
 let mdSortCol='productName';
@@ -2733,10 +2733,10 @@ function renderCadence(){
     const skuCatMapFull=window._skuCategoryMap||{};
     skuCatMap=skuCatMapFull;
     if(globalCoreFilter==='core'){
-      const coreSkus=new Set(allVariantRows.filter(r=>r.vendor==='CORE'||r.vendor==='BUNDLE').map(r=>r.sku));
+      const coreSkus=new Set(allVariantRows.filter(r=>r.vendor==='CORE').map(r=>r.sku));
       skuCatMap=Object.fromEntries(Object.entries(skuCatMapFull).filter(([sku])=>coreSkus.has(sku)));
     }else if(globalCoreFilter==='noncore'){
-      const coreSkus=new Set(allVariantRows.filter(r=>r.vendor==='CORE'||r.vendor==='BUNDLE').map(r=>r.sku));
+      const coreSkus=new Set(allVariantRows.filter(r=>r.vendor==='CORE').map(r=>r.sku));
       skuCatMap=Object.fromEntries(Object.entries(skuCatMapFull).filter(([sku])=>!coreSkus.has(sku)));
     }
     rowKeys=[...new Set(Object.values(skuCatMap).filter(Boolean))].sort();
@@ -3173,10 +3173,10 @@ function getLYSalesByCategory(months){
   const skuCatMapFull=window._skuCategoryMap;
   let skuCatMap=skuCatMapFull;
   if(globalCoreFilter==='core'){
-    const coreSkus=new Set(allVariantRows.filter(r=>r.vendor==='CORE'||r.vendor==='BUNDLE').map(r=>r.sku));
+    const coreSkus=new Set(allVariantRows.filter(r=>r.vendor==='CORE').map(r=>r.sku));
     skuCatMap=Object.fromEntries(Object.entries(skuCatMapFull).filter(([sku])=>coreSkus.has(sku)));
   }else if(globalCoreFilter==='noncore'){
-    const coreSkus=new Set(allVariantRows.filter(r=>r.vendor==='CORE'||r.vendor==='BUNDLE').map(r=>r.sku));
+    const coreSkus=new Set(allVariantRows.filter(r=>r.vendor==='CORE').map(r=>r.sku));
     skuCatMap=Object.fromEntries(Object.entries(skuCatMapFull).filter(([sku])=>!coreSkus.has(sku)));
   }
   for(const[sku,cat] of Object.entries(skuCatMap)){
@@ -3223,7 +3223,7 @@ function getAMOnOrderByCategory(months){
 function getLYSalesByProduct(months){
   const result={};
   if(!window._salesBySkuDay||!allVariantRows)return result;
-  const coreSkus=(globalCoreFilter==='core'||globalCoreFilter==='noncore')?new Set(allVariantRows.filter(r=>r.vendor==='CORE'||r.vendor==='BUNDLE').map(r=>r.sku)):null;
+  const coreSkus=(globalCoreFilter==='core'||globalCoreFilter==='noncore')?new Set(allVariantRows.filter(r=>r.vendor==='CORE').map(r=>r.sku)):null;
   const skuProdMap={};
   for(const r of allVariantRows){if(r.amOnly)continue;if(globalCoreFilter==='core'&&coreSkus&&!coreSkus.has(r.sku))continue;if(globalCoreFilter==='noncore'&&coreSkus&&coreSkus.has(r.sku))continue;skuProdMap[r.sku]=r.productName+'||'+r.colour;}
   for(const[sku,dayData]of Object.entries(window._salesBySkuDay)){
@@ -8339,7 +8339,7 @@ function renderRow(row,headers){
       const displayVal=(val||'');
       const isEnd=displayVal==='OLD';
       const v=displayVal.toLowerCase();
-      const cls=isEnd?'rp-old':v==='new'?'rp-new':v==='current'?'rp-current':v==='core'?'rp-core':v==='old'?'rp-old':v==='reduced'?'rp-reduced':v==='draft'?'rp-draft':'rp-other';
+      const cls=isEnd?'rp-old':v==='new'?'rp-new':v==='current'?'rp-current':v==='core'?'rp-core':v==='bundle'?'rp-bundle':v==='old'?'rp-old':v==='reduced'?'rp-reduced':v==='draft'?'rp-draft':v==='pre-release'?'rp-prerelease':'rp-other';
       return`<td><span class="range-pill ${cls}">${displayVal||'—'}</span></td>`;
     }
     if(h.k==='soldToday'){
@@ -8685,7 +8685,7 @@ function exportCSV(){
 }
 
 /* ── PERFORMANCE VIEW ── */
-// v1.4.1 — CORE/Non-Core toggles updated: BUNDLE items treated as CORE in global filter (CORE=CORE+BUNDLE, Non-Core excludes both)
+// v1.4.1 — Dashboard Product & Variant views: BUNDLE status pill now renders correctly (was falling through to rp-other)
 // v1.4.0 — CORE items in bundle deals now classified as BUNDLE (takes precedence over CORE status)
 // v1.2.9 — Add numeric conditions (greater/less than) to SOLD period column filter
 // Completed products (first sale >32 days ago): index = actual 4w units / cohort avg 4w units * 100
