@@ -7255,7 +7255,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const isReduced=!isCore&&!isBundle&&!isDraft&&!isPreRelease&&(discountPct>0);
     // REDUCED takes priority over CLEARANCE when product has an active discount
     // PRE-RELEASE: draft-flagged with stock — always shows regardless of delivery month
-    const effectiveVendor=isBundle?'BUNDLE':isCore?'CORE':(isDraft&&!isDraftButCurrent)?'DRAFT':isPreRelease?'PRE-RELEASE':isReduced?'REDUCED':isClearance?'CLEARANCE':(isNew||isDraftButCurrent)?'NEW':isEnd?'OLD':isCurrent?'CURRENT':vendor;
+    const effectiveVendor=isCore?'CORE':(isDraft&&!isDraftButCurrent)?'DRAFT':isPreRelease?'PRE-RELEASE':isBundle?'BUNDLE':isReduced?'REDUCED':isClearance?'CLEARANCE':(isNew||isDraftButCurrent)?'NEW':isEnd?'OLD':isCurrent?'CURRENT':vendor;
     // No suggested orders for BUNDLE or REDUCED — these shouldn't be restocked at full price
     const finalSuggestedOrder=isBundle||isReduced?0:suggestedOrder;
     // Re-run flag with effectiveVendor so CORE/NEW/CURRENT/ON ORDER status is respected
@@ -7269,7 +7269,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
 
     rows.push({
       fullTitle:productName+' - '+colour,productName,colour,size,variant:size,sku,
-      category,vendor:effectiveVendor,stock,
+      category,vendor:effectiveVendor,inBundleDeal:isBundle,stock,
       price,compareAt,discountPct,margin,
       velocity,vel7,vel30,
       sold7:s7.qty,sold14:s14.qty,sold30:s30.qty,sold60:s60.qty,sold90:s90.qty,sold365:s365.qty,
@@ -8337,10 +8337,13 @@ function renderRow(row,headers){
     if(h.k==='category') return`<td class="cell-muted">${val||'—'}</td>`;
     if(h.k==='vendor'){
       const displayVal=(val||'');
-      const isEnd=displayVal==='OLD';
-      const v=displayVal.toLowerCase();
+      // CORE items in bundle deals show as BUNDLE in the Status column only — vendor stays CORE for all other logic
+      const showAsBundle=displayVal==='CORE'&&row.inBundleDeal;
+      const labelVal=showAsBundle?'BUNDLE':displayVal;
+      const isEnd=labelVal==='OLD';
+      const v=labelVal.toLowerCase();
       const cls=isEnd?'rp-old':v==='new'?'rp-new':v==='current'?'rp-current':v==='core'?'rp-core':v==='bundle'?'rp-bundle':v==='old'?'rp-old':v==='reduced'?'rp-reduced':v==='draft'?'rp-draft':v==='pre-release'?'rp-prerelease':'rp-other';
-      return`<td><span class="range-pill ${cls}">${displayVal||'—'}</span></td>`;
+      return`<td><span class="range-pill ${cls}">${labelVal||'—'}</span></td>`;
     }
     if(h.k==='soldToday'){
       if(!val||val===0)return`<td class="cell-muted">—</td>`;
@@ -8685,7 +8688,7 @@ function exportCSV(){
 }
 
 /* ── PERFORMANCE VIEW ── */
-// v1.4.2 — Confirmed: BUNDLE classification + pill display correct in Product & Variant views; toggles unchanged
+// v1.4.2 — Status column shows BUNDLE for CORE items in bundle deals (display only; vendor stays CORE for toggles/logic)
 // v1.4.1 — Dashboard Product & Variant views: BUNDLE status pill now renders correctly (was falling through to rp-other)
 // v1.4.0 — CORE items in bundle deals now classified as BUNDLE (takes precedence over CORE status)
 // v1.2.9 — Add numeric conditions (greater/less than) to SOLD period column filter
