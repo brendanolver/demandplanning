@@ -2026,7 +2026,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.4.1';
+const APP_VERSION='v1.4.2';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -8685,6 +8685,7 @@ function exportCSV(){
 }
 
 /* ── PERFORMANCE VIEW ── */
+// v1.4.2 — Confirmed: BUNDLE classification + pill display correct in Product & Variant views; toggles unchanged
 // v1.4.1 — Dashboard Product & Variant views: BUNDLE status pill now renders correctly (was falling through to rp-other)
 // v1.4.0 — CORE items in bundle deals now classified as BUNDLE (takes precedence over CORE status)
 // v1.2.9 — Add numeric conditions (greater/less than) to SOLD period column filter
