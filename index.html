@@ -2026,7 +2026,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.3.9';
+const APP_VERSION='v1.4.0';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -7233,7 +7233,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
 
     // OLD — delivered more than 3 months ago, no on order, not CORE
     // Also applies to CLEARANCE and BUNDLE (isCore already declared above)
-    const isBundle=!isCore&&bundleSet.has(productName+' - '+colour);
+    const isBundle=bundleSet.has(productName+' - '+colour);
     const isClearance=(vendor||'').toUpperCase()==='CLEARANCE';
     const hasNoOrder=(onOrder||0)+(productOnOrder||0)===0;
     const isOldStyle=skuDeliveryDate&&skuDeliveryDate<threeMonthsAgo;
@@ -7251,20 +7251,20 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const isDraftButCurrent=isDraft&&(isCurrentMonth||isFutureWithStock||
       (skuDeliveryDate&&skuDeliveryDate>=new Date()))&&
       ((stock>0)||(onOrder>0)||(productOnOrder>0));
-    // CORE/BUNDLE from CSV take precedence — then age-based status
+    // BUNDLE takes precedence over CORE — CORE items in bundle deals show as BUNDLE (already tracked under Delivery Month)
     const isReduced=!isCore&&!isBundle&&!isDraft&&!isPreRelease&&(discountPct>0);
     // REDUCED takes priority over CLEARANCE when product has an active discount
     // PRE-RELEASE: draft-flagged with stock — always shows regardless of delivery month
-    const effectiveVendor=isCore?'CORE':(isDraft&&!isDraftButCurrent)?'DRAFT':isPreRelease?'PRE-RELEASE':isBundle?'BUNDLE':isReduced?'REDUCED':isClearance?'CLEARANCE':(isNew||isDraftButCurrent)?'NEW':isEnd?'OLD':isCurrent?'CURRENT':vendor;
-    // No suggested orders for BUNDLE (non-CORE) or REDUCED — these shouldn't be restocked at full price
-    const finalSuggestedOrder=(isBundle&&!isCore)||isReduced?0:suggestedOrder;
+    const effectiveVendor=isBundle?'BUNDLE':isCore?'CORE':(isDraft&&!isDraftButCurrent)?'DRAFT':isPreRelease?'PRE-RELEASE':isReduced?'REDUCED':isClearance?'CLEARANCE':(isNew||isDraftButCurrent)?'NEW':isEnd?'OLD':isCurrent?'CURRENT':vendor;
+    // No suggested orders for BUNDLE or REDUCED — these shouldn't be restocked at full price
+    const finalSuggestedOrder=isBundle||isReduced?0:suggestedOrder;
     // Re-run flag with effectiveVendor so CORE/NEW/CURRENT/ON ORDER status is respected
     flag=getFlag(recalcDays,stock,onOrder,effectiveVendor,discountPct);
     if(isEnd&&!discountPct&&!isNew&&!isDraft&&!isDraftButCurrent&&!isPreRelease)flag='reduce';
     // Never flag NEW, CURRENT, ON ORDER or BUNDLE products as reduce
     if(flag==='reduce'&&(effectiveVendor==='NEW'||effectiveVendor==='CURRENT'||effectiveVendor==='ON ORDER'||effectiveVendor==='PRE-RELEASE'||isBundle))flag='ok';
-    // Never flag OLD, CLEARANCE, BUNDLE (non-CORE) as reorder at variant level
-    if(flag==='reorder'&&(isEnd||isClearance||(isBundle&&!isCore)))flag='ok';
+    // Never flag OLD, CLEARANCE, BUNDLE as reorder at variant level
+    if(flag==='reorder'&&(isEnd||isClearance||isBundle))flag='ok';
     // Note: MOQ (70 unit) check is done at product level in toProduct, not per-variant
 
     rows.push({
@@ -8685,6 +8685,7 @@ function exportCSV(){
 }
 
 /* ── PERFORMANCE VIEW ── */
+// v1.4.0 — CORE items in bundle deals now classified as BUNDLE (takes precedence over CORE status)
 // v1.2.9 — Add numeric conditions (greater/less than) to SOLD period column filter
 // Completed products (first sale >32 days ago): index = actual 4w units / cohort avg 4w units * 100
 // New products (first sale <=32 days ago): daily run rate projected to 28 days, compared against
