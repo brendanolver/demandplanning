@@ -2026,7 +2026,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.4.2';
+const APP_VERSION='v1.4.3';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -4661,7 +4661,7 @@ function renderSizeWorkings(){
     const swTotal=swVals.reduce((s,v)=>s+v,0);
     const swPct=swVals.map(v=>swTotal>0?Math.round(v/swTotal*100):0);
 
-    const pctFmt=v=>v>0?v.toFixed(1)+'%':'0.0%';
+    const pctFmt=v=>v>0?(v*100).toFixed(1)+'%':'0.0%';
     const pctFmtInt=v=>v>0?v+'%':'0%';
     const safeKey=swKey.replace(/'/g,"\\'");
 
@@ -5436,7 +5436,7 @@ function renderRoSizeWorkings(){
     const swVals=sizes.map(sz=>parseInt(swManual[sz])||0);
     const swTotal=swVals.reduce((s,v)=>s+v,0);
     const swPctVals=swVals.map(v=>swTotal>0?Math.round(v/swTotal*100):0);
-    const pctFmt=v=>v>0?v.toFixed(1)+'%':'0.0%';
+    const pctFmt=v=>v>0?(v*100).toFixed(1)+'%':'0.0%';
 
     const safeKey=swKey.replace(/'/g,"\\'");
     const thCols=sizes.map(s=>`<th>${s}</th>`).join('');
@@ -8082,7 +8082,7 @@ function getFilteredRows(){
   // Filter at variant level for variant view; post-aggregation for product view
   let baseRows=[...getActiveRows()];
   // Vendor/status filter applied at variant level for all views
-  if(vendors.length) baseRows=baseRows.filter(r=>vendors.includes(r.vendor||''));
+  if(vendors.length) baseRows=baseRows.filter(r=>vendors.includes(r.vendor||'')||(vendors.includes('BUNDLE')&&r.inBundleDeal));
   if(currentView==='variant'){
     if(cats.length) baseRows=baseRows.filter(r=>cats.includes(r.category||''));
     if(delmonths.length) baseRows=baseRows.filter(r=>delmonths.includes(r.deliveryMonth||''));
@@ -8688,6 +8688,7 @@ function exportCSV(){
 }
 
 /* ── PERFORMANCE VIEW ── */
+// v1.4.3 — Fix Size Workings % of sales showing ~0% (pctFmt was not multiplying fraction by 100); Fix Dashboard Bundle+Core filter showing no results (vendor filter now includes inBundleDeal rows when BUNDLE is selected)
 // v1.4.2 — Status column shows BUNDLE for CORE items in bundle deals (display only; vendor stays CORE for toggles/logic)
 // v1.4.1 — Dashboard Product & Variant views: BUNDLE status pill now renders correctly (was falling through to rp-other)
 // v1.4.0 — CORE items in bundle deals now classified as BUNDLE (takes precedence over CORE status)
