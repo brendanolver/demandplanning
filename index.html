@@ -2026,7 +2026,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.4.3';
+const APP_VERSION='v1.4.4';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -4661,7 +4661,7 @@ function renderSizeWorkings(){
     const swTotal=swVals.reduce((s,v)=>s+v,0);
     const swPct=swVals.map(v=>swTotal>0?Math.round(v/swTotal*100):0);
 
-    const pctFmt=v=>v>0?(v*100).toFixed(1)+'%':'0.0%';
+    const pctFmt=v=>v>0?Math.round(v*100)+'%':'0%';
     const pctFmtInt=v=>v>0?v+'%':'0%';
     const safeKey=swKey.replace(/'/g,"\\'");
 
@@ -4669,7 +4669,7 @@ function renderSizeWorkings(){
     const mkRow=(label,vals,cls,totalVal,totalCls='')=>
       `<tr><td class="sw-row-label">${label}</td>${vals.map((v,i)=>`<td class="${cls}${v===0?' sw-need-zero':''}">${v}</td>`).join('')}<td class="sw-total ${totalCls}">${totalVal}</td></tr>`;
     const mkPctRow=(vals,tot)=>
-      `<tr><td class="sw-pct"></td>${vals.map(v=>`<td class="sw-pct">${pctFmt(v)}</td>`).join('')}<td class="sw-pct">${tot>0?'100.0%':'0.0%'}</td></tr>`;
+      `<tr><td class="sw-pct"></td>${vals.map(v=>`<td class="sw-pct">${pctFmt(v)}</td>`).join('')}<td class="sw-pct">${tot>0?'100%':'0%'}</td></tr>`;
 
     const suggestedLabel=useAM
       ?`Suggested Order <span style="font-size:10px;font-weight:600;color:#0369a1;background:#dbeafe;padding:1px 6px;border-radius:3px;margin-left:4px;">AM</span>`
@@ -5436,12 +5436,12 @@ function renderRoSizeWorkings(){
     const swVals=sizes.map(sz=>parseInt(swManual[sz])||0);
     const swTotal=swVals.reduce((s,v)=>s+v,0);
     const swPctVals=swVals.map(v=>swTotal>0?Math.round(v/swTotal*100):0);
-    const pctFmt=v=>v>0?(v*100).toFixed(1)+'%':'0.0%';
+    const pctFmt=v=>v>0?Math.round(v*100)+'%':'0%';
 
     const safeKey=swKey.replace(/'/g,"\\'");
     const thCols=sizes.map(s=>`<th>${s}</th>`).join('');
     const mkRow=(label,vals,cls,totalVal)=>`<tr><td class="sw-row-label">${label}</td>${vals.map(v=>`<td class="${cls}${v===0?' sw-need-zero':''}">${v}</td>`).join('')}<td class="sw-total">${totalVal}</td></tr>`;
-    const mkPctRow=vals=>`<tr><td class="sw-pct"></td>${vals.map(v=>`<td class="sw-pct">${pctFmt(v)}</td>`).join('')}<td class="sw-pct">${soldTotal>0?'100.0%':'0.0%'}</td></tr>`;
+    const mkPctRow=vals=>`<tr><td class="sw-pct"></td>${vals.map(v=>`<td class="sw-pct">${pctFmt(v)}</td>`).join('')}<td class="sw-pct">${soldTotal>0?'100%':'0%'}</td></tr>`;
 
     return`<div style="margin-bottom:32px;">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;">
@@ -8688,6 +8688,7 @@ function exportCSV(){
 }
 
 /* ── PERFORMANCE VIEW ── */
+// v1.4.4 — Size Workings % of sales now renders as whole numbers (no decimal) to match other % figures in the view
 // v1.4.3 — Fix Size Workings % of sales showing ~0% (pctFmt was not multiplying fraction by 100); Fix Dashboard Bundle+Core filter showing no results (vendor filter now includes inBundleDeal rows when BUNDLE is selected)
 // v1.4.2 — Status column shows BUNDLE for CORE items in bundle deals (display only; vendor stays CORE for toggles/logic)
 // v1.4.1 — Dashboard Product & Variant views: BUNDLE status pill now renders correctly (was falling through to rp-other)
