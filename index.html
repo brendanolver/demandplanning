@@ -386,8 +386,9 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .tag-teal{background:var(--teal-light);color:var(--teal);}
 .insights-error{background:var(--red-light);border:1px solid var(--red);border-radius:var(--r);padding:16px 20px;color:var(--red);font-size:13px;}
 
-tr.totals-row{background:var(--surface2);border-top:2px solid var(--border);position:sticky;bottom:0;z-index:2;}
+tr.totals-row{background:var(--surface2);border-top:2px solid var(--border);}
 tr.totals-row td{padding:10px 12px;font-size:12px;border-bottom:none;}
+#tbl-tfoot{position:sticky;bottom:0;z-index:2;}
 
 /* Period selector */
 .period-selector{display:flex;align-items:center;gap:3px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:2px;}
@@ -1075,7 +1076,7 @@ th{position:relative;}
 
       <div class="table-card">
         <div class="tbl-wrap tbl-wrap-dashboard">
-          <table><thead id="tbl-head"></thead><tbody id="tbl-body"></tbody></table>
+          <table><thead id="tbl-head"></thead><tbody id="tbl-body"></tbody><tfoot id="tbl-tfoot"></tfoot></table>
         </div>
         <div class="tbl-foot" id="tbl-foot"></div>
       </div>
@@ -2026,7 +2027,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.4.4';
+const APP_VERSION='v1.4.5';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -8265,12 +8266,10 @@ function renderTable(){
 
   if(pageRows.length===0){
     document.getElementById('tbl-body').innerHTML=`<tr><td colspan="${headers.length}"><div class="empty-cell"><div class="empty-ico">🔍</div><div class="empty-msg">No results found</div><div class="empty-sub">Try adjusting your filters</div></div></td></tr>`;
+    document.getElementById('tbl-tfoot').innerHTML='';
   }else{
-    let bodyHtml=pageRows.map(row=>renderRow(row,headers)).join('');
-    if(filteredRows.length>0){
-      bodyHtml+=renderTotalsRow(filteredRows,headers);
-    }
-    document.getElementById('tbl-body').innerHTML=bodyHtml;
+    document.getElementById('tbl-body').innerHTML=pageRows.map(row=>renderRow(row,headers)).join('');
+    document.getElementById('tbl-tfoot').innerHTML=filteredRows.length>0?renderTotalsRow(filteredRows,headers):'';
   }
   renderFoot();
 }
@@ -8688,6 +8687,7 @@ function exportCSV(){
 }
 
 /* ── PERFORMANCE VIEW ── */
+// v1.4.5 — Fix Dashboard TOTAL row being cut off: moved totals from tbody to tfoot (sticky, always visible above pagination)
 // v1.4.4 — Size Workings % of sales now renders as whole numbers (no decimal) to match other % figures in the view
 // v1.4.3 — Fix Size Workings % of sales showing ~0% (pctFmt was not multiplying fraction by 100); Fix Dashboard Bundle+Core filter showing no results (vendor filter now includes inBundleDeal rows when BUNDLE is selected)
 // v1.4.2 — Status column shows BUNDLE for CORE items in bundle deals (display only; vendor stays CORE for toggles/logic)
