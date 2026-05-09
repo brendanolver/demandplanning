@@ -1124,6 +1124,7 @@ th{position:relative;}
             <button class="cadence-btn active" id="cad-12m" onclick="setCadence('12m')">12 Months</button>
             <button class="cadence-btn" id="cad-12w" onclick="setCadence('12w')">12 Weeks</button>
             <button class="cadence-btn" id="cad-5w" onclick="setCadence('5w')">5 Weeks</button>
+            <button class="cadence-btn" id="cad-7d" onclick="setCadence('7d')">7 Days</button>
           </div>
           <div id="cadence-search-wrap" style="display:none;">
             <div class="search-wrap" style="min-width:220px;">
@@ -2027,7 +2028,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.4.5';
+const APP_VERSION='v1.4.6';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -2096,7 +2097,7 @@ let cadenceCompareProducts=[];
 
 function setCadence(mode){
   cadenceMode=mode;
-  ['12m','12w','5w'].forEach(m=>document.getElementById('cad-'+m).classList.toggle('active',m===mode));
+  ['12m','12w','5w','7d'].forEach(m=>document.getElementById('cad-'+m).classList.toggle('active',m===mode));
   renderCadence();
 }
 
@@ -3034,7 +3035,7 @@ function renderCadence(){
       </table>
     </div>
     ${chartHtml?`<div class="cadence-chart-wrap">
-      <div class="cadence-chart-title">Total Units Sold — ${cadenceMode==='12m'?'Last 12 Months':cadenceMode==='12w'?'Last 12 Weeks':'Last 5 Weeks'}</div>
+      <div class="cadence-chart-title">Total Units Sold — ${cadenceMode==='12m'?'Last 12 Months':cadenceMode==='12w'?'Last 12 Weeks':cadenceMode==='7d'?'Last 7 Days':'Last 5 Weeks'}</div>
       ${chartHtml}
     </div>`:''}`}`;
 }
@@ -3056,6 +3057,17 @@ function buildCadencePeriods(today){
       const d=new Date(today.getFullYear(),today.getMonth()-i,1);
       const end=new Date(d.getFullYear(),d.getMonth()+1,0);
       const label=d.toLocaleString('en-AU',{month:'short',year:'2-digit'});
+      periods.push({label,start:new Date(d),end});
+    }
+  } else if(cadenceMode==='7d'){
+    const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    for(let i=6;i>=0;i--){
+      const d=new Date(today);
+      d.setDate(today.getDate()-i);
+      d.setHours(0,0,0,0);
+      const end=new Date(d);
+      end.setHours(23,59,59,999);
+      const label=days[d.getDay()]+' '+String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0');
       periods.push({label,start:new Date(d),end});
     }
   } else {
@@ -8687,6 +8699,7 @@ function exportCSV(){
 }
 
 /* ── PERFORMANCE VIEW ── */
+// v1.4.6 — Add 7 Days daily view to Sales Cadence (Category & Product); shows last 7 days as individual daily columns with day/date labels
 // v1.4.5 — Fix Dashboard TOTAL row being cut off: moved totals from tbody to tfoot (sticky, always visible above pagination)
 // v1.4.4 — Size Workings % of sales now renders as whole numbers (no decimal) to match other % figures in the view
 // v1.4.3 — Fix Size Workings % of sales showing ~0% (pctFmt was not multiplying fraction by 100); Fix Dashboard Bundle+Core filter showing no results (vendor filter now includes inBundleDeal rows when BUNDLE is selected)
