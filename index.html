@@ -2028,7 +2028,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.4.6';
+const APP_VERSION='v1.4.7';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -2830,6 +2830,7 @@ function renderCadence(){
   // Use productOnOrder as the single source of truth, deduplicated per product+colour
   const sohByKey={};
   const onOrderByKey={};
+  const vendorByKey={};
   const _onOrderSeen=new Set();
   if(cadenceView==='cat'){
     for(const r of getActiveRows()){
@@ -2850,6 +2851,10 @@ function renderCadence(){
         _onOrderSeen.add(k);
         const oo=(r.productOnOrder||0)||(r.onOrder||0);
         onOrderByKey[k]=(onOrderByKey[k]||0)+oo;
+      }
+      if(!vendorByKey[k]){
+        const showAsBundle=(r.vendor==='CORE'&&r.inBundleDeal);
+        vendorByKey[k]=showAsBundle?'BUNDLE':(r.vendor||'');
       }
     }
   }
@@ -2965,8 +2970,12 @@ function renderCadence(){
     const totalCols=showTotals?`
       <td class="cell-num" style="${stColor}">${stPct!==null?stPct.toFixed(1)+'%':'—'}</td>
       <td class="cell-num" style="font-weight:700;color:var(--teal);">${totalSold>0?totalSold.toLocaleString():'—'}</td>`:'';
+    const _vnd=cadenceView==='prod'?(vendorByKey[k]||''):'';
+    const _vcls=_vnd==='CORE'?'rp-core':_vnd==='NEW'?'rp-new':_vnd==='CURRENT'?'rp-current':_vnd==='OLD'?'rp-old':_vnd==='REDUCED'?'rp-reduced':_vnd==='DRAFT'?'rp-draft':_vnd==='PRE-RELEASE'?'rp-prerelease':_vnd==='BUNDLE'?'rp-bundle':'rp-other';
+    const statusCell=cadenceView==='prod'?`<td style="white-space:nowrap;"><span class="range-pill ${_vcls}">${_vnd||'—'}</span></td>`:'';
     return`<tr>
       <td>${displayLabel(k)}</td>
+      ${statusCell}
       <td class="cell-num" style="font-weight:500;">${soh>0?soh.toLocaleString():'—'}</td>
       <td class="cell-num" style="color:var(--purple);font-weight:500;">${onOrder>0?onOrder.toLocaleString():'—'}</td>
       ${lyMtdCell}
@@ -3012,6 +3021,7 @@ function renderCadence(){
       <table class="cadence-table">
         <thead><tr>
           <th style="${thStyle}" onclick="setCadenceSort('label')">${rowLabel}${sortArrow('label')}</th>
+          ${cadenceView==='prod'?`<th style="white-space:nowrap;">Status</th>`:''}
           <th style="${thStyle};min-width:60px;" onclick="setCadenceSort('soh')">SOH${sortArrow('soh')}</th>
           <th style="${thStyle};min-width:60px;color:var(--purple);" onclick="setCadenceSort('__onorder__')">On Order${sortArrow('__onorder__')}</th>
           ${showLyMtd?`<th style="background:#f0fdf4;border-left:2px solid var(--border);min-width:80px;white-space:nowrap;">LY MTD<div style="font-size:9px;font-weight:400;opacity:0.8;">vs this MTD</div></th>`:''}
@@ -3022,6 +3032,7 @@ function renderCadence(){
           ${tableRows}
           <tr class="cadence-total">
             <td>TOTAL</td>
+            ${cadenceView==='prod'?'<td></td>':''}
             <td style="font-weight:700;">${totalSoh>0?totalSoh.toLocaleString():"—"}</td>
             <td style="font-weight:700;color:var(--purple);">${totalOnOrder>0?totalOnOrder.toLocaleString():'—'}</td>
             ${showLyMtd?`<td style="background:#f0fdf4;border-left:2px solid var(--border);">
@@ -8699,6 +8710,7 @@ function exportCSV(){
 }
 
 /* ── PERFORMANCE VIEW ── */
+// v1.4.7 — Sales Cadence > Product view: add Status column (range-pill badge matching Dashboard style) and Status dropdown filter (was already wired but now also surfaces status in the table)
 // v1.4.6 — Add 7 Days daily view to Sales Cadence (Category & Product); shows last 7 days as individual daily columns with day/date labels
 // v1.4.5 — Fix Dashboard TOTAL row being cut off: moved totals from tbody to tfoot (sticky, always visible above pagination)
 // v1.4.4 — Size Workings % of sales now renders as whole numbers (no decimal) to match other % figures in the view
