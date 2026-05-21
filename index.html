@@ -2028,7 +2028,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.4.8';
+const APP_VERSION='v1.4.9';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -6506,7 +6506,7 @@ function togglePwVisibility(e){
 /* ── STATE ── */
 let shopifyInvData=null, shopifySalesData=null, amData=null, soldOutData=null, variantsSoldOutData=null;
 let coreStylesData=null, bundleStylesData=null, allProductsListData=null;
-let currentView='category', sortCol='days', sortDir='asc', currentPage=1;
+let currentView='category', sortCol='category', sortDir='asc', currentPage=1;
 let selectedPeriod=7;
 let customDateFrom=null, customDateTo=null;
 let PAGE_SIZE=50;
@@ -7820,6 +7820,7 @@ function sizeSort(a,b){
 
 function setView(v){
   currentView=v;currentPage=1;
+  if(v==='category'){sortCol='category';sortDir='asc';}
   document.querySelectorAll('.view-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
   const titles={category:'Category View',product:'Product View',variant:'Variant View'};
   document.getElementById('toolbar-title').textContent=titles[v];
@@ -7940,7 +7941,7 @@ function toCategory(vr){
     const key=r.category||'UNCATEGORISED';
     if(!map[key])map[key]={category:key,stock:0,sold:0,sold7:0,sold30:0,sold90:0,sold365:0,
       soldToday:0,soldYesterday:0,suggestedOrder:0,
-      onOrder:0,velSum:0,vel7Sum:0,vel30Sum:0,sohValue:0,sellValue:0,
+      onOrder:0,velSum:0,vel7Sum:0,vel30Sum:0,sohValue:0,sellValue:0,salesValue:0,
       marginRevSum:0,marginCostSum:0,
       productSet:new Set(),
       oosCount:0,critCount:0,earliestDue:'',earliestKey:999999};
@@ -7955,6 +7956,7 @@ function toCategory(vr){
     c.vel30Sum+=(r.vel30||0);
     c.sohValue+=(r.sohValue||0);
     c.sellValue+=(r.sellValue||0);
+    c.salesValue+=(r.sold||0)*(r.price||0);
     if(r.margin!=null&&r.price>0){const _ex=r.price/1.1;const _u=r.sold>0?r.sold:r.stock>0?r.stock:1;c.marginRevSum+=_ex*_u;c.marginCostSum+=_ex*(1-r.margin/100)*_u;}
     c.onOrder+=(r.onOrder!==null?(r.onOrder||0):(r.productOnOrder||0));
     c.productSet.add(r.productName+'||'+r.colour);
@@ -7988,7 +7990,7 @@ function toCategory(vr){
 const colFilters={};  // {colKey: {op1, v1, op2, v2}}
 
 // Numeric columns use number operators; text/flag columns use text operators
-const NUM_COLS=new Set(['stock','sold','sold7','sold30','sold90','sold365','soldToday','soldYesterday','onOrder','vel7','vel30','days','products','oosCount','critCount','sellThru7','price','compareAt','discountPct','margin','soldOutSizes','sohValue','sellValue','suggestedOrder']);
+const NUM_COLS=new Set(['stock','sold','sold7','sold30','sold90','sold365','soldToday','soldYesterday','onOrder','vel7','vel30','days','products','oosCount','critCount','sellThru7','price','compareAt','discountPct','margin','soldOutSizes','sohValue','sellValue','salesValue','suggestedOrder']);
 const TEXT_COLS=new Set(['productName','category','vendor','size','sku','flag','monthDue']);
 
 function getCondOpts(colKey){
@@ -8230,14 +8232,16 @@ function renderTable(){
 
   const soldLabel=`Sold (${selectedPeriod}d)`;
   const stLabel=`ST% (${selectedPeriod}d)`;
+  const salesValLabel=`Sales Value (${selectedPeriod}d)`;
   const catHeaders=[
     {k:'category',l:'Category'},{k:'products',l:'Products'},
     {k:'sellThru7',l:stLabel},{k:'margin',l:'Margin%'},{k:'stock',l:'SOH'},{k:'sohValue',l:'SOH Value'},{k:'sellValue',l:'Sell Value'},
+    {k:'salesValue',l:salesValLabel},
     {k:'soldToday',l:'Today'},{k:'soldYesterday',l:'Yest'},
     {k:'sold',l:soldLabel},
     {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},
     {k:'days',l:'Weeks Cover'},{k:'suggestedOrder',l:'Suggest Order'},
-    {k:'oosCount',l:'OOS'},{k:'critCount',l:'Re-Order'},{k:'flag',l:'Stock Status'}
+    {k:'flag',l:'Stock Status'}
   ];
   const prodHeaders=[
     {k:'productName',l:'Product'},{k:'category',l:'Category'},{k:'discountPct',l:'Disc%'},{k:'vendor',l:'Status'},
@@ -8329,6 +8333,7 @@ function renderTotalsRow(rows,headers){
     if(h.k==='stock') return`<td class="cell-num" style="font-weight:700;">${sum.stock.toLocaleString()}</td>`;
     if(h.k==='sohValue') return`<td class="cell-num" style="font-weight:700;">${sum.sohValue>0?'$'+Math.round(sum.sohValue).toLocaleString():'—'}</td>`;
     if(h.k==='sellValue') return`<td class="cell-num" style="font-weight:700;">${sum.sellValue>0?'$'+Math.round(sum.sellValue).toLocaleString():'—'}</td>`;
+    if(h.k==='salesValue'){const sv=rows.reduce((s,r)=>s+(r.salesValue||0),0);return`<td class="cell-num" style="font-weight:700;">${sv>0?'$'+Math.round(sv).toLocaleString():'—'}</td>`;}
     if(h.k==='sold') return`<td class="cell-num" style="font-weight:700;">${sum.sold.toLocaleString()}</td>`;
     if(h.k==='soldYesterday'){const sy=rows.reduce((s,r)=>s+(r.soldYesterday||0),0);return`<td class="cell-num" style="font-weight:700;color:var(--teal);">${sy>0?sy.toLocaleString():'—'}</td>`;}
     if(h.k==='soldToday'){const st=rows.reduce((s,r)=>s+(r.soldToday||0),0);return`<td class="cell-num" style="font-weight:700;color:var(--teal);">${st>0?st.toLocaleString():'—'}</td>`;}
@@ -8381,9 +8386,9 @@ function renderRow(row,headers){
       if(!val||val===0)return`<td class="cell-muted">—</td>`;
       return`<td class="cell-num" style="color:var(--teal);font-weight:600;">${val.toLocaleString()}</td>`;
     }
-    if(h.k==='sohValue'||h.k==='sellValue'){
+    if(h.k==='sohValue'||h.k==='sellValue'||h.k==='salesValue'){
       if(!val||val===0)return`<td class="cell-muted">—</td>`;
-      return`<td class="cell-num">$${val.toLocaleString('en-AU',{minimumFractionDigits:0,maximumFractionDigits:0})}</td>`;
+      return`<td class="cell-num">$${Math.round(val).toLocaleString('en-AU')}</td>`;
     }
     if(h.k==='deliveryMonth'){
       if(!val)return`<td class="cell-muted">—</td>`;
@@ -8681,7 +8686,7 @@ function exportCSV(){
   const soldLabel=`Sold (${selectedPeriod}d)`;
   const stLabel=`ST% (${selectedPeriod}d)`;
   const h=currentView==='category'
-    ?['Category','Products',stLabel,'Margin%','SOH','SOH Value','Sell Value','Today','Yest',soldLabel,'On Order','Month Due','Weeks Cover','OOS','Re-Order','Stock Status']
+    ?['Category','Products',stLabel,'Margin%','SOH','SOH Value','Sell Value',`Sales Value (${selectedPeriod}d)`,'Today','Yest',soldLabel,'On Order','Month Due','Weeks Cover','Stock Status']
     :currentView==='product'
     ?['Product','Category','Status','Month Del',stLabel,'Margin%','SOH','SOH Value','Sell Value','Today','Yest',soldLabel,'On Order','Month Due','Sizes Sold Out','Price','RRP','Disc%','Weeks Cover','Tier','Stock Status']
     :['Product','Size','SKU','Category','Status','Month Del',stLabel,'Margin%','SOH',soldLabel,'On Order','Month Due','Price','RRP','Disc%','Weeks Cover','Tier','Stock Status'];
@@ -8698,7 +8703,7 @@ function exportCSV(){
     const tierInfo=getTierForProduct(r.productName,r.colour);
     const tierLabel=tierInfo?getPerfLabel(tierInfo.tier):'—';
     if(currentView==='category')
-      v=[r.category,r.products,st7,r.margin!=null?r.margin.toFixed(1):'',r.stock,sohVal,sellVal,r.soldToday||'',r.soldYesterday||'',r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.daysDisplay,r.oosCount,r.critCount,SL[r.flag]||r.flag];
+      v=[r.category,r.products,st7,r.margin!=null?r.margin.toFixed(1):'',r.stock,sohVal,sellVal,r.salesValue?Math.round(r.salesValue):'',r.soldToday||'',r.soldYesterday||'',r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.daysDisplay,SL[r.flag]||r.flag];
     else if(currentView==='product')
       v=[r.productName+(r.colour?' - '+r.colour:''),r.category,r.vendor,r.deliveryMonth||'',st7,mg,r.stock,sohVal,sellVal,r.soldToday||'',r.soldYesterday||'',r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.soldOutSizes||'',r.price??'',r.compareAt??'',disc,r.daysDisplay,tierLabel,SL[r.flag]||r.flag];
     else
@@ -8712,6 +8717,7 @@ function exportCSV(){
 }
 
 /* ── PERFORMANCE VIEW ── */
+// v1.4.9 — Dashboard > Category view: default sort alphabetical by category (also resets on view switch); add Sales Value (period) column between Sell Value and Today; remove OOS and Re-Order columns
 // v1.4.8 — Working > Re-Orders: fix On Order qty doubling (p.onOrder from toProduct() already includes productOnOrder; was being added twice); add Sizes S/O column after Sold qty (red when >0, matches Dashboard Product view)
 // v1.4.7 — Sales Cadence > Product view: add Status column (range-pill badge matching Dashboard style) and Status dropdown filter (was already wired but now also surfaces status in the table)
 // v1.4.6 — Add 7 Days daily view to Sales Cadence (Category & Product); shows last 7 days as individual daily columns with day/date labels
