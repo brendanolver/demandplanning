@@ -2028,7 +2028,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v1.4.7';
+const APP_VERSION='v1.4.8';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -5130,7 +5130,7 @@ function renderReorders(){
       const periodDays=roPeriod===14?14:roPeriod===30?30:roPeriod===60?60:roPeriod===90?90:roPeriod===365?365:7;
       const getSold=p=>{const f=roPeriod===30?'sold30':roPeriod===60?'sold60':roPeriod===90?'sold90':roPeriod===365?'sold365':'sold7';return p[f]||0;};
       const vel=p=>periodDays>0&&getSold(p)>0?getSold(p)/periodDays:0;
-      const wks=p=>{const v=vel(p);const onOrd=(p.onOrder||0)+(p.productOnOrder||0);const roQ=parseInt(saved[p.fullTitle]?.qty)||0;return v>0?(p.stock+onOrd+roQ)/(v*7):null;};
+      const wks=p=>{const v=vel(p);const onOrd=p.onOrder||0;const roQ=parseInt(saved[p.fullTitle]?.qty)||0;return v>0?(p.stock+onOrd+roQ)/(v*7):null;};
       av=wks(a);bv=wks(b);
       if(av===null&&bv===null)return 0;
       if(av===null)return roSortDir==='asc'?1:-1;
@@ -5179,7 +5179,7 @@ function renderReorders(){
     const isChecked=saved[key]?.checked||false;
     const roQtyVal=saved[key]?.qty||'';
     const roQty=parseInt(roQtyVal)||0;
-    const onOrder=(p.onOrder||0)+(p.productOnOrder||0);
+    const onOrder=p.onOrder||0;
     const sold=getSoldRo(p);
     // Velocity based on selected period (units per day)
     const periodDays=roPeriod===14?14:roPeriod===30?30:roPeriod===60?60:roPeriod===90?90:roPeriod===365?365:7;
@@ -5201,6 +5201,7 @@ function renderReorders(){
       <td class="cell-num">${p.stock.toLocaleString()}</td>
       <td class="cell-num" style="color:var(--purple);">${onOrder>0?onOrder.toLocaleString():'—'}</td>
       <td class="cell-num">${sold>0?sold.toLocaleString():'—'}</td>
+      <td class="cell-num" style="${(p.soldOutSizes||0)>0?'color:var(--red);font-weight:600;':'color:var(--text-muted);'}">${(p.soldOutSizes||0)>0?p.soldOutSizes:'—'}</td>
       <td class="cell-num" style="color:#f97316;font-weight:700;">${sugOrdDisplay>0?sugOrdDisplay.toLocaleString():'—'}</td>
       <td style="padding:5px 10px;text-align:center;">
         <input type="number" min="0" step="1" placeholder="0" value="${roQtyVal}"
@@ -5227,6 +5228,7 @@ function renderReorders(){
       <th style="${thS}text-align:right;" onclick="roSort('stock')">SOH${roArrow('stock')}</th>
       <th style="${thS}text-align:right;" onclick="roSort('onOrder')">On Order${roArrow('onOrder')}</th>
       <th style="${thS}text-align:right;" onclick="roSort('sold')">${soldLabel}${roArrow('sold')}</th>
+      <th style="${thS}text-align:right;" onclick="roSort('soldOutSizes')">Sizes S/O${roArrow('soldOutSizes')}</th>
       <th style="${thS}text-align:right;" onclick="roSort('suggestedOrder')">Suggest Order${roArrow('suggestedOrder')}</th>
       <th style="${thS}text-align:center;min-width:100px;" onclick="roSort('roQty')">Re-Order Qty${roArrow('roQty')}</th>
       <th style="${thS}text-align:right;" onclick="roSort('wks')">Wks Cover (incl. RO)${roArrow('wks')}</th>
@@ -8710,6 +8712,7 @@ function exportCSV(){
 }
 
 /* ── PERFORMANCE VIEW ── */
+// v1.4.8 — Working > Re-Orders: fix On Order qty doubling (p.onOrder from toProduct() already includes productOnOrder; was being added twice); add Sizes S/O column after Sold qty (red when >0, matches Dashboard Product view)
 // v1.4.7 — Sales Cadence > Product view: add Status column (range-pill badge matching Dashboard style) and Status dropdown filter (was already wired but now also surfaces status in the table)
 // v1.4.6 — Add 7 Days daily view to Sales Cadence (Category & Product); shows last 7 days as individual daily columns with day/date labels
 // v1.4.5 — Fix Dashboard TOTAL row being cut off: moved totals from tbody to tfoot (sticky, always visible above pagination)
