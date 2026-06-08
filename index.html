@@ -8685,10 +8685,17 @@ function exportCSV(){
   const rows=getFilteredRows();
   const soldLabel=`Sold (${selectedPeriod}d)`;
   const stLabel=`ST% (${selectedPeriod}d)`;
+  const _szSuf=['XXXXL','XXXL','XXL','XL','XXS','XS','OS','S','M','L'];
+  function _styleCode(sku){
+    if(!sku)return'';
+    const u=sku.toUpperCase();
+    for(const sz of _szSuf){if(u.endsWith(sz))return sku.slice(0,sku.length-sz.length);}
+    return sku.replace(/\d{2}$/,'');
+  }
   const h=currentView==='category'
     ?['Category','Products',stLabel,'Margin%','SOH','SOH Value','Sell Value',`Sales Value (${selectedPeriod}d)`,'Today','Yest',soldLabel,'On Order','Month Due','Weeks Cover','Stock Status']
     :currentView==='product'
-    ?['Product','Category','Status','Month Del',stLabel,'Margin%','SOH','SOH Value','Sell Value','Today','Yest',soldLabel,'On Order','Month Due','Sizes Sold Out','Price','RRP','Disc%','Weeks Cover','Tier','Stock Status']
+    ?['SKU','Product','Category','Status','Month Del',stLabel,'Margin%','SOH','SOH Value','Sell Value','Today','Yest',soldLabel,'On Order','Month Due','Sizes Sold Out','Price','RRP','Disc%','Weeks Cover','Tier','Stock Status']
     :['Product','Size','SKU','Category','Status','Month Del',stLabel,'Margin%','SOH',soldLabel,'On Order','Month Due','Price','RRP','Disc%','Weeks Cover','Tier','Stock Status'];
   const lines=[h.join(',')];
   for(const r of rows){
@@ -8705,7 +8712,7 @@ function exportCSV(){
     if(currentView==='category')
       v=[r.category,r.products,st7,r.margin!=null?r.margin.toFixed(1):'',r.stock,sohVal,sellVal,r.salesValue?Math.round(r.salesValue):'',r.soldToday||'',r.soldYesterday||'',r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.daysDisplay,SL[r.flag]||r.flag];
     else if(currentView==='product')
-      v=[r.productName+(r.colour?' - '+r.colour:''),r.category,r.vendor,r.deliveryMonth||'',st7,mg,r.stock,sohVal,sellVal,r.soldToday||'',r.soldYesterday||'',r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.soldOutSizes||'',r.price??'',r.compareAt??'',disc,r.daysDisplay,tierLabel,SL[r.flag]||r.flag];
+      v=[_styleCode(r.sku),r.productName+(r.colour?' - '+r.colour:''),r.category,r.vendor,r.deliveryMonth||'',st7,mg,r.stock,sohVal,sellVal,r.soldToday||'',r.soldYesterday||'',r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.soldOutSizes||'',r.price??'',r.compareAt??'',disc,r.daysDisplay,tierLabel,SL[r.flag]||r.flag];
     else
       v=[r.productName+(r.colour?' - '+r.colour:''),r.size,r.sku,r.category,r.vendor,r.deliveryMonth||'',st7,mg,r.stock,r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.price??'',r.compareAt??'',disc,r.daysDisplay,tierLabel,SL[r.flag]||r.flag];
     lines.push(v.map(x=>`"${x??''}"`).join(','));
