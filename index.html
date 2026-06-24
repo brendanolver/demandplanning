@@ -3670,22 +3670,24 @@ function renderPlanning(){
   const monthHeaders=months.map(m=>`<th class="plan-month" colspan="5" style="border-left:2px solid var(--border);${m.isCurrent?'background:rgba(14,165,160,0.12);color:var(--teal);':''}">${m.label}${m.isCurrent?` <span style="font-size:9px;opacity:0.8;">(${Math.round(m.prorateRatio*100)}%)</span>`:''}</th>`).join('');
   const subHeaders=months.map(()=>`<th style="border-left:2px solid var(--border);">Budget</th><th>SOH</th><th>On Order</th><th>To Order</th><th>Variance</th>`).join('');
   function buildCells(lySource,onOrderSource,toOrderPrefix,soh){
+    let rollingSoh=soh;
     return months.map((m,mi)=>{
       const growth=parseFloat(saved[`growth_${m.key}`]||0)||0;
       const budget=Math.round((lySource[m.key]||0)*(1+growth/100));
       const onOrder=Math.round(onOrderSource[m.key]||0);
       const toOrderKey=`${toOrderPrefix}_${m.key}`;
       const toOrderVal=saved[toOrderKey]||'';
-      let cov=0;
-      if(!m.isCurrent&&months[0]?.isCurrent){const cm=months[0];const cfg=parseFloat(saved[`growth_${cm.key}`]||0)||0;cov+=Math.round((lySource[cm.key]||0)*(1+cfg/100));}
-      for(let j=0;j<coverMonths;j++){const fm=months[mi+j];if(!fm)break;const fg=parseFloat(saved[`growth_${fm.key}`]||0)||0;cov+=Math.round((lySource[fm.key]||0)*(1+fg/100));}
-      const suggest=cov>0?Math.max(0,cov-(soh+onOrder)):0;
       const toOrder=parseInt(toOrderVal)||0;
-      const variance=(soh+onOrder+toOrder)-cov;
+      const currentSoh=Math.max(0,Math.round(rollingSoh));
+      let cov=0;
+      for(let j=0;j<coverMonths;j++){const fm=months[mi+j];if(!fm)break;const fg=parseFloat(saved[`growth_${fm.key}`]||0)||0;cov+=Math.round((lySource[fm.key]||0)*(1+fg/100));}
+      const suggest=cov>0?Math.max(0,cov-(currentSoh+onOrder)):0;
+      const variance=(currentSoh+onOrder+toOrder)-cov;
       const varClass=cov===0?'':(variance<0?'plan-variance-warn':variance>=budget*3?'plan-variance-over':'plan-variance-ok');
       const bg=m.isCurrent?'background:rgba(14,165,160,0.04);':'';
+      rollingSoh=rollingSoh-budget+onOrder+toOrder;
       return`<td style="border-left:2px solid var(--border);${bg}"><span class="plan-budget">${budget>0?budget.toLocaleString():'—'}</span></td>
-        <td style="${bg}"><span class="${soh>0?'plan-soh':'cell-muted'}">${soh>0?soh.toLocaleString():'—'}</span></td>
+        <td style="${bg}"><span class="${currentSoh>0?'plan-soh':'cell-muted'}">${currentSoh>0?currentSoh.toLocaleString():'—'}</span></td>
         <td style="${bg}"><span class="${onOrder>0?'plan-onorder':'cell-muted'}">${onOrder>0?onOrder.toLocaleString():'—'}</span></td>
         <td style="padding:3px 5px;${bg}">${m.isCurrent?`<span style="font-size:11px;color:var(--text-muted);font-style:italic;">current</span>`:`<input class="plan-input" type="number" min="0" step="1" placeholder="${suggest>0?suggest:''}" value="${toOrderVal}" style="${!toOrderVal&&suggest>0?'color:#f97316;':''}" onchange="savePlanField('${toOrderKey}',this.value);renderPlanning();">`}</td>
         <td style="${bg}"><span class="${varClass}">${cov===0?'—':(variance>=0?'+':'')+variance.toLocaleString()}</span></td>`;
@@ -3746,19 +3748,21 @@ function renderPlanning(){
     return catRow+prodRows;
   }).join('');
 
+  let totalRollingSoh=0;for(const cat of sortedCats)totalRollingSoh+=catSoh[cat]||0;
   const totalCells=months.map((m,mi)=>{
     const growth=parseFloat(saved[`growth_${m.key}`]||0)||0;
-    let tb=0,tsoh=0,too=0,tto=0,tcov=0;
+    let tb=0,too=0,tto=0,tcov=0;
     for(const cat of sortedCats){
       tb+=Math.round((lyData[cat]?.[m.key]||0)*(1+growth/100));
-      tsoh+=catSoh[cat]||0;too+=Math.round(onOrderData[cat]?.[m.key]||0);
+      too+=Math.round(onOrderData[cat]?.[m.key]||0);
       tto+=parseInt(saved[`to_${cat}_${m.key}`]||0)||0;
     }
-    if(!m.isCurrent&&months[0]?.isCurrent){const cm=months[0];const cfg=parseFloat(saved[`growth_${cm.key}`]||0)||0;for(const cat of sortedCats)tcov+=Math.round((lyData[cat]?.[cm.key]||0)*(1+cfg/100));}
     for(let j=0;j<coverMonths;j++){const fm=months[mi+j];if(!fm)break;const fg=parseFloat(saved[`growth_${fm.key}`]||0)||0;for(const cat of sortedCats)tcov+=Math.round((lyData[cat]?.[fm.key]||0)*(1+fg/100));}
+    const tsoh=Math.max(0,Math.round(totalRollingSoh));
     const tsuggest=tcov>0?Math.max(0,tcov-(tsoh+too)):0;
     const variance=(tsoh+too+tto)-tcov;
     const varClass=tcov===0?'':(variance<0?'plan-variance-warn':variance>=tb*3?'plan-variance-over':'plan-variance-ok');
+    totalRollingSoh=totalRollingSoh-tb+too+tto;
     return`<td style="border-left:2px solid var(--border);font-weight:700;">${tb>0?tb.toLocaleString():'—'}</td>
       <td style="font-weight:700;color:var(--text-secondary);">${tsoh>0?tsoh.toLocaleString():'—'}</td>
       <td style="font-weight:700;color:var(--purple);">${too>0?too.toLocaleString():'—'}</td>
