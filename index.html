@@ -2046,7 +2046,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.11';
+const APP_VERSION='v2.2.12';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -3257,23 +3257,28 @@ function parseDueGlobal(d){
   return MN[m]?y+' - '+MN[m]:'';
 }
 // Build style_number → {cat, pk} map for planning ON ORDER bucketing
-// Category comes from allVariantRows (Shopify data) — variantMap category is empty for fallback items
+// Match AM item description+colour+size directly against allVariantRows (most reliable bridge)
 function _buildSkuPlanMap(){
   const m={};
-  if(!_cachedAMData)return m;
-  // pk → category from Shopify row data (the real categories)
-  const pkCat={};
-  for(const r of allVariantRows){
-    const pk=r.productName+'||'+r.colour;
-    if(!pkCat[pk])pkCat[pk]=(r.category||'UNCATEGORISED').toUpperCase();
+  if(!amApiData||!allVariantRows)return m;
+  // Step 1: AM item desc||colour||size → style_number
+  const descToStyle={};
+  for(const item of amApiData){
+    const desc=(item.description||'').trim().toUpperCase();
+    const col=(item.attr_2||'').trim().toUpperCase();
+    const sz=(item.size||'').trim().toUpperCase();
+    const style=(item.style_number||'').trim();
+    if(desc&&col&&sz&&style){
+      const k=desc+'||'+col+'||'+sz;
+      if(!descToStyle[k])descToStyle[k]=style;
+    }
   }
-  // style_number → pk+cat via variantMap
-  for(const[key,entry]of Object.entries(_cachedAMData.variantMap||{})){
-    const parts=key.split('||');
-    const pk=parts[0]+'||'+parts[1];
-    const style=(entry.style||'').trim();
+  // Step 2: allVariantRows productName||colour||size → {cat, pk} — using Shopify categories
+  for(const r of allVariantRows){
+    const k=r.productName+'||'+r.colour+'||'+(r.size||'').toUpperCase();
+    const style=descToStyle[k];
     if(style&&!m[style]){
-      m[style]={cat:pkCat[pk]||(entry.category||'UNCATEGORISED').toUpperCase(),pk};
+      m[style]={cat:(r.category||'UNCATEGORISED').toUpperCase(),pk:r.productName+'||'+r.colour};
     }
   }
   return m;
