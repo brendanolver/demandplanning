@@ -2046,7 +2046,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.14';
+const APP_VERSION='v2.2.15';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -7565,7 +7565,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
         const totalOnOrderFromVariants=variantEntries.reduce((s,[,v])=>s+(v.qtyOpen||0),0);
         const totalOnOrder=totalOnOrderFromVariants||(productEntry?productEntry.qtyOpen:0);
         if(totalOnOrder===0)continue;
-        const category=productEntry?.category||info.category||'';
+        const category=productEntry?.category||info.category||(window.amStyleCategoryMap&&window.amStyleCategoryMap[amStyle])||'';
         // Decode delivery month from AM Style SKU, fall back to AM Month Due
         const amDeliveryMonth=normaliseDeliveryMonth(decodeSkuDelivery(amStyle)||monthDue||'');
         const sizeEntries=Object.entries(amVariantMap)
