@@ -2046,7 +2046,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.9';
+const APP_VERSION='v2.2.10';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -3256,12 +3256,15 @@ function parseDueGlobal(d){
   const m=parseInt(p[0])-1;const y=p[2].length===2?'20'+p[2]:p[2];
   return MN[m]?y+' - '+MN[m]:'';
 }
-// Build sku → {category, productKey} map from allVariantRows for AM planning lookups
+// Build style_number → {cat, pk} map from _cachedAMData.variantMap (style_number is AM's key, not Shopify SKU)
 function _buildSkuPlanMap(){
   const m={};
-  for(const r of allVariantRows){
-    if(!r.sku)continue;
-    m[r.sku]={cat:r.category||'UNCATEGORISED',pk:r.productName+'||'+r.colour,amOnly:r.amOnly};
+  if(!_cachedAMData)return m;
+  for(const[key,entry]of Object.entries(_cachedAMData.variantMap||{})){
+    const parts=key.split('||');
+    const pk=parts[0]+'||'+parts[1];
+    const style=(entry.style||'').trim();
+    if(style&&!m[style])m[style]={cat:(entry.category||'UNCATEGORISED').toUpperCase(),pk};
   }
   return m;
 }
