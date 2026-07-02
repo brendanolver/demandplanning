@@ -2046,7 +2046,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.10';
+const APP_VERSION='v2.2.11';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -3256,15 +3256,25 @@ function parseDueGlobal(d){
   const m=parseInt(p[0])-1;const y=p[2].length===2?'20'+p[2]:p[2];
   return MN[m]?y+' - '+MN[m]:'';
 }
-// Build style_number → {cat, pk} map from _cachedAMData.variantMap (style_number is AM's key, not Shopify SKU)
+// Build style_number → {cat, pk} map for planning ON ORDER bucketing
+// Category comes from allVariantRows (Shopify data) — variantMap category is empty for fallback items
 function _buildSkuPlanMap(){
   const m={};
   if(!_cachedAMData)return m;
+  // pk → category from Shopify row data (the real categories)
+  const pkCat={};
+  for(const r of allVariantRows){
+    const pk=r.productName+'||'+r.colour;
+    if(!pkCat[pk])pkCat[pk]=(r.category||'UNCATEGORISED').toUpperCase();
+  }
+  // style_number → pk+cat via variantMap
   for(const[key,entry]of Object.entries(_cachedAMData.variantMap||{})){
     const parts=key.split('||');
     const pk=parts[0]+'||'+parts[1];
     const style=(entry.style||'').trim();
-    if(style&&!m[style])m[style]={cat:(entry.category||'UNCATEGORISED').toUpperCase(),pk};
+    if(style&&!m[style]){
+      m[style]={cat:pkCat[pk]||(entry.category||'UNCATEGORISED').toUpperCase(),pk};
+    }
   }
   return m;
 }
