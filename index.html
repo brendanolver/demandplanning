@@ -2046,7 +2046,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.1.2';
+const APP_VERSION='v2.1.3';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -6988,16 +6988,16 @@ function buildAMDataFromAPI(orders){
       const qty=parseFloat(item.qty||0);
       const amount=parseFloat((item.amount||'').toString().replace(/[^0-9.]/g,'')||0);
       const amCostPerUnit=(qty>0&&amount>0)?+(amount/qty).toFixed(4):0;
-      if(!products[desc])products[desc]={colours:new Set(),category:meta.category||''};
+      if(!products[desc])products[desc]={colours:new Set(),category};
       products[desc].colours.add(colour);
       const pKey=desc+'||'+colour;
       if(size){
         const vKey=desc+'||'+colour+'||'+size;
-        if(!variantMap[vKey])variantMap[vKey]={qtyOpen,monthDue,style:sku,category:meta.category||'',amCostPerUnit};
+        if(!variantMap[vKey])variantMap[vKey]={qtyOpen,monthDue,style:sku,category,amCostPerUnit};
         else{variantMap[vKey].qtyOpen+=qtyOpen;if(monthDue&&!variantMap[vKey].monthDue)variantMap[vKey].monthDue=monthDue;}
       }
       if(!productMap[pKey]){
-        productMap[pKey]={qtyOpen,monthDue,style:sku,category:meta.category||'',amCostPerUnit};
+        productMap[pKey]={qtyOpen,monthDue,style:sku,category,amCostPerUnit};
       }else{
         productMap[pKey].qtyOpen+=qtyOpen;
         if(monthDue&&!productMap[pKey].monthDue)productMap[pKey].monthDue=monthDue;
@@ -8899,6 +8899,7 @@ function exportCSV(){
 }
 
 /* ── PERFORMANCE VIEW ── */
+// v2.1.3 — Fix TypeError crash in buildAMDataFromAPI: meta.category referenced after meta-null fallback branch; changed to local category variable
 // v2.1.2 — Fix AM-only products (on order but not yet in Shopify) being excluded when using API fetch — was gated by if(amData) so API rows were silently dropped
 // v2.1.1 — Fix missing on-order units for pre-release/new styles: fall back to AM item description + attr_2 colour code lookup when SKU not found in Shopify data
 // v2.1.0 — Auto-fetch Apparel Magic open orders for WNDRR ONLINE STORE via API when Analyse Stock is clicked (replaces CSV upload); falls back to CSV if manually uploaded
