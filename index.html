@@ -5684,7 +5684,7 @@ function mdExport(){
   );
   const selected=filteredProds.filter(p=>d[p.fullTitle]?.checked||d[p.fullTitle]?.pct);
   if(!selected.length){alert('No styles selected in the current view — tick a checkbox or enter a proposed % first.');return;}
-  const headers=['Product','New Collection','Proposed Markdown %','Proposed New Price','Category','Status','Month Del','Month Due','ST%','SOH','SOH Value','Sell Value','Today','Yest','Sold','On Order','Sizes S/O','Cur Price','RRP','Cur Disc%','Margin%','Wks Cover','Stock Status'];
+  const headers=['Product','New Collection','Proposed Markdown %','Proposed New Price','Category','Status','Month Del','Month Due','ST%','SOH','SOH Value (ex)','Sell Value (inc)','Today','Yest','Sold','On Order','Sizes S/O','Cur Price','RRP','Cur Disc%','Margin%','Wks Cover','Stock Status'];
   const SL={ok:'OK','on-order':'On Order',oos:'Out of Stock',reorder:'Re-Order',reduce:'Reduce',clearance:'Clearance'};
   const csvRows=selected.map(p=>{
     const pct=d[p.fullTitle]?.pct||'';
@@ -6133,8 +6133,8 @@ function renderMarkdowns(){
       <th style="${thS}" onclick="setMdSort('deliveryMonth')">Month Del${mdArrow('deliveryMonth')}</th>
       <th style="${thS}text-align:right;" onclick="setMdSort('sellThru7')">${stLabel}${mdArrow('sellThru7')}</th>
       <th style="${thS}text-align:right;" onclick="setMdSort('stock')">SOH${mdArrow('stock')}</th>
-      <th style="${thS}text-align:right;" onclick="setMdSort('sohValue')">SOH Value${mdArrow('sohValue')}</th>
-      <th style="${thS}text-align:right;" onclick="setMdSort('sellValue')">Sell Value${mdArrow('sellValue')}</th>
+      <th style="${thS}text-align:right;" onclick="setMdSort('sohValue')">SOH Value (ex)${mdArrow('sohValue')}</th>
+      <th style="${thS}text-align:right;" onclick="setMdSort('sellValue')">Sell Value (inc)${mdArrow('sellValue')}</th>
       <th style="${thS}text-align:right;" onclick="setMdSort('soldToday')">Today${mdArrow('soldToday')}</th>
       <th style="${thS}text-align:right;" onclick="setMdSort('soldYesterday')">Yest${mdArrow('soldYesterday')}</th>
       <th style="${thS}text-align:right;" onclick="setMdSort('sold')">${soldLabel}${mdArrow('sold')}</th>
@@ -8289,10 +8289,10 @@ function renderTable(){
 
   const soldLabel=`Sold (${selectedPeriod}d)`;
   const stLabel=`ST% (${selectedPeriod}d)`;
-  const salesValLabel=`Sales Value (${selectedPeriod}d)`;
+  const salesValLabel=`Sales Value (inc) (${selectedPeriod}d)`;
   const catHeaders=[
     {k:'category',l:'Category'},{k:'products',l:'Products'},
-    {k:'sellThru7',l:stLabel},{k:'margin',l:'Margin%'},{k:'stock',l:'SOH'},{k:'sohValue',l:'SOH Value'},{k:'sellValue',l:'Sell Value'},
+    {k:'sellThru7',l:stLabel},{k:'margin',l:'Margin%'},{k:'stock',l:'SOH'},{k:'sohValue',l:'SOH Value (ex)'},{k:'sellValue',l:'Sell Value (inc)'},
     {k:'salesValue',l:salesValLabel},
     {k:'soldToday',l:'Today'},{k:'soldYesterday',l:'Yest'},
     {k:'sold',l:soldLabel},
@@ -8303,7 +8303,7 @@ function renderTable(){
   const prodHeaders=[
     {k:'productName',l:'Product'},{k:'category',l:'Category'},{k:'discountPct',l:'Disc%'},{k:'vendor',l:'Status'},
     {k:'deliveryMonth',l:'Month Del'},
-    {k:'sellThru7',l:stLabel},{k:'margin',l:'Margin%'},{k:'stock',l:'SOH'},{k:'sohValue',l:'SOH Value'},{k:'sellValue',l:'Sell Value'},
+    {k:'sellThru7',l:stLabel},{k:'margin',l:'Margin%'},{k:'stock',l:'SOH'},{k:'sohValue',l:'SOH Value (ex)'},{k:'sellValue',l:'Sell Value (inc)'},
     {k:'soldToday',l:'Today'},{k:'soldYesterday',l:'Yest'},
     {k:'sold',l:soldLabel},
     {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},
@@ -8574,7 +8574,7 @@ function exportPDF(){
   // Build headers & row data matching current view
   let headers,rowFn;
   if(currentView==='category'){
-    headers=['Category','Products',stLabel,'Margin%','SOH','SOH Value','Sell Value','Today','Yest',soldLabel,'On Order','Month Due','Wks Cover','OOS','Re-Order','Status'];
+    headers=['Category','Products',stLabel,'Margin%','SOH','SOH Value (ex)','Sell Value (inc)','Today','Yest',soldLabel,'On Order','Month Due','Wks Cover','OOS','Re-Order','Status'];
     rowFn=r=>[
       r.category,r.products,
       r.sellThru7!=null?r.sellThru7.toFixed(1)+'%':'—',
@@ -8591,7 +8591,7 @@ function exportPDF(){
       SL[r.flag]||r.flag||'—'
     ];
   } else if(currentView==='product'){
-    headers=['Product','Category','Status','Month Del',stLabel,'Margin%','SOH','SOH Val','Sell Val','Today','Yest',soldLabel,'On Order','S/O','Price','RRP','Disc%','Wks Cover','Tier','Stock Status'];
+    headers=['Product','Category','Status','Month Del',stLabel,'Margin%','SOH','SOH Val (ex)','Sell Val (inc)','Today','Yest',soldLabel,'On Order','S/O','Price','RRP','Disc%','Wks Cover','Tier','Stock Status'];
     rowFn=r=>{const ti=getTierForProduct(r.productName,r.colour);return[
       r.productName+(r.colour?' - '+r.colour:''),
       r.category,r.vendor,r.deliveryMonth||'—',
@@ -8750,9 +8750,9 @@ function exportCSV(){
     return sku.replace(/\d{2}$/,'');
   }
   const h=currentView==='category'
-    ?['Category','Products',stLabel,'Margin%','SOH','SOH Value','Sell Value',`Sales Value (${selectedPeriod}d)`,'Today','Yest',soldLabel,'On Order','Month Due','Weeks Cover','Stock Status']
+    ?['Category','Products',stLabel,'Margin%','SOH','SOH Value (ex)','Sell Value (inc)',`Sales Value (inc) (${selectedPeriod}d)`,'Today','Yest',soldLabel,'On Order','Month Due','Weeks Cover','Stock Status']
     :currentView==='product'
-    ?['SKU','Product','Category','Status','Month Del',stLabel,'Margin%','SOH','SOH Value','Sell Value','Today','Yest',soldLabel,'On Order','Month Due','Sizes Sold Out','Price','RRP','Disc%','Weeks Cover','Tier','Stock Status']
+    ?['SKU','Product','Category','Status','Month Del',stLabel,'Margin%','SOH','SOH Value (ex)','Sell Value (inc)','Today','Yest',soldLabel,'On Order','Month Due','Sizes Sold Out','Price','RRP','Disc%','Weeks Cover','Tier','Stock Status']
     :['Product','Size','SKU','Category','Status','Month Del',stLabel,'Margin%','SOH',soldLabel,'On Order','Month Due','Price','RRP','Disc%','Weeks Cover','Tier','Stock Status'];
   const lines=[h.join(',')];
   for(const r of rows){
@@ -8781,6 +8781,7 @@ function exportCSV(){
 }
 
 /* ── PERFORMANCE VIEW ── */
+// v2.0.2 — Add (ex)/(inc) GST labels to SOH Value, Sell Value and Sales Value column headers across all views and CSV exports
 // v2.0.1 — Sell Value changed to inc-GST (was ex-GST); Sales Value and SOH Value unchanged
 // v2.0.0 — Add WNDRR Pipeline Excel upload (.xlsx) to fix missing Price/RRP for $0-priced Shopify products; auto-populates soldout, variants, core & bundle data in one step
 // v1.5.0 — Dashboard > Category view: remove Suggested Order column
