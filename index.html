@@ -2046,7 +2046,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.5';
+const APP_VERSION='v2.2.6';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -7010,27 +7010,22 @@ async function fetchAMOrdersFromAPI(){
   const pill=document.getElementById('am-pill');
   if(pill)pill.innerHTML='<span class="live-dot" style="background:#f59e0b"></span>Fetching AM…';
   try{
-    // Step 1: get all orders for account 1068 (account_number is a valid field filter)
-    const ordersRes=await fetch(`/.netlify/functions/am-proxy?path=orders&account_number=1068`);
+    // Fetch open orders for account 1068 — is_open=1 causes AM to embed order_items in the list response
+    const ordersRes=await fetch(`/.netlify/functions/am-proxy?path=orders&account_number=1068&is_open=1`);
     const ordersData=await ordersRes.json();
     const orders=ordersData.response||[];
-    console.warn('⚡ AM orders for account 1068:',orders.length,'| errors:',JSON.stringify((ordersData.meta||{}).errors||[]));
     if(!orders.length){
       if(pill)pill.innerHTML='<span class="live-dot" style="background:#9ca3af"></span>AM (no orders)';
       return;
     }
-    // Step 2: fetch order_items for each order using order_id (the correct primary key field)
+    // order_items are nested directly in each order object when is_open=1
     const allItems=[];
     for(const order of orders){
-      const oid=order.order_id||order.id;
-      console.warn('⚡ AM fetching items for order_id:',oid);
-      const res=await fetch(`/.netlify/functions/am-proxy?path=order_items&order_id=${oid}`);
-      const data=await res.json();
-      console.warn('⚡ AM order',oid,'items:',( data.response||[]).length,'errors:',JSON.stringify((data.meta||{}).errors||[]));
-      const items=(data.response||[]).filter(i=>parseFloat(i.qty_open||0)>0);
+      const items=(order.order_items||[]).filter(i=>parseFloat(i.qty_open||0)>0);
+      // carry header date_due onto items that don't have their own
+      items.forEach(i=>{if(!i.date_due)i.date_due=order.date_due;});
       allItems.push(...items);
     }
-    console.warn('⚡ AM total open items:',allItems.length);
     if(!allItems.length){
       if(pill)pill.innerHTML='<span class="live-dot" style="background:#9ca3af"></span>AM (no open items)';
       return;
