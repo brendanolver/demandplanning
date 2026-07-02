@@ -6,6 +6,7 @@
 <title>WNDRR — Stock Demand Planning</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💎</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 :root {
   --navy: #ddeeff;
@@ -757,6 +758,22 @@ th{position:relative;}
       </div>
     </div>
 
+    <!-- Source 06 — WNDRR Pipeline Excel -->
+    <div class="upload-card" id="pipeline-card">
+      <div class="upload-step">
+        <div class="step-num">✦</div>
+        <div class="step-body">
+          <div class="step-label">Pipeline · All-in-One</div>
+          <div class="step-title">WNDRR Report Pipeline <span style="font-size:11px;color:var(--teal);font-weight:500;">Optional</span></div>
+          <div class="step-desc">Upload your <strong>WNDRR - Report Pipeline.xlsx</strong> file to auto-populate prices, sold-out sizes, core &amp; bundle styles in one step — overrides individual Better Reports uploads.</div>
+          <label class="upload-btn" for="pipeline-file">
+            <span>↑</span> Upload Pipeline Excel (.xlsx)
+          </label>
+          <div class="file-ok" id="pipeline-ok"><span>✓</span><span id="pipeline-fname"></span></div>
+        </div>
+      </div>
+    </div>
+
     <!-- Google Drive Import -->
     <div class="gdrive-section">
       <div class="gdrive-divider"><span>or import from</span></div>
@@ -779,6 +796,7 @@ th{position:relative;}
     <input type="file" id="am-file" accept=".csv" onchange="loadAM(this)">
     <input type="file" id="soldout-file" accept=".csv" onchange="loadSoldOut(this)">
     <input type="file" id="variants-soldout-file" accept=".csv" onchange="loadVariantsSoldOut(this)">
+    <input type="file" id="pipeline-file" accept=".xlsx" onchange="loadPipelineExcel(this)">
   </div>
 
   <!-- Right preview panel -->
@@ -6637,6 +6655,41 @@ function loadSoldOut(input){
   rd.readAsText(file);
 }
 
+function loadPipelineExcel(input){
+  const file=input.files[0];if(!file)return;
+  const rd=new FileReader();
+  rd.onload=e=>{
+    const wb=XLSX.read(e.target.result,{type:'array'});
+    function sheetToRows(sheetName){
+      const ws=wb.Sheets[sheetName];
+      if(!ws)return null;
+      const raw=XLSX.utils.sheet_to_json(ws,{defval:''});
+      return raw;
+    }
+    const soldOut=sheetToRows('All Products Sizes Sold Out');
+    const variants=sheetToRows('Variants 0 inventory by Product');
+    const core=sheetToRows('Core Styles');
+    const bundle=sheetToRows('Current Bundle Styles');
+    if(soldOut){
+      soldOutData=soldOut;
+      _cachedSoldOutData=null;
+      document.getElementById('soldout-card').classList.add('loaded');
+      document.getElementById('soldout-fname').textContent='(from Pipeline Excel)';
+    }
+    if(variants){
+      variantsSoldOutData=variants;
+      document.getElementById('variants-soldout-card').classList.add('loaded');
+      document.getElementById('variants-soldout-fname').textContent='(from Pipeline Excel)';
+    }
+    if(core)coreStylesData=core;
+    if(bundle)bundleStylesData=bundle;
+    document.getElementById('pipeline-card').classList.add('loaded');
+    document.getElementById('pipeline-fname').textContent=file.name;
+    checkReady();
+  };
+  rd.readAsArrayBuffer(file);
+}
+
 function loadAM(input){
   const file=input.files[0];if(!file)return;
   const rd=new FileReader();
@@ -9447,7 +9500,7 @@ function resetApp(){
   _perfSelectedProducts=[];
   document.getElementById('upload-screen').style.display='flex';
   document.getElementById('app').style.display='none';
-  ['shopify-card','sales-card','am-card','soldout-card','variants-soldout-card'].forEach(id=>document.getElementById(id).classList.remove('loaded'));
+  ['shopify-card','sales-card','am-card','soldout-card','variants-soldout-card','pipeline-card'].forEach(id=>document.getElementById(id).classList.remove('loaded'));
   document.getElementById('analyse-btn').classList.remove('ready');
   ['sf-inv-file','sf-sales-file','am-file'].forEach(id=>document.getElementById(id).value='');
   ['sf-inv-fname','sf-sales-fname','am-fname'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent='';});
