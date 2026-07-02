@@ -2046,7 +2046,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.7';
+const APP_VERSION='v2.2.8';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -6970,7 +6970,7 @@ function buildAMDataFromAPI(orders){
     // Slash format: MM/DD/YY or MM/DD/YYYY
     const p=d.split('/');
     if(p.length<3)return'';
-    const m=parseInt(p[1])-1;
+    const m=parseInt(p[0])-1;
     const y=p[2].length===2?'20'+p[2]:p[2];
     return MONTHS[m]?y+' - '+MONTHS[m]:'';
   }
