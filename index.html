@@ -2046,7 +2046,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.1.9';
+const APP_VERSION='v2.2.0';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -7011,31 +7011,22 @@ async function fetchAMOrdersFromAPI(){
   const pill=document.getElementById('am-pill');
   if(pill)pill.innerHTML='<span class="live-dot" style="background:#f59e0b"></span>Fetching AM…';
   try{
-    let allOrders=[],offset=0,more=true;
-    while(more){
-      // Try both pagination styles — AM mandatory update may use limit/offset
-      const url=`/.netlify/functions/am-proxy?path=orders&limit=250&offset=${offset}`;
-      const res=await fetch(url);
-      const data=await res.json();
-      const rows=data.response||data.data||data.orders||[];
-      if(offset===0){
-        console.warn('⚡ AM DEBUG — status:',res.status,'| keys:',Object.keys(data).join(', '),'| rows:',rows.length);
-        if(rows.length>0){
-          console.warn('⚡ AM first order keys:',Object.keys(rows[0]).join(', '));
-          const names=[...new Set(rows.slice(0,10).map(o=>o.customer_name||'(none)'))];
-          console.warn('⚡ AM customer_names sample:',names.join(' | '));
-        } else {
-          console.warn('⚡ AM 0 rows — raw:',JSON.stringify(data).slice(0,500));
-        }
-      }
-      if(!Array.isArray(rows)||rows.length===0){more=false;break;}
-      const wndrr=rows.filter(o=>(o.customer_name||'').toUpperCase()==='WNDRR ONLINE STORE');
-      console.warn(`⚡ AM offset ${offset}: ${rows.length} total, ${wndrr.length} WNDRR`);
-      allOrders=allOrders.concat(wndrr);
-      if(rows.length<250)more=false;
-      else offset+=250;
-      if(offset>5000)more=false; // safety cap
+    // Call orders with no extra params — AM rejects pagination fields as invalid filters
+    const url=`/.netlify/functions/am-proxy?path=orders`;
+    const res=await fetch(url);
+    const data=await res.json();
+    const rows=data.response||data.data||data.orders||[];
+    console.warn('⚡ AM DEBUG — status:',res.status,'| keys:',Object.keys(data).join(', '),'| rows:',rows.length);
+    if(rows.length>0){
+      console.warn('⚡ AM first order keys:',Object.keys(rows[0]).join(', '));
+      const names=[...new Set(rows.slice(0,10).map(o=>o.customer_name||'(none)'))];
+      console.warn('⚡ AM customer_names sample:',names.join(' | '));
+      console.warn('⚡ AM meta:',JSON.stringify(data.meta||{}).slice(0,300));
+    } else {
+      console.warn('⚡ AM 0 rows — raw:',JSON.stringify(data).slice(0,500));
     }
+    const allOrders=rows.filter(o=>(o.customer_name||'').toUpperCase()==='WNDRR ONLINE STORE');
+    console.warn(`⚡ AM: ${rows.length} total orders, ${allOrders.length} WNDRR matched`);
     if(!allOrders.length){
       if(pill)pill.innerHTML='<span class="live-dot" style="background:#9ca3af"></span>AM (no orders)';
       return;
