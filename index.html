@@ -2046,7 +2046,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.1.1';
+const APP_VERSION='v2.1.2';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -7484,7 +7484,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
 
   // Add AM-only products not in sales history
   const shopKeys=new Set(rows.map(r=>r.productName+'||'+r.colour));
-  if(amData){
+  if(amData||amApiData){
     for(const[desc,info]of Object.entries(amProducts)){
       for(const colour of info.colours){
         const pKey=desc+'||'+colour;
@@ -8899,6 +8899,7 @@ function exportCSV(){
 }
 
 /* ── PERFORMANCE VIEW ── */
+// v2.1.2 — Fix AM-only products (on order but not yet in Shopify) being excluded when using API fetch — was gated by if(amData) so API rows were silently dropped
 // v2.1.1 — Fix missing on-order units for pre-release/new styles: fall back to AM item description + attr_2 colour code lookup when SKU not found in Shopify data
 // v2.1.0 — Auto-fetch Apparel Magic open orders for WNDRR ONLINE STORE via API when Analyse Stock is clicked (replaces CSV upload); falls back to CSV if manually uploaded
 // v2.0.2 — Add (ex)/(inc) GST labels to SOH Value, Sell Value and Sales Value column headers across all views and CSV exports
