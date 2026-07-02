@@ -2046,7 +2046,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.12';
+const APP_VERSION='v2.2.13';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -3257,28 +3257,18 @@ function parseDueGlobal(d){
   return MN[m]?y+' - '+MN[m]:'';
 }
 // Build style_number → {cat, pk} map for planning ON ORDER bucketing
-// Match AM item description+colour+size directly against allVariantRows (most reliable bridge)
+// Derive AM style_number by stripping the size suffix from the Shopify SKU (e.g. W26HA001BLKXS - XS = W26HA001BLK)
 function _buildSkuPlanMap(){
   const m={};
   if(!amApiData||!allVariantRows)return m;
-  // Step 1: AM item desc||colour||size → style_number
-  const descToStyle={};
-  for(const item of amApiData){
-    const desc=(item.description||'').trim().toUpperCase();
-    const col=(item.attr_2||'').trim().toUpperCase();
-    const sz=(item.size||'').trim().toUpperCase();
-    const style=(item.style_number||'').trim();
-    if(desc&&col&&sz&&style){
-      const k=desc+'||'+col+'||'+sz;
-      if(!descToStyle[k])descToStyle[k]=style;
-    }
-  }
-  // Step 2: allVariantRows productName||colour||size → {cat, pk} — using Shopify categories
+  const styleSet=new Set(amApiData.map(i=>(i.style_number||'').trim()).filter(Boolean));
   for(const r of allVariantRows){
-    const k=r.productName+'||'+r.colour+'||'+(r.size||'').toUpperCase();
-    const style=descToStyle[k];
-    if(style&&!m[style]){
-      m[style]={cat:(r.category||'UNCATEGORISED').toUpperCase(),pk:r.productName+'||'+r.colour};
+    const sku=(r.sku||'').trim().toUpperCase();
+    const size=(r.size||'').trim().toUpperCase();
+    if(!sku||!size)continue;
+    const baseSku=sku.endsWith(size)?sku.slice(0,-size.length):'';
+    if(baseSku&&styleSet.has(baseSku)&&!m[baseSku]){
+      m[baseSku]={cat:(r.category||'UNCATEGORISED').toUpperCase(),pk:r.productName+'||'+r.colour};
     }
   }
   return m;
