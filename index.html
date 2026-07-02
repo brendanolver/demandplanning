@@ -2046,7 +2046,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.2';
+const APP_VERSION='v2.2.3';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -6965,43 +6965,42 @@ function buildAMDataFromAPI(orders){
     const y=p[2].length===2?'20'+p[2]:p[2];
     return MONTHS[m]?y+' - '+MONTHS[m]:'';
   }
-  for(const order of orders){
-    const monthDue=parseDue(order.date_due);
-    for(const item of (order.order_items||[])){
-      const qtyOpen=parseFloat(item.qty_open||0);
-      if(qtyOpen<=0)continue;
-      const sku=(item.style_number||'').trim();
-      if(!sku)continue;
-      const meta=priceMap[sku]||invSkuMap[sku];
-      let desc,colour,category;
-      if(meta){
-        desc=meta.productName;colour=meta.colour;category=meta.category||'';
-      }else{
-        // New/pre-release style not yet in Shopify — use AM description + colour code lookup
-        desc=(item.description||'').trim().toUpperCase();
-        const code=(item.attr_2||'').trim().toUpperCase();
-        colour=colourCodeMap[code]||code;
-        category='';
-      }
-      if(!desc||!colour)continue;
-      const size=(item.size||'').trim().toUpperCase();
-      const qty=parseFloat(item.qty||0);
-      const amount=parseFloat((item.amount||'').toString().replace(/[^0-9.]/g,'')||0);
-      const amCostPerUnit=(qty>0&&amount>0)?+(amount/qty).toFixed(4):0;
-      if(!products[desc])products[desc]={colours:new Set(),category};
-      products[desc].colours.add(colour);
-      const pKey=desc+'||'+colour;
-      if(size){
-        const vKey=desc+'||'+colour+'||'+size;
-        if(!variantMap[vKey])variantMap[vKey]={qtyOpen,monthDue,style:sku,category,amCostPerUnit};
-        else{variantMap[vKey].qtyOpen+=qtyOpen;if(monthDue&&!variantMap[vKey].monthDue)variantMap[vKey].monthDue=monthDue;}
-      }
-      if(!productMap[pKey]){
-        productMap[pKey]={qtyOpen,monthDue,style:sku,category,amCostPerUnit};
-      }else{
-        productMap[pKey].qtyOpen+=qtyOpen;
-        if(monthDue&&!productMap[pKey].monthDue)productMap[pKey].monthDue=monthDue;
-      }
+  // amApiData is now a flat array of order_items (each item has its own date_due)
+  for(const item of orders){
+    const qtyOpen=parseFloat(item.qty_open||0);
+    if(qtyOpen<=0)continue;
+    const sku=(item.style_number||'').trim();
+    if(!sku)continue;
+    const monthDue=parseDue(item.date_due);
+    const meta=priceMap[sku]||invSkuMap[sku];
+    let desc,colour,category;
+    if(meta){
+      desc=meta.productName;colour=meta.colour;category=meta.category||'';
+    }else{
+      // New/pre-release style not yet in Shopify — use AM description + colour code lookup
+      desc=(item.description||'').trim().toUpperCase();
+      const code=(item.attr_2||'').trim().toUpperCase();
+      colour=colourCodeMap[code]||code;
+      category='';
+    }
+    if(!desc||!colour)continue;
+    const size=(item.size||'').trim().toUpperCase();
+    const qty=parseFloat(item.qty||0);
+    const amount=parseFloat((item.amount||'').toString().replace(/[^0-9.]/g,'')||0);
+    const amCostPerUnit=(qty>0&&amount>0)?+(amount/qty).toFixed(4):0;
+    if(!products[desc])products[desc]={colours:new Set(),category};
+    products[desc].colours.add(colour);
+    const pKey=desc+'||'+colour;
+    if(size){
+      const vKey=desc+'||'+colour+'||'+size;
+      if(!variantMap[vKey])variantMap[vKey]={qtyOpen,monthDue,style:sku,category,amCostPerUnit};
+      else{variantMap[vKey].qtyOpen+=qtyOpen;if(monthDue&&!variantMap[vKey].monthDue)variantMap[vKey].monthDue=monthDue;}
+    }
+    if(!productMap[pKey]){
+      productMap[pKey]={qtyOpen,monthDue,style:sku,category,amCostPerUnit};
+    }else{
+      productMap[pKey].qtyOpen+=qtyOpen;
+      if(monthDue&&!productMap[pKey].monthDue)productMap[pKey].monthDue=monthDue;
     }
   }
   return{variantMap,productMap,products};
@@ -7011,33 +7010,27 @@ async function fetchAMOrdersFromAPI(){
   const pill=document.getElementById('am-pill');
   if(pill)pill.innerHTML='<span class="live-dot" style="background:#f59e0b"></span>Fetching AM…';
   try{
-    // Cursor-based pagination — AM uses last_id from meta.pagination
-    let allOrders=[],lastId=null,more=true;
-    while(more){
-      const url=lastId
-        ?`/.netlify/functions/am-proxy?path=orders&last_id=${lastId}`
-        :`/.netlify/functions/am-proxy?path=orders`;
-      const res=await fetch(url);
-      const data=await res.json();
-      const rows=data.response||[];
-      console.warn(`⚡ AM url:${url} | status:${res.status} | rows:${rows.length} | errors:${JSON.stringify((data.meta||{}).errors||[])} | next_last_id:${(data.meta&&data.meta.pagination&&data.meta.pagination.last_id)||'none'}`);
-      if(!lastId&&rows.length>0){
-        console.warn('⚡ AM sample account_numbers:',rows.slice(0,5).map(o=>o.account_number).join(', '));
-        console.warn('⚡ AM first order_items count:',(rows[0].order_items||[]).length);
-      }
-      // Filter by account_number 1068 (WNDRR ONLINE STORE)
-      const wndrr=rows.filter(o=>String(o.account_number||'')==='1068');
-      console.warn(`⚡ AM matched account 1068: ${wndrr.length}`);
-      allOrders=allOrders.concat(wndrr);
-      lastId=(data.meta&&data.meta.pagination&&data.meta.pagination.last_id)||null;
-      if(!rows.length||!lastId)more=false;
-      if(allOrders.length>5000)more=false; // safety cap
-    }
-    if(!allOrders.length){
+    // Step 1: get all orders for account 1068 (account_number is a valid filter field)
+    const ordersRes=await fetch(`/.netlify/functions/am-proxy?path=orders&account_number=1068`);
+    const ordersData=await ordersRes.json();
+    const orders=ordersData.response||[];
+    if(!orders.length){
       if(pill)pill.innerHTML='<span class="live-dot" style="background:#9ca3af"></span>AM (no orders)';
       return;
     }
-    amApiData=allOrders;
+    // Step 2: fetch order_items for each order (order_id is a required param for order_items endpoint)
+    const allItems=[];
+    for(const order of orders){
+      const itemsRes=await fetch(`/.netlify/functions/am-proxy?path=order_items&order_id=${order.id}`);
+      const itemsData=await itemsRes.json();
+      const items=(itemsData.response||[]).filter(i=>parseFloat(i.qty_open||0)>0);
+      allItems.push(...items);
+    }
+    if(!allItems.length){
+      if(pill)pill.innerHTML='<span class="live-dot" style="background:#9ca3af"></span>AM (no open items)';
+      return;
+    }
+    amApiData=allItems;
     _cachedAMData=null;
     buildVariantRows();
     renderSidebarCounts();
@@ -8908,6 +8901,7 @@ function exportCSV(){
 }
 
 /* ── PERFORMANCE VIEW ── */
+// v2.2.3 — Rewrite AM fetch: orders?account_number=1068 then order_items?order_id={id} per order; buildAMDataFromAPI now handles flat items with item-level date_due
 // v2.2.1 — Fix AM pagination to use last_id cursor; filter by account_number 1068 instead of customer_name
 // v2.1.3 — Fix TypeError crash in buildAMDataFromAPI: meta.category referenced after meta-null fallback branch; changed to local category variable
 // v2.1.2 — Fix AM-only products (on order but not yet in Shopify) being excluded when using API fetch — was gated by if(amData) so API rows were silently dropped
