@@ -2046,7 +2046,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.1';
+const APP_VERSION='v2.2.2';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -7020,8 +7020,14 @@ async function fetchAMOrdersFromAPI(){
       const res=await fetch(url);
       const data=await res.json();
       const rows=data.response||[];
-      // Filter by account_number 1068 (WNDRR ONLINE STORE) — avoids matching promo/other WNDRR accounts
+      console.warn(`⚡ AM url:${url} | status:${res.status} | rows:${rows.length} | errors:${JSON.stringify((data.meta||{}).errors||[])} | next_last_id:${(data.meta&&data.meta.pagination&&data.meta.pagination.last_id)||'none'}`);
+      if(!lastId&&rows.length>0){
+        console.warn('⚡ AM sample account_numbers:',rows.slice(0,5).map(o=>o.account_number).join(', '));
+        console.warn('⚡ AM first order_items count:',(rows[0].order_items||[]).length);
+      }
+      // Filter by account_number 1068 (WNDRR ONLINE STORE)
       const wndrr=rows.filter(o=>String(o.account_number||'')==='1068');
+      console.warn(`⚡ AM matched account 1068: ${wndrr.length}`);
       allOrders=allOrders.concat(wndrr);
       lastId=(data.meta&&data.meta.pagination&&data.meta.pagination.last_id)||null;
       if(!rows.length||!lastId)more=false;
