@@ -2046,7 +2046,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.1.4';
+const APP_VERSION='v2.1.5';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -7020,10 +7020,7 @@ async function fetchAMOrdersFromAPI(){
       if(!Array.isArray(rows)||rows.length===0){more=false;break;}
       // Log first page for debugging field names
       if(page===1&&rows.length>0)console.log('AM API sample order:',JSON.stringify(rows[0]).slice(0,500));
-      const wndrr=rows.filter(o=>{
-        const name=(o.customer_name||o.customer||'').toUpperCase();
-        return name.includes('WNDRR');
-      });
+      const wndrr=rows.filter(o=>String(o.customer_number||o.customer_id||o.customer_no||'')===('1068'));
       allOrders=allOrders.concat(wndrr);
       if(rows.length<250)more=false;
       else page++;
