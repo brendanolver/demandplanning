@@ -2046,7 +2046,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.1.0';
+const APP_VERSION='v2.1.1';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -6947,6 +6947,15 @@ function buildAMDataFromAPI(orders){
       invSkuMap[sku]={productName,colour,category};
     }
   }
+  // Colour code → full name reverse map built from priceMap (e.g. "BLK" → "BLACK")
+  // Covers new styles not yet in Shopify by falling back to attr_2 code lookup
+  const colourCodeMap={};
+  for(const[sku,pm] of Object.entries(priceMap)){
+    if(pm.colour&&sku.length>=3){
+      const code=sku.slice(-3).toUpperCase();
+      if(!colourCodeMap[code])colourCodeMap[code]=pm.colour;
+    }
+  }
   const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
   function parseDue(d){
     if(!d)return'';
@@ -6964,9 +6973,16 @@ function buildAMDataFromAPI(orders){
       const sku=(item.style_number||'').trim();
       if(!sku)continue;
       const meta=priceMap[sku]||invSkuMap[sku];
-      if(!meta)continue;
-      const desc=meta.productName;
-      const colour=meta.colour;
+      let desc,colour,category;
+      if(meta){
+        desc=meta.productName;colour=meta.colour;category=meta.category||'';
+      }else{
+        // New/pre-release style not yet in Shopify — use AM description + colour code lookup
+        desc=(item.description||'').trim().toUpperCase();
+        const code=(item.attr_2||'').trim().toUpperCase();
+        colour=colourCodeMap[code]||code;
+        category='';
+      }
       if(!desc||!colour)continue;
       const size=(item.size||'').trim().toUpperCase();
       const qty=parseFloat(item.qty||0);
@@ -8883,6 +8899,7 @@ function exportCSV(){
 }
 
 /* ── PERFORMANCE VIEW ── */
+// v2.1.1 — Fix missing on-order units for pre-release/new styles: fall back to AM item description + attr_2 colour code lookup when SKU not found in Shopify data
 // v2.1.0 — Auto-fetch Apparel Magic open orders for WNDRR ONLINE STORE via API when Analyse Stock is clicked (replaces CSV upload); falls back to CSV if manually uploaded
 // v2.0.2 — Add (ex)/(inc) GST labels to SOH Value, Sell Value and Sales Value column headers across all views and CSV exports
 // v2.0.1 — Sell Value changed to inc-GST (was ex-GST); Sales Value and SOH Value unchanged
