@@ -2046,7 +2046,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.3';
+const APP_VERSION='v2.2.4';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -7010,22 +7010,28 @@ async function fetchAMOrdersFromAPI(){
   const pill=document.getElementById('am-pill');
   if(pill)pill.innerHTML='<span class="live-dot" style="background:#f59e0b"></span>Fetching AM…';
   try{
-    // Step 1: get all orders for account 1068 (account_number is a valid filter field)
+    // Step 1: get all orders for account 1068 (account_number is a valid field filter)
     const ordersRes=await fetch(`/.netlify/functions/am-proxy?path=orders&account_number=1068`);
     const ordersData=await ordersRes.json();
     const orders=ordersData.response||[];
+    console.warn('⚡ AM orders for account 1068:',orders.length,'| errors:',JSON.stringify((ordersData.meta||{}).errors||[]));
     if(!orders.length){
       if(pill)pill.innerHTML='<span class="live-dot" style="background:#9ca3af"></span>AM (no orders)';
       return;
     }
-    // Step 2: fetch order_items for each order (order_id is a required param for order_items endpoint)
+    // Step 2: fetch each order individually — single-order endpoint includes nested order_items
     const allItems=[];
     for(const order of orders){
-      const itemsRes=await fetch(`/.netlify/functions/am-proxy?path=order_items&order_id=${order.id}`);
-      const itemsData=await itemsRes.json();
-      const items=(itemsData.response||[]).filter(i=>parseFloat(i.qty_open||0)>0);
+      const oid=order.order_id||order.id;
+      const res=await fetch(`/.netlify/functions/am-proxy?path=orders%2F${oid}`);
+      const data=await res.json();
+      const fullOrder=(data.response||[])[0]||{};
+      const items=(fullOrder.order_items||[]).filter(i=>parseFloat(i.qty_open||0)>0);
+      // carry date_due from order header if not on item
+      items.forEach(i=>{if(!i.date_due)i.date_due=fullOrder.date_due;});
       allItems.push(...items);
     }
+    console.warn('⚡ AM total open items:',allItems.length);
     if(!allItems.length){
       if(pill)pill.innerHTML='<span class="live-dot" style="background:#9ca3af"></span>AM (no open items)';
       return;

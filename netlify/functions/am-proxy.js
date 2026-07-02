@@ -5,7 +5,7 @@ const ALLOWED = ['products', 'inventory', 'orders', 'order_items', 'warehouses']
 exports.handler = async (event) => {
   const params = { ...(event.queryStringParameters || {}) };
   const path = params.path;
-  if (!path || !ALLOWED.includes(path)) {
+  if (!path || !ALLOWED.some(a => path === a || path.startsWith(a + '/'))) {
     return { statusCode: 400, body: JSON.stringify({ error: 'invalid path' }) };
   }
   delete params.path;
