@@ -2046,7 +2046,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.1.7';
+const APP_VERSION='v2.1.8';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -7014,20 +7014,23 @@ async function fetchAMOrdersFromAPI(){
     let allOrders=[],page=1,more=true;
     while(more){
       const url=`/.netlify/functions/am-proxy?path=orders&page=${page}&per_page=250`;
-      console.log('AM fetch →',url);
       const res=await fetch(url);
-      console.log('AM response status:',res.status);
       const data=await res.json();
-      console.log('AM response keys:',Object.keys(data));
       const rows=data.response||data.data||data.orders||[];
-      console.log(`AM page ${page}: ${rows.length} rows total`);
-      if(!Array.isArray(rows)||rows.length===0){more=false;break;}
-      if(page===1&&rows.length>0){
-        console.log('AM first order keys:',Object.keys(rows[0]));
-        console.log('AM first order:',JSON.stringify(rows[0]).slice(0,800));
+      if(page===1){
+        console.warn('⚡ AM DEBUG — status:',res.status,'| top-level keys:',Object.keys(data).join(', '),'| rows:',rows.length);
+        if(rows.length>0){
+          console.warn('⚡ AM first order keys:',Object.keys(rows[0]).join(', '));
+          console.warn('⚡ AM first order customer_name:',(rows[0].customer_name||'(none)'),'| id:',rows[0].id||rows[0].order_id||'?');
+          const names=[...new Set(rows.slice(0,20).map(o=>o.customer_name||'(none)'))];
+          console.warn('⚡ AM unique customer_names (first 20 rows):',names.join(' | '));
+        } else {
+          console.warn('⚡ AM returned 0 rows — raw response:',JSON.stringify(data).slice(0,400));
+        }
       }
+      if(!Array.isArray(rows)||rows.length===0){more=false;break;}
       const wndrr=rows.filter(o=>(o.customer_name||'').toUpperCase()==='WNDRR ONLINE STORE');
-      console.log(`AM page ${page}: ${wndrr.length} WNDRR orders matched`);
+      console.warn(`⚡ AM page ${page}: ${rows.length} total, ${wndrr.length} WNDRR`);
       allOrders=allOrders.concat(wndrr);
       if(rows.length<250)more=false;
       else page++;
