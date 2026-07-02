@@ -2046,7 +2046,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.4';
+const APP_VERSION='v2.2.5';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -7019,16 +7019,15 @@ async function fetchAMOrdersFromAPI(){
       if(pill)pill.innerHTML='<span class="live-dot" style="background:#9ca3af"></span>AM (no orders)';
       return;
     }
-    // Step 2: fetch each order individually — single-order endpoint includes nested order_items
+    // Step 2: fetch order_items for each order using order_id (the correct primary key field)
     const allItems=[];
     for(const order of orders){
       const oid=order.order_id||order.id;
-      const res=await fetch(`/.netlify/functions/am-proxy?path=orders%2F${oid}`);
+      console.warn('⚡ AM fetching items for order_id:',oid);
+      const res=await fetch(`/.netlify/functions/am-proxy?path=order_items&order_id=${oid}`);
       const data=await res.json();
-      const fullOrder=(data.response||[])[0]||{};
-      const items=(fullOrder.order_items||[]).filter(i=>parseFloat(i.qty_open||0)>0);
-      // carry date_due from order header if not on item
-      items.forEach(i=>{if(!i.date_due)i.date_due=fullOrder.date_due;});
+      console.warn('⚡ AM order',oid,'items:',( data.response||[]).length,'errors:',JSON.stringify((data.meta||{}).errors||[]));
+      const items=(data.response||[]).filter(i=>parseFloat(i.qty_open||0)>0);
       allItems.push(...items);
     }
     console.warn('⚡ AM total open items:',allItems.length);
