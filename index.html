@@ -857,7 +857,7 @@ th{position:relative;}
     </div>
     <div class="topbar-right">
       <div class="topbar-pill"><span class="live-dot"></span>Shopify</div>
-      <div class="topbar-pill"><span class="live-dot"></span>Apparel Magic</div>
+      <div class="topbar-pill" id="am-pill"><span class="live-dot"></span>Apparel Magic</div>
       <div class="topbar-pill" id="nav-count">— SKUs</div>
       <div class="screen-nav">
         <button class="screen-btn active" id="btn-dashboard" onclick="showScreen('dashboard')">📊 Dashboard</button>
@@ -2046,7 +2046,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.0.2';
+const APP_VERSION='v2.1.0';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -6526,7 +6526,7 @@ function togglePwVisibility(e){
 }
 
 /* ── STATE ── */
-let shopifyInvData=null, shopifySalesData=null, amData=null, soldOutData=null, variantsSoldOutData=null;
+let shopifyInvData=null, shopifySalesData=null, amData=null, amApiData=null, soldOutData=null, variantsSoldOutData=null;
 let coreStylesData=null, bundleStylesData=null, allProductsListData=null;
 let currentView='category', sortCol='category', sortDir='asc', currentPage=1;
 let selectedPeriod=7;
@@ -6928,6 +6928,105 @@ function buildAMData(){
     }
   }
   return{variantMap,productMap,products};
+}
+
+function buildAMDataFromAPI(orders){
+  const variantMap={},productMap={},products={};
+  const{priceMap}=_cachedSalesMaps||{priceMap:{}};
+  // Fallback meta lookup from inventory file (for new styles not yet in sales history)
+  const invSkuMap={};
+  if(shopifyInvData){
+    for(const row of shopifyInvData){
+      const sku=(row['Product variant SKU']||'').trim();
+      if(!sku||invSkuMap[sku])continue;
+      const fullTitle=(row['Product title']||'').trim().toUpperCase();
+      const sepIdx=fullTitle.lastIndexOf(' - ');
+      const productName=sepIdx>0?fullTitle.slice(0,sepIdx):fullTitle;
+      const colour=sepIdx>0?fullTitle.slice(sepIdx+3):'';
+      const category=(row['Product type']||'').trim().toUpperCase();
+      invSkuMap[sku]={productName,colour,category};
+    }
+  }
+  const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  function parseDue(d){
+    if(!d)return'';
+    const p=d.split('/');
+    if(p.length<3)return'';
+    const m=parseInt(p[1])-1;
+    const y=p[2].length===2?'20'+p[2]:p[2];
+    return MONTHS[m]?y+' - '+MONTHS[m]:'';
+  }
+  for(const order of orders){
+    const monthDue=parseDue(order.date_due);
+    for(const item of (order.order_items||[])){
+      const qtyOpen=parseFloat(item.qty_open||0);
+      if(qtyOpen<=0)continue;
+      const sku=(item.style_number||'').trim();
+      if(!sku)continue;
+      const meta=priceMap[sku]||invSkuMap[sku];
+      if(!meta)continue;
+      const desc=meta.productName;
+      const colour=meta.colour;
+      if(!desc||!colour)continue;
+      const size=(item.size||'').trim().toUpperCase();
+      const qty=parseFloat(item.qty||0);
+      const amount=parseFloat((item.amount||'').toString().replace(/[^0-9.]/g,'')||0);
+      const amCostPerUnit=(qty>0&&amount>0)?+(amount/qty).toFixed(4):0;
+      if(!products[desc])products[desc]={colours:new Set(),category:meta.category||''};
+      products[desc].colours.add(colour);
+      const pKey=desc+'||'+colour;
+      if(size){
+        const vKey=desc+'||'+colour+'||'+size;
+        if(!variantMap[vKey])variantMap[vKey]={qtyOpen,monthDue,style:sku,category:meta.category||'',amCostPerUnit};
+        else{variantMap[vKey].qtyOpen+=qtyOpen;if(monthDue&&!variantMap[vKey].monthDue)variantMap[vKey].monthDue=monthDue;}
+      }
+      if(!productMap[pKey]){
+        productMap[pKey]={qtyOpen,monthDue,style:sku,category:meta.category||'',amCostPerUnit};
+      }else{
+        productMap[pKey].qtyOpen+=qtyOpen;
+        if(monthDue&&!productMap[pKey].monthDue)productMap[pKey].monthDue=monthDue;
+      }
+    }
+  }
+  return{variantMap,productMap,products};
+}
+
+async function fetchAMOrdersFromAPI(){
+  const pill=document.getElementById('am-pill');
+  if(pill)pill.innerHTML='<span class="live-dot" style="background:#f59e0b"></span>Fetching AM…';
+  try{
+    let allOrders=[],page=1,more=true;
+    while(more){
+      const res=await fetch(`/.netlify/functions/am-proxy?path=orders&page=${page}&per_page=250`);
+      if(!res.ok)throw new Error(`HTTP ${res.status}`);
+      const data=await res.json();
+      const rows=data.response||data.data||data.orders||[];
+      if(!Array.isArray(rows)||rows.length===0){more=false;break;}
+      const wndrr=rows.filter(o=>(o.customer_name||'').toUpperCase()==='WNDRR ONLINE STORE'&&parseFloat(o.qty_open||0)>0);
+      allOrders=allOrders.concat(wndrr);
+      if(rows.length<250)more=false;
+      else page++;
+      if(page>20)more=false; // safety cap — max 5000 orders
+    }
+    if(!allOrders.length){
+      if(pill)pill.innerHTML='<span class="live-dot" style="background:#9ca3af"></span>AM (no orders)';
+      return;
+    }
+    amApiData=allOrders;
+    _cachedAMData=null;
+    buildVariantRows();
+    renderSidebarCounts();
+    setView(currentView);
+    if(window._salesBySkuDay&&allVariantRows.length){
+      _perfDataCache=buildPerfData();
+      window._tierMap=buildTierMap(_perfDataCache);
+      _buildPerfWeeklyCache();
+    }
+    if(pill)pill.innerHTML='<span class="live-dot"></span>Apparel Magic';
+  }catch(e){
+    console.error('AM API fetch failed:',e);
+    if(pill)pill.innerHTML='<span class="live-dot" style="background:#ef4444"></span>AM offline';
+  }
 }
 
 
@@ -7441,8 +7540,8 @@ function buildVariantRows(){
       window._skuCategoryMap[sku]=pm.category||'UNCATEGORISED';
     }
   }
-  // Always rebuild AM data fresh to pick up buildAMData fixes
-  _cachedAMData=buildAMData();
+  // Always rebuild AM data fresh; use live API data if available, fall back to CSV
+  _cachedAMData=amApiData?buildAMDataFromAPI(amApiData):buildAMData();
   // Always rebuild soldout map fresh
   // and allProductsListData may load after soldOutData so caching causes stale prices
   _cachedSoldOutData=buildSoldOutMap();
@@ -7610,6 +7709,7 @@ function buildDashboard(){
   document.getElementById('app').style.display='flex';
   currentView='category';
   _cachedAMData=null;
+  amApiData=null;
   showScreen('dashboard');
   buildVariantRows();
   console.log('🟢 buildVariantRows done, rows:',allVariantRows.length);
@@ -7620,6 +7720,8 @@ function buildDashboard(){
     _buildPerfWeeklyCache();
   }
   renderSidebarCounts();
+  // Auto-fetch Apparel Magic orders (only if no CSV uploaded manually)
+  if(!amData) fetchAMOrdersFromAPI();
   }catch(err){console.error('❌ buildDashboard error:',err);}
 }
 
@@ -8781,6 +8883,7 @@ function exportCSV(){
 }
 
 /* ── PERFORMANCE VIEW ── */
+// v2.1.0 — Auto-fetch Apparel Magic open orders for WNDRR ONLINE STORE via API when Analyse Stock is clicked (replaces CSV upload); falls back to CSV if manually uploaded
 // v2.0.2 — Add (ex)/(inc) GST labels to SOH Value, Sell Value and Sales Value column headers across all views and CSV exports
 // v2.0.1 — Sell Value changed to inc-GST (was ex-GST); Sales Value and SOH Value unchanged
 // v2.0.0 — Add WNDRR Pipeline Excel upload (.xlsx) to fix missing Price/RRP for $0-priced Shopify products; auto-populates soldout, variants, core & bundle data in one step
@@ -9495,7 +9598,7 @@ function renderPerformance(){
 
 /* ── RESET ── */
 function resetApp(){
-  shopifyInvData=null;shopifySalesData=null;amData=null;soldOutData=null;variantsSoldOutData=null;
+  shopifyInvData=null;shopifySalesData=null;amData=null;amApiData=null;soldOutData=null;variantsSoldOutData=null;
   coreStylesData=null;bundleStylesData=null;allProductsListData=null;
   _cachedSalesMaps=null;_cachedAMData=null;_cachedSoldOutData=null;
   allVariantRows=[];
