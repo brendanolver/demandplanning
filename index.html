@@ -2046,7 +2046,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.1.6';
+const APP_VERSION='v2.1.7';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -7013,14 +7013,21 @@ async function fetchAMOrdersFromAPI(){
   try{
     let allOrders=[],page=1,more=true;
     while(more){
-      const res=await fetch(`/.netlify/functions/am-proxy?path=orders&page=${page}&per_page=250`);
-      if(!res.ok)throw new Error(`HTTP ${res.status}`);
+      const url=`/.netlify/functions/am-proxy?path=orders&page=${page}&per_page=250`;
+      console.log('AM fetch →',url);
+      const res=await fetch(url);
+      console.log('AM response status:',res.status);
       const data=await res.json();
+      console.log('AM response keys:',Object.keys(data));
       const rows=data.response||data.data||data.orders||[];
+      console.log(`AM page ${page}: ${rows.length} rows total`);
       if(!Array.isArray(rows)||rows.length===0){more=false;break;}
-      // Log first page for debugging field names
-      if(page===1&&rows.length>0)console.log('AM API sample order:',JSON.stringify(rows[0]).slice(0,500));
+      if(page===1&&rows.length>0){
+        console.log('AM first order keys:',Object.keys(rows[0]));
+        console.log('AM first order:',JSON.stringify(rows[0]).slice(0,800));
+      }
       const wndrr=rows.filter(o=>(o.customer_name||'').toUpperCase()==='WNDRR ONLINE STORE');
+      console.log(`AM page ${page}: ${wndrr.length} WNDRR orders matched`);
       allOrders=allOrders.concat(wndrr);
       if(rows.length<250)more=false;
       else page++;
