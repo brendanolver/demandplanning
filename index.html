@@ -2046,7 +2046,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.8';
+const APP_VERSION='v2.2.9';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -3243,21 +3243,45 @@ function getLYSalesByCategory(months){
   return result;
 }
 
+// Parse AM date string (MM/DD/YYYY or ISO YYYY-MM-DD) → "YYYY - Month" string
+function parseDueGlobal(d){
+  if(!d)return'';
+  const MN=['January','February','March','April','May','June','July','August','September','October','November','December'];
+  if(d.includes('-')&&!d.includes('/')){
+    const p=d.split('-');if(p.length<2)return'';
+    const m=parseInt(p[1])-1;const y=p[0];
+    return MN[m]?y+' - '+MN[m]:'';
+  }
+  const p=d.split('/');if(p.length<3)return'';
+  const m=parseInt(p[0])-1;const y=p[2].length===2?'20'+p[2]:p[2];
+  return MN[m]?y+' - '+MN[m]:'';
+}
+// Build sku → {category, productKey} map from allVariantRows for AM planning lookups
+function _buildSkuPlanMap(){
+  const m={};
+  for(const r of allVariantRows){
+    if(!r.sku)continue;
+    m[r.sku]={cat:r.category||'UNCATEGORISED',pk:r.productName+'||'+r.colour,amOnly:r.amOnly};
+  }
+  return m;
+}
 function getAMOnOrderByCategory(months){
   const result={};
-  for(const row of allVariantRows){
-    const cat=row.category||'UNCATEGORISED';
-    if(!result[cat])result[cat]={};
-    const onOrder=row.onOrder||0;
-    if(onOrder<=0||!row.monthDue)continue;
-    const parts=row.monthDue.split(' - ');
-    if(parts.length<2)continue;
-    const yr=parseInt(parts[0]);
-    const MONTHS=['january','february','march','april','may','june','july','august','september','october','november','december'];
-    const mi=MONTHS.indexOf(parts[1].toLowerCase().trim());
+  if(!amApiData)return result;
+  const skuMap=_buildSkuPlanMap();
+  const MI=['january','february','march','april','may','june','july','august','september','october','november','december'];
+  for(const item of amApiData){
+    const qty=parseFloat(item.qty_open||0);if(qty<=0)continue;
+    const sku=(item.style_number||'').trim();if(!sku)continue;
+    const meta=skuMap[sku];if(!meta)continue;
+    const cat=(meta.cat||'UNCATEGORISED').toUpperCase();if(cat==='GWP')continue;
+    const monthDue=parseDueGlobal(item.date_due);if(!monthDue)continue;
+    const parts=monthDue.split(' - ');if(parts.length<2)continue;
+    const yr=parseInt(parts[0]);const mi=MI.indexOf(parts[1].toLowerCase().trim());
     if(mi<0||isNaN(yr))continue;
     const mKey=`${yr}-${String(mi+1).padStart(2,'0')}`;
-    result[cat][mKey]=(result[cat][mKey]||0)+onOrder;
+    if(!result[cat])result[cat]={};
+    result[cat][mKey]=(result[cat][mKey]||0)+qty;
   }
   return result;
 }
@@ -3287,19 +3311,20 @@ function getLYSalesByProduct(months){
 
 function getAMOnOrderByProduct(months){
   const result={};
-  for(const row of allVariantRows){
-    if(row.amOnly)continue;
-    const pk=row.productName+'||'+row.colour;
-    const onOrder=row.onOrder||0;
-    if(onOrder<=0||!row.monthDue)continue;
-    const parts=row.monthDue.split(' - ');if(parts.length<2)continue;
-    const yr=parseInt(parts[0]);
-    const MI=['january','february','march','april','may','june','july','august','september','october','november','december'];
-    const mi=MI.indexOf(parts[1].toLowerCase().trim());
+  if(!amApiData)return result;
+  const skuMap=_buildSkuPlanMap();
+  const MI=['january','february','march','april','may','june','july','august','september','october','november','december'];
+  for(const item of amApiData){
+    const qty=parseFloat(item.qty_open||0);if(qty<=0)continue;
+    const sku=(item.style_number||'').trim();if(!sku)continue;
+    const meta=skuMap[sku];if(!meta||meta.amOnly)continue;
+    const monthDue=parseDueGlobal(item.date_due);if(!monthDue)continue;
+    const parts=monthDue.split(' - ');if(parts.length<2)continue;
+    const yr=parseInt(parts[0]);const mi=MI.indexOf(parts[1].toLowerCase().trim());
     if(mi<0||isNaN(yr))continue;
     const mKey=`${yr}-${String(mi+1).padStart(2,'0')}`;
-    if(!result[pk])result[pk]={};
-    result[pk][mKey]=(result[pk][mKey]||0)+onOrder;
+    if(!result[meta.pk])result[meta.pk]={};
+    result[meta.pk][mKey]=(result[meta.pk][mKey]||0)+qty;
   }
   return result;
 }
