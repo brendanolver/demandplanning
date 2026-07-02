@@ -2046,7 +2046,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.13';
+const APP_VERSION='v2.2.14';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -3269,6 +3269,13 @@ function _buildSkuPlanMap(){
     const baseSku=sku.endsWith(size)?sku.slice(0,-size.length):'';
     if(baseSku&&styleSet.has(baseSku)&&!m[baseSku]){
       m[baseSku]={cat:(r.category||'UNCATEGORISED').toUpperCase(),pk:r.productName+'||'+r.colour};
+    }
+  }
+  // Fallback: use AM product category for styles not matched via Shopify SKU (pre-release / uncategorised)
+  const amCatMap=window.amStyleCategoryMap||{};
+  for(const style of styleSet){
+    if(!m[style]&&amCatMap[style]){
+      m[style]={cat:amCatMap[style],pk:style+'||'};
     }
   }
   return m;
@@ -7073,6 +7080,23 @@ async function fetchAMOrdersFromAPI(){
       return;
     }
     amApiData=allItems;
+    // Fetch AM product categories for all unique style_numbers (for pre-release items not yet in Shopify)
+    const uniqueStyles=[...new Set(allItems.map(i=>(i.style_number||'').trim()).filter(Boolean))];
+    window.amStyleCategoryMap=window.amStyleCategoryMap||{};
+    const uncached=uniqueStyles.filter(s=>!window.amStyleCategoryMap[s]);
+    if(uncached.length){
+      const CHUNK=10;
+      for(let i=0;i<uncached.length;i+=CHUNK){
+        await Promise.all(uncached.slice(i,i+CHUNK).map(async style=>{
+          try{
+            const r=await fetch(`/.netlify/functions/am-proxy?path=products&style_number=${encodeURIComponent(style)}`);
+            const d=await r.json();
+            const p=(d.response||[])[0];
+            if(p&&p.category)window.amStyleCategoryMap[style]=(p.category||'').trim().toUpperCase();
+          }catch(e){}
+        }));
+      }
+    }
     _cachedAMData=null;
     buildVariantRows();
     renderSidebarCounts();
