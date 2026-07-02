@@ -7262,8 +7262,8 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     // SOH Value at cost
     const sohValue=stock>0&&avgCostPerUnit>0?+(stock*avgCostPerUnit).toFixed(2):null;
 
-    // SOH Sell Value at ex-GST retail price
-    const sellValue=stock>0&&exGstPrice>0?+(stock*exGstPrice).toFixed(2):null;
+    // SOH Sell Value at inc-GST retail price
+    const sellValue=stock>0&&price>0?+(stock*price).toFixed(2):null;
 
     // Sell through % — sold in period / (soh + sold in period)
     const sellThru=sPrimary.qty>0&&(stock+sPrimary.qty)>0?+(sPrimary.qty/(stock+sPrimary.qty)*100).toFixed(2):null;
@@ -8781,6 +8781,7 @@ function exportCSV(){
 }
 
 /* ── PERFORMANCE VIEW ── */
+// v2.0.1 — Sell Value changed to inc-GST (was ex-GST); Sales Value and SOH Value unchanged
 // v2.0.0 — Add WNDRR Pipeline Excel upload (.xlsx) to fix missing Price/RRP for $0-priced Shopify products; auto-populates soldout, variants, core & bundle data in one step
 // v1.5.0 — Dashboard > Category view: remove Suggested Order column
 // v1.4.9 — Dashboard > Category view: default sort alphabetical by category (also resets on view switch); add Sales Value (period) column between Sell Value and Today; remove OOS and Re-Order columns
