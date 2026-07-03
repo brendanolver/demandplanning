@@ -2046,7 +2046,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.16';
+const APP_VERSION='v2.2.17';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -6900,6 +6900,23 @@ function buildSalesMaps(){
       if(qty>0&&(!priceMap[sku].firstSaleDay||day<priceMap[sku].firstSaleDay)){
         priceMap[sku].firstSaleDay=day;
       }
+    }
+  }
+  // Fill missing price/RRP for unsold variants using same product's sold variants
+  if(shopifyInvData){
+    // Build product-level price reference from sold variants
+    const prodPriceRef={};
+    for(const[,pm]of Object.entries(priceMap)){
+      const pk=(pm.productName||'')+'||'+(pm.colour||'');
+      if(!prodPriceRef[pk]||(pm.price>0&&pm.price>prodPriceRef[pk].price))prodPriceRef[pk]=pm;
+    }
+    for(const row of shopifyInvData){
+      const sku=(row['Product variant SKU']||'').trim();
+      if(!sku||(priceMap[sku]&&(priceMap[sku].price||priceMap[sku].compareAt)))continue;
+      const fullTitle=(row['Product title']||'').trim().toUpperCase();
+      const{name:productName,colour}=extractName(fullTitle);
+      const ref=prodPriceRef[productName+'||'+colour];
+      if(ref)priceMap[sku]={...ref};
     }
   }
   // Fill missing price/RRP from AM product data for new styles not yet in sales CSV
