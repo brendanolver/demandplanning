@@ -2046,7 +2046,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.18';
+const APP_VERSION='v2.2.19';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -8168,6 +8168,10 @@ function toProduct(vr){
       // First variant: use productOnOrder (product total) as the single source of truth.
       // Never add per-size variantEntry.onOrder on top — it's already included in productOnOrder.
       const baseOnOrder=(r.productOnOrder||0)||(r.onOrder||0);
+      const _initEx=r.price>0?r.price/1.1:0;
+      const _initU=r.sold>0?r.sold:r.stock>0?r.stock:1;
+      const _initRev=r.margin!=null&&_initEx>0?_initEx*_initU:0;
+      const _initCost=r.margin!=null&&_initEx>0?_initEx*(1-r.margin/100)*_initU:0;
       map[key]={...r,velSum:r.velocity,stock:r.stock,sold:r.sold,
         sold7:r.sold7||0,sold30:r.sold30||0,sold60:r.sold60||0,sold90:r.sold90||0,sold365:r.sold365||0,
         soldToday:r.soldToday||0,soldYesterday:r.soldYesterday||0,
@@ -8176,7 +8180,8 @@ function toProduct(vr){
         sizes:r.size&&r.size!=='—'?[r.size]:[],
         earliestDue:r.monthDue,earliestKey:monthDueSortKey(r.monthDue),
         priceSum:r.price||0,priceCount:r.price?1:0,
-        sohValue:r.sohValue||0,sellValue:r.sellValue||0
+        sohValue:r.sohValue||0,sellValue:r.sellValue||0,
+        marginRevSum:_initRev,marginCostSum:_initCost
       };
     } else {
       const p=map[key];
@@ -8193,6 +8198,7 @@ function toProduct(vr){
       if(r.price){p.priceSum+=r.price;p.priceCount++;}
       p.sohValue+=(r.sohValue||0);
       p.sellValue+=(r.sellValue||0);
+      if(r.margin!=null&&r.price>0){const _ex=r.price/1.1;const _u=r.sold>0?r.sold:r.stock>0?r.stock:1;p.marginRevSum+=_ex*_u;p.marginCostSum+=_ex*(1-r.margin/100)*_u;}
       if(r.size&&r.size!=='—')p.sizes.push(r.size);
       if(!r.amOnly)p.amOnly=false;
       const sk=monthDueSortKey(r.monthDue);
@@ -8227,7 +8233,9 @@ function toProduct(vr){
       if(f==='reorder'&&(p.suggestedOrder||0)<70)f='ok';
       return f;
     })();
+    const prodMargin=p.marginRevSum>0?+((p.marginRevSum-p.marginCostSum)/p.marginRevSum*100).toFixed(2):null;
     return{...p,velocity,onOrder,monthDue,
+      margin:prodMargin,
       sellThru7:(p.sold>0&&(p.stock+p.sold)>0)?+(p.sold/(p.stock+p.sold)*100).toFixed(2):null,
       days:days===null?9999:days,
       daysDisplay:days===null?'—':+(days/7).toFixed(1),
@@ -9029,6 +9037,7 @@ function exportCSV(){
 }
 
 /* ── PERFORMANCE VIEW ── */
+// v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v2.2.18 — Fix UNCATEGORISED: add amStyleCategoryMap fallback for Shopify products with blank Product type
 // v2.2.3 — Rewrite AM fetch: orders?account_number=1068 then order_items?order_id={id} per order; buildAMDataFromAPI now handles flat items with item-level date_due
 // v2.2.1 — Fix AM pagination to use last_id cursor; filter by account_number 1068 instead of customer_name
