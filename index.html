@@ -2046,7 +2046,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.15';
+const APP_VERSION='v2.2.16';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -6902,6 +6902,32 @@ function buildSalesMaps(){
       }
     }
   }
+  // Fill missing price/RRP from AM product data for new styles not yet in sales CSV
+  if(window.amStylePriceMap&&shopifyInvData){
+    for(const row of shopifyInvData){
+      const sku=(row['Product variant SKU']||'').trim();
+      if(!sku)continue;
+      if(priceMap[sku]&&(priceMap[sku].price||priceMap[sku].compareAt))continue;
+      // Find matching AM style by checking if any known style_number is a prefix of this SKU
+      let matchStyle='';
+      for(const style of Object.keys(window.amStylePriceMap)){
+        if(sku.toUpperCase().startsWith(style.toUpperCase())){matchStyle=style;break;}
+      }
+      if(!matchStyle)continue;
+      const ap=window.amStylePriceMap[matchStyle];
+      if(!ap||(!ap.rrp&&!ap.price))continue;
+      const fullTitle=(row['Product title']||'').trim().toUpperCase();
+      const{name:productName,colour}=extractName(fullTitle);
+      const variantTitle=(row['Option1 Value']||row['Variant title']||'').trim();
+      const size=variantTitle||'OS';
+      if(!priceMap[sku]){
+        priceMap[sku]={price:ap.rrp||ap.price,compareAt:ap.rrp||0,vendor:'WNDRR',category:'',productName,colour,size,day:'',status:'ACTIVE',firstSaleDay:null};
+      } else {
+        priceMap[sku].price=priceMap[sku].price||ap.rrp||ap.price;
+        priceMap[sku].compareAt=priceMap[sku].compareAt||ap.rrp||0;
+      }
+    }
+  }
   return{salesBySkuDay,priceMap};
 }
 
@@ -7092,7 +7118,15 @@ async function fetchAMOrdersFromAPI(){
             const r=await fetch(`/.netlify/functions/am-proxy?path=products&style_number=${encodeURIComponent(style)}`);
             const d=await r.json();
             const p=(d.response||[])[0];
-            if(p&&p.category)window.amStyleCategoryMap[style]=(p.category||'').trim().toUpperCase();
+            if(p){
+              if(p.category)window.amStyleCategoryMap[style]=(p.category||'').trim().toUpperCase();
+              window.amStylePriceMap=window.amStylePriceMap||{};
+              window.amStylePriceMap[style]={
+                price:parseFloat(p.price||0)||0,
+                rrp:parseFloat(p.retail_price||0)||0,
+                cost:parseFloat(p.cost_landed||p.cost||0)||0
+              };
+            }
           }catch(e){}
         }));
       }
@@ -7566,6 +7600,10 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
         const totalOnOrder=totalOnOrderFromVariants||(productEntry?productEntry.qtyOpen:0);
         if(totalOnOrder===0)continue;
         const category=productEntry?.category||info.category||(window.amStyleCategoryMap&&window.amStyleCategoryMap[amStyle])||'';
+        const amPriceInfo=(window.amStylePriceMap&&window.amStylePriceMap[amStyle])||{};
+        const amPrice=amPriceInfo.price||0;
+        const amRrp=amPriceInfo.rrp||0;
+        const amCost=amPriceInfo.cost||0;
         // Decode delivery month from AM Style SKU, fall back to AM Month Due
         const amDeliveryMonth=normaliseDeliveryMonth(decodeSkuDelivery(amStyle)||monthDue||'');
         const sizeEntries=Object.entries(amVariantMap)
@@ -7578,7 +7616,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
               fullTitle:desc+' - '+colour,productName:desc,colour,
               size:se.size,variant:se.size,sku:amStyle||'—',
               category,vendor:'ON ORDER',
-              stock:0,price:null,compareAt:null,discountPct:null,margin:null,
+              stock:0,price:amPrice||null,compareAt:amRrp||null,discountPct:null,margin:amCost&&amPrice?+(((amPrice-amCost)/amPrice)*100).toFixed(2):null,
               velocity:0,vel7:null,vel30:null,
               sold7:0,sold30:0,sold90:0,sold365:0,sold:0,sellThru7:null,
               soldToday:0,soldYesterday:0,
@@ -7593,7 +7631,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
           rows.push({
             fullTitle:desc+' - '+colour,productName:desc,colour,size:'—',variant:'—',sku:amStyle||'—',
             category,vendor:'ON ORDER',
-            stock:0,price:null,compareAt:null,discountPct:null,margin:null,
+            stock:0,price:amPrice||null,compareAt:amRrp||null,discountPct:null,margin:amCost&&amPrice?+(((amPrice-amCost)/amPrice)*100).toFixed(2):null,
             velocity:0,vel7:null,vel30:null,
             sold7:0,sold30:0,sold90:0,sold365:0,sold:0,sellThru7:null,
             soldToday:0,soldYesterday:0,
