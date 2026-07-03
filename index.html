@@ -2046,7 +2046,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.19';
+const APP_VERSION='v2.2.20';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -2696,11 +2696,15 @@ function renderCadenceCompare(){
     return`<td style="text-align:right;padding:8px 10px;font-weight:700;">${v>0?v.toLocaleString():'—'}</td>`;
   }).join('');
 
+  const totalSoh=productData.reduce((s,cp)=>s+(cp.soh||0),0);
+  const totalOnOrder=productData.reduce((s,cp)=>s+(cp.onOrder||0),0);
+  const totalStPct=grandTotal>0&&(totalSoh+grandTotal)>0?grandTotal/(totalSoh+grandTotal)*100:null;
+
   const totalsRow=`<tr style="background:var(--surface2);border-top:2px solid var(--border);">
     <td style="padding:8px 10px;font-weight:700;font-size:12px;color:var(--text-secondary);letter-spacing:0.05em;">TOTAL</td>
-    <td style="text-align:right;padding:8px 10px;font-weight:700;">—</td>
-    <td style="text-align:right;padding:8px 10px;font-weight:700;color:var(--purple);">—</td>
-    <td style="text-align:right;padding:8px 10px;font-weight:700;">—</td>
+    <td style="text-align:right;padding:8px 10px;font-weight:700;">${totalSoh>0?totalSoh.toLocaleString():'—'}</td>
+    <td style="text-align:right;padding:8px 10px;font-weight:700;color:var(--purple);">${totalOnOrder>0?totalOnOrder.toLocaleString():'—'}</td>
+    <td style="text-align:right;padding:8px 10px;font-weight:700;">${totalStPct!==null?totalStPct.toFixed(1)+'%':'—'}</td>
     <td style="text-align:right;padding:8px 10px;font-weight:700;color:var(--teal);">${grandTotal>0?Math.round(grandTotal).toLocaleString():'—'}</td>
     ${totalCells}
   </tr>`;
@@ -9037,6 +9041,7 @@ function exportCSV(){
 }
 
 /* ── PERFORMANCE VIEW ── */
+// v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v2.2.18 — Fix UNCATEGORISED: add amStyleCategoryMap fallback for Shopify products with blank Product type
 // v2.2.3 — Rewrite AM fetch: orders?account_number=1068 then order_items?order_id={id} per order; buildAMDataFromAPI now handles flat items with item-level date_due
