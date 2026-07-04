@@ -2046,7 +2046,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.21';
+const APP_VERSION='v2.2.22';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -7502,7 +7502,9 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const salesCost=s365.qty>0?s365.cogs/s365.qty:(sold>0?cogs/sold:0);
     const avgCostPerUnit=brCost||amCost||salesCost;
     const exGstPrice=price>0?price/1.1:0;
-    const margin=(exGstPrice>0&&avgCostPerUnit>0)?+((exGstPrice-avgCostPerUnit)/exGstPrice*100).toFixed(2):null;
+    // Only show margin if the product has real activity (stock on hand or historical sales) —
+    // a dead SKU with 0 stock and 0 sales shouldn't show a theoretical price-vs-cost margin
+    const margin=(exGstPrice>0&&avgCostPerUnit>0&&(stock>0||s365.qty>0))?+((exGstPrice-avgCostPerUnit)/exGstPrice*100).toFixed(2):null;
 
     // SOH Value at cost
     const sohValue=stock>0&&avgCostPerUnit>0?+(stock*avgCostPerUnit).toFixed(2):null;
@@ -9059,6 +9061,7 @@ function exportCSV(){
 }
 
 /* ── PERFORMANCE VIEW ── */
+// v2.2.22 — Margin% no longer shows for dead SKUs with 0 stock and 0 sales (was computing a theoretical price-vs-cost margin regardless of activity); now requires stock>0 or 365-day sales>0
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
