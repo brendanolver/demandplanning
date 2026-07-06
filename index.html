@@ -2057,7 +2057,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.27';
+const APP_VERSION='v2.2.28';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -6288,12 +6288,38 @@ async function refreshShopifyAndFetch(){
   refreshBtn.disabled=true;fetchBtn.disabled=true;
   status.innerHTML='<span style="color:var(--amber);">⏳ Rebuilding Shopify data (can take ~40s)…</span>';
   try{
-    const manifestRes=await fetch(PIPELINE_PROXY+'?path='+encodeURIComponent('/api/reports/manifest')+'&refresh=shopify');
-    if(manifestRes.status===401){status.innerHTML='<span style="color:var(--red);">⚠️ Auth failed (401).</span>';refreshBtn.disabled=false;fetchBtn.disabled=false;return;}
-    if(manifestRes.status===409){status.innerHTML='<span style="color:var(--amber);">⚠️ Report not ready yet — try again shortly.</span>';refreshBtn.disabled=false;fetchBtn.disabled=false;return;}
-    if(manifestRes.status===404){status.innerHTML='<span style="color:var(--red);">⚠️ Invalid report key (404).</span>';refreshBtn.disabled=false;fetchBtn.disabled=false;return;}
-    if(!manifestRes.ok){status.innerHTML=`<span style="color:var(--red);">⚠️ Refresh failed (${manifestRes.status}).</span>`;refreshBtn.disabled=false;fetchBtn.disabled=false;return;}
-    const manifest=await manifestRes.json();
+    // Capture baseline timestamps so we know when the rebuild has actually landed
+    const baselineRes=await fetch(PIPELINE_PROXY+'?path='+encodeURIComponent('/api/reports/manifest'));
+    if(baselineRes.status===401){status.innerHTML='<span style="color:var(--red);">⚠️ Auth failed (401).</span>';refreshBtn.disabled=false;fetchBtn.disabled=false;return;}
+    const baseline=await baselineRes.json();
+    const baselineTimes={};
+    for(const r of baseline.reports||[]){if(r.reportKey==='shopify_inventory'||r.reportKey==='shopify_sales')baselineTimes[r.reportKey]=r.modifiedTime;}
+
+    // Kick off the refresh. The pipeline job takes ~40s server-side, longer than our
+    // proxy's execution budget, so a 202 here just means it's running — we poll below.
+    const kickoffRes=await fetch(PIPELINE_PROXY+'?path='+encodeURIComponent('/api/reports/manifest')+'&refresh=shopify');
+    if(kickoffRes.status===401){status.innerHTML='<span style="color:var(--red);">⚠️ Auth failed (401).</span>';refreshBtn.disabled=false;fetchBtn.disabled=false;return;}
+    if(kickoffRes.status===409){status.innerHTML='<span style="color:var(--amber);">⚠️ Report not ready yet — try again shortly.</span>';refreshBtn.disabled=false;fetchBtn.disabled=false;return;}
+    if(kickoffRes.status===404){status.innerHTML='<span style="color:var(--red);">⚠️ Invalid report key (404).</span>';refreshBtn.disabled=false;fetchBtn.disabled=false;return;}
+    if(!kickoffRes.ok&&kickoffRes.status!==202){status.innerHTML=`<span style="color:var(--red);">⚠️ Refresh failed (${kickoffRes.status}).</span>`;refreshBtn.disabled=false;fetchBtn.disabled=false;return;}
+
+    // Poll the plain manifest (fast, no refresh param) until both timestamps advance
+    let manifest=kickoffRes.status===202?null:await kickoffRes.json();
+    const isDone=m=>{
+      const inv=(m.reports||[]).find(r=>r.reportKey==='shopify_inventory');
+      const sales=(m.reports||[]).find(r=>r.reportKey==='shopify_sales');
+      return inv&&sales&&inv.modifiedTime!==baselineTimes.shopify_inventory&&sales.modifiedTime!==baselineTimes.shopify_sales;
+    };
+    let attempts=0;
+    while((!manifest||!isDone(manifest))&&attempts<24){
+      await new Promise(r=>setTimeout(r,5000));
+      status.textContent=`⏳ Rebuilding Shopify data… (${(attempts+1)*5}s)`;
+      const pollRes=await fetch(PIPELINE_PROXY+'?path='+encodeURIComponent('/api/reports/manifest'));
+      if(pollRes.ok)manifest=await pollRes.json();
+      attempts++;
+    }
+    if(!manifest||!isDone(manifest)){status.innerHTML='<span style="color:var(--amber);">⚠️ Rebuild is taking longer than expected — try Fetch from Pipeline shortly.</span>';refreshBtn.disabled=false;fetchBtn.disabled=false;return;}
+
     const reports=(manifest.reports||[]).filter(r=>r.exists&&(r.reportKey==='shopify_inventory'||r.reportKey==='shopify_sales'));
     if(!reports.length){status.innerHTML='<span style="color:var(--amber);">⚠️ Shopify reports not available after refresh.</span>';refreshBtn.disabled=false;fetchBtn.disabled=false;return;}
 
@@ -9256,6 +9282,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.28 — Fix refresh timeout: edge function's ~40s exec cap can't wait out the ~40s rebuild job, so it now fires the refresh in the background (waitUntil) and the client polls the plain manifest until modifiedTime advances
 // v2.2.27 — Add "Refresh Shopify Data" button: calls manifest?refresh=shopify to regenerate inventory+sales from Shopify, then re-downloads both
 // v2.2.26 — Switch pipeline proxy from Netlify Function (6MB response cap, caused 502 on 12MB sales CSV) to Netlify Edge Function (streams, no size cap)
 // v2.2.25 — Route Pipeline API calls through a Netlify function proxy to fix mixed-content block (HTTPS app → HTTP pipeline endpoint)
