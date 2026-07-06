@@ -2053,9 +2053,8 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.24';
-const PIPELINE_BASE='http://170.64.229.248:3000';
-const PIPELINE_TOKEN='RsCdZC3-bkfKvEf2TKXI2bMRHDlECre3aWM9VuNDt60';
+const APP_VERSION='v2.2.25';
+const PIPELINE_PROXY='/.netlify/functions/pipeline-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -6217,9 +6216,8 @@ async function fetchFromPipeline(){
   const status=document.getElementById('pipeline-status');
   btn.disabled=true;
   status.textContent='Fetching manifest…';
-  const headers={'Authorization':'Bearer '+PIPELINE_TOKEN};
   try{
-    const manifestRes=await fetch(PIPELINE_BASE+'/api/reports/manifest',{headers});
+    const manifestRes=await fetch(PIPELINE_PROXY+'?path=/api/reports/manifest');
     if(manifestRes.status===401){status.innerHTML='<span style="color:var(--red);">⚠️ Auth failed (401).</span>';btn.disabled=false;return;}
     const manifest=await manifestRes.json();
     const reports=(manifest.reports||[]).filter(r=>r.exists);
@@ -6238,7 +6236,7 @@ async function fetchFromPipeline(){
       const loader=loaderMap[report.reportKey];
       if(!loader){continue;}
       status.textContent=`Downloading ${report.label}…`;
-      const res=await fetch(PIPELINE_BASE+report.downloadUrl,{headers});
+      const res=await fetch(PIPELINE_PROXY+'?path='+encodeURIComponent(report.downloadUrl));
       if(res.status===409){errors.push(report.label+' (not ready)');continue;}
       if(res.status===404){errors.push(report.label+' (not found)');continue;}
       if(!res.ok){errors.push(report.label+' (error '+res.status+')');continue;}
@@ -6484,8 +6482,7 @@ async function autoSyncPipeline(){
   const fileLabels={inv:'Inventory',sales:'Sales History',soldout:'All Products',variantssoldout:'Variants Sold Out',corestyles:'Core Styles',bundlestyles:'Bundle Styles'};
   try{
     setLoadingProgress(15,'Connecting to pipeline...');
-    const headers={'Authorization':'Bearer '+PIPELINE_TOKEN};
-    const manifestRes=await fetch(PIPELINE_BASE+'/api/reports/manifest',{headers});
+    const manifestRes=await fetch(PIPELINE_PROXY+'?path=/api/reports/manifest');
     if(!manifestRes.ok)return false;
     const manifest=await manifestRes.json();
     const reports=(manifest.reports||[]).filter(r=>r.exists&&loaderMap[r.reportKey]);
@@ -6496,7 +6493,7 @@ async function autoSyncPipeline(){
       const loader=loaderMap[report.reportKey];
       const pct=15+Math.round((loaded/total)*70);
       setLoadingProgress(pct,`Downloading ${fileLabels[loader]||report.label}...`);
-      const res=await fetch(PIPELINE_BASE+report.downloadUrl,{headers});
+      const res=await fetch(PIPELINE_PROXY+'?path='+encodeURIComponent(report.downloadUrl));
       loaded++;
       if(!res.ok)continue;
       const parsed=parseCSV(await res.text());
@@ -9206,6 +9203,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.25 — Route Pipeline API calls through a Netlify function proxy to fix mixed-content block (HTTPS app → HTTP pipeline endpoint)
 // v2.2.24 — Auto-sync on login now tries the Report Pipeline API first (manifest + CSV fetch), falls back to Google Drive OAuth if pipeline unavailable
 // v2.2.23 — Add Fetch from Pipeline button: manifest-first API fetch for all 6 CSVs (inv, sales, soldout, core, bundle, variants)
 // v2.2.18 — Fix UNCATEGORISED: add amStyleCategoryMap fallback for Shopify products with blank Product type
