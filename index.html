@@ -774,14 +774,21 @@ th{position:relative;}
       </div>
     </div>
 
-    <!-- Google Drive Import -->
+    <!-- Pipeline + Google Drive Import -->
     <div class="gdrive-section">
       <div class="gdrive-divider"><span>or import from</span></div>
-      <button class="gdrive-btn" id="gdrive-btn" onclick="gdriveImport()">
-        <svg viewBox="0 0 87.3 78" width="16" height="16"><path d="M6.6 66.85l3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="M43.65 25L29.9 1.2C28.55 2 27.4 3.1 26.6 4.5L1.2 49.5c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/><path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.8l5.85 11.5z" fill="#ea4335"/><path d="M43.65 25L57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="M59.8 53H27.5L13.75 76.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/><path d="M73.4 26.5l-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3L43.65 25 59.8 53h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/></svg>
-        Import from Google Drive
-      </button>
-      <div id="gdrive-status" style="font-size:11px;color:var(--text-muted);margin-top:8px;text-align:center;min-height:16px;"></div>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+        <button class="gdrive-btn" id="pipeline-fetch-btn" onclick="fetchFromPipeline()" style="background:var(--teal-light);border-color:var(--teal);color:var(--teal-dark);">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
+          Fetch from Pipeline
+        </button>
+        <button class="gdrive-btn" id="gdrive-btn" onclick="gdriveImport()">
+          <svg viewBox="0 0 87.3 78" width="16" height="16"><path d="M6.6 66.85l3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="M43.65 25L29.9 1.2C28.55 2 27.4 3.1 26.6 4.5L1.2 49.5c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/><path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.8l5.85 11.5z" fill="#ea4335"/><path d="M43.65 25L57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="M59.8 53H27.5L13.75 76.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/><path d="M73.4 26.5l-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3L43.65 25 59.8 53h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/></svg>
+          Import from Google Drive
+        </button>
+      </div>
+      <div id="pipeline-status" style="font-size:11px;color:var(--text-muted);margin-top:8px;text-align:center;min-height:16px;"></div>
+      <div id="gdrive-status" style="font-size:11px;color:var(--text-muted);margin-top:4px;text-align:center;min-height:16px;"></div>
       <div id="gdrive-folder-wrap" style="display:none;margin-top:10px;">
         <div style="font-size:11px;color:var(--text-muted);text-align:center;">Fetching from <strong>WNDRR Stock Demand Planning App</strong>...</div>
       </div>
@@ -2046,7 +2053,9 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.22';
+const APP_VERSION='v2.2.23';
+const PIPELINE_BASE='http://170.64.229.248:3000';
+const PIPELINE_TOKEN='RsCdZC3-bkfKvEf2TKXI2bMRHDlECre3aWM9VuNDt60';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
@@ -6203,6 +6212,73 @@ const GDRIVE_CLIENT_ID='666471093703-8eeoqttlchs0of0nu8r12v7ga7e8pe0r.apps.googl
 const GDRIVE_SCOPE='https://www.googleapis.com/auth/drive.readonly';
 let gdriveToken=null;
 
+async function fetchFromPipeline(){
+  const btn=document.getElementById('pipeline-fetch-btn');
+  const status=document.getElementById('pipeline-status');
+  btn.disabled=true;
+  status.textContent='Fetching manifest…';
+  const headers={'Authorization':'Bearer '+PIPELINE_TOKEN};
+  try{
+    const manifestRes=await fetch(PIPELINE_BASE+'/api/reports/manifest',{headers});
+    if(manifestRes.status===401){status.innerHTML='<span style="color:var(--red);">⚠️ Auth failed (401).</span>';btn.disabled=false;return;}
+    const manifest=await manifestRes.json();
+    const reports=(manifest.reports||[]).filter(r=>r.exists);
+    if(!reports.length){status.innerHTML='<span style="color:var(--amber);">⚠️ No reports available yet (pipeline not run).</span>';btn.disabled=false;return;}
+
+    const loaderMap={
+      'shopify_inventory':'inv',
+      'shopify_sales':'sales',
+      'all-products-sizes-sold-out':'soldout',
+      'core-styles':'corestyles',
+      'current-bundle-styles':'bundlestyles',
+      'variants-zero-inventory-by-product':'variantssoldout',
+    };
+    let loaded=0,errors=[];
+    for(const report of reports){
+      const loader=loaderMap[report.reportKey];
+      if(!loader){continue;}
+      status.textContent=`Downloading ${report.label}…`;
+      const res=await fetch(PIPELINE_BASE+report.downloadUrl,{headers});
+      if(res.status===409){errors.push(report.label+' (not ready)');continue;}
+      if(res.status===404){errors.push(report.label+' (not found)');continue;}
+      if(!res.ok){errors.push(report.label+' (error '+res.status+')');continue;}
+      const text=await res.text();
+      const parsed=parseCSV(text);
+      if(loader==='inv'){
+        shopifyInvData=parsed;_cachedSalesMaps=null;_cachedAMData=null;
+        document.getElementById('shopify-card').classList.add('loaded');
+        document.getElementById('sf-inv-fname').textContent=report.filename;
+      }else if(loader==='sales'){
+        shopifySalesData=parsed;_cachedSalesMaps=null;
+        document.getElementById('sales-card').classList.add('loaded');
+        document.getElementById('sf-sales-fname').textContent=report.filename;
+      }else if(loader==='soldout'){
+        soldOutData=parsed;_cachedSoldOutData=null;
+        document.getElementById('soldout-card').classList.add('loaded');
+        document.getElementById('soldout-fname').textContent=report.filename;
+      }else if(loader==='variantssoldout'){
+        variantsSoldOutData=parsed;_cachedSoldOutData=null;
+        document.getElementById('variants-soldout-card')?.classList.add('loaded');
+      }else if(loader==='corestyles'){
+        coreStylesData=parsed;
+      }else if(loader==='bundlestyles'){
+        bundleStylesData=parsed;
+      }
+      loaded++;
+    }
+    checkReady();
+    const ts=new Date(manifest.generatedAt).toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'});
+    if(errors.length){
+      status.innerHTML=`<span style="color:var(--amber);">⚠️ Loaded ${loaded}/${reports.length} reports. Issues: ${errors.join(', ')}</span>`;
+    }else{
+      status.innerHTML=`<span style="color:var(--teal);">✓ ${loaded} reports loaded (pipeline run ${ts}). Click Analyse Stock →</span>`;
+    }
+  }catch(err){
+    status.innerHTML=`<span style="color:var(--red);">⚠️ Pipeline error: ${err.message}</span>`;
+  }
+  btn.disabled=false;
+}
+
 function gdriveImport(){
   const btn=document.getElementById('gdrive-btn');
   const status=document.getElementById('gdrive-status');
@@ -9065,6 +9141,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.23 — Add Fetch from Pipeline button: manifest-first API fetch for all 6 CSVs (inv, sales, soldout, core, bundle, variants)
 // v2.2.18 — Fix UNCATEGORISED: add amStyleCategoryMap fallback for Shopify products with blank Product type
 // v2.2.3 — Rewrite AM fetch: orders?account_number=1068 then order_items?order_id={id} per order; buildAMDataFromAPI now handles flat items with item-level date_due
 // v2.2.1 — Fix AM pagination to use last_id cursor; filter by account_number 1068 instead of customer_name
