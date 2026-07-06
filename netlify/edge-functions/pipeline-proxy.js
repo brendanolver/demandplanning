@@ -7,8 +7,10 @@ export default async (request) => {
   if (!path || !path.startsWith('/api/reports/')) {
     return new Response(JSON.stringify({ error: 'invalid path' }), { status: 400 });
   }
+  const refresh = url.searchParams.get('refresh');
+  const targetUrl = PIPELINE_BASE + path + (refresh ? `?refresh=${encodeURIComponent(refresh)}` : '');
   try {
-    const resp = await fetch(PIPELINE_BASE + path, {
+    const resp = await fetch(targetUrl, {
       headers: { Authorization: `Bearer ${PIPELINE_TOKEN}` },
     });
     return new Response(resp.body, {

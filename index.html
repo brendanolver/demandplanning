@@ -782,6 +782,10 @@ th{position:relative;}
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>
           Fetch from Pipeline
         </button>
+        <button class="gdrive-btn" id="pipeline-refresh-btn" onclick="refreshShopifyAndFetch()" style="background:var(--amber-light);border-color:var(--amber);color:var(--amber);" title="Regenerate shopify_inventory + shopify_sales from Shopify, then download">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          Refresh Shopify Data
+        </button>
         <button class="gdrive-btn" id="gdrive-btn" onclick="gdriveImport()">
           <svg viewBox="0 0 87.3 78" width="16" height="16"><path d="M6.6 66.85l3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="M43.65 25L29.9 1.2C28.55 2 27.4 3.1 26.6 4.5L1.2 49.5c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/><path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5H59.8l5.85 11.5z" fill="#ea4335"/><path d="M43.65 25L57.4 1.2C56.05.4 54.5 0 52.9 0H34.4c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="M59.8 53H27.5L13.75 76.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/><path d="M73.4 26.5l-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3L43.65 25 59.8 53h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/></svg>
           Import from Google Drive
@@ -2053,7 +2057,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.26';
+const APP_VERSION='v2.2.27';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -6277,6 +6281,55 @@ async function fetchFromPipeline(){
   btn.disabled=false;
 }
 
+async function refreshShopifyAndFetch(){
+  const refreshBtn=document.getElementById('pipeline-refresh-btn');
+  const fetchBtn=document.getElementById('pipeline-fetch-btn');
+  const status=document.getElementById('pipeline-status');
+  refreshBtn.disabled=true;fetchBtn.disabled=true;
+  status.innerHTML='<span style="color:var(--amber);">⏳ Rebuilding Shopify data (can take ~40s)…</span>';
+  try{
+    const manifestRes=await fetch(PIPELINE_PROXY+'?path='+encodeURIComponent('/api/reports/manifest')+'&refresh=shopify');
+    if(manifestRes.status===401){status.innerHTML='<span style="color:var(--red);">⚠️ Auth failed (401).</span>';refreshBtn.disabled=false;fetchBtn.disabled=false;return;}
+    if(manifestRes.status===409){status.innerHTML='<span style="color:var(--amber);">⚠️ Report not ready yet — try again shortly.</span>';refreshBtn.disabled=false;fetchBtn.disabled=false;return;}
+    if(manifestRes.status===404){status.innerHTML='<span style="color:var(--red);">⚠️ Invalid report key (404).</span>';refreshBtn.disabled=false;fetchBtn.disabled=false;return;}
+    if(!manifestRes.ok){status.innerHTML=`<span style="color:var(--red);">⚠️ Refresh failed (${manifestRes.status}).</span>`;refreshBtn.disabled=false;fetchBtn.disabled=false;return;}
+    const manifest=await manifestRes.json();
+    const reports=(manifest.reports||[]).filter(r=>r.exists&&(r.reportKey==='shopify_inventory'||r.reportKey==='shopify_sales'));
+    if(!reports.length){status.innerHTML='<span style="color:var(--amber);">⚠️ Shopify reports not available after refresh.</span>';refreshBtn.disabled=false;fetchBtn.disabled=false;return;}
+
+    let loaded=0,errors=[];
+    for(const report of reports){
+      status.textContent=`Downloading ${report.label}…`;
+      const res=await fetch(PIPELINE_PROXY+'?path='+encodeURIComponent(report.downloadUrl));
+      if(res.status===401){errors.push(report.label+' (auth failed)');continue;}
+      if(res.status===409){errors.push(report.label+' (not ready)');continue;}
+      if(res.status===404){errors.push(report.label+' (not found)');continue;}
+      if(!res.ok){errors.push(report.label+' (error '+res.status+')');continue;}
+      const parsed=parseCSV(await res.text());
+      if(report.reportKey==='shopify_inventory'){
+        shopifyInvData=parsed;_cachedSalesMaps=null;_cachedAMData=null;
+        document.getElementById('shopify-card').classList.add('loaded');
+        document.getElementById('sf-inv-fname').textContent=report.filename;
+      }else if(report.reportKey==='shopify_sales'){
+        shopifySalesData=parsed;_cachedSalesMaps=null;
+        document.getElementById('sales-card').classList.add('loaded');
+        document.getElementById('sf-sales-fname').textContent=report.filename;
+      }
+      loaded++;
+    }
+    checkReady();
+    const ts=new Date(manifest.generatedAt).toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'});
+    if(errors.length){
+      status.innerHTML=`<span style="color:var(--amber);">⚠️ Rebuilt but loaded ${loaded}/${reports.length}. Issues: ${errors.join(', ')}</span>`;
+    }else{
+      status.innerHTML=`<span style="color:var(--teal);">✓ Shopify data rebuilt & loaded (${ts}). Click Analyse Stock →</span>`;
+    }
+  }catch(err){
+    status.innerHTML=`<span style="color:var(--red);">⚠️ Pipeline error: ${err.message}</span>`;
+  }
+  refreshBtn.disabled=false;fetchBtn.disabled=false;
+}
+
 function gdriveImport(){
   const btn=document.getElementById('gdrive-btn');
   const status=document.getElementById('gdrive-status');
@@ -9203,6 +9256,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.27 — Add "Refresh Shopify Data" button: calls manifest?refresh=shopify to regenerate inventory+sales from Shopify, then re-downloads both
 // v2.2.26 — Switch pipeline proxy from Netlify Function (6MB response cap, caused 502 on 12MB sales CSV) to Netlify Edge Function (streams, no size cap)
 // v2.2.25 — Route Pipeline API calls through a Netlify function proxy to fix mixed-content block (HTTPS app → HTTP pipeline endpoint)
 // v2.2.24 — Auto-sync on login now tries the Report Pipeline API first (manifest + CSV fetch), falls back to Google Drive OAuth if pipeline unavailable
