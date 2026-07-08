@@ -2057,7 +2057,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.29';
+const APP_VERSION='v2.2.30';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -7640,24 +7640,30 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const compareAt=plEntry?plEntry.compareAt:(pm.compareAt||pm.price||0);
     const isCore=(vendor||'').toUpperCase()==='CORE'||coreSet.has((productName+' - '+colour).toUpperCase());
 
-    // Delivery month: SKU decode is authoritative; Better Reports as fallback; CORE always shows CORE; AM as last resort
+    // Delivery month: AM style code is authoritative when AM has an open order for this
+    // product — AM is corrected/updated ahead of Shopify (products sometimes sync to
+    // Shopify with a stale/mis-keyed SKU just before they land). Shopify SKU decode and
+    // Better Reports are fallbacks for products with no live AM order data.
     let deliveryMonth='';
     if(isCore){
       deliveryMonth='CORE';
     } else {
-      // SKU decode first — most reliable
-      const skuDecoded=decodeSkuDelivery(sku);
-      if(skuDecoded){
-        deliveryMonth=skuDecoded;
-      } else if(plEntry&&plEntry.deliveryMonth){
-        // Fall back to Better Reports only if SKU can't be decoded
-        deliveryMonth=plEntry.deliveryMonth;
+      const amEntry=amVariantMap[productName+'||'+colour+'||'+size]||
+                    amVariantMap[productName+'||'+colour+'||OS']||
+                    amProductMap[productName+'||'+colour];
+      const amDecoded=amEntry?.style?decodeSkuDelivery(amEntry.style):'';
+      if(amDecoded){
+        deliveryMonth=amDecoded;
+      } else if(amEntry?.monthDue){
+        deliveryMonth=amEntry.monthDue;
       } else {
-        // Last resort: use AM Month Due if available
-        const amEntry=amVariantMap[productName+'||'+colour+'||'+size]||
-                      amVariantMap[productName+'||'+colour+'||OS']||
-                      amProductMap[productName+'||'+colour];
-        if(amEntry?.monthDue) deliveryMonth=amEntry.monthDue;
+        // No AM order data — fall back to Shopify SKU decode, then Better Reports
+        const skuDecoded=decodeSkuDelivery(sku);
+        if(skuDecoded){
+          deliveryMonth=skuDecoded;
+        } else if(plEntry&&plEntry.deliveryMonth){
+          deliveryMonth=plEntry.deliveryMonth;
+        }
       }
     }
     deliveryMonth=normaliseDeliveryMonth(deliveryMonth);
@@ -9288,6 +9294,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.30 — Delivery Month now prefers AM's style-code decode over the Shopify SKU when AM has an open order for a product — AM is corrected/updated ahead of Shopify, so a mis-keyed or stale Shopify SKU no longer overrides it. Shopify SKU decode and Better Reports remain fallbacks when there's no live AM order.
 // v2.2.29 — Fix "Today"/"Yesterday" going stale/zero: soldToday, KPI "Today's Margin", and getSoldInPeriod's rolling windows now anchor on Australia/Melbourne business date (via Intl.DateTimeFormat) instead of the viewing device's local clock/timezone, which could compute a different calendar day than the CSV's "Day" column
 // v2.2.28 — Fix refresh timeout: edge function's ~40s exec cap can't wait out the ~40s rebuild job, so it now fires the refresh in the background (waitUntil) and the client polls the plain manifest until modifiedTime advances
 // v2.2.27 — Add "Refresh Shopify Data" button: calls manifest?refresh=shopify to regenerate inventory+sales from Shopify, then re-downloads both
