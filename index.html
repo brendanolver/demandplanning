@@ -2057,7 +2057,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.28';
+const APP_VERSION='v2.2.29';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -3271,6 +3271,20 @@ function parseDueGlobal(d){
   const p=d.split('/');if(p.length<3)return'';
   const m=parseInt(p[0])-1;const y=p[2].length===2?'20'+p[2]:p[2];
   return MN[m]?y+' - '+MN[m]:'';
+}
+// "Today"/"Yesterday" must be anchored to the business timezone (Melbourne), not the
+// viewing device's local clock — a browser in a different/lagging timezone otherwise
+// computes a different calendar day than the one used for the "Day" column in the CSV,
+// making today's sales look like they landed on the wrong day (or not at all).
+const BUSINESS_TZ='Australia/Melbourne';
+function businessDateStr(date){
+  return new Intl.DateTimeFormat('en-CA',{timeZone:BUSINESS_TZ,year:'numeric',month:'2-digit',day:'2-digit'}).format(date);
+}
+function getBusinessToday(){return businessDateStr(new Date());}
+function getBusinessYesterday(){
+  const[y,m,d]=getBusinessToday().split('-').map(Number);
+  const dt=new Date(Date.UTC(y,m-1,d-1));
+  return`${dt.getUTCFullYear()}-${String(dt.getUTCMonth()+1).padStart(2,'0')}-${String(dt.getUTCDate()).padStart(2,'0')}`;
 }
 // Build style_number → {cat, pk} map for planning ON ORDER bucketing
 // Derive AM style_number by stripping the size suffix from the Shopify SKU (e.g. W26HA001BLKXS - XS = W26HA001BLK)
@@ -7170,18 +7184,18 @@ function buildSalesMaps(){
 }
 
 function getSoldInPeriod(salesBySkuDay, sku, days){
-  // Sum qty sold in last N days from today inclusive (local date)
-  const now=new Date();
+  // Sum qty sold in last N days from today inclusive (business-timezone date, not device-local)
   let cutoffLocal, todayLocal;
   if(customDateFrom&&customDateTo){
     // Custom date range mode
     cutoffLocal=customDateFrom;
     todayLocal=customDateTo;
   } else {
-    todayLocal=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+    todayLocal=getBusinessToday();
     // cutoff = today - (days-1) so range is exactly N days including today
-    const cutoffDate=new Date(now.getFullYear(),now.getMonth(),now.getDate()-(days-1));
-    cutoffLocal=`${cutoffDate.getFullYear()}-${String(cutoffDate.getMonth()+1).padStart(2,'0')}-${String(cutoffDate.getDate()).padStart(2,'0')}`;
+    const[y,m,d]=todayLocal.split('-').map(Number);
+    const cutoffDate=new Date(Date.UTC(y,m-1,d-(days-1)));
+    cutoffLocal=`${cutoffDate.getUTCFullYear()}-${String(cutoffDate.getUTCMonth()+1).padStart(2,'0')}-${String(cutoffDate.getUTCDate()).padStart(2,'0')}`;
   }
   const dayData=salesBySkuDay[sku]||{};
   let qty=0, cogs=0;
@@ -7660,17 +7674,10 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const s90=getSoldInPeriod(salesBySkuDay,sku,90);
     const s365=getSoldInPeriod(salesBySkuDay,sku,365);
 
-    // Sold today and yesterday — use local date (Melbourne AEDT/AEST)
+    // Sold today and yesterday — anchored to the business timezone, not the viewing device's clock
     const nowLocal=new Date();
-    const localDateStr=d=>{ 
-      const y=d.getFullYear();
-      const m=String(d.getMonth()+1).padStart(2,'0');
-      const day=String(d.getDate()).padStart(2,'0');
-      return`${y}-${m}-${day}`;
-    };
-    const todayStr=localDateStr(nowLocal);
-    const yesterdayDate=new Date(nowLocal);yesterdayDate.setDate(yesterdayDate.getDate()-1);
-    const yesterdayStr=localDateStr(yesterdayDate);
+    const todayStr=getBusinessToday();
+    const yesterdayStr=getBusinessYesterday();
     const soldToday=(salesBySkuDay[sku]||{})[todayStr]?.qty||0;
     const soldYesterday=(salesBySkuDay[sku]||{})[yesterdayStr]?.qty||0;
 
@@ -8132,8 +8139,7 @@ function renderKPIs(){
 
   // Today's Margin — uses actual COGS from _salesBySkuDay (same source as Shopify)
   let todayRevTotal=0,todayCostTotal=0;
-  const _now=new Date();
-  const _todayStr=`${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}`;
+  const _todayStr=getBusinessToday();
   for(const r of rows){
     if(r.amOnly)continue;
     const dayEntry=(window._salesBySkuDay?.[r.sku]||{})[_todayStr]||null;
@@ -8154,12 +8160,12 @@ function renderKPIs(){
     {name:'SOH',val:totalSoh.toLocaleString(),sub:'Units on hand',ico:'📦',bg:'#e6f7f7',ic:'var(--teal)',click:null},
     {name:`Units Sold (${selectedPeriod}d)`,val:totalSold.toLocaleString(),sub:`Last ${selectedPeriod} days`,ico:'🛍️',bg:'#dcfce7',ic:'var(--green)',click:null},
     {name:'On Order',val:onOrder.toLocaleString(),sub:'Total units on order',ico:'🚚',bg:'#f3e8ff',ic:'#7c3aed',click:null},
-    {name:"Today's Margin",val:`<span style="color:${todayMarginColor}">${todayMarginFmt}</span>`,sub:'Revenue-weighted GP% today',ico:'💰',bg:'#dcfce7',ic:'var(--green)',click:null},
+    {name:"Today's Margin",val:`<span style="color:${todayMarginColor}">${todayMarginFmt}</span>`,sub:'Revenue-weighted GP% today',ico:'💰',bg:'#dcfce7',ic:'var(--green)',click:null,title:`Business date used for "Today": ${_todayStr}`},
     {name:'Re-Order',val:reorder.toLocaleString(),sub:'≤14 weeks cover',ico:'⚠️',bg:'#fef9c3',ic:'#854d0e',click:"kpiDrillDown('reorder')"},
     {name:'Reduce',val:reduce.toLocaleString(),sub:'26w+ cover, no order',ico:'🏷️',bg:'#fee2e2',ic:'var(--red)',click:"kpiDrillDown('reduce')"},
   ];
   document.getElementById('kpi-row').innerHTML=kpis.map(k=>`
-    <div class="kpi-card${k.click?` kpi-clickable`:''}" ${k.click?`onclick="${k.click}" title="Click to view products"`:''} style="${k.click?'cursor:pointer;':''}" >
+    <div class="kpi-card${k.click?` kpi-clickable`:''}" ${k.click?`onclick="${k.click}" title="Click to view products"`:k.title?`title="${k.title}"`:''} style="${k.click?'cursor:pointer;':''}" >
       <div class="kpi-top">
         <div class="kpi-name">${k.name}${k.click?` <span style="font-size:10px;color:var(--text-muted);font-weight:400;">↗</span>`:''}</div>
         <div class="kpi-ico" style="background:${k.bg};color:${k.ic}">${k.ico}</div>
@@ -9282,6 +9288,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.29 — Fix "Today"/"Yesterday" going stale/zero: soldToday, KPI "Today's Margin", and getSoldInPeriod's rolling windows now anchor on Australia/Melbourne business date (via Intl.DateTimeFormat) instead of the viewing device's local clock/timezone, which could compute a different calendar day than the CSV's "Day" column
 // v2.2.28 — Fix refresh timeout: edge function's ~40s exec cap can't wait out the ~40s rebuild job, so it now fires the refresh in the background (waitUntil) and the client polls the plain manifest until modifiedTime advances
 // v2.2.27 — Add "Refresh Shopify Data" button: calls manifest?refresh=shopify to regenerate inventory+sales from Shopify, then re-downloads both
 // v2.2.26 — Switch pipeline proxy from Netlify Function (6MB response cap, caused 502 on 12MB sales CSV) to Netlify Edge Function (streams, no size cap)
