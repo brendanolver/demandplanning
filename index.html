@@ -1692,6 +1692,20 @@ th{position:relative;}
             <button class="period-btn" data-sw-days="90" onclick="setSwPeriod(90)">90d</button>
             <button class="period-btn" data-sw-days="365" onclick="setSwPeriod(365)">365d</button>
           </div>
+          <div class="ms-wrap" id="ms-sw-daterange" style="position:relative;">
+            <button class="ms-btn" id="sw-daterange-btn" onclick="toggleDropdown('ms-sw-daterange')" style="min-width:auto;padding:4px 10px;gap:4px;font-size:12px;">📅 Custom<span class="ms-arrow">▾</span></button>
+            <div class="ms-dropdown" id="ms-sw-daterange-dropdown" style="min-width:240px;padding:12px;">
+              <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Custom date range</div>
+              <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px;">From</label>
+              <input type="date" id="sw-date-from" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;margin-bottom:8px;outline:none;" onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
+              <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px;">To</label>
+              <input type="date" id="sw-date-to" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;margin-bottom:10px;outline:none;" onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
+              <div style="display:flex;gap:6px;">
+                <button onclick="applySwCustomDateRange()" style="flex:1;background:var(--teal);color:white;border:none;padding:7px;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">Apply</button>
+                <button onclick="clearSwCustomDateRange()" style="flex:1;background:var(--surface);color:var(--text-secondary);border:1px solid var(--border);padding:7px;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;">Clear</button>
+              </div>
+            </div>
+          </div>
         </div>
         <!-- Size workings table -->
         <div id="sw-body">
@@ -1762,6 +1776,20 @@ th{position:relative;}
               <button class="period-btn" data-swc-days="60" onclick="setSwcPeriod(60)">60d</button>
               <button class="period-btn" data-swc-days="90" onclick="setSwcPeriod(90)">90d</button>
               <button class="period-btn" data-swc-days="365" onclick="setSwcPeriod(365)">365d</button>
+            </div>
+            <div class="ms-wrap" id="ms-swc-daterange" style="position:relative;">
+              <button class="ms-btn" id="swc-daterange-btn" onclick="toggleDropdown('ms-swc-daterange')" style="min-width:auto;padding:4px 10px;gap:4px;font-size:12px;">📅 Custom<span class="ms-arrow">▾</span></button>
+              <div class="ms-dropdown" id="ms-swc-daterange-dropdown" style="min-width:240px;padding:12px;">
+                <div style="font-size:11px;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Custom date range</div>
+                <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px;">From</label>
+                <input type="date" id="swc-date-from" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;margin-bottom:8px;outline:none;" onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
+                <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px;">To</label>
+                <input type="date" id="swc-date-to" style="width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;margin-bottom:10px;outline:none;" onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
+                <div style="display:flex;gap:6px;">
+                  <button onclick="applySwcCustomDateRange()" style="flex:1;background:var(--teal);color:white;border:none;padding:7px;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;">Apply</button>
+                  <button onclick="clearSwcCustomDateRange()" style="flex:1;background:var(--surface);color:var(--text-secondary);border:1px solid var(--border);padding:7px;border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;">Clear</button>
+                </div>
+              </div>
             </div>
           </div>
           <div id="swc-body">
@@ -2057,7 +2085,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.33';
+const APP_VERSION='v2.2.34';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -3643,7 +3671,7 @@ function _doAMExport(productList,customerPO,dateDue){
     if(manualTotal>0){
       sizeQtys=manualVals;
     } else if(roQty>0){
-      const soldBySize=variants.map(r=>r['sold'+(swPeriod===7?'7':swPeriod===14?'14':swPeriod===30?'30':swPeriod===60?'60':swPeriod===90?'90':'365')]||0);
+      const soldBySize=variants.map(r=>(window._swDateFrom&&window._swDateTo)?sumSalesForSkuRange(r.sku,window._swDateFrom,window._swDateTo):(r['sold'+(swPeriod===7?'7':swPeriod===14?'14':swPeriod===30?'30':swPeriod===60?'60':swPeriod===90?'90':'365')]||0));
       const soldTotal=soldBySize.reduce((s,v)=>s+v,0);
       const soldPct=soldBySize.map(v=>soldTotal>0?v/soldTotal:1/variants.length);
       const exact=soldPct.map(p=>p*roQty);const floored=exact.map(v=>Math.floor(v));
@@ -4263,7 +4291,9 @@ function setSwTab(tab){
 
 function setSwcPeriod(days){
   swcPeriod=days;
+  window._swcDateFrom=null;window._swcDateTo=null;
   document.querySelectorAll('[data-swc-days]').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.swcDays)===days));
+  const btn=document.getElementById('swc-daterange-btn');if(btn)btn.classList.remove('filtered');
   renderSwCategory();
 }
 
@@ -4408,7 +4438,7 @@ function renderSwCategory(){
     const sz=(r.size||'OS').toUpperCase().trim();
     if(!catData[groupKey])catData[groupKey]={};
     if(!catData[groupKey][sz])catData[groupKey][sz]={sold:0,soh:0,products:new Set()};
-    const soldVal=r[soldKey]||0;
+    const soldVal=(window._swcDateFrom&&window._swcDateTo)?sumSalesForSkuRange(r.sku,window._swcDateFrom,window._swcDateTo):(r[soldKey]||0);
     catData[groupKey][sz].sold+=soldVal;
     catData[groupKey][sz].soh+=r.stock||0;
     catData[groupKey][sz].products.add(r.productName+' - '+r.colour);
@@ -4563,9 +4593,64 @@ function renderSwCategory(){
 
 function setSwPeriod(days){
   swPeriod=days;
+  window._swDateFrom=null;window._swDateTo=null;
   document.querySelectorAll('[data-sw-days]').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.swDays)===days));
+  const btn=document.getElementById('sw-daterange-btn');if(btn)btn.classList.remove('filtered');
   if(window._roToSwProducts?.length) renderRoSizeWorkings();
   else renderSizeWorkings();
+}
+
+// Sum units sold for a SKU between two ISO dates (inclusive) from the daily sales map
+function sumSalesForSkuRange(sku,from,to){
+  const dayData=(window._salesBySkuDay||{})[sku]||{};
+  let t=0;
+  for(const[day,d] of Object.entries(dayData)){if(day>=from&&day<=to)t+=d.qty||0;}
+  return Math.round(t);
+}
+
+function applySwCustomDateRange(){
+  const from=document.getElementById('sw-date-from')?.value;
+  const to=document.getElementById('sw-date-to')?.value;
+  if(!from||!to){alert('Please select both dates.');return;}
+  if(from>to){alert('Start date must be before end date.');return;}
+  swPeriod=Math.round((new Date(to)-new Date(from))/(1000*60*60*24))+1;
+  window._swDateFrom=from;window._swDateTo=to;
+  document.querySelectorAll('[data-sw-days]').forEach(b=>b.classList.remove('active'));
+  const btn=document.getElementById('sw-daterange-btn');if(btn)btn.classList.add('filtered');
+  document.querySelectorAll('.ms-wrap.open').forEach(w=>w.classList.remove('open'));
+  if(window._roToSwProducts?.length) renderRoSizeWorkings();
+  else renderSizeWorkings();
+}
+
+function clearSwCustomDateRange(){
+  window._swDateFrom=null;window._swDateTo=null;
+  const f=document.getElementById('sw-date-from');const t=document.getElementById('sw-date-to');
+  if(f)f.value='';if(t)t.value='';
+  const btn=document.getElementById('sw-daterange-btn');if(btn)btn.classList.remove('filtered');
+  document.querySelectorAll('.ms-wrap.open').forEach(w=>w.classList.remove('open'));
+  setSwPeriod(7);
+}
+
+function applySwcCustomDateRange(){
+  const from=document.getElementById('swc-date-from')?.value;
+  const to=document.getElementById('swc-date-to')?.value;
+  if(!from||!to){alert('Please select both dates.');return;}
+  if(from>to){alert('Start date must be before end date.');return;}
+  swcPeriod=Math.round((new Date(to)-new Date(from))/(1000*60*60*24))+1;
+  window._swcDateFrom=from;window._swcDateTo=to;
+  document.querySelectorAll('[data-swc-days]').forEach(b=>b.classList.remove('active'));
+  const btn=document.getElementById('swc-daterange-btn');if(btn)btn.classList.add('filtered');
+  document.querySelectorAll('.ms-wrap.open').forEach(w=>w.classList.remove('open'));
+  renderSwCategory();
+}
+
+function clearSwcCustomDateRange(){
+  window._swcDateFrom=null;window._swcDateTo=null;
+  const f=document.getElementById('swc-date-from');const t=document.getElementById('swc-date-to');
+  if(f)f.value='';if(t)t.value='';
+  const btn=document.getElementById('swc-daterange-btn');if(btn)btn.classList.remove('filtered');
+  document.querySelectorAll('.ms-wrap.open').forEach(w=>w.classList.remove('open'));
+  setSwcPeriod(7);
 }
 
 function swSearch(){
@@ -4737,6 +4822,7 @@ function renderSizeWorkings(){
 
     const sizes=sorted.map(r=>r.size);
     const soldBySize=sorted.map(r=>{
+      if(window._swDateFrom&&window._swDateTo)return sumSalesForSkuRange(r.sku,window._swDateFrom,window._swDateTo);
       if(swPeriod===7)return r.sold7||0;
       if(swPeriod===14)return r.sold14||0;
       if(swPeriod===30)return r.sold30||0;
@@ -5537,7 +5623,7 @@ function renderRoSizeWorkings(){
       return a.size.localeCompare(b.size);
     });
     const sizes=sorted.map(r=>r.size);
-    const soldBySize=sorted.map(r=>r[swPeriod===7?'sold7':swPeriod===14?'sold14':swPeriod===30?'sold30':swPeriod===60?'sold60':swPeriod===90?'sold90':'sold365']||0);
+    const soldBySize=sorted.map(r=>(window._swDateFrom&&window._swDateTo)?sumSalesForSkuRange(r.sku,window._swDateFrom,window._swDateTo):(r[swPeriod===7?'sold7':swPeriod===14?'sold14':swPeriod===30?'sold30':swPeriod===60?'sold60':swPeriod===90?'sold90':'sold365']||0));
     const soldTotal=soldBySize.reduce((s,v)=>s+v,0);
     const soldPct=soldBySize.map(v=>soldTotal>0?v/soldTotal:0);
     const soh=sorted.map(r=>r.stock||0);
@@ -5667,6 +5753,7 @@ function roToggleViewSelected(){
 
 function setRoPeriod(days){
   roPeriod=days;
+  window._roDateFrom=null;window._roDateTo=null;
   document.querySelectorAll('[data-ro-days]').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.roDays)===days));
   const btn=document.getElementById('ro-daterange-btn');if(btn)btn.classList.remove('filtered');
   renderReorders();
@@ -5698,6 +5785,7 @@ function clearRoCustomDateRange(){
 
 function setMdPeriod(days){
   mdPeriod=days;
+  window._mdDateFrom=null;window._mdDateTo=null;
   document.querySelectorAll('[data-md-days]').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.mdDays)===days));
   const btn=document.getElementById('md-daterange-btn');if(btn)btn.classList.remove('filtered');
   renderMarkdowns();
@@ -9367,6 +9455,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.34 — Size Workings (Category & Product tabs): add custom date range picker matching Re-Orders/Markdowns; sold-by-size + AM export distribution honour the range. Fix: Re-Orders/Markdowns preset period buttons now clear a previously applied custom range (was silently still using custom dates)
 // v2.2.33 — Launch Date now shows for ALL products (on-order gate removed): full AM catalogue mid_code sync in background (~39 pages, cursor pagination[last_id]), cached in localStorage 6h; rows match via SKU-derived style code
 // v2.2.32 — Dashboard Product & Variant views: add Launch Date column after Month Del, sourced from AM product mid_code (fetched in existing per-style products call); only shown when the product has on-order qty > 0; included in CSV export
 // v2.2.31 — Sales Cadence Product view: add sortable Disc% column next to Status (red when discounted, — when not)
