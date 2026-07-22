@@ -2057,7 +2057,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.31';
+const APP_VERSION='v2.2.32';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -7367,7 +7367,8 @@ async function fetchAMOrdersFromAPI(){
     // Fetch AM product categories for all unique style_numbers (for pre-release items not yet in Shopify)
     const uniqueStyles=[...new Set(allItems.map(i=>(i.style_number||'').trim()).filter(Boolean))];
     window.amStyleCategoryMap=window.amStyleCategoryMap||{};
-    const uncached=uniqueStyles.filter(s=>!window.amStyleCategoryMap[s]);
+    window.amStyleMidMap=window.amStyleMidMap||{};
+    const uncached=uniqueStyles.filter(s=>!window.amStyleCategoryMap[s]||window.amStyleMidMap[s]===undefined);
     if(uncached.length){
       const CHUNK=10;
       for(let i=0;i<uncached.length;i+=CHUNK){
@@ -7384,6 +7385,9 @@ async function fetchAMOrdersFromAPI(){
                 rrp:parseFloat(p.retail_price||0)||0,
                 cost:parseFloat(p.cost_landed||p.cost||0)||0
               };
+              // mid_code repurposed as Launch Date — '0' treated as empty
+              const _mid=(p.mid_code||'').trim();
+              window.amStyleMidMap[style]=(_mid&&_mid!=='0')?_mid:'';
             }
           }catch(e){}
         }));
@@ -7760,6 +7764,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const pKey=productName+'||'+colour;
     const variantEntry=amVariantMap[vKey]||amVariantMap[vKeyOS];
     const productEntry=amProductMap[pKey];
+    const launchDate=(window.amStyleMidMap||{})[variantEntry?.style||productEntry?.style||'']||'';
     const onOrder=variantEntry?variantEntry.qtyOpen:0;
     const monthDue=variantEntry?variantEntry.monthDue:productEntry?productEntry.monthDue:'';
     const productOnOrder=productEntry?productEntry.qtyOpen:0;
@@ -7843,7 +7848,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
       sold,sellThru7:sellThru,
       days:recalcDays===null?9999:recalcDays,
       daysDisplay:recalcWeeks===null?'—':recalcWeeks===0?'0':recalcWeeks,
-      onOrder,productOnOrder,monthDue,flag,amOnly:false,
+      onOrder,productOnOrder,monthDue,launchDate,flag,amOnly:false,
       suggestedOrder:finalSuggestedOrder,
       soldOutSizes:soMap[productName+'||'+colour]||null,
       deliveryMonth,sohValue,sellValue
@@ -7889,6 +7894,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
               days:9999,daysDisplay:'—',
               onOrder:se.qtyOpen,productOnOrder:totalOnOrder,
               monthDue:se.monthDue,deliveryMonth:se.deliveryMonth,
+              launchDate:(window.amStyleMidMap||{})[amStyle]||'',
               suggestedOrder:0,
               flag:'on-order',amOnly:true,sohValue:null,sellValue:null,soldOutSizes:null
             });
@@ -7904,6 +7910,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
             days:9999,daysDisplay:'—',
             onOrder:null,productOnOrder:totalOnOrder,
             monthDue,deliveryMonth:amDeliveryMonth,
+            launchDate:(window.amStyleMidMap||{})[amStyle]||'',
             suggestedOrder:0,
             flag:'on-order',amOnly:true,sohValue:null,sellValue:null,soldOutSizes:null
           });
@@ -8456,6 +8463,7 @@ function toProduct(vr){
       if(r.margin!=null&&r.price>0){const _ex=r.price/1.1;const _u=r.sold>0?r.sold:r.stock>0?r.stock:1;p.marginRevSum+=_ex*_u;p.marginCostSum+=_ex*(1-r.margin/100)*_u;}
       if(r.size&&r.size!=='—')p.sizes.push(r.size);
       if(!r.amOnly)p.amOnly=false;
+      if(!p.launchDate&&r.launchDate)p.launchDate=r.launchDate;
       const sk=monthDueSortKey(r.monthDue);
       if(r.monthDue&&sk<p.earliestKey){p.earliestKey=sk;p.earliestDue=r.monthDue;}
     }
@@ -8817,7 +8825,7 @@ function renderTable(){
   ];
   const prodHeaders=[
     {k:'productName',l:'Product'},{k:'category',l:'Category'},{k:'discountPct',l:'Disc%'},{k:'vendor',l:'Status'},
-    {k:'deliveryMonth',l:'Month Del'},
+    {k:'deliveryMonth',l:'Month Del'},{k:'launchDate',l:'Launch Date'},
     {k:'sellThru7',l:stLabel},{k:'margin',l:'Margin%'},{k:'stock',l:'SOH'},{k:'sohValue',l:'SOH Value (ex)'},{k:'sellValue',l:'Sell Value (inc)'},
     {k:'soldToday',l:'Today'},{k:'soldYesterday',l:'Yest'},
     {k:'sold',l:soldLabel},
@@ -8829,7 +8837,7 @@ function renderTable(){
   const varHeaders=[
     {k:'productName',l:'Product'},{k:'size',l:'Size'},{k:'sku',l:'SKU'},
     {k:'category',l:'Category'},{k:'discountPct',l:'Disc%'},{k:'vendor',l:'Status'},
-    {k:'deliveryMonth',l:'Month Del'},
+    {k:'deliveryMonth',l:'Month Del'},{k:'launchDate',l:'Launch Date'},
     {k:'sellThru7',l:stLabel},{k:'margin',l:'Margin%'},{k:'stock',l:'SOH'},{k:'soldToday',l:'Today'},{k:'soldYesterday',l:'Yest'},{k:'sold',l:soldLabel},
     {k:'onOrder',l:'On Order'},{k:'monthDue',l:'Month Due'},
     {k:'price',l:'Price'},{k:'compareAt',l:'RRP'},
@@ -8966,6 +8974,11 @@ function renderRow(row,headers){
       if(!val)return`<td class="cell-muted">—</td>`;
       if(val==='CORE')return`<td><span style="font-size:11px;font-weight:600;color:var(--blue);">CORE</span></td>`;
       return`<td><span style="font-size:12px;font-weight:500;color:var(--text-secondary);">${val}</span></td>`;
+    }
+    if(h.k==='launchDate'){
+      const _oo=(row.onOrder||0)+(row.productOnOrder||0);
+      if(_oo<=0||!val)return`<td class="cell-muted">—</td>`;
+      return`<td><span style="font-size:12px;font-weight:500;color:var(--text-secondary);white-space:nowrap;">${val}</span></td>`;
     }
     if(h.k==='soldOutSizes'){
       if(!val||val===0)return`<td class="cell-muted">—</td>`;
@@ -9267,8 +9280,8 @@ function exportCSV(){
   const h=currentView==='category'
     ?['Category','Products',stLabel,'Margin%','SOH','SOH Value (ex)','Sell Value (inc)',`Sales Value (inc) (${selectedPeriod}d)`,'Today','Yest',soldLabel,'On Order','Month Due','Weeks Cover','Stock Status']
     :currentView==='product'
-    ?['SKU','Product','Category','Status','Month Del',stLabel,'Margin%','SOH','SOH Value (ex)','Sell Value (inc)','Today','Yest',soldLabel,'On Order','Month Due','Sizes Sold Out','Price','RRP','Disc%','Weeks Cover','Tier','Stock Status']
-    :['Product','Size','SKU','Category','Status','Month Del',stLabel,'Margin%','SOH',soldLabel,'On Order','Month Due','Price','RRP','Disc%','Weeks Cover','Tier','Stock Status'];
+    ?['SKU','Product','Category','Status','Month Del','Launch Date',stLabel,'Margin%','SOH','SOH Value (ex)','Sell Value (inc)','Today','Yest',soldLabel,'On Order','Month Due','Sizes Sold Out','Price','RRP','Disc%','Weeks Cover','Tier','Stock Status']
+    :['Product','Size','SKU','Category','Status','Month Del','Launch Date',stLabel,'Margin%','SOH',soldLabel,'On Order','Month Due','Price','RRP','Disc%','Weeks Cover','Tier','Stock Status'];
   const lines=[h.join(',')];
   for(const r of rows){
     let v;
@@ -9281,12 +9294,13 @@ function exportCSV(){
     const sellVal=r.sellValue?Math.round(r.sellValue):'';
     const tierInfo=getTierForProduct(r.productName,r.colour);
     const tierLabel=tierInfo?getPerfLabel(tierInfo.tier):'—';
+    const launchVal=onOrderVal>0?(r.launchDate||''):'';
     if(currentView==='category')
       v=[r.category,r.products,st7,r.margin!=null?r.margin.toFixed(1):'',r.stock,sohVal,sellVal,r.salesValue?Math.round(r.salesValue):'',r.soldToday||'',r.soldYesterday||'',r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.daysDisplay,SL[r.flag]||r.flag];
     else if(currentView==='product')
-      v=[_styleCode(r.sku),r.productName+(r.colour?' - '+r.colour:''),r.category,r.vendor,r.deliveryMonth||'',st7,mg,r.stock,sohVal,sellVal,r.soldToday||'',r.soldYesterday||'',r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.soldOutSizes||'',r.price??'',r.compareAt??'',disc,r.daysDisplay,tierLabel,SL[r.flag]||r.flag];
+      v=[_styleCode(r.sku),r.productName+(r.colour?' - '+r.colour:''),r.category,r.vendor,r.deliveryMonth||'',launchVal,st7,mg,r.stock,sohVal,sellVal,r.soldToday||'',r.soldYesterday||'',r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.soldOutSizes||'',r.price??'',r.compareAt??'',disc,r.daysDisplay,tierLabel,SL[r.flag]||r.flag];
     else
-      v=[r.productName+(r.colour?' - '+r.colour:''),r.size,r.sku,r.category,r.vendor,r.deliveryMonth||'',st7,mg,r.stock,r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.price??'',r.compareAt??'',disc,r.daysDisplay,tierLabel,SL[r.flag]||r.flag];
+      v=[r.productName+(r.colour?' - '+r.colour:''),r.size,r.sku,r.category,r.vendor,r.deliveryMonth||'',launchVal,st7,mg,r.stock,r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.price??'',r.compareAt??'',disc,r.daysDisplay,tierLabel,SL[r.flag]||r.flag];
     lines.push(v.map(x=>`"${x??''}"`).join(','));
   }
   const a=document.createElement('a');
@@ -9300,6 +9314,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.32 — Dashboard Product & Variant views: add Launch Date column after Month Del, sourced from AM product mid_code (fetched in existing per-style products call); only shown when the product has on-order qty > 0; included in CSV export
 // v2.2.31 — Sales Cadence Product view: add sortable Disc% column next to Status (red when discounted, — when not)
 // v2.2.30 — Delivery Month now prefers AM's style-code decode over the Shopify SKU when AM has an open order for a product — AM is corrected/updated ahead of Shopify, so a mis-keyed or stale Shopify SKU no longer overrides it. Shopify SKU decode and Better Reports remain fallbacks when there's no live AM order.
 // v2.2.29 — Fix "Today"/"Yesterday" going stale/zero: soldToday, KPI "Today's Margin", and getSoldInPeriod's rolling windows now anchor on Australia/Melbourne business date (via Intl.DateTimeFormat) instead of the viewing device's local clock/timezone, which could compute a different calendar day than the CSV's "Day" column
