@@ -2057,7 +2057,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.32';
+const APP_VERSION='v2.2.33';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -7342,6 +7342,7 @@ function buildAMDataFromAPI(orders){
 async function fetchAMOrdersFromAPI(){
   const pill=document.getElementById('am-pill');
   if(pill)pill.innerHTML='<span class="live-dot" style="background:#f59e0b"></span>Fetching AM…';
+  syncAMMidCodes(); // background launch-date catalogue sync (no await — re-renders when done)
   try{
     // Fetch open orders for account 1068 — is_open=1 causes AM to embed order_items in the list response
     const ordersRes=await fetch(`/.netlify/functions/am-proxy?path=orders&account_number=1068&is_open=1`);
@@ -7409,6 +7410,59 @@ async function fetchAMOrdersFromAPI(){
   }
 }
 
+
+/* ── AM LAUNCH DATE (mid_code) CATALOGUE SYNC ──
+   Launch Date is stored in AM's mid_code field per product. The full catalogue
+   (~3,800 products / 39 pages) is too slow to fetch on every load (~2.5 min),
+   so it syncs in the background and caches in localStorage for 6 hours. */
+const AM_MID_CACHE_KEY='amMidMapV1';
+const AM_MID_TTL=6*60*60*1000;
+function styleFromSku(sku){
+  if(!sku)return'';
+  const u=sku.toUpperCase().trim();
+  for(const sz of ['XXXXL','XXXL','XXL','XL','XXS','XS','OS','S','M','L']){if(u.endsWith(sz))return u.slice(0,u.length-sz.length);}
+  return u.replace(/\d{2}$/,'');
+}
+function loadAMMidCache(){
+  try{
+    const c=JSON.parse(localStorage.getItem(AM_MID_CACHE_KEY)||'null');
+    if(c&&c.map){window.amStyleMidMap=Object.assign({},c.map,window.amStyleMidMap||{});return c.ts||0;}
+  }catch(e){}
+  return 0;
+}
+loadAMMidCache();
+let _amMidSyncing=false;
+async function syncAMMidCodes(force=false){
+  if(_amMidSyncing)return;
+  const ts=loadAMMidCache();
+  if(!force&&Date.now()-ts<AM_MID_TTL)return;
+  _amMidSyncing=true;
+  try{
+    const map={};
+    let last='';
+    for(let page=0;page<80;page++){
+      const q=last?`&${encodeURIComponent('pagination[last_id]')}=${encodeURIComponent(last)}`:'';
+      const r=await fetch(`/.netlify/functions/am-proxy?path=products${q}`);
+      const d=await r.json();
+      const items=d.response||[];
+      for(const p of items){
+        const style=(p.style_number||'').trim().toUpperCase();
+        const mid=(p.mid_code||'').trim();
+        if(style&&mid&&mid!=='0')map[style]=mid;
+      }
+      last=(d.meta&&d.meta.pagination&&d.meta.pagination.last_id)||'';
+      if(!last||items.length<100)break;
+    }
+    // Full sweep is authoritative for the whole catalogue (handles cleared values)
+    window.amStyleMidMap=map;
+    try{localStorage.setItem(AM_MID_CACHE_KEY,JSON.stringify({ts:Date.now(),map}))}catch(e){}
+    if(allVariantRows&&allVariantRows.length){
+      buildVariantRows();
+      if(currentScreen==='dashboard')setView(currentView);
+    }
+  }catch(e){console.error('AM mid_code sync failed:',e);}
+  finally{_amMidSyncing=false;}
+}
 
 /* ── HELPERS ── */
 function normaliseDeliveryMonth(val){
@@ -7764,7 +7818,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const pKey=productName+'||'+colour;
     const variantEntry=amVariantMap[vKey]||amVariantMap[vKeyOS];
     const productEntry=amProductMap[pKey];
-    const launchDate=(window.amStyleMidMap||{})[variantEntry?.style||productEntry?.style||'']||'';
+    const launchDate=(window.amStyleMidMap||{})[styleFromSku(sku)]||(window.amStyleMidMap||{})[variantEntry?.style||productEntry?.style||'']||'';
     const onOrder=variantEntry?variantEntry.qtyOpen:0;
     const monthDue=variantEntry?variantEntry.monthDue:productEntry?productEntry.monthDue:'';
     const productOnOrder=productEntry?productEntry.qtyOpen:0;
@@ -8976,8 +9030,7 @@ function renderRow(row,headers){
       return`<td><span style="font-size:12px;font-weight:500;color:var(--text-secondary);">${val}</span></td>`;
     }
     if(h.k==='launchDate'){
-      const _oo=(row.onOrder||0)+(row.productOnOrder||0);
-      if(_oo<=0||!val)return`<td class="cell-muted">—</td>`;
+      if(!val)return`<td class="cell-muted">—</td>`;
       return`<td><span style="font-size:12px;font-weight:500;color:var(--text-secondary);white-space:nowrap;">${val}</span></td>`;
     }
     if(h.k==='soldOutSizes'){
@@ -9294,7 +9347,7 @@ function exportCSV(){
     const sellVal=r.sellValue?Math.round(r.sellValue):'';
     const tierInfo=getTierForProduct(r.productName,r.colour);
     const tierLabel=tierInfo?getPerfLabel(tierInfo.tier):'—';
-    const launchVal=onOrderVal>0?(r.launchDate||''):'';
+    const launchVal=r.launchDate||'';
     if(currentView==='category')
       v=[r.category,r.products,st7,r.margin!=null?r.margin.toFixed(1):'',r.stock,sohVal,sellVal,r.salesValue?Math.round(r.salesValue):'',r.soldToday||'',r.soldYesterday||'',r.sold??'',onOrderVal||'',monthDueAbbr!=='—'?monthDueAbbr:'',r.daysDisplay,SL[r.flag]||r.flag];
     else if(currentView==='product')
@@ -9314,6 +9367,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.33 — Launch Date now shows for ALL products (on-order gate removed): full AM catalogue mid_code sync in background (~39 pages, cursor pagination[last_id]), cached in localStorage 6h; rows match via SKU-derived style code
 // v2.2.32 — Dashboard Product & Variant views: add Launch Date column after Month Del, sourced from AM product mid_code (fetched in existing per-style products call); only shown when the product has on-order qty > 0; included in CSV export
 // v2.2.31 — Sales Cadence Product view: add sortable Disc% column next to Status (red when discounted, — when not)
 // v2.2.30 — Delivery Month now prefers AM's style-code decode over the Shopify SKU when AM has an open order for a product — AM is corrected/updated ahead of Shopify, so a mis-keyed or stale Shopify SKU no longer overrides it. Shopify SKU decode and Better Reports remain fallbacks when there's no live AM order.
