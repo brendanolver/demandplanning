@@ -2057,7 +2057,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.30';
+const APP_VERSION='v2.2.31';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -2865,6 +2865,7 @@ function renderCadence(){
   const sohByKey={};
   const onOrderByKey={};
   const vendorByKey={};
+  const discByKey={};
   const _onOrderSeen=new Set();
   if(cadenceView==='cat'){
     for(const r of getActiveRows()){
@@ -2890,6 +2891,7 @@ function renderCadence(){
         const showAsBundle=(r.vendor==='CORE'&&r.inBundleDeal);
         vendorByKey[k]=showAsBundle?'BUNDLE':(r.vendor||'');
       }
+      if(discByKey[k]===undefined)discByKey[k]=r.discountPct||0;
     }
   }
 
@@ -2917,6 +2919,7 @@ function renderCadence(){
       }
       let av,bv;
       if(cadenceSortCol==='soh'){av=sohByKey[a]||0;bv=sohByKey[b]||0;}
+      else if(cadenceSortCol==='__disc__'){av=discByKey[a]||0;bv=discByKey[b]||0;}
       else if(cadenceSortCol==='__onorder__'){av=onOrderByKey[a]||0;bv=onOrderByKey[b]||0;}
       else if(cadenceSortCol==='__total__'){av=totalByKey[a]||0;bv=totalByKey[b]||0;}
       else if(cadenceSortCol==='__stpct__'){
@@ -3007,9 +3010,12 @@ function renderCadence(){
     const _vnd=cadenceView==='prod'?(vendorByKey[k]||''):'';
     const _vcls=_vnd==='CORE'?'rp-core':_vnd==='NEW'?'rp-new':_vnd==='CURRENT'?'rp-current':_vnd==='OLD'?'rp-old':_vnd==='REDUCED'?'rp-reduced':_vnd==='DRAFT'?'rp-draft':_vnd==='PRE-RELEASE'?'rp-prerelease':_vnd==='BUNDLE'?'rp-bundle':'rp-other';
     const statusCell=cadenceView==='prod'?`<td style="white-space:nowrap;"><span class="range-pill ${_vcls}">${_vnd||'—'}</span></td>`:'';
+    const _disc=cadenceView==='prod'?(discByKey[k]||0):0;
+    const discCell=cadenceView==='prod'?`<td class="cell-num" style="${_disc>0?'color:var(--red);font-weight:600;':'color:var(--text-muted);'}">${_disc>0?Math.round(_disc)+'%':'—'}</td>`:'';
     return`<tr>
       <td>${displayLabel(k)}</td>
       ${statusCell}
+      ${discCell}
       <td class="cell-num" style="font-weight:500;">${soh>0?soh.toLocaleString():'—'}</td>
       <td class="cell-num" style="color:var(--purple);font-weight:500;">${onOrder>0?onOrder.toLocaleString():'—'}</td>
       ${lyMtdCell}
@@ -3055,7 +3061,7 @@ function renderCadence(){
       <table class="cadence-table">
         <thead><tr>
           <th style="${thStyle}" onclick="setCadenceSort('label')">${rowLabel}${sortArrow('label')}</th>
-          ${cadenceView==='prod'?`<th style="white-space:nowrap;">Status</th>`:''}
+          ${cadenceView==='prod'?`<th style="white-space:nowrap;">Status</th><th style="${thStyle}" onclick="setCadenceSort('__disc__')">Disc%${sortArrow('__disc__')}</th>`:''}
           <th style="${thStyle};min-width:60px;" onclick="setCadenceSort('soh')">SOH${sortArrow('soh')}</th>
           <th style="${thStyle};min-width:60px;color:var(--purple);" onclick="setCadenceSort('__onorder__')">On Order${sortArrow('__onorder__')}</th>
           ${showLyMtd?`<th style="background:#f0fdf4;border-left:2px solid var(--border);min-width:80px;white-space:nowrap;">LY MTD<div style="font-size:9px;font-weight:400;opacity:0.8;">vs this MTD</div></th>`:''}
@@ -3066,7 +3072,7 @@ function renderCadence(){
           ${tableRows}
           <tr class="cadence-total">
             <td>TOTAL</td>
-            ${cadenceView==='prod'?'<td></td>':''}
+            ${cadenceView==='prod'?'<td></td><td></td>':''}
             <td style="font-weight:700;">${totalSoh>0?totalSoh.toLocaleString():"—"}</td>
             <td style="font-weight:700;color:var(--purple);">${totalOnOrder>0?totalOnOrder.toLocaleString():'—'}</td>
             ${showLyMtd?`<td style="background:#f0fdf4;border-left:2px solid var(--border);">
@@ -9294,6 +9300,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.31 — Sales Cadence Product view: add sortable Disc% column next to Status (red when discounted, — when not)
 // v2.2.30 — Delivery Month now prefers AM's style-code decode over the Shopify SKU when AM has an open order for a product — AM is corrected/updated ahead of Shopify, so a mis-keyed or stale Shopify SKU no longer overrides it. Shopify SKU decode and Better Reports remain fallbacks when there's no live AM order.
 // v2.2.29 — Fix "Today"/"Yesterday" going stale/zero: soldToday, KPI "Today's Margin", and getSoldInPeriod's rolling windows now anchor on Australia/Melbourne business date (via Intl.DateTimeFormat) instead of the viewing device's local clock/timezone, which could compute a different calendar day than the CSV's "Day" column
 // v2.2.28 — Fix refresh timeout: edge function's ~40s exec cap can't wait out the ~40s rebuild job, so it now fires the refresh in the background (waitUntil) and the client polls the plain manifest until modifiedTime advances
