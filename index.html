@@ -203,7 +203,10 @@ select:focus{border-color:var(--teal);background-color:var(--surface);box-shadow
   }
 }
 .tbl-wrap-dashboard{max-height:var(--tbl-h, calc(100vh - 310px));}
-.tbl-wrap-reorders{max-height:calc(100vh - 300px);min-height:300px;}
+.tbl-wrap-working{max-height:calc(100vh - 300px);min-height:300px;}
+/* Numeric entry fields without spinner arrows — typing is faster */
+input.no-spin::-webkit-outer-spin-button,input.no-spin::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+input.no-spin{-moz-appearance:textfield;appearance:textfield;}
 .tbl-wrap table thead th{position:sticky;top:0;z-index:10;background:var(--surface2);box-shadow:0 1px 0 var(--border);}
 /* Sticky first column — dashboard views */
 .tbl-wrap table thead th:first-child{position:sticky;top:0;left:0;z-index:20;background:var(--surface2);}
@@ -2086,7 +2089,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.38';
+const APP_VERSION='v2.2.39';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -5443,7 +5446,7 @@ function renderReorders(){
       <td class="cell-num" style="${(p.soldOutSizes||0)>0?'color:var(--red);font-weight:600;':'color:var(--text-muted);'}">${(p.soldOutSizes||0)>0?p.soldOutSizes:'—'}</td>
       <td class="cell-num" style="color:#f97316;font-weight:700;">${sugOrdDisplay>0?sugOrdDisplay.toLocaleString():'—'}</td>
       <td style="padding:5px 10px;text-align:center;">
-        <input type="number" min="0" step="1" placeholder="0" value="${roQtyVal}"
+        <input type="number" class="no-spin" min="0" step="1" placeholder="0" value="${roQtyVal}"
           style="width:80px;padding:6px 8px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:14px;font-weight:600;text-align:center;outline:none;"
           oninput="roSavePct('${safeKey}',this.value)" onblur="renderReorders()" onkeydown="if(event.key==='Enter'){renderReorders();this.blur();}"
           onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
@@ -5457,7 +5460,7 @@ function renderReorders(){
     body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No products found</div></div>`;return;
   }
 
-  body.innerHTML=`<div class="tbl-wrap tbl-wrap-reorders"><table style="width:100%;border-collapse:collapse;">
+  body.innerHTML=`<div class="tbl-wrap tbl-wrap-working"><table style="width:100%;border-collapse:collapse;">
     <thead><tr>
       <th style="width:36px;text-align:center;padding:8px 6px;"><input type="checkbox" id="ro-select-all-chk" ${allTicked?'checked':''} style="width:15px;height:15px;accent-color:var(--teal);" onchange="roSelectAll(this.checked)"></th>
       <th style="${thS}" onclick="roSort('productName')">Product${roArrow('productName')}</th>
@@ -6309,7 +6312,7 @@ function renderMarkdowns(){
       </td>
       <td style="padding:5px 8px;text-align:center;">
         <div style="display:flex;align-items:center;gap:3px;justify-content:center;">
-          <input type="number" min="0" max="90" step="5" placeholder="%" value="${pct}"
+          <input type="number" class="no-spin" min="0" max="90" step="5" placeholder="%" value="${pct}"
             style="width:72px;padding:6px 8px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:14px;font-weight:600;text-align:center;outline:none;"
             oninput="mdSavePct('${safeKey}',this.value)" onblur="renderMarkdowns()" onkeydown="if(event.key==='Enter'){renderMarkdowns();this.blur();}"
             onfocus="this.style.borderColor='var(--teal)'" onblur="this.style.borderColor='var(--border)'">
@@ -6339,7 +6342,7 @@ function renderMarkdowns(){
     </tr>`;
   }).join('');
 
-  body.innerHTML=`<div class="tbl-wrap"><table style="width:100%;border-collapse:collapse;">
+  body.innerHTML=`<div class="tbl-wrap tbl-wrap-working"><table style="width:100%;border-collapse:collapse;">
     <thead><tr>
       <th class="md-sticky-cb-head" style="width:36px;text-align:center;padding:8px 6px;"><input type="checkbox" id="md-select-all-chk" ${allTicked?'checked':''} style="width:15px;height:15px;accent-color:var(--teal);" onchange="mdSelectAll(this.checked)"></th>
       <th class="md-sticky-product-head" style="${thS}" onclick="setMdSort('productName')">Product${mdArrow('productName')}</th>
@@ -9541,6 +9544,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.39 — Markdowns: freeze column headings while scrolling (tbl-wrap-reorders renamed tbl-wrap-working, applied to both Working tables); remove spinner arrows from Re-Order Qty and Proposed % inputs (no-spin class — typing is faster)
 // v2.2.38 — Re-Orders: freeze column headings while scrolling — table wrapper capped to viewport height so the existing sticky thead engages (same approach as Dashboard's tbl-wrap-dashboard)
 // v2.2.37 — CORE status now defined by AM product group "AA CORE STYLES" (collected in the background catalogue sync, cached with launch dates; cache key now amCatalogV1); Shopify vendor=CORE and the Core Styles CSV remain only as fallback until the AM set has loaded
 // v2.2.36 — Size Workings Product tab: filter dropdowns now drive the view — with no manual picks, active filters auto-render matching products' size tables (capped at 30 with note); previously filters only scoped search results so selecting them appeared to do nothing. Manual picks still take precedence; removing last pick falls back to filter view; Export/AM export honour the filter-driven list
