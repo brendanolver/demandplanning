@@ -2085,7 +2085,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.36';
+const APP_VERSION='v2.2.37';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -7553,12 +7553,16 @@ async function fetchAMOrdersFromAPI(){
 }
 
 
-/* ── AM LAUNCH DATE (mid_code) CATALOGUE SYNC ──
-   Launch Date is stored in AM's mid_code field per product. The full catalogue
-   (~3,800 products / 39 pages) is too slow to fetch on every load (~2.5 min),
-   so it syncs in the background and caches in localStorage for 6 hours. */
-const AM_MID_CACHE_KEY='amMidMapV1';
+/* ── AM CATALOGUE SYNC (launch dates + CORE collection) ──
+   Launch Date is stored in AM's mid_code field per product; CORE membership is
+   the AM product group "AA CORE STYLES". The full catalogue (~3,800 products /
+   39 pages) is too slow to fetch on every load (~2.5 min), so it syncs in the
+   background and caches in localStorage for 6 hours. */
+const AM_MID_CACHE_KEY='amCatalogV1';
 const AM_MID_TTL=6*60*60*1000;
+const AM_CORE_GROUP='AA CORE STYLES';
+// Normalise a group name for comparison ("AA - Core Styles" → "AA CORE STYLES")
+function normGroupName(g){return String(g||'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();}
 function styleFromSku(sku){
   if(!sku)return'';
   const u=sku.toUpperCase().trim();
@@ -7577,10 +7581,21 @@ function launchDateSortKey(val){
   const t=Date.parse(s);
   return isNaN(t)?null:t;
 }
+// CORE definition: once the AM catalogue sync has loaded the "AA CORE STYLES"
+// group it is the single source of truth; until then fall back to the legacy
+// definition (Shopify vendor=CORE or the Core Styles CSV title list).
+function isCoreProduct(sku,productName,colour,vendor,coreSet){
+  if(window.amCoreStyles&&window.amCoreStyles.size)return window.amCoreStyles.has(styleFromSku(sku));
+  return(vendor||'').toUpperCase()==='CORE'||coreSet.has((productName+' - '+colour).toUpperCase());
+}
 function loadAMMidCache(){
   try{
     const c=JSON.parse(localStorage.getItem(AM_MID_CACHE_KEY)||'null');
-    if(c&&c.map){window.amStyleMidMap=Object.assign({},c.map,window.amStyleMidMap||{});return c.ts||0;}
+    if(c&&c.map){
+      window.amStyleMidMap=Object.assign({},c.map,window.amStyleMidMap||{});
+      window.amCoreStyles=new Set(c.core||[]);
+      return c.ts||0;
+    }
   }catch(e){}
   return 0;
 }
@@ -7593,6 +7608,7 @@ async function syncAMMidCodes(force=false){
   _amMidSyncing=true;
   try{
     const map={};
+    const core=[];
     let last='';
     for(let page=0;page<80;page++){
       const q=last?`&${encodeURIComponent('pagination[last_id]')}=${encodeURIComponent(last)}`:'';
@@ -7601,15 +7617,18 @@ async function syncAMMidCodes(force=false){
       const items=d.response||[];
       for(const p of items){
         const style=(p.style_number||'').trim().toUpperCase();
+        if(!style)continue;
         const mid=(p.mid_code||'').trim();
-        if(style&&mid&&mid!=='0')map[style]=mid;
+        if(mid&&mid!=='0')map[style]=mid;
+        if(normGroupName(p.group)===AM_CORE_GROUP)core.push(style);
       }
       last=(d.meta&&d.meta.pagination&&d.meta.pagination.last_id)||'';
       if(!last||items.length<100)break;
     }
     // Full sweep is authoritative for the whole catalogue (handles cleared values)
     window.amStyleMidMap=map;
-    try{localStorage.setItem(AM_MID_CACHE_KEY,JSON.stringify({ts:Date.now(),map}))}catch(e){}
+    window.amCoreStyles=new Set(core);
+    try{localStorage.setItem(AM_MID_CACHE_KEY,JSON.stringify({ts:Date.now(),map,core}))}catch(e){}
     if(allVariantRows&&allVariantRows.length){
       buildVariantRows();
       if(currentScreen==='dashboard')setView(currentView);
@@ -7856,7 +7875,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     // Use price list if uploaded (matched by product title), fall back to sales file prices
     const price=plEntry?plEntry.price:(pm.price||0);
     const compareAt=plEntry?plEntry.compareAt:(pm.compareAt||pm.price||0);
-    const isCore=(vendor||'').toUpperCase()==='CORE'||coreSet.has((productName+' - '+colour).toUpperCase());
+    const isCore=isCoreProduct(sku,productName,colour,vendor,coreSet);
 
     // Delivery month: AM style code is authoritative when AM has an open order for this
     // product — AM is corrected/updated ahead of Shopify (products sometimes sync to
@@ -7917,7 +7936,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     // - Not discounted (no markdown applied)
     // - CORE, OR delivered within last 2 months, OR 30d sell-through >= 30%
     const isDiscounted=(compareAt>0&&price>0&&price<compareAt);
-    const isCoreSku=(vendor||'').toUpperCase()==='CORE'||coreSet.has((productName+' - '+colour).toUpperCase());
+    const isCoreSku=isCoreProduct(sku,productName,colour,vendor,coreSet);
     // Delivered within last 2 months — check SKU decode
     const skuDeliveryRaw=decodeSkuDelivery(sku);
     let deliveredRecently=false;
@@ -9521,6 +9540,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.37 — CORE status now defined by AM product group "AA CORE STYLES" (collected in the background catalogue sync, cached with launch dates; cache key now amCatalogV1); Shopify vendor=CORE and the Core Styles CSV remain only as fallback until the AM set has loaded
 // v2.2.36 — Size Workings Product tab: filter dropdowns now drive the view — with no manual picks, active filters auto-render matching products' size tables (capped at 30 with note); previously filters only scoped search results so selecting them appeared to do nothing. Manual picks still take precedence; removing last pick falls back to filter view; Export/AM export honour the filter-driven list
 // v2.2.35 — Launch Date column added to Performance (after First Sale) and Sales Cadence Product view (between Product and Status); sorts as a true date (DD-MM-YY day-first parse via launchDateSortKey), blanks always last
 // v2.2.34 — Size Workings (Category & Product tabs): add custom date range picker matching Re-Orders/Markdowns; sold-by-size + AM export distribution honour the range. Fix: Re-Orders/Markdowns preset period buttons now clear a previously applied custom range (was silently still using custom dates)
