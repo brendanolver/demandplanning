@@ -2085,7 +2085,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.35';
+const APP_VERSION='v2.2.36';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -3611,8 +3611,8 @@ function swExportAM(){
       const di=fullTitle.lastIndexOf(' - ');
       return{productName:di>=0?fullTitle.slice(0,di):fullTitle,colour:di>=0?fullTitle.slice(di+3):'',roQty:parseInt(qty)||0};
     });
-  } else if(swProducts.length){
-    productList=swProducts.map(({productName,colour,key})=>{
+  } else if(swEffectiveProducts().length){
+    productList=swEffectiveProducts().map(({productName,colour,key})=>{
       const swKey=key||`${productName}||${colour}`;
       const saved=getSwData();
       return{productName,colour,roQty:parseInt(saved[swKey]?.total)||0};
@@ -4194,6 +4194,44 @@ let swcPeriod=7;
 let swTab='product'; // 'product' or 'category'
 let swProduct=null; // kept for RO-to-SW compat, not used in manual search
 let swProducts=[]; // multi-select: [{productName, colour, key}]
+let _swFilterProducts=[]; // auto-populated from filter selections when no manual picks
+// Manual picks take precedence; otherwise the filter-driven list renders
+function swEffectiveProducts(){return swProducts.length?swProducts:_swFilterProducts;}
+function swFiltersActive(){return['cat','vendor','flag','disc','delmonth'].some(t=>swGetSelected(t).length>0);}
+const SW_FILTER_MAX=30;
+function swFilterAutoRender(){
+  if(window._roToSwProducts?.length)return;
+  if(swProducts.length)return;
+  const body=document.getElementById('sw-body');
+  if(!swFiltersActive()){
+    _swFilterProducts=[];
+    if(body)body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">📐</div><div class="insights-empty-title">Size Workings</div><div class="insights-empty-sub">Search for a product above to begin size planning.</div></div>`;
+    return;
+  }
+  const cats=swGetSelected('cat'),vendors=swGetSelected('vendor'),flags=swGetSelected('flag'),discs=swGetSelected('disc'),delmonths=swGetSelected('delmonth');
+  const matches=new Map();
+  for(const r of allVariantRows){
+    if(r.amOnly)continue;
+    const key=r.productName+'||'+r.colour;
+    if(matches.has(key))continue;
+    if(cats.length&&!cats.includes(r.category||''))continue;
+    if(vendors.length&&!vendors.includes(r.vendor||''))continue;
+    if(flags.length&&!flags.includes(r.flag||''))continue;
+    if(discs.length){const d=Math.round(r.discountPct||0);const band=!r.discountPct||d===0?'none':String(d);if(!discs.some(b=>b===band||(b==='none'&&band==='none')))continue;}
+    if(delmonths.length&&!delmonths.includes(r.deliveryMonth||''))continue;
+    matches.set(key,{productName:r.productName,colour:r.colour,key});
+  }
+  const list=[...matches.values()].sort((a,b)=>a.productName.localeCompare(b.productName)||(a.colour||'').localeCompare(b.colour||''));
+  _swFilterProducts=list.slice(0,SW_FILTER_MAX);
+  if(!_swFilterProducts.length){
+    if(body)body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No products match filters</div><div class="insights-empty-sub">Try different filter combinations.</div></div>`;
+    return;
+  }
+  renderSizeWorkings();
+  if(body&&list.length>_swFilterProducts.length){
+    body.insertAdjacentHTML('afterbegin',`<div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">Showing first ${SW_FILTER_MAX} of ${list.length} products matching filters — narrow filters or use search to focus.</div>`);
+  }
+}
 const SW_STORAGE_KEY='wndrr_sizeworkings_v1';
 const SWC_ORDER_KEY='wndrr_swc_orders_v1';
 
@@ -4231,6 +4269,7 @@ function swUpdateLabel(type){
     if(checked.length===0||checked.length===boxes.length){label.textContent=defaults[type];if(btn)btn.classList.remove('filtered');}
     else{label.textContent=checked.length===1?checked[0].value:`${checked.length} selected`;if(btn)btn.classList.add('filtered');}
   }
+  swFilterAutoRender();
 }
 function swClearFilters(){
   ['cat','vendor','flag','disc','delmonth'].forEach(type=>{
@@ -4777,7 +4816,8 @@ function swCompareApplyChecked(){
 function swCompareRemove(key){
   swProducts=swProducts.filter(p=>p.key!==key);
   renderSwCompareTags();
-  renderSizeWorkings();
+  if(!swProducts.length)swFilterAutoRender(); // fall back to filter view or empty state
+  else renderSizeWorkings();
 }
 
 function renderSwCompareTags(){
@@ -4801,7 +4841,8 @@ document.addEventListener('click',e=>{
 
 function renderSizeWorkings(){
   const body=document.getElementById('sw-body');
-  if(!swProducts.length||!allVariantRows.length){return;}
+  const swList=swEffectiveProducts();
+  if(!swList.length||!allVariantRows.length){return;}
 
   const saved=getSwData();
   const sizeOrder=['XXS','XS','S','M','L','XL','XXL','XXXL','XXXXL','28','30','32','34','36','38','40','42','44','46','48','50','OS'];
@@ -4810,7 +4851,7 @@ function renderSizeWorkings(){
   // Build AM variant map for issue 2 — use AM qtyOpen per size as suggested order when populated
   const amVariantMap=window._cachedAMData?.variantMap||{};
 
-  const sections=swProducts.map(({productName,colour,key})=>{
+  const sections=swList.map(({productName,colour,key})=>{
     const swKey=key||`${productName}||${colour}`;
     const totalInput=saved[swKey]?.total||'';
     const swManual=saved[swKey]?.manual||{};
@@ -4963,7 +5004,7 @@ function swSaveManual(key,size,val){
   d[key].manual[size]=val;saveSwData(d);
 }
 function swExport(){
-  if(!swProducts.length&&!window._roToSwProducts?.length){alert('No products loaded.');return;}
+  if(!swEffectiveProducts().length&&!window._roToSwProducts?.length){alert('No products loaded.');return;}
   const tables=document.querySelectorAll('.sw-table');
   if(!tables.length){alert('No data to export.');return;}
   const allRows=[];
@@ -9480,6 +9521,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.36 — Size Workings Product tab: filter dropdowns now drive the view — with no manual picks, active filters auto-render matching products' size tables (capped at 30 with note); previously filters only scoped search results so selecting them appeared to do nothing. Manual picks still take precedence; removing last pick falls back to filter view; Export/AM export honour the filter-driven list
 // v2.2.35 — Launch Date column added to Performance (after First Sale) and Sales Cadence Product view (between Product and Status); sorts as a true date (DD-MM-YY day-first parse via launchDateSortKey), blanks always last
 // v2.2.34 — Size Workings (Category & Product tabs): add custom date range picker matching Re-Orders/Markdowns; sold-by-size + AM export distribution honour the range. Fix: Re-Orders/Markdowns preset period buttons now clear a previously applied custom range (was silently still using custom dates)
 // v2.2.33 — Launch Date now shows for ALL products (on-order gate removed): full AM catalogue mid_code sync in background (~39 pages, cursor pagination[last_id]), cached in localStorage 6h; rows match via SKU-derived style code
