@@ -1076,6 +1076,15 @@ th{position:relative;}
               <div id="ms-delmonth-options"></div>
             </div>
           </div>
+          <div class="ms-wrap" id="ms-launch" style="display:none;">
+            <button class="ms-btn" onclick="toggleDropdown('ms-launch')">
+              <span id="ms-launch-label">Launch Date</span><span class="ms-arrow">▾</span>
+            </button>
+            <div class="ms-dropdown" id="ms-launch-dropdown">
+              <label class="ms-item ms-all"><input type="checkbox" checked onchange="toggleAll('launch',this)"> All</label>
+              <div id="ms-launch-options"></div>
+            </div>
+          </div>
           <div class="ms-wrap" id="ms-suggestorder" style="display:none;">
             <button class="ms-btn" onclick="toggleDropdown('ms-suggestorder')">
               <span id="ms-suggestorder-label">Suggest Order</span><span class="ms-arrow">▾</span>
@@ -1199,6 +1208,17 @@ th{position:relative;}
               <div class="ms-dropdown" id="ms-cad-delmonth-dropdown">
                 <label class="ms-item ms-all"><input type="checkbox" checked onchange="toggleCadenceDelMonthAll(this)"> All</label>
                 <div id="ms-cad-delmonth-options"></div>
+              </div>
+            </div>
+          </div>
+          <div id="cadence-launch-wrap">
+            <div class="ms-wrap" id="ms-cad-launch">
+              <button class="ms-btn" onclick="toggleDropdown('ms-cad-launch')">
+                <span id="ms-cad-launch-label">Launch Date</span><span class="ms-arrow">▾</span>
+              </button>
+              <div class="ms-dropdown" id="ms-cad-launch-dropdown">
+                <label class="ms-item ms-all"><input type="checkbox" checked onchange="toggleCadenceLaunchAll(this)"> All</label>
+                <div id="ms-cad-launch-options"></div>
               </div>
             </div>
           </div>
@@ -2010,6 +2030,15 @@ th{position:relative;}
             <div id="ms-perf-delmonth-options"></div>
           </div>
         </div>
+        <div class="ms-wrap" id="ms-perf-launch">
+          <button class="ms-btn" onclick="toggleDropdown('ms-perf-launch')">
+            <span id="ms-perf-launch-label">Launch Date</span><span class="ms-arrow">▾</span>
+          </button>
+          <div class="ms-dropdown" id="ms-perf-launch-dropdown">
+            <label class="ms-item ms-all"><input type="checkbox" checked onchange="perfToggleAll('launch',this)"> All</label>
+            <div id="ms-perf-launch-options"></div>
+          </div>
+        </div>
         <!-- New/Completed filter -->
         <div class="ms-wrap" id="ms-perf-newstatus">
           <button class="ms-btn" onclick="toggleDropdown('ms-perf-newstatus')">
@@ -2089,7 +2118,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.39';
+const APP_VERSION='v2.2.40';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -2467,6 +2496,44 @@ function getCadenceSelectedDelMonths(){
   return checked;
 }
 
+// ── Launch Date filter (applies in both Category & Product cadence views) ──
+function populateCadenceLaunchFilter(){
+  const container=document.getElementById('ms-cad-launch-options');
+  if(!container||!allVariantRows||!allVariantRows.length)return;
+  const{vals,counts,noneCount}=distinctLaunchDates(allVariantRows);
+  container.innerHTML=
+    vals.map(v=>`<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="updateCadenceLaunchLabel();renderCadence()"> ${v} (${counts[v]||0})</label>`).join('')+
+    `<label class="ms-item"><input type="checkbox" value="__none__" checked onchange="updateCadenceLaunchLabel();renderCadence()"> No Launch Date (${noneCount})</label>`;
+}
+
+function toggleCadenceLaunchAll(allCheckbox){
+  document.querySelectorAll('#ms-cad-launch-options input').forEach(b=>b.checked=allCheckbox.checked);
+  updateCadenceLaunchLabel();renderCadence();
+}
+
+function updateCadenceLaunchLabel(){
+  const boxes=[...document.querySelectorAll('#ms-cad-launch-options input')];
+  const checked=boxes.filter(b=>b.checked);
+  const label=document.getElementById('ms-cad-launch-label');
+  const btn=document.querySelector('#ms-cad-launch .ms-btn');
+  const allBox=document.querySelector('#ms-cad-launch .ms-all input');
+  if(allBox)allBox.checked=checked.length===boxes.length;
+  if(checked.length===0||checked.length===boxes.length){
+    label.textContent='Launch Date';if(btn)btn.classList.remove('filtered');
+  } else {
+    label.textContent=checked.length===1?(checked[0].value==='__none__'?'No Launch Date':checked[0].value):`${checked.length} selected`;
+    if(btn)btn.classList.add('filtered');
+  }
+}
+
+function getCadenceSelectedLaunches(){
+  const boxes=[...document.querySelectorAll('#ms-cad-launch-options input')];
+  if(!boxes.length)return[];
+  const checked=boxes.filter(b=>b.checked).map(b=>b.value);
+  if(checked.length===0||checked.length===boxes.length)return[];
+  return checked;
+}
+
 function populateCadenceCatFilter(){
   const container=document.getElementById('ms-cad-cat-options');
   if(!container)return;
@@ -2773,6 +2840,8 @@ function renderCadence(){
     document.getElementById('cadence-body').innerHTML=`<div class="insights-error">⚠️ No data loaded yet. Please upload your files and analyse first.</div>`;
     return;
   }
+  // Launch Date filter is visible in both views — populate on first render
+  if(!document.getElementById('ms-cad-launch-options')?.children.length)populateCadenceLaunchFilter();
 
   // Compare mode — render dedicated compare table
   if(cadenceCompareMode&&cadenceView==='prod'){
@@ -2807,6 +2876,13 @@ function renderCadence(){
       const coreSkus=new Set(allVariantRows.filter(r=>r.vendor==='CORE').map(r=>r.sku));
       skuCatMap=Object.fromEntries(Object.entries(skuCatMapFull).filter(([sku])=>!coreSkus.has(sku)));
     }
+    // Launch Date filter — applies at SKU level in category view
+    const selectedLaunchesCat=getCadenceSelectedLaunches();
+    if(selectedLaunchesCat.length){
+      const skuLaunch={};
+      for(const r of allVariantRows){if(skuLaunch[r.sku]===undefined)skuLaunch[r.sku]=r.launchDate||'';}
+      skuCatMap=Object.fromEntries(Object.entries(skuCatMap).filter(([sku])=>selectedLaunchesCat.includes(skuLaunch[sku]||'__none__')));
+    }
     rowKeys=[...new Set(Object.values(skuCatMap).filter(Boolean))].sort();
     rowLabel='Category';
     // For category view, sum directly from _salesBySkuDay using skuCatMap
@@ -2824,6 +2900,7 @@ function renderCadence(){
     const selectedStatuses=getCadenceSelectedStatuses();
     const selectedCats=getCadenceSelectedCats();
     const selectedDelMonths=getCadenceSelectedDelMonths();
+    const selectedLaunches=getCadenceSelectedLaunches();
     const selectedDiscs=getCadenceSelectedDiscs();
     const selectedFlags=getCadenceSelectedFlags();
     // Build product-level aggregates for disc/flag filtering
@@ -2841,6 +2918,7 @@ function renderCadence(){
       if(selectedStatuses.length&&!selectedStatuses.includes(r.vendor))continue;
       if(selectedCats.length&&!selectedCats.includes(r.category))continue;
       if(selectedDelMonths.length&&!selectedDelMonths.includes(r.deliveryMonth||''))continue;
+      if(selectedLaunches.length&&!selectedLaunches.includes(r.launchDate||'__none__'))continue;
       const k=r.productName+'||'+r.colour;
       if(prodSet.has(k))continue;
       // Disc% filter
@@ -2980,9 +3058,10 @@ function renderCadence(){
     const ss=getCadenceSelectedStatuses();
     const sc=getCadenceSelectedCats();
     const sdm=getCadenceSelectedDelMonths();
+    const sl=getCadenceSelectedLaunches();
     const sd=getCadenceSelectedDiscs();
     const sf=getCadenceSelectedFlags();
-    if(!ss.length&&!sc.length&&!sdm.length&&!sd.length&&!sf.length)rowKeys=rowKeys.slice(0,50);
+    if(!ss.length&&!sc.length&&!sdm.length&&!sl.length&&!sd.length&&!sf.length)rowKeys=rowKeys.slice(0,50);
   }
 
   // Sortable header helper
@@ -3092,7 +3171,7 @@ function renderCadence(){
     <th style="${cadenceSortCol==='__stpct__'?thStyle+';color:var(--teal);':thStyle}" onclick="setCadenceSort('__stpct__')">ST%${sortArrow('__stpct__')}</th>
     <th style="${thStyle};color:var(--teal);" onclick="setCadenceSort('__total__')">Total Sold${sortArrow('__total__')}</th>`:'';
 
-  const limitNote=cadenceView==='prod'&&!search&&!cadenceSortCol&&!getCadenceSelectedStatuses().length&&!getCadenceSelectedCats().length&&!getCadenceSelectedDelMonths().length&&!getCadenceSelectedDiscs().length&&!getCadenceSelectedFlags().length?`<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">Showing top 50 products — use search or filters to find specific products.</div>`:'';
+  const limitNote=cadenceView==='prod'&&!search&&!cadenceSortCol&&!getCadenceSelectedStatuses().length&&!getCadenceSelectedCats().length&&!getCadenceSelectedDelMonths().length&&!getCadenceSelectedLaunches().length&&!getCadenceSelectedDiscs().length&&!getCadenceSelectedFlags().length?`<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">Showing top 50 products — use search or filters to find specific products.</div>`:'';
   const noResults=rowKeys.length===0?`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No products found</div><div class="insights-empty-sub">Try a different search term.</div></div>`:'';
 
   // Chart (category view only)
@@ -7585,6 +7664,13 @@ function launchDateSortKey(val){
   const t=Date.parse(s);
   return isNaN(t)?null:t;
 }
+// Distinct launch dates across rows, sorted newest→oldest (true date order via launchDateSortKey)
+function distinctLaunchDates(rows){
+  const counts={};let noneCount=0;
+  for(const r of rows){const v=(r.launchDate||'').trim();if(v)counts[v]=(counts[v]||0)+1;else noneCount++;}
+  const vals=Object.keys(counts).sort((a,b)=>(launchDateSortKey(b)??-Infinity)-(launchDateSortKey(a)??-Infinity));
+  return{vals,counts,noneCount};
+}
 // CORE definition: once the AM catalogue sync has loaded the "AA CORE STYLES"
 // group it is the single source of truth; until then fall back to the legacy
 // definition (Shopify vendor=CORE or the Core Styles CSV title list).
@@ -8322,6 +8408,15 @@ function buildVariantRows(){
       delMonths.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="applyFilters()"> ${m} (${delMonthCounts[m]||0})</label>`).join('');
   }
 
+  // Populate Launch Date filter (newest → oldest)
+  const launchContainer=document.getElementById('ms-launch-options');
+  if(launchContainer){
+    const{vals:lVals,counts:lCounts,noneCount:lNone}=distinctLaunchDates(allVariantRows);
+    launchContainer.innerHTML=
+      lVals.map(v=>`<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="applyFilters()"> ${v} (${lCounts[v]||0})</label>`).join('')+
+      `<label class="ms-item"><input type="checkbox" value="__none__" checked onchange="applyFilters()"> No Launch Date (${lNone})</label>`;
+  }
+
   setView(currentView);
   // Reset markdown filters so they repopulate with new data
   ['cat','vendor','flag','disc','delmonth'].forEach(t=>{const el=document.getElementById(`ms-md-${t}-options`);if(el)el.innerHTML='';});
@@ -8474,7 +8569,7 @@ function updateLabel(type,allLabel){
     labelEl.textContent=allLabel;
     btnEl.classList.remove('filtered');
   } else {
-    labelEl.textContent=selected.length===1?selected[0]:`${selected.length} selected`;
+    labelEl.textContent=selected.length===1?(selected[0]==='__none__'?'No Launch Date':selected[0]):`${selected.length} selected`;
     btnEl.classList.add('filtered');
   }
   // Sync "All" checkbox
@@ -8577,12 +8672,13 @@ function applyFilters(){
   updateLabel('disc','Discount %');
   updateLabel('soldout','Sizes Sold Out');
   updateLabel('delmonth','Month Del');
+  updateLabel('launch','Launch Date');
   currentPage=1;
   renderTable();
 }
 
 function clearFilters(){
-  ['cat','vendor','flag','disc','soldout','delmonth','tier'].forEach(type=>{
+  ['cat','vendor','flag','disc','soldout','delmonth','launch','tier'].forEach(type=>{
     const boxes=document.querySelectorAll('#ms-'+type+'-options input[type="checkbox"]');
     boxes.forEach(b=>b.checked=true);
     const allBox=document.querySelector('#ms-'+type+' .ms-all input');
@@ -8590,7 +8686,7 @@ function clearFilters(){
     const btnEl=document.querySelector('#ms-'+type+' .ms-btn');
     if(btnEl)btnEl.classList.remove('filtered');
   });
-  const labels={cat:'All Categories',vendor:'All Statuses',flag:'All Stock Status',disc:'Discount %',soldout:'Sizes Sold Out',delmonth:'Month Del',tier:'All Tiers'};
+  const labels={cat:'All Categories',vendor:'All Statuses',flag:'All Stock Status',disc:'Discount %',soldout:'Sizes Sold Out',delmonth:'Month Del',launch:'Launch Date',tier:'All Tiers'};
   Object.entries(labels).forEach(([t,l])=>{const el=document.getElementById('ms-'+t+'-label');if(el)el.textContent=l;});
   document.getElementById('search-input').value='';
   // Reset suggest order filter
@@ -8628,6 +8724,9 @@ function setView(v){
   // Show Month Del filter on product and variant views
   const delmonthWrap=document.getElementById('ms-delmonth');
   if(delmonthWrap)delmonthWrap.style.display=(v==='product'||v==='variant'||v==='category')?'':'none';
+  // Show Launch Date filter on product view only
+  const launchWrap=document.getElementById('ms-launch');
+  if(launchWrap)launchWrap.style.display=v==='product'?'':'none';
   // Show Suggest Order filter on all views
   const suggestWrap=document.getElementById('ms-suggestorder');
   if(suggestWrap)suggestWrap.style.display='';
@@ -8916,6 +9015,7 @@ function getFilteredRows(){
   const discs=getSelected('disc');
   const soldouts=getSelected('soldout');
   const delmonths=getSelected('delmonth');
+  const launches=getSelected('launch');
   const search=document.getElementById('search-input').value.trim().toUpperCase();
 
   // Filter at variant level for variant view; post-aggregation for product view
@@ -8959,6 +9059,7 @@ function getFilteredRows(){
     // Post-aggregation filters for product view
     if(cats.length) rows=rows.filter(r=>cats.includes(r.category||''));
     if(delmonths.length) rows=rows.filter(r=>delmonths.includes(r.deliveryMonth||''));
+    if(launches.length) rows=rows.filter(r=>launches.includes(r.launchDate||'__none__'));
     // Sizes Sold Out filter
     if(soldouts.length){
       rows=rows.filter(r=>{
@@ -9544,6 +9645,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.40 — Launch Date dropdown filter added to Dashboard Product view, Sales Cadence (Product & Category views — category filters at SKU level), and Performance; options sorted newest→oldest by true date (launchDateSortKey), with a No Launch Date option
 // v2.2.39 — Markdowns: freeze column headings while scrolling (tbl-wrap-reorders renamed tbl-wrap-working, applied to both Working tables); remove spinner arrows from Re-Order Qty and Proposed % inputs (no-spin class — typing is faster)
 // v2.2.38 — Re-Orders: freeze column headings while scrolling — table wrapper capped to viewport height so the existing sticky thead engages (same approach as Dashboard's tbl-wrap-dashboard)
 // v2.2.37 — CORE status now defined by AM product group "AA CORE STYLES" (collected in the background catalogue sync, cached with launch dates; cache key now amCatalogV1); Shopify vendor=CORE and the Core Styles CSV remain only as fallback until the AM set has loaded
@@ -9855,7 +9957,7 @@ function perfToggleAll(type,allCb){
 }
 
 function perfUpdateLabel(type){
-  const defaults={tier:'All Tiers',cat:'All Categories',delmonth:'Month Delivery'};
+  const defaults={tier:'All Tiers',cat:'All Categories',delmonth:'Month Delivery',launch:'Launch Date'};
   const boxes=[...document.querySelectorAll(`#ms-perf-${type}-options input`)];
   const checked=boxes.filter(b=>b.checked);
   const label=document.getElementById(`ms-perf-${type}-label`);
@@ -9866,7 +9968,7 @@ function perfUpdateLabel(type){
     if(checked.length===0||checked.length===boxes.length){
       label.textContent=defaults[type];if(btn)btn.classList.remove('filtered');
     } else {
-      label.textContent=checked.length===1?checked[0].value:`${checked.length} selected`;
+      label.textContent=checked.length===1?(checked[0].value==='__none__'?'No Launch Date':checked[0].value):`${checked.length} selected`;
       if(btn)btn.classList.add('filtered');
     }
   }
@@ -9911,6 +10013,14 @@ function perfPopulateFilters(data){
       `<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="perfUpdateLabel('delmonth');renderPerformanceDeferred()"> ${m} <span class="ms-count">(${delCounts[m]||0})</span></label>`
     ).join('');
   }
+  // Launch Date (newest → oldest)
+  const launchContainer=document.getElementById('ms-perf-launch-options');
+  if(launchContainer){
+    const{vals,counts,noneCount}=distinctLaunchDates(data);
+    launchContainer.innerHTML=
+      vals.map(v=>`<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="perfUpdateLabel('launch');renderPerformanceDeferred()"> ${v} <span class="ms-count">(${counts[v]||0})</span></label>`).join('')+
+      `<label class="ms-item"><input type="checkbox" value="__none__" checked onchange="perfUpdateLabel('launch');renderPerformanceDeferred()"> No Launch Date <span class="ms-count">(${noneCount})</span></label>`;
+  }
 }
 
 function perfNewStatusChange(){
@@ -9926,7 +10036,7 @@ function perfNewStatusChange(){
 }
 
 function perfClearFilters(){
-  ['tier','cat','delmonth'].forEach(type=>{
+  ['tier','cat','delmonth','launch'].forEach(type=>{
     document.querySelectorAll(`#ms-perf-${type}-options input`).forEach(b=>b.checked=true);
     const allBox=document.querySelector(`#ms-perf-${type} .ms-all input`);
     if(allBox)allBox.checked=true;
@@ -10092,6 +10202,14 @@ function renderPerformance(){
   if(!_perfDataCache){_perfDataCache=buildPerfData();window._tierMap=buildTierMap(_perfDataCache);}
   const allData=_perfDataCache;
 
+  // Attach launch dates (mid_code via variant rows) before filters/populate/sort
+  const _launchByKey={};
+  for(const r of allVariantRows){
+    const k=r.productName+'||'+r.colour;
+    if(!_launchByKey[k]&&r.launchDate)_launchByKey[k]=r.launchDate;
+  }
+  for(const p of allData){p.launchDate=_launchByKey[p.productName+'||'+p.colour]||'';}
+
   // Populate filters on first render
   const filtersPopulated=document.querySelectorAll('#ms-perf-cat-options input').length>0;
   if(!filtersPopulated)perfPopulateFilters(allData);
@@ -10105,6 +10223,8 @@ function renderPerformance(){
   if(tiers.length)data=data.filter(p=>tiers.includes(p.tier));
   if(cats.length)data=data.filter(p=>cats.includes(p.category||''));
   if(delmonths.length)data=data.filter(p=>delmonths.includes(p.deliveryMonth||''));
+  const launches=perfGetSelected('launch');
+  if(launches.length)data=data.filter(p=>launches.includes(p.launchDate||'__none__'));
   // New/completed filter
   const newStatus=document.querySelector('input[name="perf-newstatus"]:checked')?.value||'all';
   if(newStatus==='new')data=data.filter(p=>p.isNew);
@@ -10165,14 +10285,6 @@ function renderPerformance(){
     const yr=parseInt(y)<50?2000+parseInt(y):1900+parseInt(y);
     return yr*100+(monthOrder[m]||0);
   }
-  // Attach launch dates (mid_code via variant rows) for column display + sort
-  const _launchByKey={};
-  for(const r of allVariantRows){
-    const k=r.productName+'||'+r.colour;
-    if(!_launchByKey[k]&&r.launchDate)_launchByKey[k]=r.launchDate;
-  }
-  for(const p of data){p.launchDate=_launchByKey[p.productName+'||'+p.colour]||'';}
-
   data.sort((a,b)=>{
     let av,bv;
     const dir=_perfSortDir==='asc'?1:-1;
