@@ -2118,7 +2118,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.46';
+const APP_VERSION='v2.2.47';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -8226,9 +8226,16 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
       if(totalOnOrder===0)continue;
       const category=productEntry?.category||meta.category||(window.amStyleCategoryMap&&window.amStyleCategoryMap[amStyle])||'';
       const amPriceInfo=(window.amStylePriceMap&&window.amStylePriceMap[amStyle])||{};
-      const amPrice=amPriceInfo.price||0;
+      // AM's 'price' field is an internal/wholesale figure, not what the product will
+      // actually sell for online — 'retail_price' is the real RRP and is what
+      // matches the eventual Shopify price (confirmed against already-synced styles).
+      // Use RRP as both price and compare-at (no discount assumed pre-launch) and
+      // convert to ex-GST for the margin calc, matching every other row's convention.
+      // Cost is AM's cost_landed (already ex-GST) — the actual landed cost of this PO.
       const amRrp=amPriceInfo.rrp||0;
       const amCost=amPriceInfo.cost||0;
+      const amSellExGst=amRrp>0?amRrp/1.1:0;
+      const amMargin=amCost>0&&amSellExGst>0?+(((amSellExGst-amCost)/amSellExGst)*100).toFixed(2):null;
       // Decode delivery month from AM Style SKU, fall back to AM Month Due
       const amDeliveryMonth=normaliseDeliveryMonth(decodeSkuDelivery(amStyle)||monthDue||'');
       const sizeEntries=variantEntries
@@ -8240,7 +8247,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
             fullTitle:desc+' - '+colour,productName:desc,colour,
             size:se.size,variant:se.size,sku:amStyle||'—',
             category,vendor:'ON ORDER',
-            stock:0,price:amPrice||null,compareAt:amRrp||null,discountPct:null,margin:amCost&&amPrice?+(((amPrice-amCost)/amPrice)*100).toFixed(2):null,
+            stock:0,price:amRrp||null,compareAt:amRrp||null,discountPct:null,margin:amMargin,
             velocity:0,vel7:null,vel30:null,
             sold7:0,sold30:0,sold90:0,sold365:0,sold:0,sellThru7:null,
             soldToday:0,soldYesterday:0,
@@ -8256,7 +8263,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
         rows.push({
           fullTitle:desc+' - '+colour,productName:desc,colour,size:'—',variant:'—',sku:amStyle||'—',
           category,vendor:'ON ORDER',
-          stock:0,price:amPrice||null,compareAt:amRrp||null,discountPct:null,margin:amCost&&amPrice?+(((amPrice-amCost)/amPrice)*100).toFixed(2):null,
+          stock:0,price:amRrp||null,compareAt:amRrp||null,discountPct:null,margin:amMargin,
           velocity:0,vel7:null,vel30:null,
           sold7:0,sold30:0,sold90:0,sold365:0,sold:0,sellThru7:null,
           soldToday:0,soldYesterday:0,
@@ -9716,6 +9723,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.47 — Fix wrong margin/price on AM-only (on-order, not-yet-in-Shopify) rows: was using AM's internal wholesale 'price' field as the sell price for both the displayed Price and the margin calc, instead of 'retail_price' (the real RRP — confirmed to match the eventual Shopify price on already-synced styles). This inflated the apparent "discount" (RRP shown as compare-at against a much lower wholesale price) and computed a meaningless margin. Now uses RRP (ex-GST) vs AM's cost_landed (already ex-GST) — same convention as every other row — so a cheaper landed cost on a new PO correctly shows as a better margin
 // v2.2.46 — Fix Performance Tier badge/column showing a borrowed tier on AM-only rows (a brand-new style with zero sales history was displaying the OLD style's tier just for sharing its product name — getTierForProduct is keyed by name+colour text with no concept of style). Every tier lookup on Dashboard, Re-Orders, Markdowns, PDF export and CSV export now returns no tier for amOnly rows, since they have no sales history of their own to have earned one. Sales Cadence tier badges are a known follow-up — that view doesn't split by style yet
 // v2.2.45 — toProduct() now splits into a separate row when a product name+colour spans more than one distinct AM style code (e.g. a relaunch) — previously merged into one row under the OLDEST style's SKU even after v2.2.43/44, which correctly summed the on-order total but hid which physical style it belonged to. Split row gets a "NEW STYLE" badge on Dashboard and a disambiguated fullTitle so it doesn't collide with the original style's saved Re-Order/Markdown/Size-Workings entry. Normal single-style products (the vast majority) are completely unaffected
 // v2.2.44 — Follow-up to v2.2.43: fix on-order totals disappearing for products spanning multiple AM styles. toProduct/toCategory/Sales Cadence/Dashboard KPI/Insights all deduped on-order "once per product name" assuming a single style per name; now dedupe once per STYLE, so a relaunch's on-order no longer gets silently dropped when it shares a product name with an older style
