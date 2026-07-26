@@ -2118,7 +2118,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.42';
+const APP_VERSION='v2.2.43';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -4974,9 +4974,12 @@ function renderSizeWorkings(){
     const sohPoTotal=sorted.map((r,i)=>soh[i]+po[i]);
 
     // Issue 2 — AM suggested order: use AM qtyOpen per size when populated
+    // Matched by style code (SKU minus size suffix), not product name+colour —
+    // keeps distinct styles under the same product name from bleeding into each other.
     const amBySize=sorted.map(r=>{
-      const vKey=`${productName}||${colour}||${r.size}`;
-      const vKeyOS=`${productName}||${colour}||OS`;
+      const rStyle=styleFromSku(r.sku);
+      const vKey=`${rStyle}||${r.size}`;
+      const vKeyOS=`${rStyle}||OS`;
       return(amVariantMap[vKey]||amVariantMap[vKeyOS])?.qtyOpen||0;
     });
     const amTotal=amBySize.reduce((s,v)=>s+v,0);
@@ -7450,17 +7453,21 @@ function getSoldInPeriod(salesBySkuDay, sku, days){
 
 /* ── AM DATA ── */
 function buildAMData(){
+  // Keyed by AM STYLE CODE (per-colour product code, e.g. "W26FA005BLK") — NOT by
+  // product name+colour text. Two different styles can share the same description
+  // (a reprint/relaunch under a new style code) and must never be merged together.
   const variantMap={};
   const productMap={};
   const products={};
-  if(!amData)return{variantMap,productMap,products};
+  const styleMeta={}; // {styleCode: {desc, colour, category}} — for AM-only rows
+  if(!amData)return{variantMap,productMap,products,styleMeta};
 
   for(const row of amData){
     const desc=(row['Description']||'').trim().toUpperCase();
     const colour=(row['COLOUR']||'').trim().toUpperCase();
     const size=(row['SIZE']||'').trim().toUpperCase();
     const monthDue=(row['Month Due']||'').trim();
-    const style=(row['Style']||'').trim(); // SKU prefix e.g. W26FA005BLK
+    const style=(row['Style']||'').trim(); // SKU prefix e.g. W26FA005BLK — the unique style code
     const category=(row['Category']||'').trim().toUpperCase();
     const qtyOpen=parseInt((row['Qty Open']||'0').replace(/[^0-9]/g,''))||0;
     const units=parseFloat(row['Units']||0)||0;
@@ -7471,9 +7478,12 @@ function buildAMData(){
     if(!products[desc])products[desc]={colours:new Set(),category:category||''};
     products[desc].colours.add(colour);
     if(category)products[desc].category=category;
-    const pKey=desc+'||'+colour;
+    // Fall back to the old desc+colour key on the rare row with no Style column,
+    // so legacy CSV exports don't silently lose that row's data
+    const pKey=style||(desc+'||'+colour);
+    if(!styleMeta[pKey])styleMeta[pKey]={desc,colour,category:category||''};
     if(size){
-      const vKey=desc+'||'+colour+'||'+size;
+      const vKey=pKey+'||'+size;
       if(!variantMap[vKey])variantMap[vKey]={qtyOpen,monthDue:monthDue||'',style,category:category||'',amCostPerUnit};
     }
     // Always store at product level — accumulate qtyOpen (handles no-size rows)
@@ -7484,15 +7494,18 @@ function buildAMData(){
       // Take the larger value to handle duplicate summary rows in the AM file
       if(qtyOpen>productMap[pKey].qtyOpen)productMap[pKey].qtyOpen=qtyOpen;
       if(monthDue&&!productMap[pKey].monthDue)productMap[pKey].monthDue=monthDue;
-      if(style&&!productMap[pKey].style)productMap[pKey].style=style;
       if(category&&!productMap[pKey].category)productMap[pKey].category=category;
     }
   }
-  return{variantMap,productMap,products};
+  return{variantMap,productMap,products,styleMeta};
 }
 
 function buildAMDataFromAPI(orders){
-  const variantMap={},productMap={},products={};
+  // Keyed by AM STYLE CODE (item.style_number, the per-colour product code e.g.
+  // "W26GA002WHI") — NOT by product name+colour text. A new style entered under
+  // an existing product name (e.g. a Black Friday relaunch) must never have its
+  // on-order qty / delivery month attributed to the old style's SKUs, or vice versa.
+  const variantMap={},productMap={},products={},styleMeta={};
   const{priceMap}=_cachedSalesMaps||{priceMap:{}};
   // Fallback meta lookup from inventory file (for new styles not yet in sales history)
   const invSkuMap={};
@@ -7560,9 +7573,10 @@ function buildAMDataFromAPI(orders){
     const amCostPerUnit=(qty>0&&amount>0)?+(amount/qty).toFixed(4):0;
     if(!products[desc])products[desc]={colours:new Set(),category};
     products[desc].colours.add(colour);
-    const pKey=desc+'||'+colour;
+    if(!styleMeta[sku])styleMeta[sku]={desc,colour,category};
+    const pKey=sku; // style code — unique per AM product+colour, unlike desc+colour text
     if(size){
-      const vKey=desc+'||'+colour+'||'+size;
+      const vKey=sku+'||'+size;
       if(!variantMap[vKey])variantMap[vKey]={qtyOpen,monthDue,style:sku,category,amCostPerUnit};
       else{variantMap[vKey].qtyOpen+=qtyOpen;if(monthDue&&!variantMap[vKey].monthDue)variantMap[vKey].monthDue=monthDue;}
     }
@@ -7573,7 +7587,7 @@ function buildAMDataFromAPI(orders){
       if(monthDue&&!productMap[pKey].monthDue)productMap[pKey].monthDue=monthDue;
     }
   }
-  return{variantMap,productMap,products};
+  return{variantMap,productMap,products,styleMeta};
 }
 
 async function fetchAMOrdersFromAPI(){
@@ -7852,7 +7866,7 @@ function getFlag(days,stock,onOrder,vendor,discountPct){
 }
 
 /* ── PROCESS ── */
-function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap,coreSet=new Set(),bundleSet=new Set(),draftSet=new Set(),activeSet=new Set()){
+function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap,coreSet=new Set(),bundleSet=new Set(),draftSet=new Set(),activeSet=new Set(),amStyleMeta={}){
   const rows=[];
 
   // Build SOH lookup from inventory file: {sku: stock}
@@ -7892,6 +7906,10 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const pm=priceMap[sku]||invMetaMap[sku];
     if(!pm)continue; // need at minimum a sales or inventory record for meta info
 
+    // AM data is matched by STYLE CODE (SKU with the size suffix stripped), not by
+    // product name+colour — two different styles can share a product name (e.g. a
+    // relaunch under a new style code) and must never share AM on-order/delivery data.
+    const styleCode=styleFromSku(sku);
     const{productName,colour,size,vendor}=pm;
     let category=pm.category||'';
     if(!category&&window.amStyleCategoryMap){
@@ -7936,8 +7954,8 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     // PRE-RELEASE: Shopify draft status + stock on hand + delivery month is current calendar month
     // isDraftFlaggedExplicit if All_Products_List loaded, OR invMetaMap-only (no sales) as fallback
     const isDraftSignal=isDraftFlaggedExplicit||(!hasSalesHistory&&!!invMetaMap[sku]);
-    const vKeyPR=productName+'||'+colour+'||'+size;
-    const vKeyOSPR=productName+'||'+colour+'||OS';
+    const vKeyPR=styleCode+'||'+size;
+    const vKeyOSPR=styleCode+'||OS';
     const onOrderPR=(amVariantMap[vKeyPR]||amVariantMap[vKeyOSPR])?.qtyOpen||0;
     // isActive: definitively live if in Better Reports soldout with status='active'
     const isActive=activeSet.has(fullTitleUpper)||hasSalesHistory;
@@ -7947,9 +7965,9 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
       const excludedDraftCats=['GWP','MYSTERY BOX','INSURANCE','GIVEAWAY'];
       if(excludedDraftCats.includes((category||'').toUpperCase().trim()))continue;
 
-      const vKey=productName+'||'+colour+'||'+size;
-      const vKeyOS=productName+'||'+colour+'||OS';
-      const pKey=productName+'||'+colour;
+      const vKey=styleCode+'||'+size;
+      const vKeyOS=styleCode+'||OS';
+      const pKey=styleCode;
       const hasOnOrder=(amVariantMap[vKey]||amVariantMap[vKeyOS]||amProductMap[pKey]);
       const hasOnOrderQty=hasOnOrder&&(hasOnOrder.qtyOpen||0)>0;
       const hasStock=stock>0;
@@ -7987,9 +8005,9 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     if(isCore){
       deliveryMonth='CORE';
     } else {
-      const amEntry=amVariantMap[productName+'||'+colour+'||'+size]||
-                    amVariantMap[productName+'||'+colour+'||OS']||
-                    amProductMap[productName+'||'+colour];
+      const amEntry=amVariantMap[styleCode+'||'+size]||
+                    amVariantMap[styleCode+'||OS']||
+                    amProductMap[styleCode];
       const amDecoded=amEntry?.style?decodeSkuDelivery(amEntry.style):'';
       if(amDecoded){
         deliveryMonth=amDecoded;
@@ -8009,7 +8027,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
 
     // Cost priority: 1) Better Reports Cost, 2) AM Amount/Units, 3) Sales COGS/sold
     const brCost=plEntry?plEntry.cost||0:0;
-    const amCost=(amVariantMap[productName+'||'+colour+'||'+size]||amProductMap[productName+'||'+colour]||{}).amCostPerUnit||0;
+    const amCost=(amVariantMap[styleCode+'||'+size]||amProductMap[styleCode]||{}).amCostPerUnit||0;
 
     // Sold in each standard period
     const s7=getSoldInPeriod(salesBySkuDay,sku,7);
@@ -8088,12 +8106,12 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const discountPct=(compareAt>0&&price>0&&price<compareAt)?+((1-price/compareAt)*100).toFixed(1):null;
 
     // AM lookup
-    const vKey=productName+'||'+colour+'||'+size;
-    const vKeyOS=productName+'||'+colour+'||OS';
-    const pKey=productName+'||'+colour;
+    const vKey=styleCode+'||'+size;
+    const vKeyOS=styleCode+'||OS';
+    const pKey=styleCode;
     const variantEntry=amVariantMap[vKey]||amVariantMap[vKeyOS];
     const productEntry=amProductMap[pKey];
-    const launchDate=(window.amStyleMidMap||{})[styleFromSku(sku)]||(window.amStyleMidMap||{})[variantEntry?.style||productEntry?.style||'']||'';
+    const launchDate=(window.amStyleMidMap||{})[styleCode]||'';
     const onOrder=variantEntry?variantEntry.qtyOpen:0;
     const monthDue=variantEntry?variantEntry.monthDue:productEntry?productEntry.monthDue:'';
     const productOnOrder=productEntry?productEntry.qtyOpen:0;
@@ -8184,66 +8202,66 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     });
   }
 
-  // Add AM-only products not in sales history
-  const shopKeys=new Set(rows.map(r=>r.productName+'||'+r.colour));
+  // Add AM-only products not in sales history — iterate by STYLE CODE (not product
+  // name+colour) so a new style sharing an old style's product name always gets its
+  // own row here rather than being silently absorbed into the existing product.
+  const shopStyleCodes=new Set(rows.map(r=>styleFromSku(r.sku)));
   if(amData||amApiData){
-    for(const[desc,info]of Object.entries(amProducts)){
-      for(const colour of info.colours){
-        const pKey=desc+'||'+colour;
-        if(shopKeys.has(pKey))continue;
-        const productEntry=amProductMap[pKey];
-        const monthDue=productEntry?productEntry.monthDue:'';
-        const amStyle=productEntry?.style||'';
-        // Calculate totalOnOrder from variant map entries (more reliable than productMap subtotal)
-        const variantEntries=Object.entries(amVariantMap).filter(([k])=>k.startsWith(pKey+'||'));
-        const totalOnOrderFromVariants=variantEntries.reduce((s,[,v])=>s+(v.qtyOpen||0),0);
-        const totalOnOrder=totalOnOrderFromVariants||(productEntry?productEntry.qtyOpen:0);
-        if(totalOnOrder===0)continue;
-        const category=productEntry?.category||info.category||(window.amStyleCategoryMap&&window.amStyleCategoryMap[amStyle])||'';
-        const amPriceInfo=(window.amStylePriceMap&&window.amStylePriceMap[amStyle])||{};
-        const amPrice=amPriceInfo.price||0;
-        const amRrp=amPriceInfo.rrp||0;
-        const amCost=amPriceInfo.cost||0;
-        // Decode delivery month from AM Style SKU, fall back to AM Month Due
-        const amDeliveryMonth=normaliseDeliveryMonth(decodeSkuDelivery(amStyle)||monthDue||'');
-        const sizeEntries=Object.entries(amVariantMap)
-          .filter(([k])=>k.startsWith(pKey+'||'))
-          .map(([k,v])=>({size:k.split('||')[2],qtyOpen:v.qtyOpen,monthDue:v.monthDue||monthDue,
-            deliveryMonth:normaliseDeliveryMonth(decodeSkuDelivery(v.style||amStyle)||v.monthDue||monthDue||'')}));
-        if(sizeEntries.length>0){
-          for(const se of sizeEntries){
-            rows.push({
-              fullTitle:desc+' - '+colour,productName:desc,colour,
-              size:se.size,variant:se.size,sku:amStyle||'—',
-              category,vendor:'ON ORDER',
-              stock:0,price:amPrice||null,compareAt:amRrp||null,discountPct:null,margin:amCost&&amPrice?+(((amPrice-amCost)/amPrice)*100).toFixed(2):null,
-              velocity:0,vel7:null,vel30:null,
-              sold7:0,sold30:0,sold90:0,sold365:0,sold:0,sellThru7:null,
-              soldToday:0,soldYesterday:0,
-              days:9999,daysDisplay:'—',
-              onOrder:se.qtyOpen,productOnOrder:totalOnOrder,
-              monthDue:se.monthDue,deliveryMonth:se.deliveryMonth,
-              launchDate:(window.amStyleMidMap||{})[amStyle]||'',
-              suggestedOrder:0,
-              flag:'on-order',amOnly:true,sohValue:null,sellValue:null,soldOutSizes:null
-            });
-          }
-        } else {
+    for(const amStyle of Object.keys(amProductMap)){
+      if(shopStyleCodes.has(amStyle))continue;
+      const meta=amStyleMeta[amStyle];
+      if(!meta)continue;
+      const{desc,colour}=meta;
+      const productEntry=amProductMap[amStyle];
+      const monthDue=productEntry?productEntry.monthDue:'';
+      // Calculate totalOnOrder from variant map entries (more reliable than productMap subtotal)
+      const variantEntries=Object.entries(amVariantMap).filter(([k])=>k.startsWith(amStyle+'||'));
+      const totalOnOrderFromVariants=variantEntries.reduce((s,[,v])=>s+(v.qtyOpen||0),0);
+      const totalOnOrder=totalOnOrderFromVariants||(productEntry?productEntry.qtyOpen:0);
+      if(totalOnOrder===0)continue;
+      const category=productEntry?.category||meta.category||(window.amStyleCategoryMap&&window.amStyleCategoryMap[amStyle])||'';
+      const amPriceInfo=(window.amStylePriceMap&&window.amStylePriceMap[amStyle])||{};
+      const amPrice=amPriceInfo.price||0;
+      const amRrp=amPriceInfo.rrp||0;
+      const amCost=amPriceInfo.cost||0;
+      // Decode delivery month from AM Style SKU, fall back to AM Month Due
+      const amDeliveryMonth=normaliseDeliveryMonth(decodeSkuDelivery(amStyle)||monthDue||'');
+      const sizeEntries=variantEntries
+        .map(([k,v])=>({size:k.slice(amStyle.length+2),qtyOpen:v.qtyOpen,monthDue:v.monthDue||monthDue,
+          deliveryMonth:normaliseDeliveryMonth(decodeSkuDelivery(v.style||amStyle)||v.monthDue||monthDue||'')}));
+      if(sizeEntries.length>0){
+        for(const se of sizeEntries){
           rows.push({
-            fullTitle:desc+' - '+colour,productName:desc,colour,size:'—',variant:'—',sku:amStyle||'—',
+            fullTitle:desc+' - '+colour,productName:desc,colour,
+            size:se.size,variant:se.size,sku:amStyle||'—',
             category,vendor:'ON ORDER',
             stock:0,price:amPrice||null,compareAt:amRrp||null,discountPct:null,margin:amCost&&amPrice?+(((amPrice-amCost)/amPrice)*100).toFixed(2):null,
             velocity:0,vel7:null,vel30:null,
             sold7:0,sold30:0,sold90:0,sold365:0,sold:0,sellThru7:null,
             soldToday:0,soldYesterday:0,
             days:9999,daysDisplay:'—',
-            onOrder:null,productOnOrder:totalOnOrder,
-            monthDue,deliveryMonth:amDeliveryMonth,
+            onOrder:se.qtyOpen,productOnOrder:totalOnOrder,
+            monthDue:se.monthDue,deliveryMonth:se.deliveryMonth,
             launchDate:(window.amStyleMidMap||{})[amStyle]||'',
             suggestedOrder:0,
             flag:'on-order',amOnly:true,sohValue:null,sellValue:null,soldOutSizes:null
           });
         }
+      } else {
+        rows.push({
+          fullTitle:desc+' - '+colour,productName:desc,colour,size:'—',variant:'—',sku:amStyle||'—',
+          category,vendor:'ON ORDER',
+          stock:0,price:amPrice||null,compareAt:amRrp||null,discountPct:null,margin:amCost&&amPrice?+(((amPrice-amCost)/amPrice)*100).toFixed(2):null,
+          velocity:0,vel7:null,vel30:null,
+          sold7:0,sold30:0,sold90:0,sold365:0,sold:0,sellThru7:null,
+          soldToday:0,soldYesterday:0,
+          days:9999,daysDisplay:'—',
+          onOrder:null,productOnOrder:totalOnOrder,
+          monthDue,deliveryMonth:amDeliveryMonth,
+          launchDate:(window.amStyleMidMap||{})[amStyle]||'',
+          suggestedOrder:0,
+          flag:'on-order',amOnly:true,sohValue:null,sellValue:null,soldOutSizes:null
+        });
       }
     }
   }
@@ -8315,9 +8333,9 @@ function buildVariantRows(){
   }
 
   const{salesBySkuDay,priceMap}=_cachedSalesMaps;
-  const{variantMap:amVariantMap,productMap:amProductMap,products:amProducts}=_cachedAMData;
+  const{variantMap:amVariantMap,productMap:amProductMap,products:amProducts,styleMeta:amStyleMeta}=_cachedAMData;
   const{soMap}=_cachedSoldOutData;
-  allVariantRows=processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap,coreSet,bundleSet,draftSet,activeSet);
+  allVariantRows=processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap,coreSet,bundleSet,draftSet,activeSet,amStyleMeta);
   _perfDataCache=null;_perfWeeklyCache=null;_perfWeekDefs=null;window._tierMap=null; // clear performance cache so it rebuilds with fresh data
   // Immediately rebuild tier map so tier emoji/badges remain valid after period or custom date changes
   if(window._salesBySkuDay&&allVariantRows.length){
@@ -9657,6 +9675,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.43 — Fix AM data (on-order qty, delivery month, cost) bleeding between different styles that share a product name — e.g. a new "Black Friday" relaunch of an existing product name inherited/overwrote the old style's on-order and delivery month, and vice versa. AM variantMap/productMap are now keyed by AM STYLE CODE (SKU minus size suffix), not product name+colour text, across buildAMData/buildAMDataFromAPI/processRows/Size Workings/AM-only product rows. New styleMeta map carries desc/colour for AM-only rows so they're generated per style code, not per product name — a new style is never silently absorbed into an existing product with the same name
 // v2.2.42 — Fix Size mislabelling: unsold size variants (no rows in the 365-day sales history — typically new/CORE drops that haven't sold every size yet) were copying the size label of a DIFFERENT sold sibling variant wholesale in buildSalesMaps' "fill missing price" step, so e.g. S/XS/XXXL/M/L/XXL could all display as "XL". Size is now always derived from the variant's own Shopify inventory row; only price/RRP/vendor/category are borrowed from the sold reference variant
 // v2.2.41 — ↻ Refresh button now forces a fresh AM catalogue sync (launch dates + CORE group), bypassing the 6h cache — new mid_codes entered in AM appear after a manual refresh instead of waiting for TTL expiry
 // v2.2.40 — Launch Date dropdown filter added to Dashboard Product view, Sales Cadence (Product & Category views — category filters at SKU level), and Performance; options sorted newest→oldest by true date (launchDateSortKey), with a No Launch Date option
