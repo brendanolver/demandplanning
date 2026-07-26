@@ -2118,7 +2118,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.44';
+const APP_VERSION='v2.2.45';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -8792,13 +8792,21 @@ function getSuggestOrderFilter(){
 /* ── AGGREGATION ── */
 function toProduct(vr){
   const map={};
+  // A product name+colour can contain rows from more than one distinct AM style
+  // (e.g. a relaunch under a new style code, still sharing the old product's name).
+  // Track the first style code seen per base name+colour; a row under a genuinely
+  // different style code is a different underlying product and gets its own row,
+  // rather than being merged into — and hidden behind — the original style's SKU.
+  const baseKeyStyle={};
   for(const r of vr){
-    const key=r.productName+'||'+r.colour;
-    // A product name+colour can contain rows from more than one distinct AM style
-    // (e.g. a relaunch under a new style code) — each style carries its own
-    // productOnOrder repeated across all its size rows, so count it once per style,
-    // not once per product name.
+    const baseKey=r.productName+'||'+r.colour;
     const rStyle=styleFromSku(r.sku);
+    let key=baseKey;
+    let isSplitStyle=false;
+    if(rStyle){
+      if(baseKeyStyle[baseKey]===undefined)baseKeyStyle[baseKey]=rStyle;
+      else if(baseKeyStyle[baseKey]!==rStyle){key=baseKey+'||'+rStyle;isSplitStyle=true;}
+    }
     if(!map[key]){
       const countedStyles=new Set();
       let baseOnOrder=0;
@@ -8808,7 +8816,13 @@ function toProduct(vr){
       const _initU=r.sold>0?r.sold:r.stock>0?r.stock:1;
       const _initRev=r.margin!=null&&_initEx>0?_initEx*_initU:0;
       const _initCost=r.margin!=null&&_initEx>0?_initEx*(1-r.margin/100)*_initU:0;
+      // A split-style row keeps a distinct fullTitle (style code appended) so it never
+      // collides with the original style's saved Re-Order/Markdown/Size-Workings entry —
+      // those features key their persisted user input off fullTitle text.
+      const splitFullTitle=isSplitStyle?r.fullTitle+' ('+rStyle+')':r.fullTitle;
       map[key]={...r,velSum:r.velocity,stock:r.stock,sold:r.sold,
+        fullTitle:splitFullTitle,
+        isSplitStyle,splitStyleCode:isSplitStyle?rStyle:'',
         sold7:r.sold7||0,sold30:r.sold30||0,sold60:r.sold60||0,sold90:r.sold90||0,sold365:r.sold365||0,
         soldToday:r.soldToday||0,soldYesterday:r.soldYesterday||0,
         suggestedOrder:r.suggestedOrder||0,
@@ -9325,7 +9339,10 @@ function renderRow(row,headers){
       const amTag=row.amOnly?'<span class="am-tag">AM</span>':'';
       const t=getTierForProduct(row.productName,row.colour);
       const tierEmoji=t?` <span style="font-size:13px;" title="${getPerfLabel(t.tier)}">${t.emoji}</span>`:'';
-      return`<td class="cell-product"><div class="prod-name">${row.productName||''}${tierEmoji}${amTag}</div>${row.colour?`<div class="prod-colour">${row.colour}</div>`:''}</td>`;
+      // A different AM style code sharing this product's name+colour (e.g. a relaunch)
+      // renders as its own row — flag it so it's not mistaken for the same style.
+      const splitTag=row.isSplitStyle?`<span style="font-size:10px;font-weight:700;padding:1px 6px;border-radius:var(--r-pill);background:#fef3c7;color:#92400e;border:1px solid #fde68a;margin-left:5px;" title="Different AM style code (${row.splitStyleCode}) sharing this product name">NEW STYLE</span>`:'';
+      return`<td class="cell-product"><div class="prod-name">${row.productName||''}${tierEmoji}${amTag}${splitTag}</div>${row.colour?`<div class="prod-colour">${row.colour}</div>`:''}</td>`;
     }
     if(h.k==='category') return`<td class="cell-muted">${val||'—'}</td>`;
     if(h.k==='vendor'){
@@ -9697,6 +9714,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.45 — toProduct() now splits into a separate row when a product name+colour spans more than one distinct AM style code (e.g. a relaunch) — previously merged into one row under the OLDEST style's SKU even after v2.2.43/44, which correctly summed the on-order total but hid which physical style it belonged to. Split row gets a "NEW STYLE" badge on Dashboard and a disambiguated fullTitle so it doesn't collide with the original style's saved Re-Order/Markdown/Size-Workings entry. Normal single-style products (the vast majority) are completely unaffected
 // v2.2.44 — Follow-up to v2.2.43: fix on-order totals disappearing for products spanning multiple AM styles. toProduct/toCategory/Sales Cadence/Dashboard KPI/Insights all deduped on-order "once per product name" assuming a single style per name; now dedupe once per STYLE, so a relaunch's on-order no longer gets silently dropped when it shares a product name with an older style
 // v2.2.43 — Fix AM data (on-order qty, delivery month, cost) bleeding between different styles that share a product name — e.g. a new "Black Friday" relaunch of an existing product name inherited/overwrote the old style's on-order and delivery month, and vice versa. AM variantMap/productMap are now keyed by AM STYLE CODE (SKU minus size suffix), not product name+colour text, across buildAMData/buildAMDataFromAPI/processRows/Size Workings/AM-only product rows. New styleMeta map carries desc/colour for AM-only rows so they're generated per style code, not per product name — a new style is never silently absorbed into an existing product with the same name
 // v2.2.42 — Fix Size mislabelling: unsold size variants (no rows in the 365-day sales history — typically new/CORE drops that haven't sold every size yet) were copying the size label of a DIFFERENT sold sibling variant wholesale in buildSalesMaps' "fill missing price" step, so e.g. S/XS/XXXL/M/L/XXL could all display as "XL". Size is now always derived from the variant's own Shopify inventory row; only price/RRP/vendor/category are borrowed from the sold reference variant
