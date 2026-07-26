@@ -2118,7 +2118,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.43';
+const APP_VERSION='v2.2.44';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -2982,7 +2982,9 @@ function renderCadence(){
     for(const r of getActiveRows()){
       const c=r.category||'UNCATEGORISED';
       sohByKey[c]=(sohByKey[c]||0)+(r.stock||0);
-      const dedupeKey=c+'||'+r.productName+'||'+r.colour;
+      // Dedupe by style (not product+colour) — a product name can span multiple
+      // distinct AM styles, each with its own on-order total repeated per size row.
+      const dedupeKey=c+'||'+(r.productOnOrder?styleFromSku(r.sku):(r.productName+'||'+r.colour));
       if(!_onOrderSeen.has(dedupeKey)){
         _onOrderSeen.add(dedupeKey);
         const oo=(r.productOnOrder||0)||(r.onOrder||0);
@@ -2993,8 +2995,9 @@ function renderCadence(){
     for(const r of getActiveRows()){
       const k=r.productName+'||'+r.colour;
       sohByKey[k]=(sohByKey[k]||0)+(r.stock||0);
-      if(!_onOrderSeen.has(k)){
-        _onOrderSeen.add(k);
+      const dedupeKey=r.productOnOrder?styleFromSku(r.sku):k;
+      if(!_onOrderSeen.has(dedupeKey)){
+        _onOrderSeen.add(dedupeKey);
         const oo=(r.productOnOrder||0)||(r.onOrder||0);
         onOrderByKey[k]=(onOrderByKey[k]||0)+oo;
       }
@@ -4115,9 +4118,11 @@ function analyseStockData(){
     p.sold90+=(r.sold90||0);
     // variant-level onOrder (unique per variant) always added
     p.onOrder+=(r.onOrder||0);
-    // productOnOrder is a product-level total — only count once per product key to avoid multiplying across variant rows
-    if(!_poSeen.has(k)&&(r.productOnOrder||0)>0){
-      _poSeen.add(k);
+    // productOnOrder is a per-style total — only count once per style to avoid multiplying
+    // across its size rows; a product name can span multiple distinct AM styles.
+    const poKey=(r.productOnOrder||0)>0?styleFromSku(r.sku):k;
+    if(!_poSeen.has(poKey)&&(r.productOnOrder||0)>0){
+      _poSeen.add(poKey);
       p.onOrder+=(r.productOnOrder||0);
     }
     if((r.soldOutSizes||0)>0)p.soldOutSizes=r.soldOutSizes;
@@ -8489,10 +8494,13 @@ function renderSidebarCounts(){
 // Sum on-order units once per product (productName+colour), preferring productOnOrder
 // (matched at product level, more reliable) over per-size onOrder which can be 0
 // when a SKU's size string doesn't exact-match the AM item's size string.
+// Dedupe key uses STYLE code (not product name+colour) when productOnOrder is set —
+// a product name can span multiple distinct AM styles (e.g. a relaunch), each
+// carrying its own on-order total repeated across its own size rows.
 function computeTotalOnOrder(rows){
   const seen=new Map();
   for(const r of rows){
-    const key=r.productName+'||'+r.colour;
+    const key=r.productOnOrder?styleFromSku(r.sku):(r.productName+'||'+r.colour);
     if(!seen.has(key))seen.set(key,(r.productOnOrder||0)||(r.onOrder||0));
   }
   let total=0;
@@ -8786,10 +8794,16 @@ function toProduct(vr){
   const map={};
   for(const r of vr){
     const key=r.productName+'||'+r.colour;
+    // A product name+colour can contain rows from more than one distinct AM style
+    // (e.g. a relaunch under a new style code) — each style carries its own
+    // productOnOrder repeated across all its size rows, so count it once per style,
+    // not once per product name.
+    const rStyle=styleFromSku(r.sku);
     if(!map[key]){
-      // First variant: use productOnOrder (product total) as the single source of truth.
-      // Never add per-size variantEntry.onOrder on top — it's already included in productOnOrder.
-      const baseOnOrder=(r.productOnOrder||0)||(r.onOrder||0);
+      const countedStyles=new Set();
+      let baseOnOrder=0;
+      if(r.productOnOrder){baseOnOrder=r.productOnOrder;countedStyles.add(rStyle);}
+      else if(r.onOrder>0){baseOnOrder=r.onOrder;}
       const _initEx=r.price>0?r.price/1.1:0;
       const _initU=r.sold>0?r.sold:r.stock>0?r.stock:1;
       const _initRev=r.margin!=null&&_initEx>0?_initEx*_initU:0;
@@ -8799,6 +8813,7 @@ function toProduct(vr){
         soldToday:r.soldToday||0,soldYesterday:r.soldYesterday||0,
         suggestedOrder:r.suggestedOrder||0,
         onOrder:baseOnOrder,
+        _countedStyles:countedStyles,
         sizes:r.size&&r.size!=='—'?[r.size]:[],
         earliestDue:r.monthDue,earliestKey:monthDueSortKey(r.monthDue),
         priceSum:r.price||0,priceCount:r.price?1:0,
@@ -8814,9 +8829,13 @@ function toProduct(vr){
       p.soldYesterday+=(r.soldYesterday||0);
       p.suggestedOrder+=(r.suggestedOrder||0);
       p.velSum+=r.velocity;p.count++;
-      // Only add variant-level onOrder if no productOnOrder exists on this row
-      // (productOnOrder is already the full product total set on first variant)
-      if(!r.productOnOrder&&r.onOrder!==null&&r.onOrder>0)p.onOrder+=r.onOrder;
+      // Add this row's style's on-order total exactly once, however many size
+      // rows repeat it; a different style sharing this product name still counts.
+      if(r.productOnOrder){
+        if(!p._countedStyles.has(rStyle)){p.onOrder+=r.productOnOrder;p._countedStyles.add(rStyle);}
+      } else if(r.onOrder!==null&&r.onOrder>0){
+        p.onOrder+=r.onOrder;
+      }
       if(r.price){p.priceSum+=r.price;p.priceCount++;}
       p.sohValue+=(r.sohValue||0);
       p.sellValue+=(r.sellValue||0);
@@ -8894,7 +8913,10 @@ function toCategory(vr){
     c.sellValue+=(r.sellValue||0);
     c.salesValue+=(r.sold||0)*(r.price||0);
     if(r.margin!=null&&r.price>0){const _ex=r.price/1.1;const _u=r.sold>0?r.sold:r.stock>0?r.stock:1;c.marginRevSum+=_ex*_u;c.marginCostSum+=_ex*(1-r.margin/100)*_u;}
-    const onOrderProductKey=r.productName+'||'+r.colour;
+    // Dedupe by STYLE code, not product name+colour — a product name can span
+    // multiple distinct AM styles (e.g. a relaunch), each with its own on-order total
+    // repeated across its own size rows.
+    const onOrderProductKey=r.productOnOrder?styleFromSku(r.sku):(r.productName+'||'+r.colour);
     if(!c.onOrderCounted.has(onOrderProductKey)){
       c.onOrderCounted.add(onOrderProductKey);
       c.onOrder+=(r.productOnOrder||0)||(r.onOrder||0);
@@ -9675,6 +9697,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.44 — Follow-up to v2.2.43: fix on-order totals disappearing for products spanning multiple AM styles. toProduct/toCategory/Sales Cadence/Dashboard KPI/Insights all deduped on-order "once per product name" assuming a single style per name; now dedupe once per STYLE, so a relaunch's on-order no longer gets silently dropped when it shares a product name with an older style
 // v2.2.43 — Fix AM data (on-order qty, delivery month, cost) bleeding between different styles that share a product name — e.g. a new "Black Friday" relaunch of an existing product name inherited/overwrote the old style's on-order and delivery month, and vice versa. AM variantMap/productMap are now keyed by AM STYLE CODE (SKU minus size suffix), not product name+colour text, across buildAMData/buildAMDataFromAPI/processRows/Size Workings/AM-only product rows. New styleMeta map carries desc/colour for AM-only rows so they're generated per style code, not per product name — a new style is never silently absorbed into an existing product with the same name
 // v2.2.42 — Fix Size mislabelling: unsold size variants (no rows in the 365-day sales history — typically new/CORE drops that haven't sold every size yet) were copying the size label of a DIFFERENT sold sibling variant wholesale in buildSalesMaps' "fill missing price" step, so e.g. S/XS/XXXL/M/L/XXL could all display as "XL". Size is now always derived from the variant's own Shopify inventory row; only price/RRP/vendor/category are borrowed from the sold reference variant
 // v2.2.41 — ↻ Refresh button now forces a fresh AM catalogue sync (launch dates + CORE group), bypassing the 6h cache — new mid_codes entered in AM appear after a manual refresh instead of waiting for TTL expiry
