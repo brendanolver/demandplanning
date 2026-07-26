@@ -2118,7 +2118,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.47';
+const APP_VERSION='v2.2.48';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -5385,13 +5385,13 @@ function renderReorders(){
   const saved=getRoData();
   const search=(document.getElementById('ro-search')?.value||'').trim().toUpperCase();
 
-  // Build full product list — include all products with stock or on order
-  const _stockSet=new Set(allVariantRows
-    .filter(r=>(r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)
-    .map(r=>r.productName+'||'+r.colour));
-  const allProductsRo=[...toProduct(getActiveRows().filter(r=>
-    !r.amOnly&&((r.stock||0)>=1||(r.onOrder||0)+(r.productOnOrder||0)>0)
-  ))];
+  // Build full product list — every real Shopify-listed product, regardless of current
+  // stock or on-order. Re-Orders exists to decide what needs ordering, so a style that's
+  // sold out with nothing incoming (the most urgent case) must still be selectable here —
+  // excluding it, as the old stock>=1||onOrder>0 gate did, was backwards for this view.
+  // AM-only rows (styles not yet synced to Shopify at all) are still excluded — there's
+  // no real product to place a re-order against yet.
+  const allProductsRo=[...toProduct(getActiveRows().filter(r=>!r.amOnly))];
 
   // Only repopulate filter dropdowns when not actively searching (prevents DOM thrashing)
   // But always populate on first load (when no checkboxes exist yet)
@@ -9723,6 +9723,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.48 — Working > Re-Orders no longer requires stock>=1 or on-order>0 to list a product — a style that's completely sold out with nothing on order (the most urgent re-order case) was being silently excluded by that gate. Now shows every real Shopify-listed product (AM-only not-yet-synced styles still excluded, since there's nothing to re-order against yet); existing Status/Stock Status filters still let you narrow the list down
 // v2.2.47 — Fix wrong margin/price on AM-only (on-order, not-yet-in-Shopify) rows: was using AM's internal wholesale 'price' field as the sell price for both the displayed Price and the margin calc, instead of 'retail_price' (the real RRP — confirmed to match the eventual Shopify price on already-synced styles). This inflated the apparent "discount" (RRP shown as compare-at against a much lower wholesale price) and computed a meaningless margin. Now uses RRP (ex-GST) vs AM's cost_landed (already ex-GST) — same convention as every other row — so a cheaper landed cost on a new PO correctly shows as a better margin
 // v2.2.46 — Fix Performance Tier badge/column showing a borrowed tier on AM-only rows (a brand-new style with zero sales history was displaying the OLD style's tier just for sharing its product name — getTierForProduct is keyed by name+colour text with no concept of style). Every tier lookup on Dashboard, Re-Orders, Markdowns, PDF export and CSV export now returns no tier for amOnly rows, since they have no sales history of their own to have earned one. Sales Cadence tier badges are a known follow-up — that view doesn't split by style yet
 // v2.2.45 — toProduct() now splits into a separate row when a product name+colour spans more than one distinct AM style code (e.g. a relaunch) — previously merged into one row under the OLDEST style's SKU even after v2.2.43/44, which correctly summed the on-order total but hid which physical style it belonged to. Split row gets a "NEW STYLE" badge on Dashboard and a disambiguated fullTitle so it doesn't collide with the original style's saved Re-Order/Markdown/Size-Workings entry. Normal single-style products (the vast majority) are completely unaffected
