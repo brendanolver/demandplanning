@@ -2118,7 +2118,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.48';
+const APP_VERSION='v2.2.49';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -7680,6 +7680,16 @@ function normGroupName(g){return String(g||'').toUpperCase().replace(/[^A-Z0-9]+
 function styleFromSku(sku){
   if(!sku)return'';
   const u=sku.toUpperCase().trim();
+  // Modern WNDRR SKUs are a fixed 11 characters before the size suffix: W + 2-digit
+  // year + month letter + collection letter + 3-digit number + 3-letter colour code
+  // (e.g. "W26HA006BLO"). Suffix-guessing alone is ambiguous — a colour ending in "O"
+  // (Blood Red→BLO, Brown→BRO, Stone→STO, Violet→VIO...) plus size "S" spells "...OS",
+  // which wrongly matches the One-Size code before ever trying plain "S", silently
+  // splitting that size's SKU onto a different style everywhere in the app (confirmed
+  // against the live catalogue — 59 current SKUs hit exactly this collision). Prefer
+  // the fixed prefix whenever the SKU matches the modern pattern; older/non-standard
+  // SKUs that don't fit it still fall back to suffix stripping.
+  if(/^W\d{2}[A-Z]{2}\d{3}[A-Z]{3}/.test(u)&&u.length>11)return u.slice(0,11);
   for(const sz of ['XXXXL','XXXL','XXL','XL','XXS','XS','OS','S','M','L']){if(u.endsWith(sz))return u.slice(0,u.length-sz.length);}
   return u.replace(/\d{2}$/,'');
 }
@@ -9723,6 +9733,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.49 — Fix styleFromSku() incorrectly splitting products whose colour code ends in "O" (Blood Red→BLO, Brown→BRO, Stone→STO, Violet→VIO, Desert Rose→DRO...) at the size-S variant: "...S" appended to those colours spells "...OS", which matched the One-Size suffix before ever trying plain "S", producing a different (wrong) style code for that one size and silently splitting it onto its own "NEW STYLE" row everywhere (Dashboard/Re-Orders/Markdowns/tier lookups/CORE matching/launch dates) — reported as "Union Box Fit Tee" duplicating. Confirmed 59 live SKUs hit this exact collision. Now prefers a fixed 11-character style+colour prefix for modern-format SKUs, which is unambiguous regardless of what the colour code or size happen to spell together; older/non-standard SKUs still fall back to the previous suffix-matching logic unchanged
 // v2.2.48 — Working > Re-Orders no longer requires stock>=1 or on-order>0 to list a product — a style that's completely sold out with nothing on order (the most urgent re-order case) was being silently excluded by that gate. Now shows every real Shopify-listed product (AM-only not-yet-synced styles still excluded, since there's nothing to re-order against yet); existing Status/Stock Status filters still let you narrow the list down
 // v2.2.47 — Fix wrong margin/price on AM-only (on-order, not-yet-in-Shopify) rows: was using AM's internal wholesale 'price' field as the sell price for both the displayed Price and the margin calc, instead of 'retail_price' (the real RRP — confirmed to match the eventual Shopify price on already-synced styles). This inflated the apparent "discount" (RRP shown as compare-at against a much lower wholesale price) and computed a meaningless margin. Now uses RRP (ex-GST) vs AM's cost_landed (already ex-GST) — same convention as every other row — so a cheaper landed cost on a new PO correctly shows as a better margin
 // v2.2.46 — Fix Performance Tier badge/column showing a borrowed tier on AM-only rows (a brand-new style with zero sales history was displaying the OLD style's tier just for sharing its product name — getTierForProduct is keyed by name+colour text with no concept of style). Every tier lookup on Dashboard, Re-Orders, Markdowns, PDF export and CSV export now returns no tier for amOnly rows, since they have no sales history of their own to have earned one. Sales Cadence tier badges are a known follow-up — that view doesn't split by style yet
