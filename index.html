@@ -2119,7 +2119,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.54';
+const APP_VERSION='v2.2.55';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -2149,15 +2149,24 @@ function updateAMSyncToggleUI(){
   const on=isAMSyncEnabled();
   // A full AM stock crawl takes a few minutes (two full-catalogue paginated
   // sweeps) — surface syncing/last-synced state so it's never ambiguous
-  // whether a stale-looking number just needs more time.
+  // whether a stale-looking number just needs more time. Combines stock +
+  // sales sync state (both share this one pill): syncing/failed if either
+  // is, otherwise the OLDER of the two "last synced" times, so the pill
+  // never overstates freshness for whichever one is actually more stale.
   let status,warn=false;
-  if(on&&typeof _amStockSyncing!=='undefined'&&_amStockSyncing){
+  const stockSyncing=typeof _amStockSyncing!=='undefined'&&_amStockSyncing;
+  const salesSyncing=typeof _amSalesSyncing!=='undefined'&&_amSalesSyncing;
+  const stockErr=typeof _amStockLastError!=='undefined'&&_amStockLastError;
+  const salesErr=typeof _amSalesLastError!=='undefined'&&_amSalesLastError;
+  if(on&&(stockSyncing||salesSyncing)){
     status='Syncing…';
-  }else if(on&&typeof _amStockLastError!=='undefined'&&_amStockLastError){
+  }else if(on&&(stockErr||salesErr)){
     status='Sync failed';
     warn=true;
   }else if(on){
-    const ts=(()=>{try{return JSON.parse(localStorage.getItem(AM_STOCK_CACHE_KEY)||'null')?.ts||0}catch(e){return 0}})();
+    const readTs=key=>{try{return JSON.parse(localStorage.getItem(key)||'null')?.ts||0}catch(e){return 0}};
+    const stockTs=readTs(AM_STOCK_CACHE_KEY),salesTs=readTs(AM_SALES_CACHE_KEY);
+    const ts=(stockTs&&salesTs)?Math.min(stockTs,salesTs):(stockTs||salesTs);
     if(ts){
       const mins=Math.round((Date.now()-ts)/60000);
       status=mins<1?'Synced just now':`Synced ${mins}m ago`;
@@ -2168,7 +2177,7 @@ function updateAMSyncToggleUI(){
     status='OFF';
   }
   el.innerHTML=`<span class="live-dot" style="background:${warn?'#dc2626':(on?'':'#9ca3af')}"></span>AM Live Data: ${status}`;
-  el.title=warn?`Last sync failed: ${_amStockLastError}\nClick to turn OFF AM-sourced stock/sales, or Refresh to retry`:on?'Click to turn OFF AM-sourced stock/sales (revert to Shopify CSV only)':'Click to turn ON AM-sourced stock/sales';
+  el.title=warn?`Last sync failed: ${[stockErr&&`stock — ${_amStockLastError}`,salesErr&&`sales — ${_amSalesLastError}`].filter(Boolean).join('; ')}\nClick to turn OFF AM-sourced stock/sales, or Refresh to retry`:on?'Click to turn OFF AM-sourced stock/sales (revert to Shopify CSV only)':'Click to turn ON AM-sourced stock/sales';
 }
 
 /* ── SCREEN NAV ── */
@@ -6843,6 +6852,7 @@ function startAutoSync(){
   // bypassing the 6h cache — runs in background, re-renders when done
   syncAMMidCodes(true);
   syncAMStock(true); // Phase 1 of AM migration — same background/re-render pattern; no-ops if kill switch is off
+  syncAMSales(true); // Phase 2 of AM migration — units sold + real sell price overlay; no-ops if kill switch is off
   autoSyncPipeline().then(ok=>{
     if(!ok){
       console.log('⚠️ Pipeline unavailable — falling back to Google Drive');
@@ -7721,7 +7731,7 @@ async function fetchAMOrdersFromAPI(){
    background and caches in localStorage for 6 hours. */
 const AM_MID_CACHE_KEY='amCatalogV1';
 const AM_MID_TTL=6*60*60*1000;
-const AM_CORE_GROUP='AA CORE STYLES';
+const AM_CORE_GROUPS=new Set(['AA CORE STYLES','ACCESSORIES CURRENT']);
 // Normalise a group name for comparison ("AA - Core Styles" → "AA CORE STYLES")
 function normGroupName(g){return String(g||'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();}
 function styleFromSku(sku){
@@ -7798,7 +7808,7 @@ async function syncAMMidCodes(force=false){
         if(!style)continue;
         const mid=(p.mid_code||'').trim();
         if(mid&&mid!=='0')map[style]=mid;
-        if(normGroupName(p.group)===AM_CORE_GROUP)core.push(style);
+        if(AM_CORE_GROUPS.has(normGroupName(p.group)))core.push(style);
       }
       last=(d.meta&&d.meta.pagination&&d.meta.pagination.last_id)||'';
       if(!last||items.length<100)break;
@@ -7884,6 +7894,44 @@ function loadAMStockCache(){
   return 0;
 }
 loadAMStockCache();
+// sku_id -> SKU code mapping, crawled from /inventory. Shared between stock and
+// sales sync (both need it) so it's crawled once, not twice, per sync cycle.
+// Long TTL (matches the catalogue cache) since this mapping barely changes —
+// unlike stock levels or sales, it doesn't need to be fresh every load.
+const AM_SKUID_CACHE_KEY='amSkuIdMapV1';
+const AM_SKUID_TTL=AM_MID_TTL;
+function loadAMSkuIdCache(){
+  try{
+    const c=JSON.parse(localStorage.getItem(AM_SKUID_CACHE_KEY)||'null');
+    if(c&&c.map)return{map:c.map,ts:c.ts||0};
+  }catch(e){}
+  return{map:null,ts:0};
+}
+let _amSkuIdSyncing=null; // in-flight promise — concurrent stock+sales calls share one crawl
+async function getAMSkuIdMap(){
+  const cached=loadAMSkuIdCache();
+  if(cached.map&&Date.now()-cached.ts<AM_SKUID_TTL)return cached.map;
+  if(_amSkuIdSyncing)return _amSkuIdSyncing;
+  _amSkuIdSyncing=(async()=>{
+    try{
+      const idToSku={};
+      for(const p of await crawlAMProxy('inventory')){
+        const skuId=(p.sku_id||'').toString();
+        const sku=(p.sku_alt||'').trim().toUpperCase();
+        if(skuId&&sku)idToSku[skuId]=sku;
+      }
+      if(!Object.keys(idToSku).length)return cached.map||{}; // empty sweep must never wipe good cached data
+      try{localStorage.setItem(AM_SKUID_CACHE_KEY,JSON.stringify({ts:Date.now(),map:idToSku}))}catch(e){}
+      return idToSku;
+    }catch(e){
+      if(cached.map)return cached.map; // stale-but-good cache beats a hard failure
+      throw e;
+    }finally{
+      _amSkuIdSyncing=null;
+    }
+  })();
+  return _amSkuIdSyncing;
+}
 let _amStockSyncing=false;
 let _amStockLastError=null;
 async function syncAMStock(force=false){
@@ -7898,18 +7946,11 @@ async function syncAMStock(force=false){
     // The two passes are independent (different endpoints, different tables)
     // so crawl them in parallel — halves total wait vs sequential, since each
     // full-catalogue crawl alone takes several minutes.
-    const [invRows,whRows]=await Promise.all([
-      crawlAMProxy('inventory'),
+    const [idToSku,whRows]=await Promise.all([
+      getAMSkuIdMap(),
       crawlAMProxy('sku_warehouse',`&warehouse_id=${AM_SHOPIFY_WAREHOUSE_ID}`)
     ]);
-    // Pass 1: sku_id -> SKU code (company-wide table, no warehouse concept)
-    const idToSku={};
-    for(const p of invRows){
-      const skuId=(p.sku_id||'').toString();
-      const sku=(p.sku_alt||'').trim().toUpperCase();
-      if(skuId&&sku)idToSku[skuId]=sku;
-    }
-    // Pass 2: Shopify Online Store-specific qty_avail_sell, keyed by sku_id
+    // Shopify Online Store-specific qty_avail_sell, keyed by sku_id
     const idToQty={};
     for(const p of whRows){
       const skuId=(p.sku_id||'').toString();
@@ -7931,6 +7972,148 @@ async function syncAMStock(force=false){
     }
   }catch(e){_amStockLastError=(e&&e.message)||'Unknown error';console.error('AM stock sync failed:',e);}
   finally{_amStockSyncing=false;updateAMSyncToggleUI();}
+}
+
+/* ── AM SALES (Phase 2 of the AM data migration) ──
+   Fills the gap between Shopify CSV refreshes (~3h cycle) with near-live units
+   sold + real per-unit sell price, sourced from AM orders under the "ONLINE
+   SALES" and "ICONIC ONLINE SALES" customer accounts — every Shopify order
+   syncs into AM as a sales order under one of these two. Only a short trailing
+   window is fetched (not a backfill) — existing 365-day CSV history is
+   untouched; AM only overlays the last few days until the CSV catches up.
+
+   Real per-unit price: AM order_items are booked at full/list unit_price, with
+   the actual checkout discount only living at the ORDER level (amount_discount
+   / amount_subtotal) — verified against real discounted orders (order 163923:
+   20.94% order discount correctly prorates a $129.77 line to $102.60). So the
+   real price per line is reconstructed by prorating the order-level discount
+   across its taxable lines by each line's share of the order.
+
+   Iconic identification: the AM customer only gets manually recoded to "ICONIC
+   ONLINE SALES" after the order already exists, so filtering by customer_name
+   alone would miss orders not yet recoded. customer_po is reliable regardless
+   of recode timing — WNDRR-direct orders are "#"-prefixed ("#145975"), Iconic
+   orders are a long numeric string with no "#" (e.g. "2426443542"). Verified
+   current (non-historical) Iconic orders book at amount_discount=0 — the 25%
+   marketplace commission is not in the AM order data at all and has to be
+   applied here, on top of any (rare) genuine discount proration.
+
+   Line filtering: AM order lines include non-product service/fee rows
+   (REDORETURNS, ORDERPROTECTION, ...) alongside real product lines. Their
+   is_taxable flag looked promising but isn't reliable — ORDERPROTECTION shows
+   up as both taxable AND non-taxable in real data. A positive match against
+   the real WNDRR style_number pattern (same shape styleFromSku() already
+   relies on) is used instead of a fragile exclusion blacklist. */
+const AM_SALES_CACHE_KEY='amSalesV1';
+const AM_SALES_TTL=20*60*1000; // shorter than stock — this is meant to bridge a few-hour CSV gap, not stay open-ended stale
+const AM_SALES_WINDOW_DAYS=3; // today + trailing 2 days — CSV itself catches up within ~3h, so a short window is enough
+const AM_ONLINE_CUSTOMERS=['ONLINE SALES','ICONIC ONLINE SALES'];
+const AM_PRODUCT_STYLE_RE=/^W\d{2}[A-Z]{2}\d{3}[A-Z]{3}/;
+function businessDatesBack(n){
+  const dates=[];
+  const[y,m,d]=getBusinessToday().split('-').map(Number);
+  for(let i=0;i<n;i++){
+    const dt=new Date(Date.UTC(y,m-1,d-i));
+    dates.push(`${dt.getUTCFullYear()}-${String(dt.getUTCMonth()+1).padStart(2,'0')}-${String(dt.getUTCDate()).padStart(2,'0')}`);
+  }
+  return dates;
+}
+function isoToUsDate(iso){const[y,m,d]=iso.split('-');return`${m}/${d}/${y}`;}
+function loadAMSalesCache(){
+  try{
+    const c=JSON.parse(localStorage.getItem(AM_SALES_CACHE_KEY)||'null');
+    if(c&&c.salesMap){
+      window.amRecentSalesMap=c.salesMap;
+      window.amRealPriceMap=c.priceMap||{};
+      return c.ts||0;
+    }
+  }catch(e){}
+  return 0;
+}
+loadAMSalesCache();
+let _amSalesSyncing=false;
+let _amSalesLastError=null;
+async function syncAMSales(force=false){
+  if(!isAMSyncEnabled())return; // manual kill switch — see toggleAMSync()
+  if(_amSalesSyncing)return;
+  const ts=loadAMSalesCache();
+  if(!force&&Date.now()-ts<AM_SALES_TTL)return;
+  _amSalesSyncing=true;
+  _amSalesLastError=null;
+  updateAMSyncToggleUI();
+  try{
+    const idToSku=await getAMSkuIdMap();
+    const dates=businessDatesBack(AM_SALES_WINDOW_DAYS);
+    const fetches=[];
+    for(const cust of AM_ONLINE_CUSTOMERS){
+      for(const iso of dates){
+        fetches.push(
+          crawlAMProxy('orders',`&customer_name=${encodeURIComponent(cust)}&date=${encodeURIComponent(isoToUsDate(iso))}`)
+            .then(orders=>({iso,orders}))
+        );
+      }
+    }
+    const results=await Promise.all(fetches);
+
+    const salesMap={}; // {sku:{date:{qty,cogs}}}
+    const priceAccum={}; // {sku:{sum,qty}}
+    for(const{iso,orders}of results){
+      for(const order of orders){
+        if((order.credit_status||'')!=='Approved')continue;
+        const subtotal=parseFloat(order.amount_subtotal)||0;
+        const discount=parseFloat(order.amount_discount)||0;
+        const isIconic=/^\d{8,12}$/.test((order.customer_po||'').trim());
+        for(const item of order.order_items||[]){
+          const styleNum=(item.style_number||'').trim().toUpperCase();
+          if(!AM_PRODUCT_STYLE_RE.test(styleNum))continue; // service/fee line, not a real product
+          const sku=idToSku[(item.sku_id||'').toString()];
+          if(!sku)continue; // unresolvable sku_id — skip rather than guess
+          const qty=(parseFloat(item.qty)||0)-(parseFloat(item.qty_cxl)||0);
+          if(qty<=0)continue;
+
+          if(!salesMap[sku])salesMap[sku]={};
+          if(!salesMap[sku][iso])salesMap[sku][iso]={qty:0,cogs:0};
+          salesMap[sku][iso].qty+=qty;
+          // cogs left at 0 for AM-sourced days — AM order lines don't carry a
+          // comparable per-line COGS figure; margin's existing fallback chain
+          // (brCost||amCost||salesCost) doesn't depend on this per-day value
+
+          if(subtotal>0){
+            const amount=parseFloat(item.amount)||0;
+            const lineDiscount=discount*(amount/subtotal);
+            let realUnitPrice=(amount-lineDiscount)/qty;
+            if(isIconic){
+              // Iconic's 25% marketplace commission isn't in the AM order data
+              // at all (current bookings show amount_discount=0) — deduct it
+              // off the ex-GST amount, then re-gross back to inc-GST so
+              // Price/Sell Value keeps meaning the same across every product
+              const netExGst=(realUnitPrice/1.1)*0.75;
+              realUnitPrice=netExGst*1.1;
+            }
+            if(!priceAccum[sku])priceAccum[sku]={sum:0,qty:0};
+            priceAccum[sku].sum+=realUnitPrice*qty;
+            priceAccum[sku].qty+=qty;
+          }
+        }
+      }
+    }
+    const priceMap={};
+    for(const sku in priceAccum){
+      if(priceAccum[sku].qty>0)priceMap[sku]=+(priceAccum[sku].sum/priceAccum[sku].qty).toFixed(2);
+    }
+    if(!Object.keys(salesMap).length&&!Object.keys(priceMap).length){
+      _amSalesLastError='Sync returned no data'; // an empty/failed sweep must never wipe good cached data
+      return;
+    }
+    window.amRecentSalesMap=salesMap;
+    window.amRealPriceMap=priceMap;
+    try{localStorage.setItem(AM_SALES_CACHE_KEY,JSON.stringify({ts:Date.now(),salesMap,priceMap}))}catch(e){}
+    if(allVariantRows&&allVariantRows.length){
+      buildVariantRows();
+      if(currentScreen==='dashboard')setView(currentView);
+    }
+  }catch(e){_amSalesLastError=(e&&e.message)||'Unknown error';console.error('AM sales sync failed:',e);}
+  finally{_amSalesSyncing=false;updateAMSyncToggleUI();}
 }
 
 /* ── HELPERS ── */
@@ -8341,30 +8524,27 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const threeMonthsAgo=new Date(now.getFullYear(),now.getMonth()-3,1);
 
     // OLD — delivered more than 3 months ago, no on order, not CORE
-    // Also applies to CLEARANCE and BUNDLE (isCore already declared above)
+    // Also applies to BUNDLE (isCore already declared above)
     const isBundle=bundleSet.has(productName+' - '+colour);
-    const isClearance=(vendor||'').toUpperCase()==='CLEARANCE';
     const hasNoOrder=(onOrder||0)+(productOnOrder||0)===0;
     const isOldStyle=skuDeliveryDate&&skuDeliveryDate<threeMonthsAgo;
-    const isEnd=(isOldStyle&&hasNoOrder&&!isCore)||
-                (isClearance||isBundle);
+    const isEnd=(isOldStyle&&hasNoOrder&&!isCore)||isBundle;
 
     // NEW — delivered this calendar month, OR a future delivery month with stock on hand
     const isCurrentMonth=skuDeliveryDate&&skuDeliveryDate.getFullYear()===now.getFullYear()&&skuDeliveryDate.getMonth()===now.getMonth();
     const isFutureWithStock=skuDeliveryDate&&skuDeliveryDate>now&&(stock>0);
-    // CURRENT — delivered within last 3 months (but not this month), not CORE/CLEARANCE/BUNDLE
-    const isCurrent=skuDeliveryDate&&skuDeliveryDate>=threeMonthsAgo&&!isCurrentMonth&&!isFutureWithStock&&!isCore&&!isClearance&&!isBundle;
+    // CURRENT — delivered within last 3 months (but not this month), not CORE/BUNDLE
+    const isCurrent=skuDeliveryDate&&skuDeliveryDate>=threeMonthsAgo&&!isCurrentMonth&&!isFutureWithStock&&!isCore&&!isBundle;
 
-    const isNew=(isCurrentMonth||isFutureWithStock)&&!isCore&&!isClearance&&!isBundle&&!isDraft&&!isPreRelease;
+    const isNew=(isCurrentMonth||isFutureWithStock)&&!isCore&&!isBundle&&!isDraft&&!isPreRelease;
     // Draft products with current or future delivery month AND stock/on-order should show as NEW
     const isDraftButCurrent=isDraft&&(isCurrentMonth||isFutureWithStock||
       (skuDeliveryDate&&skuDeliveryDate>=new Date()))&&
       ((stock>0)||(onOrder>0)||(productOnOrder>0));
     // BUNDLE takes precedence over CORE — CORE items in bundle deals show as BUNDLE (already tracked under Delivery Month)
     const isReduced=!isCore&&!isBundle&&!isDraft&&!isPreRelease&&(discountPct>0);
-    // REDUCED takes priority over CLEARANCE when product has an active discount
     // PRE-RELEASE: draft-flagged with stock — always shows regardless of delivery month
-    const effectiveVendor=isCore?'CORE':(isDraft&&!isDraftButCurrent)?'DRAFT':isPreRelease?'PRE-RELEASE':isBundle?'BUNDLE':isReduced?'REDUCED':isClearance?'CLEARANCE':(isNew||isDraftButCurrent)?'NEW':isEnd?'OLD':isCurrent?'CURRENT':vendor;
+    const effectiveVendor=isCore?'CORE':(isDraft&&!isDraftButCurrent)?'DRAFT':isPreRelease?'PRE-RELEASE':isBundle?'BUNDLE':isReduced?'REDUCED':(isNew||isDraftButCurrent)?'NEW':isEnd?'OLD':isCurrent?'CURRENT':vendor;
     // No suggested orders for BUNDLE or REDUCED — these shouldn't be restocked at full price
     const finalSuggestedOrder=isBundle||isReduced?0:suggestedOrder;
     // Re-run flag with effectiveVendor so CORE/NEW/CURRENT/ON ORDER status is respected
@@ -8372,8 +8552,8 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     if(isEnd&&!discountPct&&!isNew&&!isDraft&&!isDraftButCurrent&&!isPreRelease)flag='reduce';
     // Never flag NEW, CURRENT, ON ORDER or BUNDLE products as reduce
     if(flag==='reduce'&&(effectiveVendor==='NEW'||effectiveVendor==='CURRENT'||effectiveVendor==='ON ORDER'||effectiveVendor==='PRE-RELEASE'||isBundle))flag='ok';
-    // Never flag OLD, CLEARANCE, BUNDLE as reorder at variant level
-    if(flag==='reorder'&&(isEnd||isClearance||isBundle))flag='ok';
+    // Never flag OLD or BUNDLE as reorder at variant level
+    if(flag==='reorder'&&(isEnd||isBundle))flag='ok';
     // Note: MOQ (70 unit) check is done at product level in toProduct, not per-variant
 
     rows.push({
@@ -8531,6 +8711,30 @@ function buildVariantRows(){
   }
 
   const{salesBySkuDay,priceMap}=_cachedSalesMaps;
+  // AM sales/price overlay (Phase 2) — applied here rather than baked into
+  // buildSalesMaps()'s cached output, mirroring the AM stock pattern: cheap to
+  // reapply on every render, so a background syncAMSales() completing doesn't
+  // need to force a full CSV-parse rebuild to take effect, and it can never be
+  // silently wiped by one of the many _cachedSalesMaps=null triggers either,
+  // since it reapplies unconditionally every single call. Mutates salesBySkuDay
+  // in place (same object as window._salesBySkuDay), so both stay in sync.
+  if(isAMSyncEnabled()&&window.amRecentSalesMap){
+    for(const sku in window.amRecentSalesMap){
+      if(!salesBySkuDay[sku])salesBySkuDay[sku]={};
+      for(const day in window.amRecentSalesMap[sku]){
+        salesBySkuDay[sku][day]=window.amRecentSalesMap[sku][day];
+      }
+    }
+  }
+  if(isAMSyncEnabled()&&window.amRealPriceMap){
+    for(const sku in window.amRealPriceMap){
+      // Only correct an existing entry's price — a SKU AM has sold but that
+      // isn't in priceMap yet has no other metadata (colour/size/category) to
+      // safely fabricate, so it falls through to existing CSV/AM-catalogue
+      // handling elsewhere instead of a partially-formed entry here.
+      if(priceMap[sku])priceMap[sku].price=window.amRealPriceMap[sku];
+    }
+  }
   const{variantMap:amVariantMap,productMap:amProductMap,products:amProducts,styleMeta:amStyleMeta}=_cachedAMData;
   const{soMap}=_cachedSoldOutData;
   allVariantRows=processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap,plMap,soMap,coreSet,bundleSet,draftSet,activeSet,amStyleMeta);
@@ -9069,7 +9273,6 @@ function toProduct(vr){
       let f=getFlag(days,p.stock,onOrder,p.vendor,p.discountPct);
       const ev=p.vendor; // effectiveVendor already set on p
       const pIsBundle=ev==='BUNDLE';
-      const pIsClearance=ev==='CLEARANCE';
       const pIsOld=ev==='OLD';
       const pIsNew=ev==='NEW';
       const pIsCurrent=ev==='CURRENT';
@@ -9077,8 +9280,8 @@ function toProduct(vr){
       const pIsCore=ev==='CORE';
       // Reduce exclusions: NEW, CURRENT, ON ORDER, BUNDLE
       if(f==='reduce'&&(pIsNew||pIsCurrent||pIsOnOrder||pIsBundle))f='ok';
-      // Reorder exclusions: OLD, CLEARANCE, BUNDLE (non-CORE), below MOQ
-      if(f==='reorder'&&(pIsOld||pIsClearance||(pIsBundle&&!pIsCore)))f='ok';
+      // Reorder exclusions: OLD, BUNDLE (non-CORE), below MOQ
+      if(f==='reorder'&&(pIsOld||(pIsBundle&&!pIsCore)))f='ok';
       if(f==='reorder'&&(p.suggestedOrder||0)<70)f='ok';
       return f;
     })();
@@ -9909,6 +10112,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.55 — AM migration Phase 2: units sold + real per-unit sell price now sourced from AM orders (customers "ONLINE SALES" + "ICONIC ONLINE SALES"), overlaying the last 3 days on top of the existing 365-day Shopify CSV history to bridge the ~3h gap between CSV refreshes — AM preferred per-day/per-SKU when available, CSV untouched otherwise. Real price is reconstructed by prorating each order's actual checkout discount across its taxable lines (AM books lines at full/list price; the real discount only lives at the order level) — verified against real discounted orders. Iconic marketplace orders get an additional 25% commission deducted (their AM bookings show no discount at all — the commission isn't in AM's data), then re-grossed back to inc-GST so Price/Sell Value keeps the same meaning as every other product. Non-product order lines (return coverage, order protection) are filtered by matching the real WNDRR SKU pattern rather than a fragile is_taxable/blacklist check, since real data showed is_taxable isn't reliable for this. Also: CORE status now additionally includes AM's "ACCESSORIES CURRENT" group (previously only "AA CORE STYLES"), restoring CORE status to socks/caps/beanies that lost it when CORE first became AM-group-driven; and the CLEARANCE status is retired (its source CSV field is no longer maintained) — those products now correctly fall through to OLD or REDUCED like everything else. Refactored the stock sync to share its sku_id→SKU catalogue crawl with the new sales sync instead of each crawling /inventory separately
 // v2.2.54 — Fix AM stock sync getting permanently stuck on "Syncing…": plain fetch() has no timeout, so if AM's upstream API ever stalled on a single page mid-crawl, the request could hang indefinitely with no way to recover short of a reload — reported by Brendan after the v2.2.53 status pill sat on "Syncing…" for several minutes with no sign of finishing. Every AM proxy request now has a 20s timeout with one retry before the sync gives up on that attempt; a failed/timed-out sync no longer hangs the UI or silently reverts to a stale "Synced" state — the pill now shows a red "Sync failed" (with the error in its tooltip) so a failure is visible rather than indistinguishable from success
 // v2.2.53 — "AM Live Data" header pill now shows live sync status ("Syncing…" / "Synced Xm ago") instead of a static "ON" — a full AM stock crawl genuinely takes a few minutes (two full-catalogue paginated sweeps, verified externally at ~3.5min against production data), and there was no way to tell whether a number that looked stale just hadn't finished syncing yet vs. being a real bug. Externally replicated the app's exact crawl+join against the live proxy and confirmed it produces correct, verified-against-AM's-UI results every time — so this is aimed at removing the ambiguity around whether to trust what's on screen yet, not a data-correctness fix
 // v2.2.52 — Speed up AM stock sync: the v2.2.51 warehouse fix crawls two full AM catalogue tables (/inventory + /sku_warehouse) instead of one, doubling worst-case sync time to ~12-14min since they ran sequentially — after the fix went live, Brendan compared the app against AM's UI within that window and saw values a few units stale (confirmed correct once a fresh sync had time to finish; verified live against AM's API directly). The two crawls are independent, so now run in parallel via Promise.all, roughly halving total wait back down to one full-catalogue crawl's worth of time
