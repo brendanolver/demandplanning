@@ -2119,7 +2119,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.50';
+const APP_VERSION='v2.2.51';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -7796,14 +7796,27 @@ async function syncAMMidCodes(force=false){
 }
 
 /* ── AM STOCK (Phase 1 of the AM data migration) ──
-   AM's /inventory endpoint is the live upstream source of truth for stock on
-   hand — Shopify's own inventory is a downstream copy AM pushes to it, so this
-   is closer to the source, not further from it. Separate cache/TTL from the
-   mid_code/CORE catalogue crawl above (stock needs to be fresher). Runs in the
-   background exactly like syncAMMidCodes — fired without awaiting from
-   startAutoSync(), so it never blocks the app becoming usable. */
+   AM is the live upstream source of truth for stock on hand — Shopify's own
+   inventory is a downstream copy AM pushes to it, so this is closer to the
+   source, not further from it. IMPORTANT: AM's plain /inventory endpoint has
+   NO warehouse dimension at all (its underlying "sku" table has no warehouse
+   column — the API itself rejects any warehouse filter as "field does not
+   exist on the target table") — it returns a single company-wide figure
+   blending Main Warehouse, Shopify Online Store and Popup Store together,
+   which does not match what's actually available to sell online (confirmed:
+   it disagreed with AM's own UI filtered to Shopify Online Store on real
+   SKUs). The correct warehouse-scoped resource is /sku_warehouse (per AM's
+   own API docs), which supports warehouse_id and returns one row per SKU per
+   warehouse — but it only carries sku_id, not the SKU code, so this syncs in
+   two passes: sku_id→SKU mapping from /inventory, then Shopify Online Store
+   (warehouse_id=1002, confirmed via /warehouses) quantities from
+   /sku_warehouse, joined by sku_id. Separate cache/TTL from the mid_code/CORE
+   catalogue crawl above (stock needs to be fresher). Runs in the background
+   exactly like syncAMMidCodes — fired without awaiting from startAutoSync(),
+   so it never blocks the app becoming usable. */
 const AM_STOCK_CACHE_KEY='amStockV1';
 const AM_STOCK_TTL=45*60*1000; // 45 min — much shorter than the 6h catalogue cache
+const AM_SHOPIFY_WAREHOUSE_ID='1002'; // "Shopify Online Store" per /warehouses — 1001=Main Warehouse (default), 1003=Popup Store
 // AM API responses have occasionally contained unescaped control characters
 // that break strict JSON.parse (seen when testing /orders) — sanitize before
 // parsing rather than risk a whole sync failing on one bad text field.
@@ -7811,6 +7824,20 @@ async function safeAMJson(resp){
   const text=await resp.text();
   const cleaned=text.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'');
   return JSON.parse(cleaned);
+}
+async function crawlAMProxy(path,extraQuery=''){
+  const rows=[];
+  let last='';
+  for(let page=0;page<400;page++){ // generous cap — full tables run ~15-25k rows at 100/page
+    const q=last?`&${encodeURIComponent('pagination[last_id]')}=${encodeURIComponent(last)}`:'';
+    const r=await fetch(`/.netlify/functions/am-proxy?path=${path}${extraQuery}${q}`);
+    const d=await safeAMJson(r);
+    const items=d.response||[];
+    rows.push(...items);
+    last=(d.meta&&d.meta.pagination&&d.meta.pagination.last_id)||'';
+    if(!last||items.length<100)break;
+  }
+  return rows;
 }
 function loadAMStockCache(){
   try{
@@ -7828,20 +7855,25 @@ async function syncAMStock(force=false){
   if(!force&&Date.now()-ts<AM_STOCK_TTL)return;
   _amStockSyncing=true;
   try{
+    // Pass 1: sku_id -> SKU code (company-wide table, no warehouse concept)
+    const idToSku={};
+    for(const p of await crawlAMProxy('inventory')){
+      const skuId=(p.sku_id||'').toString();
+      const sku=(p.sku_alt||'').trim().toUpperCase();
+      if(skuId&&sku)idToSku[skuId]=sku;
+    }
+    // Pass 2: Shopify Online Store-specific qty_avail_sell, keyed by sku_id
+    const idToQty={};
+    for(const p of await crawlAMProxy('sku_warehouse',`&warehouse_id=${AM_SHOPIFY_WAREHOUSE_ID}`)){
+      const skuId=(p.sku_id||'').toString();
+      if(skuId)idToQty[skuId]=parseFloat(p.qty_avail_sell)||0;
+    }
+    // Join — a SKU with no Shopify Online Store row (never stocked there)
+    // is simply absent, and falls through to the existing CSV/estimated
+    // fallback in processRows(), same as any other AM gap.
     const map={};
-    let last='';
-    for(let page=0;page<400;page++){ // generous cap — full inventory table est. 15-25k rows at 100/page
-      const q=last?`&${encodeURIComponent('pagination[last_id]')}=${encodeURIComponent(last)}`:'';
-      const r=await fetch(`/.netlify/functions/am-proxy?path=inventory${q}`);
-      const d=await safeAMJson(r);
-      const items=d.response||[];
-      for(const p of items){
-        const sku=(p.sku_alt||'').trim().toUpperCase();
-        if(!sku)continue;
-        map[sku]=parseFloat(p.qty_avail_sell)||0;
-      }
-      last=(d.meta&&d.meta.pagination&&d.meta.pagination.last_id)||'';
-      if(!last||items.length<100)break;
+    for(const skuId in idToSku){
+      if(skuId in idToQty)map[idToSku[skuId]]=idToQty[skuId];
     }
     if(!Object.keys(map).length)return; // an empty/failed sweep must never wipe good cached data
     window.amStockMap=map;
@@ -9830,6 +9862,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.51 — Fix AM stock: v2.2.50 read /inventory directly, whose qty_avail_sell is a company-wide figure blending Main Warehouse + Shopify Online Store + Popup Store (AM's own API confirms that table has no warehouse column at all) — this overstated SOH for any SKU stocked in more than one AM warehouse, caught by comparing the app against AM's own UI filtered to Shopify Online Store. Now joins /inventory's sku_id→SKU mapping against the warehouse-scoped /sku_warehouse?warehouse_id=1002 endpoint, so only Shopify Online Store quantity is used — verified an exact match against AM's UI (270 on hand / 268 avail-to-sell) for the SKU that first exposed the bug
 // v2.2.50 — AM migration Phase 1: stock on hand now sourced from Apparel Magic's /inventory endpoint (the actual upstream master AM pushes to Shopify from), preferred over the Shopify CSV per-SKU when available — CSV/estimated fallback logic is fully preserved and unchanged for any SKU AM doesn't have. Background sync on page load/Refresh, 45min cache, never overwrites good cached data with an empty/failed sweep. Added a manual "AM Live Data" kill-switch toggle in the header to instantly force pre-migration (CSV-only) behaviour without a rollback, while this rollout is being watched
 // v2.2.49 — Fix styleFromSku() incorrectly splitting products whose colour code ends in "O" (Blood Red→BLO, Brown→BRO, Stone→STO, Violet→VIO, Desert Rose→DRO...) at the size-S variant: "...S" appended to those colours spells "...OS", which matched the One-Size suffix before ever trying plain "S", producing a different (wrong) style code for that one size and silently splitting it onto its own "NEW STYLE" row everywhere (Dashboard/Re-Orders/Markdowns/tier lookups/CORE matching/launch dates) — reported as "Union Box Fit Tee" duplicating. Confirmed 59 live SKUs hit this exact collision. Now prefers a fixed 11-character style+colour prefix for modern-format SKUs, which is unambiguous regardless of what the colour code or size happen to spell together; older/non-standard SKUs still fall back to the previous suffix-matching logic unchanged
 // v2.2.48 — Working > Re-Orders no longer requires stock>=1 or on-order>0 to list a product — a style that's completely sold out with nothing on order (the most urgent re-order case) was being silently excluded by that gate. Now shows every real Shopify-listed product (AM-only not-yet-synced styles still excluded, since there's nothing to re-order against yet); existing Status/Stock Status filters still let you narrow the list down
