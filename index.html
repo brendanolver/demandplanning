@@ -2119,7 +2119,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.59';
+const APP_VERSION='v2.2.60';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -6853,6 +6853,7 @@ function startAutoSync(){
   syncAMMidCodes(true);
   syncAMStock(true); // Phase 1 of AM migration — same background/re-render pattern; no-ops if kill switch is off
   syncAMSales(true); // Phase 2 of AM migration — units sold + real sell price overlay; no-ops if kill switch is off
+  syncMysteryBoxHistory(); // one-off historical backfill for products with no CSV history at all — deliberately NOT forced, respects its own 30-day cache since a full crawl is expensive
   autoSyncPipeline().then(ok=>{
     if(!ok){
       console.log('⚠️ Pipeline unavailable — falling back to Google Drive');
@@ -8189,6 +8190,97 @@ async function syncAMSales(force=false){
   finally{_amSalesSyncing=false;updateAMSyncToggleUI();}
 }
 
+/* ── MYSTERY BOX HISTORICAL BACKFILL ──
+   Mystery boxes have no Shopify CSV history at all (see the AM SALES comment
+   above) — the regular syncAMSales() only bridges the last 3 days, so without
+   this they show real stock/price/margin (from the AM catalogue overlay) but
+   permanently zero historical sold units, which starves Planning's budget
+   calculations of any real signal. Unlike regular products' CSV history,
+   there's no existing data source to overlay on top of — this crawls AM's
+   order history directly, once, going back far enough to cover a realistic
+   promo-drop product's whole lifetime.
+   Confirmed against real data (both current mystery box products) that sales
+   land in short, concentrated promotional windows (days, not a steady drip),
+   not spread evenly across the lookback period — so this is a genuine
+   one-off backfill of real historical events, not an ever-growing crawl.
+   Verified: 466 days x 2 customer accounts, paginated, ~5 min, 66k orders
+   scanned, 829 real mystery box order lines found across two distinct promo
+   windows. That cost is real (a lot of AM API calls), so this deliberately
+   does NOT run on every page load like the other syncs — it respects a long
+   TTL and effectively runs once per device, not once per session. */
+const AM_MB_HISTORY_CACHE_KEY='amMysteryBoxHistoryV1';
+const AM_MB_HISTORY_TTL=30*24*60*60*1000; // 30 days — this is a backfill of static past events, not a live feed
+const AM_MB_HISTORY_LOOKBACK_DAYS=500; // generous cover for a promo line's realistic lifetime
+function loadMysteryBoxHistoryCache(){
+  try{
+    const c=JSON.parse(localStorage.getItem(AM_MB_HISTORY_CACHE_KEY)||'null');
+    if(c&&c.salesMap){window.amMysteryBoxHistory=c.salesMap;return c.ts||0;}
+  }catch(e){}
+  return 0;
+}
+loadMysteryBoxHistoryCache();
+let _amMbHistorySyncing=false;
+async function syncMysteryBoxHistory(force=false){
+  if(!isAMSyncEnabled())return; // manual kill switch — see toggleAMSync()
+  if(_amMbHistorySyncing)return;
+  const ts=loadMysteryBoxHistoryCache();
+  if(!force&&Date.now()-ts<AM_MB_HISTORY_TTL)return;
+  _amMbHistorySyncing=true;
+  try{
+    const idToSku=await getAMSkuIdMap(); // also populates window.amMysteryBoxMeta as a side effect
+    if(!window.amMysteryBoxMeta||!Object.keys(window.amMysteryBoxMeta).length)return; // nothing to look for yet
+    // Full style+colour codes (e.g. "W26AX002ASS") — AM's order_items
+    // style_number already includes the colour suffix, confirmed against
+    // real order data, so this must match styleFromSku()'s output exactly,
+    // not just the bare style prefix.
+    const mbStyles=new Set(Object.keys(window.amMysteryBoxMeta).map(sku=>styleFromSku(sku)));
+    const dates=businessDatesBack(AM_MB_HISTORY_LOOKBACK_DAYS);
+    const salesMap={};
+    const BATCH=6; // keep concurrent AM requests bounded across a large date range
+    for(let i=0;i<dates.length;i+=BATCH){
+      const batchDates=dates.slice(i,i+BATCH);
+      const batchPromises=[];
+      for(const iso of batchDates){
+        for(const cust of AM_ONLINE_CUSTOMERS){
+          batchPromises.push(
+            crawlAMProxy('orders',`&customer_name=${encodeURIComponent(cust)}&date=${encodeURIComponent(isoToUsDate(iso))}`)
+              .then(orders=>({iso,orders}))
+          );
+        }
+      }
+      const batchResults=await Promise.all(batchPromises);
+      for(const{iso,orders}of batchResults){
+        for(const order of orders){
+          if((order.credit_status||'')!=='Approved')continue;
+          for(const item of order.order_items||[]){
+            const styleNum=(item.style_number||'').trim().toUpperCase();
+            if(!mbStyles.has(styleNum))continue;
+            const sku=idToSku[(item.sku_id||'').toString()];
+            if(!sku)continue;
+            const qty=(parseFloat(item.qty)||0)-(parseFloat(item.qty_cxl)||0);
+            if(qty<=0)continue;
+            if(!salesMap[sku])salesMap[sku]={};
+            if(!salesMap[sku][iso])salesMap[sku][iso]={qty:0,cogs:0};
+            salesMap[sku][iso].qty+=qty;
+          }
+        }
+      }
+    }
+    // An empty result here is ambiguous (mystery boxes may genuinely have sold
+    // nothing yet) rather than a clear failure signal like the other syncs —
+    // still safe to skip the write, since a null/absent entry falls through
+    // to zero sold either way, same as today's behaviour.
+    if(!Object.keys(salesMap).length)return;
+    window.amMysteryBoxHistory=salesMap;
+    try{localStorage.setItem(AM_MB_HISTORY_CACHE_KEY,JSON.stringify({ts:Date.now(),salesMap}))}catch(e){}
+    if(allVariantRows&&allVariantRows.length){
+      buildVariantRows();
+      if(currentScreen==='dashboard')setView(currentView);
+    }
+  }catch(e){console.error('Mystery box history backfill failed:',e);}
+  finally{_amMbHistorySyncing=false;}
+}
+
 /* ── HELPERS ── */
 function normaliseDeliveryMonth(val){
   if(!val||val==='CORE')return val;
@@ -8790,6 +8882,17 @@ function buildVariantRows(){
   }
 
   const{salesBySkuDay,priceMap}=_cachedSalesMaps;
+  // Mystery box historical backfill — applied first so the regular 3-day AM
+  // sales overlay below (fresher, and the one syncAMSales() actively keeps
+  // current) wins for any day the two happen to overlap.
+  if(isAMSyncEnabled()&&window.amMysteryBoxHistory){
+    for(const sku in window.amMysteryBoxHistory){
+      if(!salesBySkuDay[sku])salesBySkuDay[sku]={};
+      for(const day in window.amMysteryBoxHistory[sku]){
+        if(!salesBySkuDay[sku][day])salesBySkuDay[sku][day]=window.amMysteryBoxHistory[sku][day];
+      }
+    }
+  }
   // AM sales/price overlay (Phase 2) — applied here rather than baked into
   // buildSalesMaps()'s cached output, mirroring the AM stock pattern: cheap to
   // reapply on every render, so a background syncAMSales() completing doesn't
@@ -10212,6 +10315,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.60 — Mystery Box historical sales backfill: they never had Shopify CSV history to begin with (draft products, invisible to the Report Pipeline's exports entirely), and the Phase 2 AM sales overlay only bridges the last 3 days, so Planning's budget view was starved of any real signal for them. A one-off crawl of AM's order history (500-day lookback, both online-sales customer accounts, paginated) reconstructs real day-by-day sales instead — deliberately NOT run on every page load like the other syncs (a full crawl scans tens of thousands of orders), so it respects its own 30-day cache and effectively runs once per device. Verified against real data: 829 order lines found across two genuinely concentrated promo windows (not spread evenly — confirms this is a real backfill of actual limited-time drops, not an ever-growing crawl), ~644 units for one box, ~202 for the other, both resolved to real SKUs via the same shared sku_id map the stock sync already maintains
 // v2.2.59 — Margin now sourced from Apparel Magic's landed cost first: cost priority is now AM cost_landed (base+freight+duty, WNDRR's actual costing system of record) → Better Reports Cost → AM open-PO Amount/Units → Shopify sale-time COGS, applied everywhere margin/cost is computed (variant rows, Category/Product aggregation, SOH Value, Today's Margin KPI — they all flow from the same per-variant calculation). Extended the existing AM catalogue crawl (syncAMMidCodes, no extra network cost) to also capture cost_landed per style. Also fixed a real, independent bug found while investigating: Better Reports now exports Cost/Price as formatted currency strings ("$250.00"), which plain parseFloat() can't parse (returns NaN → silently coerced to 0) — this meant Better Reports Cost, the #2 priority, had been silently returning $0 for every product for some time, with margin quietly falling through to weaker sources. Verified against real AM data: 3,210 styles with landed cost (91% coverage of active/selling SKUs), store-wide revenue-weighted margin moves from 72.24% to 75.29% — a modest, plausible correction, not a wild swing — with a couple of individual products correcting far more (one from 44.99% to 80.64%, matching AM's real ~$8.79 landed cost for a $49.95 tee)
 // v2.2.58 — Fix Mystery Boxes still not appearing right after v2.2.57 shipped: the shared sku_id→SKU catalogue cache (getAMSkuIdMap, 6h TTL) has no way to know a new field (mysteryBoxMeta) was added to what it captures — a browser that had already synced within the last 6h kept reusing its old cached entry, which predates mystery box metadata entirely, silently hiding it for up to 6h regardless of any "AM Live Data" refresh. The cache now detects this shape mismatch and treats an old-format entry as stale, forcing exactly one fresh crawl to pick up the new field before returning to normal 6h caching
 // v2.2.57 — Bring Mystery Box products back into reporting: they're DRAFT status in Shopify, and the Report Pipeline's CSV exports only cover published products, so they were completely absent from shopifyInvData/shopifySalesData — not just filtered downstream, invisible to processRows() from the start (an old excludedDraftCats entry for "MYSTERY BOX" turned out not to be the actual blocker, since that check is never reached when a SKU isn't in the data at all — removed it anyway since it no longer matched Shopify's real "MYSTERY BOXES" category spelling). AM has full stock/price/cost data for them regardless of Shopify publish status, so their metadata (name, price, cost, size) is now captured during the same /inventory crawl already done for the stock sync's sku_id map — no extra network cost — and merged into priceMap/plMap so they flow through the normal product pipeline: real stock, price, margin and reorder flags, same as any other product. Verified against live data (MYSTERY BOX SUMMER: 3 units on hand, $200 price, 64.25% margin, all correctly AM-sourced)
