@@ -2119,7 +2119,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.51';
+const APP_VERSION='v2.2.52';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -7855,16 +7855,23 @@ async function syncAMStock(force=false){
   if(!force&&Date.now()-ts<AM_STOCK_TTL)return;
   _amStockSyncing=true;
   try{
+    // The two passes are independent (different endpoints, different tables)
+    // so crawl them in parallel — halves total wait vs sequential, since each
+    // full-catalogue crawl alone takes several minutes.
+    const [invRows,whRows]=await Promise.all([
+      crawlAMProxy('inventory'),
+      crawlAMProxy('sku_warehouse',`&warehouse_id=${AM_SHOPIFY_WAREHOUSE_ID}`)
+    ]);
     // Pass 1: sku_id -> SKU code (company-wide table, no warehouse concept)
     const idToSku={};
-    for(const p of await crawlAMProxy('inventory')){
+    for(const p of invRows){
       const skuId=(p.sku_id||'').toString();
       const sku=(p.sku_alt||'').trim().toUpperCase();
       if(skuId&&sku)idToSku[skuId]=sku;
     }
     // Pass 2: Shopify Online Store-specific qty_avail_sell, keyed by sku_id
     const idToQty={};
-    for(const p of await crawlAMProxy('sku_warehouse',`&warehouse_id=${AM_SHOPIFY_WAREHOUSE_ID}`)){
+    for(const p of whRows){
       const skuId=(p.sku_id||'').toString();
       if(skuId)idToQty[skuId]=parseFloat(p.qty_avail_sell)||0;
     }
@@ -9862,6 +9869,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.52 — Speed up AM stock sync: the v2.2.51 warehouse fix crawls two full AM catalogue tables (/inventory + /sku_warehouse) instead of one, doubling worst-case sync time to ~12-14min since they ran sequentially — after the fix went live, Brendan compared the app against AM's UI within that window and saw values a few units stale (confirmed correct once a fresh sync had time to finish; verified live against AM's API directly). The two crawls are independent, so now run in parallel via Promise.all, roughly halving total wait back down to one full-catalogue crawl's worth of time
 // v2.2.51 — Fix AM stock: v2.2.50 read /inventory directly, whose qty_avail_sell is a company-wide figure blending Main Warehouse + Shopify Online Store + Popup Store (AM's own API confirms that table has no warehouse column at all) — this overstated SOH for any SKU stocked in more than one AM warehouse, caught by comparing the app against AM's own UI filtered to Shopify Online Store. Now joins /inventory's sku_id→SKU mapping against the warehouse-scoped /sku_warehouse?warehouse_id=1002 endpoint, so only Shopify Online Store quantity is used — verified an exact match against AM's UI (270 on hand / 268 avail-to-sell) for the SKU that first exposed the bug
 // v2.2.50 — AM migration Phase 1: stock on hand now sourced from Apparel Magic's /inventory endpoint (the actual upstream master AM pushes to Shopify from), preferred over the Shopify CSV per-SKU when available — CSV/estimated fallback logic is fully preserved and unchanged for any SKU AM doesn't have. Background sync on page load/Refresh, 45min cache, never overwrites good cached data with an empty/failed sweep. Added a manual "AM Live Data" kill-switch toggle in the header to instantly force pre-migration (CSV-only) behaviour without a rollback, while this rollout is being watched
 // v2.2.49 — Fix styleFromSku() incorrectly splitting products whose colour code ends in "O" (Blood Red→BLO, Brown→BRO, Stone→STO, Violet→VIO, Desert Rose→DRO...) at the size-S variant: "...S" appended to those colours spells "...OS", which matched the One-Size suffix before ever trying plain "S", producing a different (wrong) style code for that one size and silently splitting it onto its own "NEW STYLE" row everywhere (Dashboard/Re-Orders/Markdowns/tier lookups/CORE matching/launch dates) — reported as "Union Box Fit Tee" duplicating. Confirmed 59 live SKUs hit this exact collision. Now prefers a fixed 11-character style+colour prefix for modern-format SKUs, which is unambiguous regardless of what the colour code or size happen to spell together; older/non-standard SKUs still fall back to the previous suffix-matching logic unchanged
