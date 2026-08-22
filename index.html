@@ -2119,7 +2119,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.55';
+const APP_VERSION='v2.2.56';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -8003,12 +8003,18 @@ async function syncAMStock(force=false){
    is_taxable flag looked promising but isn't reliable — ORDERPROTECTION shows
    up as both taxable AND non-taxable in real data. A positive match against
    the real WNDRR style_number pattern (same shape styleFromSku() already
-   relies on) is used instead of a fragile exclusion blacklist. */
+   relies on) is used instead of a fragile exclusion blacklist. IMPORTANT: not
+   every real style_number starts with "W" — confirmed a live order for
+   "ROTHMAN RIB TANK TOP" (style L24JC004WHI) was being silently dropped as if
+   it were a service line, because the regex only accepted a leading "W". The
+   leading letter is left unconstrained (any single capital) so any WNDRR
+   product line is matched regardless of its prefix, while REDORETURNS/
+   ORDERPROTECTION still fail the digit/letter shape test either way. */
 const AM_SALES_CACHE_KEY='amSalesV1';
 const AM_SALES_TTL=20*60*1000; // shorter than stock — this is meant to bridge a few-hour CSV gap, not stay open-ended stale
 const AM_SALES_WINDOW_DAYS=3; // today + trailing 2 days — CSV itself catches up within ~3h, so a short window is enough
 const AM_ONLINE_CUSTOMERS=['ONLINE SALES','ICONIC ONLINE SALES'];
-const AM_PRODUCT_STYLE_RE=/^W\d{2}[A-Z]{2}\d{3}[A-Z]{3}/;
+const AM_PRODUCT_STYLE_RE=/^[A-Z]\d{2}[A-Z]{2}\d{3}[A-Z]{3}/;
 function businessDatesBack(n){
   const dates=[];
   const[y,m,d]=getBusinessToday().split('-').map(Number);
@@ -10112,6 +10118,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.56 — Fix AM sales undercounting real product lines whose style_number doesn't start with "W": v2.2.55's non-product-line filter positively matched only /^W\d{2}.../, which correctly excluded REDORETURNS/ORDERPROTECTION but ALSO silently dropped genuine sales of any WNDRR product using a different prefix — confirmed with a real order for ROTHMAN RIB TANK TOP (style L24JC004WHI). Caught comparing the app against a manually-pulled sales report; investigation also ruled out two other suspected discrepancies as false alarms (Shopify's "inventory_units_sold" metric turned out to be fulfillment-dated not order-dated, and the report itself contained an unexplained 250-unit blank-title bucket inflating its total) — the AM sync's actual units/day figures were already accurate. The style regex now accepts any leading capital letter, not just "W"
 // v2.2.55 — AM migration Phase 2: units sold + real per-unit sell price now sourced from AM orders (customers "ONLINE SALES" + "ICONIC ONLINE SALES"), overlaying the last 3 days on top of the existing 365-day Shopify CSV history to bridge the ~3h gap between CSV refreshes — AM preferred per-day/per-SKU when available, CSV untouched otherwise. Real price is reconstructed by prorating each order's actual checkout discount across its taxable lines (AM books lines at full/list price; the real discount only lives at the order level) — verified against real discounted orders. Iconic marketplace orders get an additional 25% commission deducted (their AM bookings show no discount at all — the commission isn't in AM's data), then re-grossed back to inc-GST so Price/Sell Value keeps the same meaning as every other product. Non-product order lines (return coverage, order protection) are filtered by matching the real WNDRR SKU pattern rather than a fragile is_taxable/blacklist check, since real data showed is_taxable isn't reliable for this. Also: CORE status now additionally includes AM's "ACCESSORIES CURRENT" group (previously only "AA CORE STYLES"), restoring CORE status to socks/caps/beanies that lost it when CORE first became AM-group-driven; and the CLEARANCE status is retired (its source CSV field is no longer maintained) — those products now correctly fall through to OLD or REDUCED like everything else. Refactored the stock sync to share its sku_id→SKU catalogue crawl with the new sales sync instead of each crawling /inventory separately
 // v2.2.54 — Fix AM stock sync getting permanently stuck on "Syncing…": plain fetch() has no timeout, so if AM's upstream API ever stalled on a single page mid-crawl, the request could hang indefinitely with no way to recover short of a reload — reported by Brendan after the v2.2.53 status pill sat on "Syncing…" for several minutes with no sign of finishing. Every AM proxy request now has a 20s timeout with one retry before the sync gives up on that attempt; a failed/timed-out sync no longer hangs the UI or silently reverts to a stale "Synced" state — the pill now shows a red "Sync failed" (with the error in its tooltip) so a failure is visible rather than indistinguishable from success
 // v2.2.53 — "AM Live Data" header pill now shows live sync status ("Syncing…" / "Synced Xm ago") instead of a static "ON" — a full AM stock crawl genuinely takes a few minutes (two full-catalogue paginated sweeps, verified externally at ~3.5min against production data), and there was no way to tell whether a number that looked stale just hadn't finished syncing yet vs. being a real bug. Externally replicated the app's exact crawl+join against the live proxy and confirmed it produces correct, verified-against-AM's-UI results every time — so this is aimed at removing the ambiguity around whether to trust what's on screen yet, not a data-correctness fix
