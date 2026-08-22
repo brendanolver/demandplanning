@@ -2119,7 +2119,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.60';
+const APP_VERSION='v2.2.61';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -8826,10 +8826,6 @@ function buildVariantRows(){
   if(!_cachedSalesMaps){
     _cachedSalesMaps=buildSalesMaps();
     window._salesBySkuDay=_cachedSalesMaps.salesBySkuDay;
-    window._skuCategoryMap={};
-    for(const[sku,pm] of Object.entries(_cachedSalesMaps.priceMap)){
-      window._skuCategoryMap[sku]=pm.category||'UNCATEGORISED';
-    }
   }
   // Always rebuild AM data fresh; use live API data if available, fall back to CSV
   _cachedAMData=amApiData?buildAMDataFromAPI(amApiData):buildAMData();
@@ -8937,6 +8933,20 @@ function buildVariantRows(){
         plMap[title]={price:m.price,compareAt:m.compareAt,deliveryMonth:'',cost:m.cost,status:'',totalQty:0};
       }
     }
+  }
+  // Rebuilt here (after every overlay above has had a chance to touch
+  // priceMap) rather than once inside the cache-miss block — a SKU whose
+  // category only exists via an AM overlay (Mystery Boxes being the current
+  // example) would otherwise be permanently invisible to this map, since the
+  // cache-miss block only runs once and priceMap didn't have that SKU yet at
+  // that point. This fed Sales Cadence and Planning's category-level LY/
+  // budget calculations, both keyed off this map — reported as Mystery Box
+  // history correctly showing on the Dashboard (sold365 etc., which reads
+  // salesBySkuDay directly) but never appearing in Planning's monthly columns
+  // (which bucket by category via this map specifically).
+  window._skuCategoryMap={};
+  for(const[sku,pm] of Object.entries(priceMap)){
+    window._skuCategoryMap[sku]=pm.category||'UNCATEGORISED';
   }
   const{variantMap:amVariantMap,productMap:amProductMap,products:amProducts,styleMeta:amStyleMeta}=_cachedAMData;
   const{soMap}=_cachedSoldOutData;
@@ -10315,6 +10325,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.61 — Fix Mystery Box history still not showing in Planning right after v2.2.60 shipped: window._skuCategoryMap (which Planning and Sales Cadence's category views both key their LY/budget calculations off) was only ever built once, inside buildVariantRows()'s cache-miss block — before the Mystery Box priceMap overlay (or any other AM-only category injected later in the same function) had a chance to add its entries, so those SKUs were permanently invisible to it regardless of how many times the AM overlays themselves reapplied. Moved the rebuild to after every priceMap overlay instead, so it's always current — this was purely a category-level bucketing gap; salesBySkuDay itself (Dashboard's sold365 etc.) was already correct, which is why v2.2.60 looked right everywhere except Planning's monthly columns specifically. Verified: getLYSalesByCategory now correctly attributes 636 units to Jan 2027's budget column (matching real Jan 2026 sales for the in-window Mystery Box, exactly one year prior)
 // v2.2.60 — Mystery Box historical sales backfill: they never had Shopify CSV history to begin with (draft products, invisible to the Report Pipeline's exports entirely), and the Phase 2 AM sales overlay only bridges the last 3 days, so Planning's budget view was starved of any real signal for them. A one-off crawl of AM's order history (500-day lookback, both online-sales customer accounts, paginated) reconstructs real day-by-day sales instead — deliberately NOT run on every page load like the other syncs (a full crawl scans tens of thousands of orders), so it respects its own 30-day cache and effectively runs once per device. Verified against real data: 829 order lines found across two genuinely concentrated promo windows (not spread evenly — confirms this is a real backfill of actual limited-time drops, not an ever-growing crawl), ~644 units for one box, ~202 for the other, both resolved to real SKUs via the same shared sku_id map the stock sync already maintains
 // v2.2.59 — Margin now sourced from Apparel Magic's landed cost first: cost priority is now AM cost_landed (base+freight+duty, WNDRR's actual costing system of record) → Better Reports Cost → AM open-PO Amount/Units → Shopify sale-time COGS, applied everywhere margin/cost is computed (variant rows, Category/Product aggregation, SOH Value, Today's Margin KPI — they all flow from the same per-variant calculation). Extended the existing AM catalogue crawl (syncAMMidCodes, no extra network cost) to also capture cost_landed per style. Also fixed a real, independent bug found while investigating: Better Reports now exports Cost/Price as formatted currency strings ("$250.00"), which plain parseFloat() can't parse (returns NaN → silently coerced to 0) — this meant Better Reports Cost, the #2 priority, had been silently returning $0 for every product for some time, with margin quietly falling through to weaker sources. Verified against real AM data: 3,210 styles with landed cost (91% coverage of active/selling SKUs), store-wide revenue-weighted margin moves from 72.24% to 75.29% — a modest, plausible correction, not a wild swing — with a couple of individual products correcting far more (one from 44.99% to 80.64%, matching AM's real ~$8.79 landed cost for a $49.95 tee)
 // v2.2.58 — Fix Mystery Boxes still not appearing right after v2.2.57 shipped: the shared sku_id→SKU catalogue cache (getAMSkuIdMap, 6h TTL) has no way to know a new field (mysteryBoxMeta) was added to what it captures — a browser that had already synced within the last 6h kept reusing its old cached entry, which predates mystery box metadata entirely, silently hiding it for up to 6h regardless of any "AM Live Data" refresh. The cache now detects this shape mismatch and treats an old-format entry as stale, forcing exactly one fresh crawl to pick up the new field before returning to normal 6h caching
