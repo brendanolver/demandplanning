@@ -2119,7 +2119,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.52';
+const APP_VERSION='v2.2.53';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -2147,7 +2147,24 @@ function updateAMSyncToggleUI(){
   const el=document.getElementById('am-sync-toggle');
   if(!el)return;
   const on=isAMSyncEnabled();
-  el.innerHTML=`<span class="live-dot" style="background:${on?'':'#9ca3af'}"></span>AM Live Data: ${on?'ON':'OFF'}`;
+  // A full AM stock crawl takes a few minutes (two full-catalogue paginated
+  // sweeps) — surface syncing/last-synced state so it's never ambiguous
+  // whether a stale-looking number just needs more time.
+  let status;
+  if(on&&typeof _amStockSyncing!=='undefined'&&_amStockSyncing){
+    status='Syncing…';
+  }else if(on){
+    const ts=(()=>{try{return JSON.parse(localStorage.getItem(AM_STOCK_CACHE_KEY)||'null')?.ts||0}catch(e){return 0}})();
+    if(ts){
+      const mins=Math.round((Date.now()-ts)/60000);
+      status=mins<1?'Synced just now':`Synced ${mins}m ago`;
+    }else{
+      status='ON';
+    }
+  }else{
+    status='OFF';
+  }
+  el.innerHTML=`<span class="live-dot" style="background:${on?'':'#9ca3af'}"></span>AM Live Data: ${status}`;
   el.title=on?'Click to turn OFF AM-sourced stock/sales (revert to Shopify CSV only)':'Click to turn ON AM-sourced stock/sales';
 }
 
@@ -7854,6 +7871,7 @@ async function syncAMStock(force=false){
   const ts=loadAMStockCache();
   if(!force&&Date.now()-ts<AM_STOCK_TTL)return;
   _amStockSyncing=true;
+  updateAMSyncToggleUI();
   try{
     // The two passes are independent (different endpoints, different tables)
     // so crawl them in parallel — halves total wait vs sequential, since each
@@ -7890,7 +7908,7 @@ async function syncAMStock(force=false){
       if(currentScreen==='dashboard')setView(currentView);
     }
   }catch(e){console.error('AM stock sync failed:',e);}
-  finally{_amStockSyncing=false;}
+  finally{_amStockSyncing=false;updateAMSyncToggleUI();}
 }
 
 /* ── HELPERS ── */
@@ -9869,6 +9887,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.53 — "AM Live Data" header pill now shows live sync status ("Syncing…" / "Synced Xm ago") instead of a static "ON" — a full AM stock crawl genuinely takes a few minutes (two full-catalogue paginated sweeps, verified externally at ~3.5min against production data), and there was no way to tell whether a number that looked stale just hadn't finished syncing yet vs. being a real bug. Externally replicated the app's exact crawl+join against the live proxy and confirmed it produces correct, verified-against-AM's-UI results every time — so this is aimed at removing the ambiguity around whether to trust what's on screen yet, not a data-correctness fix
 // v2.2.52 — Speed up AM stock sync: the v2.2.51 warehouse fix crawls two full AM catalogue tables (/inventory + /sku_warehouse) instead of one, doubling worst-case sync time to ~12-14min since they ran sequentially — after the fix went live, Brendan compared the app against AM's UI within that window and saw values a few units stale (confirmed correct once a fresh sync had time to finish; verified live against AM's API directly). The two crawls are independent, so now run in parallel via Promise.all, roughly halving total wait back down to one full-catalogue crawl's worth of time
 // v2.2.51 — Fix AM stock: v2.2.50 read /inventory directly, whose qty_avail_sell is a company-wide figure blending Main Warehouse + Shopify Online Store + Popup Store (AM's own API confirms that table has no warehouse column at all) — this overstated SOH for any SKU stocked in more than one AM warehouse, caught by comparing the app against AM's own UI filtered to Shopify Online Store. Now joins /inventory's sku_id→SKU mapping against the warehouse-scoped /sku_warehouse?warehouse_id=1002 endpoint, so only Shopify Online Store quantity is used — verified an exact match against AM's UI (270 on hand / 268 avail-to-sell) for the SKU that first exposed the bug
 // v2.2.50 — AM migration Phase 1: stock on hand now sourced from Apparel Magic's /inventory endpoint (the actual upstream master AM pushes to Shopify from), preferred over the Shopify CSV per-SKU when available — CSV/estimated fallback logic is fully preserved and unchanged for any SKU AM doesn't have. Background sync on page load/Refresh, 45min cache, never overwrites good cached data with an empty/failed sweep. Added a manual "AM Live Data" kill-switch toggle in the header to instantly force pre-migration (CSV-only) behaviour without a rollback, while this rollout is being watched
