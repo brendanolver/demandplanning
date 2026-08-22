@@ -2119,7 +2119,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.53';
+const APP_VERSION='v2.2.54';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -2150,9 +2150,12 @@ function updateAMSyncToggleUI(){
   // A full AM stock crawl takes a few minutes (two full-catalogue paginated
   // sweeps) — surface syncing/last-synced state so it's never ambiguous
   // whether a stale-looking number just needs more time.
-  let status;
+  let status,warn=false;
   if(on&&typeof _amStockSyncing!=='undefined'&&_amStockSyncing){
     status='Syncing…';
+  }else if(on&&typeof _amStockLastError!=='undefined'&&_amStockLastError){
+    status='Sync failed';
+    warn=true;
   }else if(on){
     const ts=(()=>{try{return JSON.parse(localStorage.getItem(AM_STOCK_CACHE_KEY)||'null')?.ts||0}catch(e){return 0}})();
     if(ts){
@@ -2164,8 +2167,8 @@ function updateAMSyncToggleUI(){
   }else{
     status='OFF';
   }
-  el.innerHTML=`<span class="live-dot" style="background:${on?'':'#9ca3af'}"></span>AM Live Data: ${status}`;
-  el.title=on?'Click to turn OFF AM-sourced stock/sales (revert to Shopify CSV only)':'Click to turn ON AM-sourced stock/sales';
+  el.innerHTML=`<span class="live-dot" style="background:${warn?'#dc2626':(on?'':'#9ca3af')}"></span>AM Live Data: ${status}`;
+  el.title=warn?`Last sync failed: ${_amStockLastError}\nClick to turn OFF AM-sourced stock/sales, or Refresh to retry`:on?'Click to turn OFF AM-sourced stock/sales (revert to Shopify CSV only)':'Click to turn ON AM-sourced stock/sales';
 }
 
 /* ── SCREEN NAV ── */
@@ -7842,12 +7845,29 @@ async function safeAMJson(resp){
   const cleaned=text.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'');
   return JSON.parse(cleaned);
 }
+// Plain fetch() has no timeout — if AM's upstream API stalls on a single
+// page, an un-timed-out request hangs the whole crawl (and the sync it's
+// part of) indefinitely, with no way to recover short of a page reload.
+// One retry on timeout/network error before giving up on this page.
+async function fetchWithTimeout(url,ms=20000,retries=1){
+  for(let attempt=0;;attempt++){
+    const ctrl=new AbortController();
+    const timer=setTimeout(()=>ctrl.abort(),ms);
+    try{
+      return await fetch(url,{signal:ctrl.signal});
+    }catch(e){
+      if(attempt>=retries)throw e;
+    }finally{
+      clearTimeout(timer);
+    }
+  }
+}
 async function crawlAMProxy(path,extraQuery=''){
   const rows=[];
   let last='';
   for(let page=0;page<400;page++){ // generous cap — full tables run ~15-25k rows at 100/page
     const q=last?`&${encodeURIComponent('pagination[last_id]')}=${encodeURIComponent(last)}`:'';
-    const r=await fetch(`/.netlify/functions/am-proxy?path=${path}${extraQuery}${q}`);
+    const r=await fetchWithTimeout(`/.netlify/functions/am-proxy?path=${path}${extraQuery}${q}`);
     const d=await safeAMJson(r);
     const items=d.response||[];
     rows.push(...items);
@@ -7865,12 +7885,14 @@ function loadAMStockCache(){
 }
 loadAMStockCache();
 let _amStockSyncing=false;
+let _amStockLastError=null;
 async function syncAMStock(force=false){
   if(!isAMSyncEnabled())return; // manual kill switch — see toggleAMSync()
   if(_amStockSyncing)return;
   const ts=loadAMStockCache();
   if(!force&&Date.now()-ts<AM_STOCK_TTL)return;
   _amStockSyncing=true;
+  _amStockLastError=null;
   updateAMSyncToggleUI();
   try{
     // The two passes are independent (different endpoints, different tables)
@@ -7900,14 +7922,14 @@ async function syncAMStock(force=false){
     for(const skuId in idToSku){
       if(skuId in idToQty)map[idToSku[skuId]]=idToQty[skuId];
     }
-    if(!Object.keys(map).length)return; // an empty/failed sweep must never wipe good cached data
+    if(!Object.keys(map).length){_amStockLastError='Sync returned no data';return;} // an empty/failed sweep must never wipe good cached data
     window.amStockMap=map;
     try{localStorage.setItem(AM_STOCK_CACHE_KEY,JSON.stringify({ts:Date.now(),map}))}catch(e){}
     if(allVariantRows&&allVariantRows.length){
       buildVariantRows();
       if(currentScreen==='dashboard')setView(currentView);
     }
-  }catch(e){console.error('AM stock sync failed:',e);}
+  }catch(e){_amStockLastError=(e&&e.message)||'Unknown error';console.error('AM stock sync failed:',e);}
   finally{_amStockSyncing=false;updateAMSyncToggleUI();}
 }
 
@@ -9887,6 +9909,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.54 — Fix AM stock sync getting permanently stuck on "Syncing…": plain fetch() has no timeout, so if AM's upstream API ever stalled on a single page mid-crawl, the request could hang indefinitely with no way to recover short of a reload — reported by Brendan after the v2.2.53 status pill sat on "Syncing…" for several minutes with no sign of finishing. Every AM proxy request now has a 20s timeout with one retry before the sync gives up on that attempt; a failed/timed-out sync no longer hangs the UI or silently reverts to a stale "Synced" state — the pill now shows a red "Sync failed" (with the error in its tooltip) so a failure is visible rather than indistinguishable from success
 // v2.2.53 — "AM Live Data" header pill now shows live sync status ("Syncing…" / "Synced Xm ago") instead of a static "ON" — a full AM stock crawl genuinely takes a few minutes (two full-catalogue paginated sweeps, verified externally at ~3.5min against production data), and there was no way to tell whether a number that looked stale just hadn't finished syncing yet vs. being a real bug. Externally replicated the app's exact crawl+join against the live proxy and confirmed it produces correct, verified-against-AM's-UI results every time — so this is aimed at removing the ambiguity around whether to trust what's on screen yet, not a data-correctness fix
 // v2.2.52 — Speed up AM stock sync: the v2.2.51 warehouse fix crawls two full AM catalogue tables (/inventory + /sku_warehouse) instead of one, doubling worst-case sync time to ~12-14min since they ran sequentially — after the fix went live, Brendan compared the app against AM's UI within that window and saw values a few units stale (confirmed correct once a fresh sync had time to finish; verified live against AM's API directly). The two crawls are independent, so now run in parallel via Promise.all, roughly halving total wait back down to one full-catalogue crawl's worth of time
 // v2.2.51 — Fix AM stock: v2.2.50 read /inventory directly, whose qty_avail_sell is a company-wide figure blending Main Warehouse + Shopify Online Store + Popup Store (AM's own API confirms that table has no warehouse column at all) — this overstated SOH for any SKU stocked in more than one AM warehouse, caught by comparing the app against AM's own UI filtered to Shopify Online Store. Now joins /inventory's sku_id→SKU mapping against the warehouse-scoped /sku_warehouse?warehouse_id=1002 endpoint, so only Shopify Online Store quantity is used — verified an exact match against AM's UI (270 on hand / 268 avail-to-sell) for the SKU that first exposed the bug
