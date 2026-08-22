@@ -873,6 +873,7 @@ th{position:relative;}
     <div class="topbar-right">
       <div class="topbar-pill"><span class="live-dot"></span>Shopify</div>
       <div class="topbar-pill" id="am-pill"><span class="live-dot"></span>Apparel Magic</div>
+      <div class="topbar-pill" id="am-sync-toggle" onclick="toggleAMSync()" style="cursor:pointer;"></div>
       <div class="topbar-pill" id="nav-count">— SKUs</div>
       <div class="screen-nav">
         <button class="screen-btn active" id="btn-dashboard" onclick="showScreen('dashboard')">📊 Dashboard</button>
@@ -2118,12 +2119,37 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.49';
+const APP_VERSION='v2.2.50';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
+  updateAMSyncToggleUI();
 });
+
+/* ── AM MIGRATION KILL SWITCH ──
+   Manual override to instantly revert AM-sourced stock/sales/price back to
+   pre-migration (Shopify CSV only) behaviour, without a code rollback. This is
+   separate from the automatic per-field AM-preferred/CSV-fallback design used
+   throughout — that covers AM being unavailable; this covers the rarer case of
+   AM data being present but suspected wrong, while the rollout is being watched. */
+function isAMSyncEnabled(){return localStorage.getItem('amSyncDisabled')!=='1';}
+function toggleAMSync(){
+  const enabled=isAMSyncEnabled();
+  const msg=enabled
+    ?'Turn OFF AM live stock/sales data?\n\nThe app will revert to Shopify CSV data only (today\'s pre-migration behaviour) until turned back on.'
+    :'Turn ON AM live stock/sales data?';
+  if(!confirm(msg))return;
+  localStorage.setItem('amSyncDisabled',enabled?'1':'0');
+  location.reload();
+}
+function updateAMSyncToggleUI(){
+  const el=document.getElementById('am-sync-toggle');
+  if(!el)return;
+  const on=isAMSyncEnabled();
+  el.innerHTML=`<span class="live-dot" style="background:${on?'':'#9ca3af'}"></span>AM Live Data: ${on?'ON':'OFF'}`;
+  el.title=on?'Click to turn OFF AM-sourced stock/sales (revert to Shopify CSV only)':'Click to turn ON AM-sourced stock/sales';
+}
 
 /* ── SCREEN NAV ── */
 let currentScreen='dashboard';
@@ -6796,6 +6822,7 @@ function startAutoSync(){
   // Manual refresh always re-pulls the AM catalogue (launch dates + CORE group),
   // bypassing the 6h cache — runs in background, re-renders when done
   syncAMMidCodes(true);
+  syncAMStock(true); // Phase 1 of AM migration — same background/re-render pattern; no-ops if kill switch is off
   autoSyncPipeline().then(ok=>{
     if(!ok){
       console.log('⚠️ Pipeline unavailable — falling back to Google Drive');
@@ -7768,6 +7795,65 @@ async function syncAMMidCodes(force=false){
   finally{_amMidSyncing=false;}
 }
 
+/* ── AM STOCK (Phase 1 of the AM data migration) ──
+   AM's /inventory endpoint is the live upstream source of truth for stock on
+   hand — Shopify's own inventory is a downstream copy AM pushes to it, so this
+   is closer to the source, not further from it. Separate cache/TTL from the
+   mid_code/CORE catalogue crawl above (stock needs to be fresher). Runs in the
+   background exactly like syncAMMidCodes — fired without awaiting from
+   startAutoSync(), so it never blocks the app becoming usable. */
+const AM_STOCK_CACHE_KEY='amStockV1';
+const AM_STOCK_TTL=45*60*1000; // 45 min — much shorter than the 6h catalogue cache
+// AM API responses have occasionally contained unescaped control characters
+// that break strict JSON.parse (seen when testing /orders) — sanitize before
+// parsing rather than risk a whole sync failing on one bad text field.
+async function safeAMJson(resp){
+  const text=await resp.text();
+  const cleaned=text.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'');
+  return JSON.parse(cleaned);
+}
+function loadAMStockCache(){
+  try{
+    const c=JSON.parse(localStorage.getItem(AM_STOCK_CACHE_KEY)||'null');
+    if(c&&c.map){window.amStockMap=c.map;return c.ts||0;}
+  }catch(e){}
+  return 0;
+}
+loadAMStockCache();
+let _amStockSyncing=false;
+async function syncAMStock(force=false){
+  if(!isAMSyncEnabled())return; // manual kill switch — see toggleAMSync()
+  if(_amStockSyncing)return;
+  const ts=loadAMStockCache();
+  if(!force&&Date.now()-ts<AM_STOCK_TTL)return;
+  _amStockSyncing=true;
+  try{
+    const map={};
+    let last='';
+    for(let page=0;page<400;page++){ // generous cap — full inventory table est. 15-25k rows at 100/page
+      const q=last?`&${encodeURIComponent('pagination[last_id]')}=${encodeURIComponent(last)}`:'';
+      const r=await fetch(`/.netlify/functions/am-proxy?path=inventory${q}`);
+      const d=await safeAMJson(r);
+      const items=d.response||[];
+      for(const p of items){
+        const sku=(p.sku_alt||'').trim().toUpperCase();
+        if(!sku)continue;
+        map[sku]=parseFloat(p.qty_avail_sell)||0;
+      }
+      last=(d.meta&&d.meta.pagination&&d.meta.pagination.last_id)||'';
+      if(!last||items.length<100)break;
+    }
+    if(!Object.keys(map).length)return; // an empty/failed sweep must never wipe good cached data
+    window.amStockMap=map;
+    try{localStorage.setItem(AM_STOCK_CACHE_KEY,JSON.stringify({ts:Date.now(),map}))}catch(e){}
+    if(allVariantRows&&allVariantRows.length){
+      buildVariantRows();
+      if(currentScreen==='dashboard')setView(currentView);
+    }
+  }catch(e){console.error('AM stock sync failed:',e);}
+  finally{_amStockSyncing=false;}
+}
+
 /* ── HELPERS ── */
 function normaliseDeliveryMonth(val){
   if(!val||val==='CORE')return val;
@@ -7935,16 +8021,27 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     }
     const plKey=(productName+' - '+colour).toUpperCase();
     const plEntry=plKey in plMap?plMap[plKey]:plMap[productName.toUpperCase()];
-    // SOH fallback: ONLY if the SKU is completely absent from the inventory file
-    // (not just zero stock — zero stock is a valid real value and must not be overridden)
-    let stock=sohMap[sku]||0;
-    if(!(sku in sohMap)&&priceMap[sku]&&plEntry?.totalQty>0){
-      const productSkus=Object.keys(priceMap).filter(s=>{
-        const p=priceMap[s];
-        return p.productName===productName&&p.colour===colour;
-      });
-      const sizeCount=productSkus.length||1;
-      stock=Math.round(plEntry.totalQty/sizeCount);
+    // Stock priority: AM live inventory (Phase 1 of the AM migration — the actual
+    // upstream source Shopify's own stock is pushed from) > Shopify CSV > estimated
+    // fallback. AM is only consulted when the kill switch is on and it actually has
+    // this SKU; anything else falls through to the exact pre-migration logic below,
+    // unchanged.
+    let stock;
+    const amStock=isAMSyncEnabled()&&window.amStockMap;
+    if(amStock&&sku in window.amStockMap){
+      stock=window.amStockMap[sku];
+    } else {
+      // SOH fallback: ONLY if the SKU is completely absent from the inventory file
+      // (not just zero stock — zero stock is a valid real value and must not be overridden)
+      stock=sohMap[sku]||0;
+      if(!(sku in sohMap)&&priceMap[sku]&&plEntry?.totalQty>0){
+        const productSkus=Object.keys(priceMap).filter(s=>{
+          const p=priceMap[s];
+          return p.productName===productName&&p.colour===colour;
+        });
+        const sizeCount=productSkus.length||1;
+        stock=Math.round(plEntry.totalQty/sizeCount);
+      }
     }
     const fullTitleUpper=(productName+(colour?' - '+colour:'')).toUpperCase();
     const hasSalesHistory=!!priceMap[sku];
@@ -9733,6 +9830,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.50 — AM migration Phase 1: stock on hand now sourced from Apparel Magic's /inventory endpoint (the actual upstream master AM pushes to Shopify from), preferred over the Shopify CSV per-SKU when available — CSV/estimated fallback logic is fully preserved and unchanged for any SKU AM doesn't have. Background sync on page load/Refresh, 45min cache, never overwrites good cached data with an empty/failed sweep. Added a manual "AM Live Data" kill-switch toggle in the header to instantly force pre-migration (CSV-only) behaviour without a rollback, while this rollout is being watched
 // v2.2.49 — Fix styleFromSku() incorrectly splitting products whose colour code ends in "O" (Blood Red→BLO, Brown→BRO, Stone→STO, Violet→VIO, Desert Rose→DRO...) at the size-S variant: "...S" appended to those colours spells "...OS", which matched the One-Size suffix before ever trying plain "S", producing a different (wrong) style code for that one size and silently splitting it onto its own "NEW STYLE" row everywhere (Dashboard/Re-Orders/Markdowns/tier lookups/CORE matching/launch dates) — reported as "Union Box Fit Tee" duplicating. Confirmed 59 live SKUs hit this exact collision. Now prefers a fixed 11-character style+colour prefix for modern-format SKUs, which is unambiguous regardless of what the colour code or size happen to spell together; older/non-standard SKUs still fall back to the previous suffix-matching logic unchanged
 // v2.2.48 — Working > Re-Orders no longer requires stock>=1 or on-order>0 to list a product — a style that's completely sold out with nothing on order (the most urgent re-order case) was being silently excluded by that gate. Now shows every real Shopify-listed product (AM-only not-yet-synced styles still excluded, since there's nothing to re-order against yet); existing Status/Stock Status filters still let you narrow the list down
 // v2.2.47 — Fix wrong margin/price on AM-only (on-order, not-yet-in-Shopify) rows: was using AM's internal wholesale 'price' field as the sell price for both the displayed Price and the margin calc, instead of 'retail_price' (the real RRP — confirmed to match the eventual Shopify price on already-synced styles). This inflated the apparent "discount" (RRP shown as compare-at against a much lower wholesale price) and computed a meaningless margin. Now uses RRP (ex-GST) vs AM's cost_landed (already ex-GST) — same convention as every other row — so a cheaper landed cost on a new PO correctly shows as a better margin
