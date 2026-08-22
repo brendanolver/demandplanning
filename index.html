@@ -2119,7 +2119,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.58';
+const APP_VERSION='v2.2.59';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -7307,6 +7307,20 @@ function parseCSVLine(line){
 }
 
 /* ── SOLD OUT + PRICE MAP ── */
+// Better Reports exports currency columns (Price, Cost, Compare at price) as
+// formatted strings like "$250.00" — plain parseFloat("$250.00") returns NaN
+// (it can't start parsing at a "$"), which silently evaluated to 0 via the
+// `||0` fallback everywhere this was used. That meant plMap's Cost (and
+// price/compareAt whenever this exact formatting was in effect) went
+// completely dead — every brCost lookup returned 0, margin silently fell
+// through to weaker sources with nobody aware the primary source had stopped
+// working. Strip currency formatting before parsing so this can't recur even
+// if a future export adds thousands separators too.
+function parseCurrency(v){
+  if(v==null)return 0;
+  const n=parseFloat(String(v).replace(/[^0-9.-]/g,''));
+  return isNaN(n)?0:n;
+}
 function buildSoldOutMap(){
   const soMap={};
   const plMap={};
@@ -7318,8 +7332,8 @@ function buildSoldOutMap(){
     for(const row of soldOutData){
       const title=(row['Product title']||'').trim().toUpperCase();
       if(!title||title.startsWith('TOTAL '))continue;
-      const price=parseFloat(row['Price']||0)||0;
-      const compareAt=parseFloat(row['Compare at price']||0)||0;
+      const price=parseCurrency(row['Price']);
+      const compareAt=parseCurrency(row['Compare at price']);
       const variants=parseInt(row['Total variants']||0)||0;
       const deliveryMonth=(row["Product Metafield 'custom.delivery_month'"]||'').trim();
       const dashIdx=title.lastIndexOf(' - ');
@@ -7327,7 +7341,7 @@ function buildSoldOutMap(){
       const colour=dashIdx>=0?title.slice(dashIdx+3):'';
       const soKey=productName+'||'+colour;
       if(!variantsSoldOutData&&variants>0)soMap[soKey]=variants;
-      if(price>0)plMap[title]={price,compareAt:compareAt||price,deliveryMonth,cost:parseFloat(row['Cost']||0)||0,status:(row['Product Status']||'').toLowerCase().trim(),totalQty:parseInt(row['Total quantity']||row['Total quantity (in stock)']||0)||0};
+      if(price>0)plMap[title]={price,compareAt:compareAt||price,deliveryMonth,cost:parseCurrency(row['Cost']),status:(row['Product Status']||'').toLowerCase().trim(),totalQty:parseInt(row['Total quantity']||row['Total quantity (in stock)']||0)||0};
     }
   }
 
@@ -7337,8 +7351,8 @@ function buildSoldOutMap(){
     for(const row of allProductsListData){
       const title=(row['Product Title']||'').trim().toUpperCase();
       if(!title)continue;
-      const price=parseFloat(row['Price']||0)||0;
-      const compareAt=parseFloat(row['Compare at price']||0)||0;
+      const price=parseCurrency(row['Price']);
+      const compareAt=parseCurrency(row['Compare at price']);
       if(price>0&&plMap[title]){
         // Keep delivery month, cost, status, totalQty from Better Reports
         // but use All_Products_List for price (reflects current discounts)
@@ -7782,7 +7796,11 @@ function loadAMMidCache(){
     if(c&&c.map){
       window.amStyleMidMap=Object.assign({},c.map,window.amStyleMidMap||{});
       window.amCoreStyles=new Set(c.core||[]);
-      return c.ts||0;
+      if(c.costMap)window.amStyleCostMap=c.costMap;
+      // See the equivalent check in loadAMSkuIdCache — a cache written before
+      // costMap existed has no way to backfill just the new part, so treat it
+      // as stale rather than silently hiding landed cost for up to 6h.
+      return('costMap' in c)?(c.ts||0):0;
     }
   }catch(e){}
   return 0;
@@ -7797,6 +7815,7 @@ async function syncAMMidCodes(force=false){
   try{
     const map={};
     const core=[];
+    const costMap={};
     let last='';
     for(let page=0;page<80;page++){
       const q=last?`&${encodeURIComponent('pagination[last_id]')}=${encodeURIComponent(last)}`:'';
@@ -7809,6 +7828,13 @@ async function syncAMMidCodes(force=false){
         const mid=(p.mid_code||'').trim();
         if(mid&&mid!=='0')map[style]=mid;
         if(AM_CORE_GROUPS.has(normGroupName(p.group)))core.push(style);
+        // cost_landed = cost_base + freight + duty, the fully landed unit
+        // cost — confirmed identical to the plain 'cost' field in this AM
+        // account's data (0 divergence across the full catalogue), so the
+        // fallback here is belt-and-braces rather than a meaningfully
+        // different number. Only inactive/discontinued styles are ever 0.
+        const landed=parseFloat(p.cost_landed)||parseFloat(p.cost)||0;
+        if(landed>0)costMap[style]=landed;
       }
       last=(d.meta&&d.meta.pagination&&d.meta.pagination.last_id)||'';
       if(!last||items.length<100)break;
@@ -7816,7 +7842,8 @@ async function syncAMMidCodes(force=false){
     // Full sweep is authoritative for the whole catalogue (handles cleared values)
     window.amStyleMidMap=map;
     window.amCoreStyles=new Set(core);
-    try{localStorage.setItem(AM_MID_CACHE_KEY,JSON.stringify({ts:Date.now(),map,core}))}catch(e){}
+    window.amStyleCostMap=costMap;
+    try{localStorage.setItem(AM_MID_CACHE_KEY,JSON.stringify({ts:Date.now(),map,core,costMap}))}catch(e){}
     if(allVariantRows&&allVariantRows.length){
       buildVariantRows();
       if(currentScreen==='dashboard')setView(currentView);
@@ -8445,7 +8472,13 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     }
     deliveryMonth=normaliseDeliveryMonth(deliveryMonth);
 
-    // Cost priority: 1) Better Reports Cost, 2) AM Amount/Units, 3) Sales COGS/sold
+    // Cost priority: 1) AM landed cost, 2) Better Reports Cost, 3) AM open-PO
+    // Amount/Units, 4) Sales COGS/sold. AM's cost_landed is the actual landed
+    // unit cost (base + freight + duty) from AM's own catalogue — WNDRR's
+    // system of record for costing — so it's preferred over Better Reports'
+    // manually-maintained Shopify "Cost per item" field, which for a long
+    // stretch was silently returning $0 for every product (see parseCurrency).
+    const amLandedCost=(window.amStyleCostMap&&window.amStyleCostMap[styleCode])||0;
     const brCost=plEntry?plEntry.cost||0:0;
     const amCost=(amVariantMap[styleCode+'||'+size]||amProductMap[styleCode]||{}).amCostPerUnit||0;
 
@@ -8505,9 +8538,9 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const vel30=s30.qty>0?s30.qty/30*7:null; // weekly rate from 30d
 
     // Margin — uses ex-GST sell price (price ÷ 1.1 to remove 10% GST)
-    // Cost priority: 1) Better Reports, 2) AM, 3) 365-day COGS/qty
+    // Cost priority: 1) AM landed cost, 2) Better Reports, 3) AM open-PO, 4) 365-day COGS/qty
     const salesCost=s365.qty>0?s365.cogs/s365.qty:(sold>0?cogs/sold:0);
-    const avgCostPerUnit=brCost||amCost||salesCost;
+    const avgCostPerUnit=amLandedCost||brCost||amCost||salesCost;
     const exGstPrice=price>0?price/1.1:0;
     // Only show margin if the product has real activity (stock on hand or historical sales) —
     // a dead SKU with 0 stock and 0 sales shouldn't show a theoretical price-vs-cost margin
@@ -10179,6 +10212,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.59 — Margin now sourced from Apparel Magic's landed cost first: cost priority is now AM cost_landed (base+freight+duty, WNDRR's actual costing system of record) → Better Reports Cost → AM open-PO Amount/Units → Shopify sale-time COGS, applied everywhere margin/cost is computed (variant rows, Category/Product aggregation, SOH Value, Today's Margin KPI — they all flow from the same per-variant calculation). Extended the existing AM catalogue crawl (syncAMMidCodes, no extra network cost) to also capture cost_landed per style. Also fixed a real, independent bug found while investigating: Better Reports now exports Cost/Price as formatted currency strings ("$250.00"), which plain parseFloat() can't parse (returns NaN → silently coerced to 0) — this meant Better Reports Cost, the #2 priority, had been silently returning $0 for every product for some time, with margin quietly falling through to weaker sources. Verified against real AM data: 3,210 styles with landed cost (91% coverage of active/selling SKUs), store-wide revenue-weighted margin moves from 72.24% to 75.29% — a modest, plausible correction, not a wild swing — with a couple of individual products correcting far more (one from 44.99% to 80.64%, matching AM's real ~$8.79 landed cost for a $49.95 tee)
 // v2.2.58 — Fix Mystery Boxes still not appearing right after v2.2.57 shipped: the shared sku_id→SKU catalogue cache (getAMSkuIdMap, 6h TTL) has no way to know a new field (mysteryBoxMeta) was added to what it captures — a browser that had already synced within the last 6h kept reusing its old cached entry, which predates mystery box metadata entirely, silently hiding it for up to 6h regardless of any "AM Live Data" refresh. The cache now detects this shape mismatch and treats an old-format entry as stale, forcing exactly one fresh crawl to pick up the new field before returning to normal 6h caching
 // v2.2.57 — Bring Mystery Box products back into reporting: they're DRAFT status in Shopify, and the Report Pipeline's CSV exports only cover published products, so they were completely absent from shopifyInvData/shopifySalesData — not just filtered downstream, invisible to processRows() from the start (an old excludedDraftCats entry for "MYSTERY BOX" turned out not to be the actual blocker, since that check is never reached when a SKU isn't in the data at all — removed it anyway since it no longer matched Shopify's real "MYSTERY BOXES" category spelling). AM has full stock/price/cost data for them regardless of Shopify publish status, so their metadata (name, price, cost, size) is now captured during the same /inventory crawl already done for the stock sync's sku_id map — no extra network cost — and merged into priceMap/plMap so they flow through the normal product pipeline: real stock, price, margin and reorder flags, same as any other product. Verified against live data (MYSTERY BOX SUMMER: 3 units on hand, $200 price, 64.25% margin, all correctly AM-sourced)
 // v2.2.56 — Fix AM sales undercounting real product lines whose style_number doesn't start with "W": v2.2.55's non-product-line filter positively matched only /^W\d{2}.../, which correctly excluded REDORETURNS/ORDERPROTECTION but ALSO silently dropped genuine sales of any WNDRR product using a different prefix — confirmed with a real order for ROTHMAN RIB TANK TOP (style L24JC004WHI). Caught comparing the app against a manually-pulled sales report; investigation also ruled out two other suspected discrepancies as false alarms (Shopify's "inventory_units_sold" metric turned out to be fulfillment-dated not order-dated, and the report itself contained an unexplained 250-unit blank-title bucket inflating its total) — the AM sync's actual units/day figures were already accurate. The style regex now accepts any leading capital letter, not just "W"
