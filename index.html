@@ -2119,7 +2119,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.56';
+const APP_VERSION='v2.2.57';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -7903,9 +7903,41 @@ const AM_SKUID_TTL=AM_MID_TTL;
 function loadAMSkuIdCache(){
   try{
     const c=JSON.parse(localStorage.getItem(AM_SKUID_CACHE_KEY)||'null');
-    if(c&&c.map)return{map:c.map,ts:c.ts||0};
+    if(c&&c.map){
+      if(c.mysteryBoxMeta)window.amMysteryBoxMeta=c.mysteryBoxMeta;
+      return{map:c.map,ts:c.ts||0};
+    }
   }catch(e){}
   return{map:null,ts:0};
+}
+// Mystery box products are DRAFT in Shopify, so the Report Pipeline's CSV
+// exports (which only cover published products) never include them at all —
+// they're completely absent from shopifyInvData/shopifySalesData, not just
+// filtered out downstream. AM has full stock/price/cost data for them
+// regardless of Shopify publish status, so this captures product metadata
+// for anything whose AM inventory description mentions "MYSTERY BOX" during
+// the SAME /inventory crawl already being done for the sku_id map — no extra
+// network cost. window.amStockMap (Phase 1) already covers their stock
+// correctly since that crawl isn't category-filtered either; this just fills
+// the metadata gap (name/price/cost/size) so they can enter processRows()'s
+// normal pipeline via priceMap/plMap, same as any other product.
+function extractMysteryBoxMeta(rows){
+  const meta={};
+  for(const p of rows){
+    const desc=(p.description||'').toUpperCase();
+    if(!desc.includes('MYSTERY BOX'))continue;
+    const sku=(p.sku_alt||'').trim().toUpperCase();
+    if(!sku)continue;
+    meta[sku]={
+      productName:(p.description||'').trim(),
+      colour:(p.attr_2||'ASSORTED').trim(),
+      size:(p.size||'OS').trim(),
+      price:parseFloat(p.price)||0,
+      compareAt:parseFloat(p.retail_price)||parseFloat(p.price)||0,
+      cost:parseFloat(p.cost)||parseFloat(p.cost_base)||0,
+    };
+  }
+  return meta;
 }
 let _amSkuIdSyncing=null; // in-flight promise — concurrent stock+sales calls share one crawl
 async function getAMSkuIdMap(){
@@ -7914,14 +7946,17 @@ async function getAMSkuIdMap(){
   if(_amSkuIdSyncing)return _amSkuIdSyncing;
   _amSkuIdSyncing=(async()=>{
     try{
+      const invRows=await crawlAMProxy('inventory');
       const idToSku={};
-      for(const p of await crawlAMProxy('inventory')){
+      for(const p of invRows){
         const skuId=(p.sku_id||'').toString();
         const sku=(p.sku_alt||'').trim().toUpperCase();
         if(skuId&&sku)idToSku[skuId]=sku;
       }
       if(!Object.keys(idToSku).length)return cached.map||{}; // empty sweep must never wipe good cached data
-      try{localStorage.setItem(AM_SKUID_CACHE_KEY,JSON.stringify({ts:Date.now(),map:idToSku}))}catch(e){}
+      const mysteryBoxMeta=extractMysteryBoxMeta(invRows);
+      window.amMysteryBoxMeta=mysteryBoxMeta;
+      try{localStorage.setItem(AM_SKUID_CACHE_KEY,JSON.stringify({ts:Date.now(),map:idToSku,mysteryBoxMeta}))}catch(e){}
       return idToSku;
     }catch(e){
       if(cached.map)return cached.map; // stale-but-good cache beats a hard failure
@@ -8342,7 +8377,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const isPreRelease=isDraftSignal&&stock>0&&isCurrentMonthDelivery&&!hasSalesHistory&&!isActive;
     if(isDraft){
       // Skip excluded categories entirely
-      const excludedDraftCats=['GWP','MYSTERY BOX','INSURANCE','GIVEAWAY'];
+      const excludedDraftCats=['GWP','INSURANCE','GIVEAWAY'];
       if(excludedDraftCats.includes((category||'').toUpperCase().trim()))continue;
 
       const vKey=styleCode+'||'+size;
@@ -8739,6 +8774,27 @@ function buildVariantRows(){
       // safely fabricate, so it falls through to existing CSV/AM-catalogue
       // handling elsewhere instead of a partially-formed entry here.
       if(priceMap[sku])priceMap[sku].price=window.amRealPriceMap[sku];
+    }
+  }
+  // Mystery box products are DRAFT in Shopify and completely absent from the
+  // CSV pipeline (not just filtered — the export itself omits them), so
+  // unlike the overlays above there's no existing priceMap/plMap entry to
+  // correct; a full one is built from AM's inventory data instead, letting
+  // them flow through processRows() exactly like any other product (stock,
+  // price, margin, reorder flags). Skip a SKU already present from some other
+  // source rather than overwrite it.
+  if(isAMSyncEnabled()&&window.amMysteryBoxMeta){
+    for(const sku in window.amMysteryBoxMeta){
+      if(priceMap[sku])continue;
+      const m=window.amMysteryBoxMeta[sku];
+      priceMap[sku]={
+        price:m.price,compareAt:m.compareAt,vendor:'',category:'MYSTERY BOXES',
+        productName:m.productName,colour:m.colour,size:m.size,day:'',status:''
+      };
+      const title=(m.productName+' - '+m.colour).toUpperCase();
+      if(!plMap[title]){
+        plMap[title]={price:m.price,compareAt:m.compareAt,deliveryMonth:'',cost:m.cost,status:'',totalQty:0};
+      }
     }
   }
   const{variantMap:amVariantMap,productMap:amProductMap,products:amProducts,styleMeta:amStyleMeta}=_cachedAMData;
@@ -10118,6 +10174,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.57 — Bring Mystery Box products back into reporting: they're DRAFT status in Shopify, and the Report Pipeline's CSV exports only cover published products, so they were completely absent from shopifyInvData/shopifySalesData — not just filtered downstream, invisible to processRows() from the start (an old excludedDraftCats entry for "MYSTERY BOX" turned out not to be the actual blocker, since that check is never reached when a SKU isn't in the data at all — removed it anyway since it no longer matched Shopify's real "MYSTERY BOXES" category spelling). AM has full stock/price/cost data for them regardless of Shopify publish status, so their metadata (name, price, cost, size) is now captured during the same /inventory crawl already done for the stock sync's sku_id map — no extra network cost — and merged into priceMap/plMap so they flow through the normal product pipeline: real stock, price, margin and reorder flags, same as any other product. Verified against live data (MYSTERY BOX SUMMER: 3 units on hand, $200 price, 64.25% margin, all correctly AM-sourced)
 // v2.2.56 — Fix AM sales undercounting real product lines whose style_number doesn't start with "W": v2.2.55's non-product-line filter positively matched only /^W\d{2}.../, which correctly excluded REDORETURNS/ORDERPROTECTION but ALSO silently dropped genuine sales of any WNDRR product using a different prefix — confirmed with a real order for ROTHMAN RIB TANK TOP (style L24JC004WHI). Caught comparing the app against a manually-pulled sales report; investigation also ruled out two other suspected discrepancies as false alarms (Shopify's "inventory_units_sold" metric turned out to be fulfillment-dated not order-dated, and the report itself contained an unexplained 250-unit blank-title bucket inflating its total) — the AM sync's actual units/day figures were already accurate. The style regex now accepts any leading capital letter, not just "W"
 // v2.2.55 — AM migration Phase 2: units sold + real per-unit sell price now sourced from AM orders (customers "ONLINE SALES" + "ICONIC ONLINE SALES"), overlaying the last 3 days on top of the existing 365-day Shopify CSV history to bridge the ~3h gap between CSV refreshes — AM preferred per-day/per-SKU when available, CSV untouched otherwise. Real price is reconstructed by prorating each order's actual checkout discount across its taxable lines (AM books lines at full/list price; the real discount only lives at the order level) — verified against real discounted orders. Iconic marketplace orders get an additional 25% commission deducted (their AM bookings show no discount at all — the commission isn't in AM's data), then re-grossed back to inc-GST so Price/Sell Value keeps the same meaning as every other product. Non-product order lines (return coverage, order protection) are filtered by matching the real WNDRR SKU pattern rather than a fragile is_taxable/blacklist check, since real data showed is_taxable isn't reliable for this. Also: CORE status now additionally includes AM's "ACCESSORIES CURRENT" group (previously only "AA CORE STYLES"), restoring CORE status to socks/caps/beanies that lost it when CORE first became AM-group-driven; and the CLEARANCE status is retired (its source CSV field is no longer maintained) — those products now correctly fall through to OLD or REDUCED like everything else. Refactored the stock sync to share its sku_id→SKU catalogue crawl with the new sales sync instead of each crawling /inventory separately
 // v2.2.54 — Fix AM stock sync getting permanently stuck on "Syncing…": plain fetch() has no timeout, so if AM's upstream API ever stalled on a single page mid-crawl, the request could hang indefinitely with no way to recover short of a reload — reported by Brendan after the v2.2.53 status pill sat on "Syncing…" for several minutes with no sign of finishing. Every AM proxy request now has a 20s timeout with one retry before the sync gives up on that attempt; a failed/timed-out sync no longer hangs the UI or silently reverts to a stale "Synced" state — the pill now shows a red "Sync failed" (with the error in its tooltip) so a failure is visible rather than indistinguishable from success
