@@ -2119,7 +2119,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.57';
+const APP_VERSION='v2.2.58';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -7905,7 +7905,12 @@ function loadAMSkuIdCache(){
     const c=JSON.parse(localStorage.getItem(AM_SKUID_CACHE_KEY)||'null');
     if(c&&c.map){
       if(c.mysteryBoxMeta)window.amMysteryBoxMeta=c.mysteryBoxMeta;
-      return{map:c.map,ts:c.ts||0};
+      // A cache written before mysteryBoxMeta existed (or any future field
+      // addition to this cache) has no way to backfill just the new part —
+      // treat it as stale so callers re-crawl rather than silently missing
+      // new data for up to a full TTL. Without this, a cache written seconds
+      // before a deploy that adds a new field can hide that data for hours.
+      return{map:c.map,ts:('mysteryBoxMeta' in c)?(c.ts||0):0};
     }
   }catch(e){}
   return{map:null,ts:0};
@@ -10174,6 +10179,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.58 — Fix Mystery Boxes still not appearing right after v2.2.57 shipped: the shared sku_id→SKU catalogue cache (getAMSkuIdMap, 6h TTL) has no way to know a new field (mysteryBoxMeta) was added to what it captures — a browser that had already synced within the last 6h kept reusing its old cached entry, which predates mystery box metadata entirely, silently hiding it for up to 6h regardless of any "AM Live Data" refresh. The cache now detects this shape mismatch and treats an old-format entry as stale, forcing exactly one fresh crawl to pick up the new field before returning to normal 6h caching
 // v2.2.57 — Bring Mystery Box products back into reporting: they're DRAFT status in Shopify, and the Report Pipeline's CSV exports only cover published products, so they were completely absent from shopifyInvData/shopifySalesData — not just filtered downstream, invisible to processRows() from the start (an old excludedDraftCats entry for "MYSTERY BOX" turned out not to be the actual blocker, since that check is never reached when a SKU isn't in the data at all — removed it anyway since it no longer matched Shopify's real "MYSTERY BOXES" category spelling). AM has full stock/price/cost data for them regardless of Shopify publish status, so their metadata (name, price, cost, size) is now captured during the same /inventory crawl already done for the stock sync's sku_id map — no extra network cost — and merged into priceMap/plMap so they flow through the normal product pipeline: real stock, price, margin and reorder flags, same as any other product. Verified against live data (MYSTERY BOX SUMMER: 3 units on hand, $200 price, 64.25% margin, all correctly AM-sourced)
 // v2.2.56 — Fix AM sales undercounting real product lines whose style_number doesn't start with "W": v2.2.55's non-product-line filter positively matched only /^W\d{2}.../, which correctly excluded REDORETURNS/ORDERPROTECTION but ALSO silently dropped genuine sales of any WNDRR product using a different prefix — confirmed with a real order for ROTHMAN RIB TANK TOP (style L24JC004WHI). Caught comparing the app against a manually-pulled sales report; investigation also ruled out two other suspected discrepancies as false alarms (Shopify's "inventory_units_sold" metric turned out to be fulfillment-dated not order-dated, and the report itself contained an unexplained 250-unit blank-title bucket inflating its total) — the AM sync's actual units/day figures were already accurate. The style regex now accepts any leading capital letter, not just "W"
 // v2.2.55 — AM migration Phase 2: units sold + real per-unit sell price now sourced from AM orders (customers "ONLINE SALES" + "ICONIC ONLINE SALES"), overlaying the last 3 days on top of the existing 365-day Shopify CSV history to bridge the ~3h gap between CSV refreshes — AM preferred per-day/per-SKU when available, CSV untouched otherwise. Real price is reconstructed by prorating each order's actual checkout discount across its taxable lines (AM books lines at full/list price; the real discount only lives at the order level) — verified against real discounted orders. Iconic marketplace orders get an additional 25% commission deducted (their AM bookings show no discount at all — the commission isn't in AM's data), then re-grossed back to inc-GST so Price/Sell Value keeps the same meaning as every other product. Non-product order lines (return coverage, order protection) are filtered by matching the real WNDRR SKU pattern rather than a fragile is_taxable/blacklist check, since real data showed is_taxable isn't reliable for this. Also: CORE status now additionally includes AM's "ACCESSORIES CURRENT" group (previously only "AA CORE STYLES"), restoring CORE status to socks/caps/beanies that lost it when CORE first became AM-group-driven; and the CLEARANCE status is retired (its source CSV field is no longer maintained) — those products now correctly fall through to OLD or REDUCED like everything else. Refactored the stock sync to share its sku_id→SKU catalogue crawl with the new sales sync instead of each crawling /inventory separately
