@@ -2119,7 +2119,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.63';
+const APP_VERSION='v2.2.64';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -6923,6 +6923,25 @@ function startAutoSync(){
       startGoogleDriveSync();
     }
   });
+  startBackgroundAutoRefresh();
+}
+
+// Keeps stock/sales current for a tab left open, instead of only updating on
+// page load or a manual Refresh click — a sale can otherwise sit unreflected
+// for however long the tab happens to stay open. Deliberately lighter than
+// startAutoSync(): no loading screen, no catalogue/mystery-box/Pipeline
+// re-pull, just the two fast-moving AM syncs. Skips silently while the tab
+// is backgrounded, so it doesn't spend AM API calls nobody's there to see.
+let _bgRefreshIntervalSet=false;
+const BG_REFRESH_INTERVAL_MS=10*60*1000; // 10 min
+function startBackgroundAutoRefresh(){
+  if(_bgRefreshIntervalSet)return; // startAutoSync() can be called again (manual Refresh) — only ever arm the interval once
+  _bgRefreshIntervalSet=true;
+  setInterval(()=>{
+    if(document.visibilityState!=='visible')return;
+    syncAMStock(true);
+    syncAMSales(true);
+  },BG_REFRESH_INTERVAL_MS);
 }
 
 // Try the WNDRR Report Pipeline API first. Returns true if inv+sales loaded and dashboard was built.
@@ -10388,6 +10407,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.64 — Auto-refresh stock/sales every 10 minutes while a tab is open: previously the app only synced from Apparel Magic on page load or a manual ↻ Refresh click, so a sale could sit unreflected for however long someone happened to leave the tab open. Lighter than a full refresh — no loading screen, no catalogue/mystery-box/Pipeline re-pull, just the two fast-moving AM stock+sales syncs (the same ones a manual refresh already triggers) — and skips silently while the tab is backgrounded so it doesn't spend AM API calls nobody's there to see
 // v2.2.63 — Fix the v2.2.62 AM order push failing on its first real test: the proxy built the POST URL without a trailing slash ("orders" instead of "orders/") — AM's API 301-redirects that, and fetch() silently downgrades a POST-with-body to a bodyless GET when following a redirect, landing on an HTML page instead of the JSON API response ("Unexpected token '<'"). GET requests never hit this because a GET-to-GET redirect is transparent. The proxy now adds the trailing slash itself before forwarding, avoiding the redirect entirely. Still not confirmed against a real created order — this fixes the specific error seen on the first test, next step is trying again
 // v2.2.62 — Working > Size Workings: "Push to Apparel Magic" now creates the sales order directly via AM's API instead of downloading a CSV for manual upload — same customer ("WNDRR ONLINE STORE", account 1068), same warehouse/currency (verified against real, current orders under that exact customer rather than assumed), same size-curve and RRP*0.5 pricing math the CSV already used. SKUs are resolved to AM's internal sku_id via the same shared catalogue map the stock sync maintains; if any SKU can't be resolved, nothing is sent and the mismatch is reported rather than silently dropping rows. If the API push fails for any reason, offers to fall back to the CSV download so the workflow isn't blocked. The Netlify proxy now also accepts POST/PUT for the orders/ path specifically (still GET-only for every other path) — token/time stay server-side exactly as they already were for reads. NOT YET LIVE-TESTED against a real order (no AM sandbox exists to test against) — first real order to be sent and verified manually before this is trusted as the default workflow
 // v2.2.61 — Fix Mystery Box history still not showing in Planning right after v2.2.60 shipped: window._skuCategoryMap (which Planning and Sales Cadence's category views both key their LY/budget calculations off) was only ever built once, inside buildVariantRows()'s cache-miss block — before the Mystery Box priceMap overlay (or any other AM-only category injected later in the same function) had a chance to add its entries, so those SKUs were permanently invisible to it regardless of how many times the AM overlays themselves reapplied. Moved the rebuild to after every priceMap overlay instead, so it's always current — this was purely a category-level bucketing gap; salesBySkuDay itself (Dashboard's sold365 etc.) was already correct, which is why v2.2.60 looked right everywhere except Planning's monthly columns specifically. Verified: getLYSalesByCategory now correctly attributes 636 units to Jan 2027's budget column (matching real Jan 2026 sales for the in-window Mystery Box, exactly one year prior)
