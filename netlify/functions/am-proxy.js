@@ -49,7 +49,14 @@ exports.handler = async (event) => {
     // never accepted from the client, so the token stays out of the browser.
     const t = Date.now();
     const fullBody = { ...body, token: AM_TOKEN, time: t };
-    const url = `${AM_BASE}/${path}`;
+    // AM's API 301-redirects a path without a trailing slash (e.g. "orders"
+    // -> "orders/"). fetch() follows that automatically for GET (harmless,
+    // GET-to-GET), but for POST/PUT it silently downgrades the redirected
+    // request to GET and drops the body — the response then came back as an
+    // HTML page (likely an auth/redirect page for the now-unauthenticated
+    // GET) instead of JSON. Adding the trailing slash up front avoids the
+    // redirect entirely.
+    const url = `${AM_BASE}/${path}${path.endsWith('/') ? '' : '/'}`;
     try {
       const resp = await fetch(url, {
         method,
