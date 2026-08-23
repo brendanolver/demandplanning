@@ -1660,7 +1660,7 @@ th{position:relative;}
             <button onclick="swCompareApplyChecked()" style="padding:8px 16px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;">＋ Add Selected</button>
             <button onclick="swClearAll()" style="padding:8px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);font-family:'Inter',sans-serif;font-size:12px;cursor:pointer;color:var(--text-secondary);white-space:nowrap;">✕ Clear All</button>
             <button onclick="swExport()" style="padding:8px 16px;background:var(--teal);color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">⬇ Export</button>
-            <button onclick="swExportAM()" style="padding:8px 16px;background:#0369a1;color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">⬇ Apparel Magic</button>
+            <button onclick="swExportAM()" style="padding:8px 16px;background:#0369a1;color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">📤 Apparel Magic</button>
           </div>
           <!-- Tags row -->
           <div id="sw-compare-tags" style="display:flex;gap:6px;flex-wrap:wrap;min-height:20px;align-items:center;">
@@ -2119,7 +2119,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.61';
+const APP_VERSION='v2.2.62';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -3770,7 +3770,7 @@ function swExportAM(){
   const defDate=new Date();defDate.setMonth(defDate.getMonth()+3);
   const defDateStr=defDate.toISOString().slice(0,10);
   modal.innerHTML=`
-    <div style="font-size:16px;font-weight:700;color:#111827;margin-bottom:20px;">⬇ Apparel Magic Export</div>
+    <div style="font-size:16px;font-weight:700;color:#111827;margin-bottom:20px;">📤 Push to Apparel Magic</div>
     <div style="margin-bottom:14px;">
       <label style="font-size:12px;font-weight:600;color:#4b5563;display:block;margin-bottom:5px;">Customer PO *</label>
       <input id="am-export-po" type="text" placeholder="e.g. PO-2026-001" style="width:100%;padding:9px 12px;border:1.5px solid #e4e7ed;border-radius:6px;font-family:Inter,sans-serif;font-size:14px;outline:none;box-sizing:border-box;">
@@ -3781,7 +3781,7 @@ function swExportAM(){
     </div>
     <div style="display:flex;gap:10px;">
       <button id="am-export-cancel" style="flex:1;padding:10px;background:#f3f4f6;border:none;border-radius:6px;font-family:Inter,sans-serif;font-size:13px;font-weight:600;cursor:pointer;color:#4b5563;">Cancel</button>
-      <button id="am-export-confirm" style="flex:2;padding:10px;background:#0ea5a0;color:white;border:none;border-radius:6px;font-family:Inter,sans-serif;font-size:13px;font-weight:600;cursor:pointer;">Export CSV</button>
+      <button id="am-export-confirm" style="flex:2;padding:10px;background:#0ea5a0;color:white;border:none;border-radius:6px;font-family:Inter,sans-serif;font-size:13px;font-weight:600;cursor:pointer;">📤 Push Order</button>
     </div>`;
   overlay.appendChild(modal);
   document.body.appendChild(overlay);
@@ -3805,14 +3805,18 @@ function swExportAM(){
     if(!customerPO){poInput.style.borderColor='#dc2626';poInput.focus();return;}
     if(!dateDue){dateInput.style.borderColor='#dc2626';dateInput.focus();return;}
     overlay.remove();
-    _doAMExport(productList,customerPO,dateDue);
+    _doAMPush(productList,customerPO,dateDue);
   };
 }
 
-function _doAMExport(productList,customerPO,dateDue){
+// Builds the same {sku, qty, unitPrice} rows the CSV export used to produce
+// — same size-curve math, same RRP*0.5 pricing convention (verified against
+// real recent orders under this exact customer: unit_price consistently
+// matches this formula) — but as data for an API push rather than a CSV.
+function _buildAMOrderRows(productList,customerPO,dateDue){
   const sizeOrder=['XXS','XS','S','M','L','XL','XXL','XXXL','XXXXL','28','30','32','34','36','38','40','42','44','46','48','50','OS'];
   const swSaved=getSwData();
-  const csvRows=[];
+  const rows=[];
   for(const{productName,colour,roQty}of productList){
     const swKey=`${productName}||${colour}`;
     const swManual=swSaved[swKey]?.manual||{};
@@ -3838,17 +3842,76 @@ function _doAMExport(productList,customerPO,dateDue){
       const qty=sizeQtys[i];if(!qty)continue;
       const sku=variants[i].sku;if(!sku||sku==='—')continue;
       const rrp=variants[i].compareAt||variants[i].price||0;
-      const unitPrice=rrp>0?(rrp*0.5).toFixed(2):'';
-      csvRows.push([customerPO,'WNDRR ONLINE STORE',sku,qty,dateDue,new Date().toISOString().slice(0,10),unitPrice,new Date().toISOString().slice(0,10)]);
+      const unitPrice=rrp>0?+(rrp*0.5).toFixed(2):0;
+      rows.push({sku,qty,unitPrice});
     }
   }
-  if(!csvRows.length){alert('No exportable rows — enter a Total Units Needed or Size Workings values first.');return;}
+  return rows;
+}
+
+function _downloadAMCsv(rows,customerPO,dateDue){
+  const today=new Date().toISOString().slice(0,10);
+  const csvRows=rows.map(r=>[customerPO,'WNDRR ONLINE STORE',r.sku,r.qty,dateDue,today,r.unitPrice||'',today]);
   const headers=['customer_po','customer_name','sku_alt','qty','date_due','date','unit_price','date_start'];
   const csv=[headers,...csvRows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
   const blob=new Blob([csv],{type:'text/csv'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;a.download='wndrr_apparel_magic.csv';a.click();
   URL.revokeObjectURL(url);
+}
+
+// AM's "WNDRR ONLINE STORE" account — the same customer the manual CSV
+// import has always targeted. Verified against real, current (as recent as
+// yesterday) approved orders under this exact customer: warehouse_id 1001
+// (Main Warehouse — NOT the "Shopify Online Store" warehouse used elsewhere
+// in this app for stock/sales; this account's own default is Main
+// Warehouse, confirmed empirically, not assumed) and currency_id 1001,
+// consistently, across every order checked from 2016 through today.
+const AM_SW_CUSTOMER_ID='1068';
+const AM_SW_WAREHOUSE_ID='1001';
+const AM_SW_CURRENCY_ID='1001';
+async function _doAMPush(productList,customerPO,dateDue){
+  const rows=_buildAMOrderRows(productList,customerPO,dateDue);
+  if(!rows.length){alert('No exportable rows — enter a Total Units Needed or Size Workings values first.');return;}
+  try{
+    const idToSku=await getAMSkuIdMap();
+    const skuToId={};
+    for(const id in idToSku)skuToId[idToSku[id]]=id;
+    const unresolvable=rows.filter(r=>!skuToId[r.sku]);
+    if(unresolvable.length){
+      alert(`${unresolvable.length} SKU(s) couldn't be matched to an Apparel Magic sku_id and were skipped:\n${unresolvable.map(r=>r.sku).join(', ')}\n\nNothing has been sent — fix this before retrying.`);
+      return;
+    }
+    const items=rows.map(r=>({sku_id:skuToId[r.sku],qty:String(r.qty),unit_price:String(r.unitPrice),is_taxable:'1'}));
+    const payload={
+      header:{
+        customer_id:AM_SW_CUSTOMER_ID,
+        warehouse_id:AM_SW_WAREHOUSE_ID,
+        currency_id:AM_SW_CURRENCY_ID,
+        customer_po:customerPO,
+        date_due:dateDue
+      },
+      items
+    };
+    const resp=await fetch('/.netlify/functions/am-proxy?path=orders',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    });
+    const data=await safeAMJson(resp);
+    const errors=(data.meta&&data.meta.errors)||[];
+    if(errors.length||!resp.ok){
+      throw new Error(errors.join('; ')||`HTTP ${resp.status}`);
+    }
+    const created=(data.response||[])[0];
+    const orderId=created?created.order_id:null;
+    alert(`Order pushed to Apparel Magic${orderId?` — order #${orderId}`:''}.\nPO: ${customerPO}\n${items.length} line item(s).`);
+  }catch(e){
+    console.error('AM order push failed:',e);
+    if(confirm(`Couldn't push the order to Apparel Magic (${e.message}).\n\nDownload the CSV instead so nothing is lost?`)){
+      _downloadAMCsv(rows,customerPO,dateDue);
+    }
+  }
 }
 
 function setPlanView(val){
@@ -10325,6 +10388,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.62 — Working > Size Workings: "Push to Apparel Magic" now creates the sales order directly via AM's API instead of downloading a CSV for manual upload — same customer ("WNDRR ONLINE STORE", account 1068), same warehouse/currency (verified against real, current orders under that exact customer rather than assumed), same size-curve and RRP*0.5 pricing math the CSV already used. SKUs are resolved to AM's internal sku_id via the same shared catalogue map the stock sync maintains; if any SKU can't be resolved, nothing is sent and the mismatch is reported rather than silently dropping rows. If the API push fails for any reason, offers to fall back to the CSV download so the workflow isn't blocked. The Netlify proxy now also accepts POST/PUT for the orders/ path specifically (still GET-only for every other path) — token/time stay server-side exactly as they already were for reads. NOT YET LIVE-TESTED against a real order (no AM sandbox exists to test against) — first real order to be sent and verified manually before this is trusted as the default workflow
 // v2.2.61 — Fix Mystery Box history still not showing in Planning right after v2.2.60 shipped: window._skuCategoryMap (which Planning and Sales Cadence's category views both key their LY/budget calculations off) was only ever built once, inside buildVariantRows()'s cache-miss block — before the Mystery Box priceMap overlay (or any other AM-only category injected later in the same function) had a chance to add its entries, so those SKUs were permanently invisible to it regardless of how many times the AM overlays themselves reapplied. Moved the rebuild to after every priceMap overlay instead, so it's always current — this was purely a category-level bucketing gap; salesBySkuDay itself (Dashboard's sold365 etc.) was already correct, which is why v2.2.60 looked right everywhere except Planning's monthly columns specifically. Verified: getLYSalesByCategory now correctly attributes 636 units to Jan 2027's budget column (matching real Jan 2026 sales for the in-window Mystery Box, exactly one year prior)
 // v2.2.60 — Mystery Box historical sales backfill: they never had Shopify CSV history to begin with (draft products, invisible to the Report Pipeline's exports entirely), and the Phase 2 AM sales overlay only bridges the last 3 days, so Planning's budget view was starved of any real signal for them. A one-off crawl of AM's order history (500-day lookback, both online-sales customer accounts, paginated) reconstructs real day-by-day sales instead — deliberately NOT run on every page load like the other syncs (a full crawl scans tens of thousands of orders), so it respects its own 30-day cache and effectively runs once per device. Verified against real data: 829 order lines found across two genuinely concentrated promo windows (not spread evenly — confirms this is a real backfill of actual limited-time drops, not an ever-growing crawl), ~644 units for one box, ~202 for the other, both resolved to real SKUs via the same shared sku_id map the stock sync already maintains
 // v2.2.59 — Margin now sourced from Apparel Magic's landed cost first: cost priority is now AM cost_landed (base+freight+duty, WNDRR's actual costing system of record) → Better Reports Cost → AM open-PO Amount/Units → Shopify sale-time COGS, applied everywhere margin/cost is computed (variant rows, Category/Product aggregation, SOH Value, Today's Margin KPI — they all flow from the same per-variant calculation). Extended the existing AM catalogue crawl (syncAMMidCodes, no extra network cost) to also capture cost_landed per style. Also fixed a real, independent bug found while investigating: Better Reports now exports Cost/Price as formatted currency strings ("$250.00"), which plain parseFloat() can't parse (returns NaN → silently coerced to 0) — this meant Better Reports Cost, the #2 priority, had been silently returning $0 for every product for some time, with margin quietly falling through to weaker sources. Verified against real AM data: 3,210 styles with landed cost (91% coverage of active/selling SKUs), store-wide revenue-weighted margin moves from 72.24% to 75.29% — a modest, plausible correction, not a wild swing — with a couple of individual products correcting far more (one from 44.99% to 80.64%, matching AM's real ~$8.79 landed cost for a $49.95 tee)
