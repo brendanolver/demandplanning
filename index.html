@@ -2119,7 +2119,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.64';
+const APP_VERSION='v2.2.65';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -2153,14 +2153,22 @@ function updateAMSyncToggleUI(){
   // sales sync state (both share this one pill): syncing/failed if either
   // is, otherwise the OLDER of the two "last synced" times, so the pill
   // never overstates freshness for whichever one is actually more stale.
+  // Mystery box history (a much slower, once-per-device backfill, ~5min)
+  // folds into the syncing/failed states the same way — reported confusion
+  // twice now from checking before it finished with no way to tell it was
+  // still running — but deliberately NOT into the "Synced Xm ago" timestamp,
+  // since its 30-day cache being "old" is expected and would misleadingly
+  // read as stale stock/sales data.
   let status,warn=false;
   const stockSyncing=typeof _amStockSyncing!=='undefined'&&_amStockSyncing;
   const salesSyncing=typeof _amSalesSyncing!=='undefined'&&_amSalesSyncing;
+  const mbHistSyncing=typeof _amMbHistorySyncing!=='undefined'&&_amMbHistorySyncing;
   const stockErr=typeof _amStockLastError!=='undefined'&&_amStockLastError;
   const salesErr=typeof _amSalesLastError!=='undefined'&&_amSalesLastError;
-  if(on&&(stockSyncing||salesSyncing)){
+  const mbHistErr=typeof _amMbHistoryLastError!=='undefined'&&_amMbHistoryLastError;
+  if(on&&(stockSyncing||salesSyncing||mbHistSyncing)){
     status='Syncing…';
-  }else if(on&&(stockErr||salesErr)){
+  }else if(on&&(stockErr||salesErr||mbHistErr)){
     status='Sync failed';
     warn=true;
   }else if(on){
@@ -2177,7 +2185,7 @@ function updateAMSyncToggleUI(){
     status='OFF';
   }
   el.innerHTML=`<span class="live-dot" style="background:${warn?'#dc2626':(on?'':'#9ca3af')}"></span>AM Live Data: ${status}`;
-  el.title=warn?`Last sync failed: ${[stockErr&&`stock — ${_amStockLastError}`,salesErr&&`sales — ${_amSalesLastError}`].filter(Boolean).join('; ')}\nClick to turn OFF AM-sourced stock/sales, or Refresh to retry`:on?'Click to turn OFF AM-sourced stock/sales (revert to Shopify CSV only)':'Click to turn ON AM-sourced stock/sales';
+  el.title=warn?`Last sync failed: ${[stockErr&&`stock — ${_amStockLastError}`,salesErr&&`sales — ${_amSalesLastError}`,mbHistErr&&`mystery box history — ${_amMbHistoryLastError}`].filter(Boolean).join('; ')}\nClick to turn OFF AM-sourced stock/sales, or Refresh to retry`:on?'Click to turn OFF AM-sourced stock/sales (revert to Shopify CSV only)':'Click to turn ON AM-sourced stock/sales';
 }
 
 /* ── SCREEN NAV ── */
@@ -8302,12 +8310,15 @@ function loadMysteryBoxHistoryCache(){
 }
 loadMysteryBoxHistoryCache();
 let _amMbHistorySyncing=false;
+let _amMbHistoryLastError=null;
 async function syncMysteryBoxHistory(force=false){
   if(!isAMSyncEnabled())return; // manual kill switch — see toggleAMSync()
   if(_amMbHistorySyncing)return;
   const ts=loadMysteryBoxHistoryCache();
   if(!force&&Date.now()-ts<AM_MB_HISTORY_TTL)return;
   _amMbHistorySyncing=true;
+  _amMbHistoryLastError=null;
+  updateAMSyncToggleUI();
   try{
     const idToSku=await getAMSkuIdMap(); // also populates window.amMysteryBoxMeta as a side effect
     if(!window.amMysteryBoxMeta||!Object.keys(window.amMysteryBoxMeta).length)return; // nothing to look for yet
@@ -8359,8 +8370,8 @@ async function syncMysteryBoxHistory(force=false){
       buildVariantRows();
       if(currentScreen==='dashboard')setView(currentView);
     }
-  }catch(e){console.error('Mystery box history backfill failed:',e);}
-  finally{_amMbHistorySyncing=false;}
+  }catch(e){_amMbHistoryLastError=(e&&e.message)||'Unknown error';console.error('Mystery box history backfill failed:',e);}
+  finally{_amMbHistorySyncing=false;updateAMSyncToggleUI();}
 }
 
 /* ── HELPERS ── */
@@ -10407,6 +10418,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.65 — Fix "Mystery Box history looks broken" confusion: syncMysteryBoxHistory() (the one-off ~5min AM order-history backfill that gives Mystery Boxes real sales data, since they have zero Shopify CSV history) had no visible progress indicator, so checking mid-sync looked identical to a stuck/broken sync. Its syncing/error state now folds into the existing "AM Live Data" pill (shows "Syncing…" / "Sync failed" alongside stock+sales) — but deliberately NOT into the pill's "Synced Xm ago" timestamp, since the mystery box cache being up to 30 days old is expected behaviour, not staleness. No change to the underlying data or sync logic — it was already correctly pulling real Apparel Magic historical order data, just invisibly
 // v2.2.64 — Auto-refresh stock/sales every 10 minutes while a tab is open: previously the app only synced from Apparel Magic on page load or a manual ↻ Refresh click, so a sale could sit unreflected for however long someone happened to leave the tab open. Lighter than a full refresh — no loading screen, no catalogue/mystery-box/Pipeline re-pull, just the two fast-moving AM stock+sales syncs (the same ones a manual refresh already triggers) — and skips silently while the tab is backgrounded so it doesn't spend AM API calls nobody's there to see
 // v2.2.63 — Fix the v2.2.62 AM order push failing on its first real test: the proxy built the POST URL without a trailing slash ("orders" instead of "orders/") — AM's API 301-redirects that, and fetch() silently downgrades a POST-with-body to a bodyless GET when following a redirect, landing on an HTML page instead of the JSON API response ("Unexpected token '<'"). GET requests never hit this because a GET-to-GET redirect is transparent. The proxy now adds the trailing slash itself before forwarding, avoiding the redirect entirely. Still not confirmed against a real created order — this fixes the specific error seen on the first test, next step is trying again
 // v2.2.62 — Working > Size Workings: "Push to Apparel Magic" now creates the sales order directly via AM's API instead of downloading a CSV for manual upload — same customer ("WNDRR ONLINE STORE", account 1068), same warehouse/currency (verified against real, current orders under that exact customer rather than assumed), same size-curve and RRP*0.5 pricing math the CSV already used. SKUs are resolved to AM's internal sku_id via the same shared catalogue map the stock sync maintains; if any SKU can't be resolved, nothing is sent and the mismatch is reported rather than silently dropping rows. If the API push fails for any reason, offers to fall back to the CSV download so the workflow isn't blocked. The Netlify proxy now also accepts POST/PUT for the orders/ path specifically (still GET-only for every other path) — token/time stay server-side exactly as they already were for reads. NOT YET LIVE-TESTED against a real order (no AM sandbox exists to test against) — first real order to be sent and verified manually before this is trusted as the default workflow
