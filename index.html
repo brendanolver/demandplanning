@@ -2119,7 +2119,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.66';
+const APP_VERSION='v2.2.67';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -3040,6 +3040,7 @@ function renderCadence(){
   const vendorByKey={};
   const discByKey={};
   const launchByKey={};
+  const soldOutByKey={};
   const _onOrderSeen=new Set();
   if(cadenceView==='cat'){
     for(const r of getActiveRows()){
@@ -3070,6 +3071,7 @@ function renderCadence(){
       }
       if(discByKey[k]===undefined)discByKey[k]=r.discountPct||0;
       if(launchByKey[k]===undefined)launchByKey[k]=r.launchDate||'';
+      if(soldOutByKey[k]===undefined)soldOutByKey[k]=r.soldOutSizes||0;
     }
   }
 
@@ -3107,6 +3109,7 @@ function renderCadence(){
       let av,bv;
       if(cadenceSortCol==='soh'){av=sohByKey[a]||0;bv=sohByKey[b]||0;}
       else if(cadenceSortCol==='__disc__'){av=discByKey[a]||0;bv=discByKey[b]||0;}
+      else if(cadenceSortCol==='__soldout__'){av=soldOutByKey[a]||0;bv=soldOutByKey[b]||0;}
       else if(cadenceSortCol==='__onorder__'){av=onOrderByKey[a]||0;bv=onOrderByKey[b]||0;}
       else if(cadenceSortCol==='__total__'){av=totalByKey[a]||0;bv=totalByKey[b]||0;}
       else if(cadenceSortCol==='__stpct__'){
@@ -3201,8 +3204,10 @@ function renderCadence(){
     const _disc=cadenceView==='prod'?(discByKey[k]||0):0;
     const discCell=cadenceView==='prod'?`<td class="cell-num" style="${_disc>0?'color:var(--red);font-weight:600;':'color:var(--text-muted);'}">${_disc>0?Math.round(_disc)+'%':'—'}</td>`:'';
     const launchCell=cadenceView==='prod'?`<td style="white-space:nowrap;">${launchByKey[k]?`<span style="font-size:12px;font-weight:500;color:var(--text-secondary);">${launchByKey[k]}</span>`:'<span style="color:var(--text-muted);">—</span>'}</td>`:'';
+    const soldOutCell=cadenceView==='prod'?`<td class="cell-num" style="${(soldOutByKey[k]||0)>0?'color:var(--red);font-weight:600;':'color:var(--text-muted);'}">${(soldOutByKey[k]||0)>0?soldOutByKey[k]:'—'}</td>`:'';
     return`<tr>
       <td>${displayLabel(k)}</td>
+      ${soldOutCell}
       ${launchCell}
       ${statusCell}
       ${discCell}
@@ -3251,6 +3256,7 @@ function renderCadence(){
       <table class="cadence-table">
         <thead><tr>
           <th style="${thStyle}" onclick="setCadenceSort('label')">${rowLabel}${sortArrow('label')}</th>
+          ${cadenceView==='prod'?`<th style="${thStyle}" onclick="setCadenceSort('__soldout__')">Sizes Sold Out${sortArrow('__soldout__')}</th>`:''}
           ${cadenceView==='prod'?`<th style="${thStyle}" onclick="setCadenceSort('__launchdate__')">Launch Date${sortArrow('__launchdate__')}</th><th style="white-space:nowrap;">Status</th><th style="${thStyle}" onclick="setCadenceSort('__disc__')">Disc%${sortArrow('__disc__')}</th>`:''}
           <th style="${thStyle};min-width:60px;" onclick="setCadenceSort('soh')">SOH${sortArrow('soh')}</th>
           <th style="${thStyle};min-width:60px;color:var(--purple);" onclick="setCadenceSort('__onorder__')">On Order${sortArrow('__onorder__')}</th>
@@ -3262,7 +3268,7 @@ function renderCadence(){
           ${tableRows}
           <tr class="cadence-total">
             <td>TOTAL</td>
-            ${cadenceView==='prod'?'<td></td><td></td><td></td>':''}
+            ${cadenceView==='prod'?'<td></td><td></td><td></td><td></td>':''}
             <td style="font-weight:700;">${totalSoh>0?totalSoh.toLocaleString():"—"}</td>
             <td style="font-weight:700;color:var(--purple);">${totalOnOrder>0?totalOnOrder.toLocaleString():'—'}</td>
             ${showLyMtd?`<td style="background:#f0fdf4;border-left:2px solid var(--border);">
@@ -10430,6 +10436,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.67 — Sales Cadence > Products view: add a "Sizes Sold Out" column right after the product description, sortable, matching the same styling as the existing Sizes S/O column in Working > Re-Orders and Markdowns. Sourced from the same soldOutSizes field already computed per product+colour — no new data needed
 // v2.2.66 — Exclude "RETURN" category products from the dataset entirely: these are sundry/service line items (e.g. "Free Returns Coverage", Shopify Product type "RETURN"), not real products, and were showing up in sales/reorder data (33 units sold over the last 365 days for that one item alone). Filtered at every raw-data ingestion point — Shopify sales CSV, Shopify inventory CSV, AM CSV export, AM API inventory fallback — via a shared EXCLUDED_CATEGORIES set, rather than only in the final rows array, since Planning's LY/budget calcs key off priceMap-derived _skuCategoryMap directly and would have kept counting them otherwise
 // v2.2.65 — Fix "Mystery Box history looks broken" confusion: syncMysteryBoxHistory() (the one-off ~5min AM order-history backfill that gives Mystery Boxes real sales data, since they have zero Shopify CSV history) had no visible progress indicator, so checking mid-sync looked identical to a stuck/broken sync. Its syncing/error state now folds into the existing "AM Live Data" pill (shows "Syncing…" / "Sync failed" alongside stock+sales) — but deliberately NOT into the pill's "Synced Xm ago" timestamp, since the mystery box cache being up to 30 days old is expected behaviour, not staleness. No change to the underlying data or sync logic — it was already correctly pulling real Apparel Magic historical order data, just invisibly
 // v2.2.64 — Auto-refresh stock/sales every 10 minutes while a tab is open: previously the app only synced from Apparel Magic on page load or a manual ↻ Refresh click, so a sale could sit unreflected for however long someone happened to leave the tab open. Lighter than a full refresh — no loading screen, no catalogue/mystery-box/Pipeline re-pull, just the two fast-moving AM stock+sales syncs (the same ones a manual refresh already triggers) — and skips silently while the tab is backgrounded so it doesn't spend AM API calls nobody's there to see
