@@ -2119,7 +2119,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.65';
+const APP_VERSION='v2.2.66';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -7474,6 +7474,14 @@ function buildSoldOutMap(){
   return{soMap,plMap};
 }
 
+// Sundry/service categories that aren't real inventory — excluded at every raw-data
+// ingestion point (Shopify sales/inventory CSVs, AM CSV export, AM API) so they never
+// enter priceMap/salesBySkuDay/AM maps in the first place, rather than being filtered
+// downstream in one place and missed by another (e.g. Planning's LY calcs key off
+// priceMap-derived _skuCategoryMap directly, not the final filtered rows array).
+const EXCLUDED_CATEGORIES=new Set(['RETURN']);
+function isExcludedCategory(cat){return EXCLUDED_CATEGORIES.has((cat||'').trim().toUpperCase());}
+
 /* ── BUILD SALES MAPS FROM 365-DAY FILE ── */
 function buildSalesMaps(){
   // salesBySkuDay: {sku: {date: {qty, cogs}}}
@@ -7500,6 +7508,7 @@ function buildSalesMaps(){
     const status=(row['Product status']||'').trim().toUpperCase();
 
     if(!sku||!day)continue;
+    if(isExcludedCategory(category))continue;
 
     // Only count positive quantities (ignore returns/refunds)
     // Include ALL products (active + draft) in sales history so Cadence is accurate
@@ -7642,6 +7651,7 @@ function buildAMData(){
     const amCostPerUnit=(units>0&&amount>0)?+(amount/units).toFixed(4):0;
     if(!desc||desc==='TOTAL')continue;
     if(!colour)continue;
+    if(isExcludedCategory(category))continue;
     if(!products[desc])products[desc]={colours:new Set(),category:category||''};
     products[desc].colours.add(colour);
     if(category)products[desc].category=category;
@@ -7685,6 +7695,7 @@ function buildAMDataFromAPI(orders){
       const productName=sepIdx>0?fullTitle.slice(0,sepIdx):fullTitle;
       const colour=sepIdx>0?fullTitle.slice(sepIdx+3):'';
       const category=(row['Product type']||'').trim().toUpperCase();
+      if(isExcludedCategory(category))continue;
       invSkuMap[sku]={productName,colour,category};
     }
   }
@@ -8505,6 +8516,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
           const variantTitle=(row['Product variant title']||'').trim();
           const vendor=(row['Product vendor']||'').trim().toUpperCase();
           const category=(row['Product type']||'').trim().toUpperCase();
+          if(isExcludedCategory(category))continue;
           const{name:productName,colour}=extractName(fullTitle);
           const sizeParts=variantTitle.split('/');
           let size=sizeParts.length>1?sizeParts[sizeParts.length-1].trim():variantTitle.trim();
@@ -10418,6 +10430,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.2.66 — Exclude "RETURN" category products from the dataset entirely: these are sundry/service line items (e.g. "Free Returns Coverage", Shopify Product type "RETURN"), not real products, and were showing up in sales/reorder data (33 units sold over the last 365 days for that one item alone). Filtered at every raw-data ingestion point — Shopify sales CSV, Shopify inventory CSV, AM CSV export, AM API inventory fallback — via a shared EXCLUDED_CATEGORIES set, rather than only in the final rows array, since Planning's LY/budget calcs key off priceMap-derived _skuCategoryMap directly and would have kept counting them otherwise
 // v2.2.65 — Fix "Mystery Box history looks broken" confusion: syncMysteryBoxHistory() (the one-off ~5min AM order-history backfill that gives Mystery Boxes real sales data, since they have zero Shopify CSV history) had no visible progress indicator, so checking mid-sync looked identical to a stuck/broken sync. Its syncing/error state now folds into the existing "AM Live Data" pill (shows "Syncing…" / "Sync failed" alongside stock+sales) — but deliberately NOT into the pill's "Synced Xm ago" timestamp, since the mystery box cache being up to 30 days old is expected behaviour, not staleness. No change to the underlying data or sync logic — it was already correctly pulling real Apparel Magic historical order data, just invisibly
 // v2.2.64 — Auto-refresh stock/sales every 10 minutes while a tab is open: previously the app only synced from Apparel Magic on page load or a manual ↻ Refresh click, so a sale could sit unreflected for however long someone happened to leave the tab open. Lighter than a full refresh — no loading screen, no catalogue/mystery-box/Pipeline re-pull, just the two fast-moving AM stock+sales syncs (the same ones a manual refresh already triggers) — and skips silently while the tab is backgrounded so it doesn't spend AM API calls nobody's there to see
 // v2.2.63 — Fix the v2.2.62 AM order push failing on its first real test: the proxy built the POST URL without a trailing slash ("orders" instead of "orders/") — AM's API 301-redirects that, and fetch() silently downgrades a POST-with-body to a bodyless GET when following a redirect, landing on an HTML page instead of the JSON API response ("Unexpected token '<'"). GET requests never hit this because a GET-to-GET redirect is transparent. The proxy now adds the trailing slash itself before forwarding, avoiding the redirect entirely. Still not confirmed against a real created order — this fixes the specific error seen on the first test, next step is trying again
