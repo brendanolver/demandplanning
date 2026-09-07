@@ -2145,7 +2145,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.3.0';
+const APP_VERSION='v2.3.1';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -7878,26 +7878,38 @@ async function fetchAMOrdersFromAPI(){
 
 
 /* ── DELIVERIES ── Open AM sales orders for WNDRR Online Store (account 1068),
-   at order-line granularity — Style, Product Name (AM's own description),
-   Web Title (matched live against Shopify data via style code), Qty On Order,
-   Due Date and Customer PO. Sources amApiData, the same flat open-order-items
-   array the rest of the app already uses for on-order totals (fetchAMOrdersFromAPI) —
-   no separate AM fetch needed, just customer_po carried onto each item there. */
-function formatDeliveryDueDate(d){
-  if(!d)return'—';
+   at order-line granularity — Style, Product Name (matched live against Shopify
+   via style code — dropped AM's own raw description column, since the Shopify
+   title already covers this better), Qty On Order, Due Date and Customer PO.
+   Sources amApiData, the same flat open-order-items array the rest of the app
+   already uses for on-order totals (fetchAMOrdersFromAPI) — no separate AM
+   fetch needed, just customer_po carried onto each item there. */
+function parseDeliveryDue(d){
+  if(!d)return null;
   let day,month,year;
   if(d.includes('-')&&!d.includes('/')){
     const p=d.split('-'); // ISO: YYYY-MM-DD
-    if(p.length<3)return d;
-    year=p[0];month=parseInt(p[1]);day=parseInt(p[2]);
+    if(p.length<3)return null;
+    year=parseInt(p[0]);month=parseInt(p[1]);day=parseInt(p[2]);
   }else{
     const p=d.split('/'); // US slash: MM/DD/YY(YY)
-    if(p.length<3)return d;
-    month=parseInt(p[0]);day=parseInt(p[1]);year=p[2].length===2?'20'+p[2]:p[2];
+    if(p.length<3)return null;
+    month=parseInt(p[0]);day=parseInt(p[1]);year=parseInt(p[2].length===2?'20'+p[2]:p[2]);
   }
   const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  if(!MONTHS[month-1]||!day)return d;
-  return`${day} ${MONTHS[month-1]} ${year}`;
+  if(!MONTHS[month-1]||!day)return null;
+  return{day,month,year,label:`${day} ${MONTHS[month-1]} ${year}`,sortKey:year*10000+month*100+day};
+}
+let deliveriesSortCol=null; // null = default (Product Name A-Z)
+let deliveriesSortDir='asc';
+function setDeliveriesSort(col){
+  if(deliveriesSortCol===col){
+    deliveriesSortDir=deliveriesSortDir==='asc'?'desc':'asc';
+  }else{
+    deliveriesSortCol=col;
+    deliveriesSortDir=col==='qty'?'desc':'asc';
+  }
+  renderDeliveries();
 }
 function renderDeliveries(){
   const body=document.getElementById('deliveries-body');
@@ -7908,11 +7920,11 @@ function renderDeliveries(){
   }
   // Style → live Shopify product title, matched via style code — same resolution
   // pattern already used for AM-only rows elsewhere (processRows' "AM-only products" block)
-  const webTitleByStyle={};
+  const productNameByStyle={};
   if(allVariantRows){
     for(const r of allVariantRows){
       const style=styleFromSku(r.sku);
-      if(style&&!webTitleByStyle[style])webTitleByStyle[style]=r.fullTitle||(r.productName+(r.colour?' - '+r.colour:''));
+      if(style&&!productNameByStyle[style])productNameByStyle[style]=r.fullTitle||(r.productName+(r.colour?' - '+r.colour:''));
     }
   }
   // One row per style+PO+due-date — a style spans multiple sizes (separate
@@ -7927,9 +7939,8 @@ function renderDeliveries(){
     if(!groups[key]){
       groups[key]={
         style,
-        productName:(item.description||'').trim().toUpperCase(),
-        webTitle:webTitleByStyle[style]||'—',
-        qty:0,due,po:po||'—'
+        productName:productNameByStyle[style]||'—',
+        qty:0,due,dueParsed:parseDeliveryDue(due),po:po||'—'
       };
     }
     groups[key].qty+=parseFloat(item.qty_open||0);
@@ -7941,24 +7952,38 @@ function renderDeliveries(){
   if(search){
     rows=rows.filter(r=>
       r.style.toUpperCase().includes(search)||
-      r.productName.includes(search)||
-      r.webTitle.toUpperCase().includes(search)||
+      r.productName.toUpperCase().includes(search)||
       r.po.toUpperCase().includes(search)||
-      formatDeliveryDueDate(r.due).toUpperCase().includes(search)
+      (r.dueParsed?.label||'').toUpperCase().includes(search)
     );
   }
 
-  // Default: Product Name alphabetically
-  rows.sort((a,b)=>a.productName.localeCompare(b.productName));
+  if(deliveriesSortCol){
+    rows.sort((a,b)=>{
+      let av,bv;
+      if(deliveriesSortCol==='qty'){av=a.qty;bv=b.qty;}
+      else if(deliveriesSortCol==='due'){av=a.dueParsed?.sortKey??-Infinity;bv=b.dueParsed?.sortKey??-Infinity;}
+      else{
+        const cmp=(a[deliveriesSortCol]||'').localeCompare(b[deliveriesSortCol]||'');
+        return deliveriesSortDir==='asc'?cmp:-cmp;
+      }
+      return deliveriesSortDir==='asc'?av-bv:bv-av;
+    });
+  }else{
+    // Default: Product Name alphabetically
+    rows.sort((a,b)=>a.productName.localeCompare(b.productName));
+  }
 
   const noResults=rows.length===0?`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No deliveries found</div><div class="insights-empty-sub">Try a different search term.</div></div>`:'';
 
+  const sortArrow=col=>deliveriesSortCol===col?(deliveriesSortDir==='desc'?' ↓':' ↑'):'';
+  const thStyle='cursor:pointer;user-select:none;';
+
   const tableRows=rows.map(r=>`<tr>
     <td>${r.style}</td>
-    <td>${r.productName}</td>
-    <td>${r.webTitle}</td>
+    <td style="text-align:left;">${r.productName}</td>
     <td class="cell-num" style="font-weight:600;color:var(--purple);">${r.qty.toLocaleString()}</td>
-    <td style="white-space:nowrap;">${formatDeliveryDueDate(r.due)}</td>
+    <td style="white-space:nowrap;">${r.dueParsed?.label||'—'}</td>
     <td>${r.po}</td>
   </tr>`).join('');
 
@@ -7967,12 +7992,11 @@ function renderDeliveries(){
     ${noResults||`<div class="cadence-table-wrap">
       <table class="cadence-table">
         <thead><tr>
-          <th>Style</th>
-          <th>Product Name</th>
-          <th>Web Title</th>
-          <th style="text-align:right;">Qty On Order</th>
-          <th>Due Date</th>
-          <th>Customer PO</th>
+          <th style="${thStyle}" onclick="setDeliveriesSort('style')">Style${sortArrow('style')}</th>
+          <th style="${thStyle}text-align:left;" onclick="setDeliveriesSort('productName')">Product Name${sortArrow('productName')}</th>
+          <th style="${thStyle}text-align:right;" onclick="setDeliveriesSort('qty')">Qty On Order${sortArrow('qty')}</th>
+          <th style="${thStyle}" onclick="setDeliveriesSort('due')">Due Date${sortArrow('due')}</th>
+          <th style="${thStyle}" onclick="setDeliveriesSort('po')">Customer PO${sortArrow('po')}</th>
         </tr></thead>
         <tbody>${tableRows}</tbody>
       </table>
@@ -10570,6 +10594,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.3.1 — Deliveries: drop the AM-description "Product Name" column (the Shopify-matched "Web Title" column already covered this better) and rename Web Title to Product Name in its place, left-aligned. All columns now sortable (click header, click again to reverse) — Due Date sorts as a real date, not text
 // v2.3.0 — New "Deliveries" screen, between Sales Cadence and Insights: shows open Apparel Magic sales orders for WNDRR Online Store (account 1068) at order-line granularity — Style, Product Name (AM's own description), Web Title (matched live against Shopify via style code), Qty On Order, Due Date and Customer PO. One row per style+PO+due-date (collapses each style's per-size order_items into one). Defaults to alphabetical by Product Name; single master search box filters across every column. Reuses amApiData, the same open-order-items array the rest of the app already fetches for on-order totals — only change to the fetch itself was carrying customer_po onto each item (it previously only carried date_due). Also corrects the version odometer: patch had drifted unbounded to .67 instead of rolling at .9 — rolled to 2.3.0 here, per Brendan catching it last session
 // v2.2.67 — Sales Cadence > Products view: add a "Sizes Sold Out" column right after the product description, sortable, matching the same styling as the existing Sizes S/O column in Working > Re-Orders and Markdowns. Sourced from the same soldOutSizes field already computed per product+colour — no new data needed
 // v2.2.66 — Exclude "RETURN" category products from the dataset entirely: these are sundry/service line items (e.g. "Free Returns Coverage", Shopify Product type "RETURN"), not real products, and were showing up in sales/reorder data (33 units sold over the last 365 days for that one item alone). Filtered at every raw-data ingestion point — Shopify sales CSV, Shopify inventory CSV, AM CSV export, AM API inventory fallback — via a shared EXCLUDED_CATEGORIES set, rather than only in the final rows array, since Planning's LY/budget calcs key off priceMap-derived _skuCategoryMap directly and would have kept counting them otherwise
