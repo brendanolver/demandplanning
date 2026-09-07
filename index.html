@@ -878,6 +878,7 @@ th{position:relative;}
       <div class="screen-nav">
         <button class="screen-btn active" id="btn-dashboard" onclick="showScreen('dashboard')">📊 Dashboard</button>
         <button class="screen-btn" id="btn-cadence" onclick="showScreen('cadence')">📈 Sales Cadence</button>
+        <button class="screen-btn" id="btn-deliveries" onclick="showScreen('deliveries')">🚚 Deliveries</button>
         <button class="screen-btn" id="btn-insights" onclick="showScreen('insights')">💡 Insights</button>
         <button class="screen-btn" id="btn-planning" onclick="showScreen('planning')">📋 Planning</button>
         <button class="screen-btn" id="btn-markdowns" onclick="showScreen('markdowns')">📝 Working</button>
@@ -1309,6 +1310,31 @@ th{position:relative;}
       </div>
       <!-- Compare selected styles summary — shown below the table in compare mode -->
       <div id="cadence-compare-summary" style="display:none;margin-top:20px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:14px 18px;"></div>
+    </div>
+  </div>
+
+  <!-- DELIVERIES SCREEN -->
+  <div id="deliveries-screen" style="display:none;padding:28px;overflow-y:auto;height:calc(100vh - 56px);">
+    <div style="max-width:1200px;margin:0 auto;">
+      <div class="insights-header" style="flex-wrap:wrap;gap:12px;">
+        <div>
+          <div class="insights-title">Deliveries</div>
+          <div class="insights-sub">Open Apparel Magic sales orders for WNDRR Online Store — units on order, due dates & customer POs</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <div class="search-wrap" style="min-width:260px;">
+            <span class="search-ico">🔍</span>
+            <input type="text" id="deliveries-search" placeholder="Search style, product, web title or PO..." oninput="renderDeliveries()">
+          </div>
+        </div>
+      </div>
+      <div id="deliveries-body">
+        <div class="insights-empty">
+          <div class="insights-empty-ico">🚚</div>
+          <div class="insights-empty-title">Loading deliveries...</div>
+          <div class="insights-empty-sub">Open orders will appear here once Apparel Magic data has loaded.</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -2119,7 +2145,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.2.67';
+const APP_VERSION='v2.3.0';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -2193,13 +2219,14 @@ let currentScreen='dashboard';
 
 function showScreen(screen){
   currentScreen=screen;
-  ['dashboard','insights','cadence','planning','markdowns','performance'].forEach(s=>{
+  ['dashboard','insights','cadence','deliveries','planning','markdowns','performance'].forEach(s=>{
     const btn=document.getElementById('btn-'+s);
     if(btn)btn.classList.toggle('active',s===screen);
   });
   const layout=document.getElementById('dashboard-layout');
   const insightsScreen=document.getElementById('insights-screen');
   const cadenceScreen=document.getElementById('cadence-screen');
+  const deliveriesScreen=document.getElementById('deliveries-screen');
   const planningScreen=document.getElementById('planning-screen');
   const markdownsScreen=document.getElementById('markdowns-screen');
   const performanceScreen=document.getElementById('performance-screen');
@@ -2207,6 +2234,7 @@ function showScreen(screen){
   layout.style.display=screen==='dashboard'?'':'none';
   insightsScreen.style.display=screen==='insights'?'block':'none';
   cadenceScreen.style.display=screen==='cadence'?'block':'none';
+  if(deliveriesScreen)deliveriesScreen.style.display=screen==='deliveries'?'block':'none';
   planningScreen.style.display=screen==='planning'?'block':'none';
   markdownsScreen.style.display=screen==='markdowns'?'block':'none';
   if(performanceScreen)performanceScreen.style.display=screen==='performance'?'block':'none';
@@ -2222,6 +2250,7 @@ function showScreen(screen){
     generateInsights();
   }
   if(screen==='cadence') renderCadence();
+  if(screen==='deliveries') renderDeliveries();
   if(screen==='planning') renderPlanning();
   if(screen==='markdowns') setWorkingView(workingView);
   if(screen==='performance') renderPerformance();
@@ -7791,8 +7820,9 @@ async function fetchAMOrdersFromAPI(){
     const allItems=[];
     for(const order of orders){
       const items=(order.order_items||[]).filter(i=>parseFloat(i.qty_open||0)>0);
-      // carry header date_due onto items that don't have their own
-      items.forEach(i=>{if(!i.date_due)i.date_due=order.date_due;});
+      // carry header date_due and customer_po onto items — order_items don't carry
+      // these themselves, and the Deliveries view needs both per line
+      items.forEach(i=>{if(!i.date_due)i.date_due=order.date_due;i.customer_po=order.customer_po||'';});
       allItems.push(...items);
     }
     if(!allItems.length){
@@ -7839,12 +7869,116 @@ async function fetchAMOrdersFromAPI(){
       _buildPerfWeeklyCache();
     }
     if(pill)pill.innerHTML='<span class="live-dot"></span>Apparel Magic';
+    if(currentScreen==='deliveries')renderDeliveries();
   }catch(e){
     console.error('AM API fetch failed:',e);
     if(pill)pill.innerHTML='<span class="live-dot" style="background:#ef4444"></span>AM offline';
   }
 }
 
+
+/* ── DELIVERIES ── Open AM sales orders for WNDRR Online Store (account 1068),
+   at order-line granularity — Style, Product Name (AM's own description),
+   Web Title (matched live against Shopify data via style code), Qty On Order,
+   Due Date and Customer PO. Sources amApiData, the same flat open-order-items
+   array the rest of the app already uses for on-order totals (fetchAMOrdersFromAPI) —
+   no separate AM fetch needed, just customer_po carried onto each item there. */
+function formatDeliveryDueDate(d){
+  if(!d)return'—';
+  let day,month,year;
+  if(d.includes('-')&&!d.includes('/')){
+    const p=d.split('-'); // ISO: YYYY-MM-DD
+    if(p.length<3)return d;
+    year=p[0];month=parseInt(p[1]);day=parseInt(p[2]);
+  }else{
+    const p=d.split('/'); // US slash: MM/DD/YY(YY)
+    if(p.length<3)return d;
+    month=parseInt(p[0]);day=parseInt(p[1]);year=p[2].length===2?'20'+p[2]:p[2];
+  }
+  const MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  if(!MONTHS[month-1]||!day)return d;
+  return`${day} ${MONTHS[month-1]} ${year}`;
+}
+function renderDeliveries(){
+  const body=document.getElementById('deliveries-body');
+  if(!body)return;
+  if(!amApiData||!amApiData.length){
+    body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">🚚</div><div class="insights-empty-title">No open orders</div><div class="insights-empty-sub">No open Apparel Magic orders found for WNDRR Online Store, or data hasn't loaded yet.</div></div>`;
+    return;
+  }
+  // Style → live Shopify product title, matched via style code — same resolution
+  // pattern already used for AM-only rows elsewhere (processRows' "AM-only products" block)
+  const webTitleByStyle={};
+  if(allVariantRows){
+    for(const r of allVariantRows){
+      const style=styleFromSku(r.sku);
+      if(style&&!webTitleByStyle[style])webTitleByStyle[style]=r.fullTitle||(r.productName+(r.colour?' - '+r.colour:''));
+    }
+  }
+  // One row per style+PO+due-date — a style spans multiple sizes (separate
+  // order_items) on the same PO/due date, which should collapse into one row
+  const groups={};
+  for(const item of amApiData){
+    const style=(item.style_number||'').trim();
+    if(!style)continue;
+    const po=(item.customer_po||'').trim();
+    const due=item.date_due||'';
+    const key=style+'||'+po+'||'+due;
+    if(!groups[key]){
+      groups[key]={
+        style,
+        productName:(item.description||'').trim().toUpperCase(),
+        webTitle:webTitleByStyle[style]||'—',
+        qty:0,due,po:po||'—'
+      };
+    }
+    groups[key].qty+=parseFloat(item.qty_open||0);
+  }
+  let rows=Object.values(groups);
+
+  // Master search — matches across every visible field
+  const search=(document.getElementById('deliveries-search')?.value||'').trim().toUpperCase();
+  if(search){
+    rows=rows.filter(r=>
+      r.style.toUpperCase().includes(search)||
+      r.productName.includes(search)||
+      r.webTitle.toUpperCase().includes(search)||
+      r.po.toUpperCase().includes(search)||
+      formatDeliveryDueDate(r.due).toUpperCase().includes(search)
+    );
+  }
+
+  // Default: Product Name alphabetically
+  rows.sort((a,b)=>a.productName.localeCompare(b.productName));
+
+  const noResults=rows.length===0?`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No deliveries found</div><div class="insights-empty-sub">Try a different search term.</div></div>`:'';
+
+  const tableRows=rows.map(r=>`<tr>
+    <td>${r.style}</td>
+    <td>${r.productName}</td>
+    <td>${r.webTitle}</td>
+    <td class="cell-num" style="font-weight:600;color:var(--purple);">${r.qty.toLocaleString()}</td>
+    <td style="white-space:nowrap;">${formatDeliveryDueDate(r.due)}</td>
+    <td>${r.po}</td>
+  </tr>`).join('');
+
+  body.innerHTML=`
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">${rows.length.toLocaleString()} open order line${rows.length===1?'':'s'}</div>
+    ${noResults||`<div class="cadence-table-wrap">
+      <table class="cadence-table">
+        <thead><tr>
+          <th>Style</th>
+          <th>Product Name</th>
+          <th>Web Title</th>
+          <th style="text-align:right;">Qty On Order</th>
+          <th>Due Date</th>
+          <th>Customer PO</th>
+        </tr></thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    </div>`}
+  `;
+}
 
 /* ── AM CATALOGUE SYNC (launch dates + CORE collection) ──
    Launch Date is stored in AM's mid_code field per product; CORE membership is
@@ -10436,6 +10570,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.3.0 — New "Deliveries" screen, between Sales Cadence and Insights: shows open Apparel Magic sales orders for WNDRR Online Store (account 1068) at order-line granularity — Style, Product Name (AM's own description), Web Title (matched live against Shopify via style code), Qty On Order, Due Date and Customer PO. One row per style+PO+due-date (collapses each style's per-size order_items into one). Defaults to alphabetical by Product Name; single master search box filters across every column. Reuses amApiData, the same open-order-items array the rest of the app already fetches for on-order totals — only change to the fetch itself was carrying customer_po onto each item (it previously only carried date_due). Also corrects the version odometer: patch had drifted unbounded to .67 instead of rolling at .9 — rolled to 2.3.0 here, per Brendan catching it last session
 // v2.2.67 — Sales Cadence > Products view: add a "Sizes Sold Out" column right after the product description, sortable, matching the same styling as the existing Sizes S/O column in Working > Re-Orders and Markdowns. Sourced from the same soldOutSizes field already computed per product+colour — no new data needed
 // v2.2.66 — Exclude "RETURN" category products from the dataset entirely: these are sundry/service line items (e.g. "Free Returns Coverage", Shopify Product type "RETURN"), not real products, and were showing up in sales/reorder data (33 units sold over the last 365 days for that one item alone). Filtered at every raw-data ingestion point — Shopify sales CSV, Shopify inventory CSV, AM CSV export, AM API inventory fallback — via a shared EXCLUDED_CATEGORIES set, rather than only in the final rows array, since Planning's LY/budget calcs key off priceMap-derived _skuCategoryMap directly and would have kept counting them otherwise
 // v2.2.65 — Fix "Mystery Box history looks broken" confusion: syncMysteryBoxHistory() (the one-off ~5min AM order-history backfill that gives Mystery Boxes real sales data, since they have zero Shopify CSV history) had no visible progress indicator, so checking mid-sync looked identical to a stuck/broken sync. Its syncing/error state now folds into the existing "AM Live Data" pill (shows "Syncing…" / "Sync failed" alongside stock+sales) — but deliberately NOT into the pill's "Synced Xm ago" timestamp, since the mystery box cache being up to 30 days old is expected behaviour, not staleness. No change to the underlying data or sync logic — it was already correctly pulling real Apparel Magic historical order data, just invisibly
