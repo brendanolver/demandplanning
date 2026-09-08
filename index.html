@@ -2145,7 +2145,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.3.1';
+const APP_VERSION='v2.3.2';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -7880,10 +7880,12 @@ async function fetchAMOrdersFromAPI(){
 /* ── DELIVERIES ── Open AM sales orders for WNDRR Online Store (account 1068),
    at order-line granularity — Style, Product Name (matched live against Shopify
    via style code — dropped AM's own raw description column, since the Shopify
-   title already covers this better), Qty On Order, Due Date and Customer PO.
+   title already covers this better), SOH, Qty On Order, Due Date and Customer PO.
    Sources amApiData, the same flat open-order-items array the rest of the app
    already uses for on-order totals (fetchAMOrdersFromAPI) — no separate AM
-   fetch needed, just customer_po carried onto each item there. */
+   fetch needed, just customer_po carried onto each item there. SOH is summed
+   from allVariantRows across every size of that exact style (style_number
+   already encodes colour) — style-level, same as the Product Name match. */
 function parseDeliveryDue(d){
   if(!d)return null;
   let day,month,year;
@@ -7907,7 +7909,7 @@ function setDeliveriesSort(col){
     deliveriesSortDir=deliveriesSortDir==='asc'?'desc':'asc';
   }else{
     deliveriesSortCol=col;
-    deliveriesSortDir=col==='qty'?'desc':'asc';
+    deliveriesSortDir=(col==='qty'||col==='soh')?'desc':'asc';
   }
   renderDeliveries();
 }
@@ -7918,13 +7920,17 @@ function renderDeliveries(){
     body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">🚚</div><div class="insights-empty-title">No open orders</div><div class="insights-empty-sub">No open Apparel Magic orders found for WNDRR Online Store, or data hasn't loaded yet.</div></div>`;
     return;
   }
-  // Style → live Shopify product title, matched via style code — same resolution
-  // pattern already used for AM-only rows elsewhere (processRows' "AM-only products" block)
+  // Style → live Shopify product title + current SOH, matched via style code — same
+  // resolution pattern already used for AM-only rows elsewhere (processRows' "AM-only
+  // products" block). SOH is summed across every colour/size variant of that style.
   const productNameByStyle={};
+  const sohByStyle={};
   if(allVariantRows){
     for(const r of allVariantRows){
       const style=styleFromSku(r.sku);
-      if(style&&!productNameByStyle[style])productNameByStyle[style]=r.fullTitle||(r.productName+(r.colour?' - '+r.colour:''));
+      if(!style)continue;
+      if(!productNameByStyle[style])productNameByStyle[style]=r.fullTitle||(r.productName+(r.colour?' - '+r.colour:''));
+      sohByStyle[style]=(sohByStyle[style]||0)+(r.stock||0);
     }
   }
   // One row per style+PO+due-date — a style spans multiple sizes (separate
@@ -7940,6 +7946,7 @@ function renderDeliveries(){
       groups[key]={
         style,
         productName:productNameByStyle[style]||'—',
+        soh:sohByStyle[style]||0,
         qty:0,due,dueParsed:parseDeliveryDue(due),po:po||'—'
       };
     }
@@ -7962,6 +7969,7 @@ function renderDeliveries(){
     rows.sort((a,b)=>{
       let av,bv;
       if(deliveriesSortCol==='qty'){av=a.qty;bv=b.qty;}
+      else if(deliveriesSortCol==='soh'){av=a.soh;bv=b.soh;}
       else if(deliveriesSortCol==='due'){av=a.dueParsed?.sortKey??-Infinity;bv=b.dueParsed?.sortKey??-Infinity;}
       else{
         const cmp=(a[deliveriesSortCol]||'').localeCompare(b[deliveriesSortCol]||'');
@@ -7982,6 +7990,7 @@ function renderDeliveries(){
   const tableRows=rows.map(r=>`<tr>
     <td>${r.style}</td>
     <td style="text-align:left;">${r.productName}</td>
+    <td class="cell-num" style="font-weight:500;">${r.soh>0?r.soh.toLocaleString():'—'}</td>
     <td class="cell-num" style="font-weight:600;color:var(--purple);">${r.qty.toLocaleString()}</td>
     <td style="white-space:nowrap;">${r.dueParsed?.label||'—'}</td>
     <td>${r.po}</td>
@@ -7994,6 +8003,7 @@ function renderDeliveries(){
         <thead><tr>
           <th style="${thStyle}" onclick="setDeliveriesSort('style')">Style${sortArrow('style')}</th>
           <th style="${thStyle}text-align:left;" onclick="setDeliveriesSort('productName')">Product Name${sortArrow('productName')}</th>
+          <th style="${thStyle}text-align:right;" onclick="setDeliveriesSort('soh')">SOH${sortArrow('soh')}</th>
           <th style="${thStyle}text-align:right;" onclick="setDeliveriesSort('qty')">Qty On Order${sortArrow('qty')}</th>
           <th style="${thStyle}" onclick="setDeliveriesSort('due')">Due Date${sortArrow('due')}</th>
           <th style="${thStyle}" onclick="setDeliveriesSort('po')">Customer PO${sortArrow('po')}</th>
@@ -10594,6 +10604,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.3.2 — Deliveries: add a sortable SOH column between Product Name and Qty On Order — current stock on hand for that exact style, summed across all its sizes from the live variant data (same style-level match already used for Product Name)
 // v2.3.1 — Deliveries: drop the AM-description "Product Name" column (the Shopify-matched "Web Title" column already covered this better) and rename Web Title to Product Name in its place, left-aligned. All columns now sortable (click header, click again to reverse) — Due Date sorts as a real date, not text
 // v2.3.0 — New "Deliveries" screen, between Sales Cadence and Insights: shows open Apparel Magic sales orders for WNDRR Online Store (account 1068) at order-line granularity — Style, Product Name (AM's own description), Web Title (matched live against Shopify via style code), Qty On Order, Due Date and Customer PO. One row per style+PO+due-date (collapses each style's per-size order_items into one). Defaults to alphabetical by Product Name; single master search box filters across every column. Reuses amApiData, the same open-order-items array the rest of the app already fetches for on-order totals — only change to the fetch itself was carrying customer_po onto each item (it previously only carried date_due). Also corrects the version odometer: patch had drifted unbounded to .67 instead of rolling at .9 — rolled to 2.3.0 here, per Brendan catching it last session
 // v2.2.67 — Sales Cadence > Products view: add a "Sizes Sold Out" column right after the product description, sortable, matching the same styling as the existing Sizes S/O column in Working > Re-Orders and Markdowns. Sourced from the same soldOutSizes field already computed per product+colour — no new data needed
