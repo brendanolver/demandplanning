@@ -2145,7 +2145,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.3.2';
+const APP_VERSION='v2.3.3';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -8005,7 +8005,7 @@ function renderDeliveries(){
           <th style="${thStyle}text-align:left;" onclick="setDeliveriesSort('productName')">Product Name${sortArrow('productName')}</th>
           <th style="${thStyle}text-align:right;" onclick="setDeliveriesSort('soh')">SOH${sortArrow('soh')}</th>
           <th style="${thStyle}text-align:right;" onclick="setDeliveriesSort('qty')">Qty On Order${sortArrow('qty')}</th>
-          <th style="${thStyle}" onclick="setDeliveriesSort('due')">Due Date${sortArrow('due')}</th>
+          <th style="${thStyle}" onclick="setDeliveriesSort('due')">Warehouse Arrival Date${sortArrow('due')}</th>
           <th style="${thStyle}" onclick="setDeliveriesSort('po')">Customer PO${sortArrow('po')}</th>
         </tr></thead>
         <tbody>${tableRows}</tbody>
@@ -10604,6 +10604,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.3.3 — Deliveries: rename "Due Date" column header to "Warehouse Arrival Date" — label only, same AM date_due field and sort behaviour
 // v2.3.2 — Deliveries: add a sortable SOH column between Product Name and Qty On Order — current stock on hand for that exact style, summed across all its sizes from the live variant data (same style-level match already used for Product Name)
 // v2.3.1 — Deliveries: drop the AM-description "Product Name" column (the Shopify-matched "Web Title" column already covered this better) and rename Web Title to Product Name in its place, left-aligned. All columns now sortable (click header, click again to reverse) — Due Date sorts as a real date, not text
 // v2.3.0 — New "Deliveries" screen, between Sales Cadence and Insights: shows open Apparel Magic sales orders for WNDRR Online Store (account 1068) at order-line granularity — Style, Product Name (AM's own description), Web Title (matched live against Shopify via style code), Qty On Order, Due Date and Customer PO. One row per style+PO+due-date (collapses each style's per-size order_items into one). Defaults to alphabetical by Product Name; single master search box filters across every column. Reuses amApiData, the same open-order-items array the rest of the app already fetches for on-order totals — only change to the fetch itself was carrying customer_po onto each item (it previously only carried date_due). Also corrects the version odometer: patch had drifted unbounded to .67 instead of rolling at .9 — rolled to 2.3.0 here, per Brendan catching it last session
