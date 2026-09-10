@@ -333,7 +333,7 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
   body{background:#fff!important;height:auto!important;overflow:visible!important;}
   /* Hide everything except the insights screen */
   #topbar,#sidebar,#dashboard-layout,
-  #cadence-screen,#planning-screen,#markdowns-screen,#performance-screen,
+  #cadence-screen,#planning-screen,#markdowns-screen,#performance-screen,#deliveries-screen,
   #upload-screen,#password-screen,#loading-screen,
   .sidebar-overlay{display:none!important;}
   /* Release the app shell from its fixed viewport box */
@@ -346,6 +346,21 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
   .insight-section-header{break-after:avoid;}
   .insight-item{break-inside:avoid;}
   a{color:#000!important;}
+}
+/* Deliveries print — gated by body.printing-deliveries so it never fights the Insights print block above */
+@media print{
+  body.printing-deliveries #topbar,body.printing-deliveries #sidebar,body.printing-deliveries #dashboard-layout,
+  body.printing-deliveries #cadence-screen,body.printing-deliveries #planning-screen,body.printing-deliveries #markdowns-screen,
+  body.printing-deliveries #performance-screen,body.printing-deliveries #insights-screen,
+  body.printing-deliveries #upload-screen,body.printing-deliveries #password-screen,body.printing-deliveries #loading-screen,
+  body.printing-deliveries .sidebar-overlay{display:none!important;}
+  body.printing-deliveries #app{display:block!important;height:auto!important;overflow:visible!important;}
+  body.printing-deliveries #deliveries-screen{display:block!important;height:auto!important;overflow:visible!important;padding:16px!important;}
+  body.printing-deliveries .deliveries-wrap{max-width:100%!important;}
+  body.printing-deliveries .cadence-table-wrap{overflow:visible!important;}
+  body.printing-deliveries .cadence-table{width:100%!important;font-size:11px!important;}
+  body.printing-deliveries .cadence-table th,body.printing-deliveries .cadence-table td{padding:5px 8px!important;}
+  body.printing-deliveries .cadence-table tr{break-inside:avoid;}
 }
 
 /* Insights screen */
@@ -1315,8 +1330,8 @@ th{position:relative;}
 
   <!-- DELIVERIES SCREEN -->
   <div id="deliveries-screen" style="display:none;padding:28px;overflow-y:auto;height:calc(100vh - 56px);">
-    <div style="max-width:1200px;margin:0 auto;">
-      <div class="insights-header" style="flex-wrap:wrap;gap:12px;">
+    <div class="deliveries-wrap" style="max-width:1200px;margin:0 auto;">
+      <div class="insights-header no-print" style="flex-wrap:wrap;gap:12px;">
         <div>
           <div class="insights-title">Deliveries</div>
           <div class="insights-sub">Open Apparel Magic sales orders for WNDRR Online Store — units on order, due dates & customer POs</div>
@@ -1326,8 +1341,21 @@ th{position:relative;}
             <span class="search-ico">🔍</span>
             <input type="text" id="deliveries-search" placeholder="Search style, product, web title or PO..." oninput="renderDeliveries()">
           </div>
+          <div style="display:flex;align-items:center;gap:5px;">
+            <div>
+              <div style="font-size:10px;font-weight:600;color:var(--text-muted);margin-bottom:3px;">ARRIVAL FROM</div>
+              <input type="date" id="deliveries-date-from" oninput="renderDeliveries()" style="padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;color:var(--text);background:var(--surface2);outline:none;">
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:600;color:var(--text-muted);margin-bottom:3px;">ARRIVAL TO</div>
+              <input type="date" id="deliveries-date-to" oninput="renderDeliveries()" style="padding:6px 8px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12px;color:var(--text);background:var(--surface2);outline:none;">
+            </div>
+            <button class="clear-btn" onclick="clearDeliveriesFilters()" style="margin-top:15px;">✕ Clear</button>
+          </div>
+          <button class="tb-btn accent" style="background:#e11d48;border-color:#e11d48;padding:5px 12px;font-size:11.5px;margin-top:15px;" onclick="printDeliveriesPDF()">🖨️ Print / PDF</button>
         </div>
       </div>
+      <div id="deliveries-print-header" class="print-only"></div>
       <div id="deliveries-body">
         <div class="insights-empty">
           <div class="insights-empty-ico">🚚</div>
@@ -2145,7 +2173,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.3.3';
+const APP_VERSION='v2.3.4';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -7965,6 +7993,23 @@ function renderDeliveries(){
     );
   }
 
+  // Warehouse Arrival Date range filter — inputs are native <input type=date> (YYYY-MM-DD),
+  // converted to the same sortKey shape as dueParsed for a direct numeric comparison
+  const dateFromVal=document.getElementById('deliveries-date-from')?.value||'';
+  const dateToVal=document.getElementById('deliveries-date-to')?.value||'';
+  const toSortKey=iso=>{const p=iso.split('-');return p.length===3?parseInt(p[0])*10000+parseInt(p[1])*100+parseInt(p[2]):null;};
+  const fromKey=dateFromVal?toSortKey(dateFromVal):null;
+  const toKey=dateToVal?toSortKey(dateToVal):null;
+  if(fromKey!==null||toKey!==null){
+    rows=rows.filter(r=>{
+      const sk=r.dueParsed?.sortKey;
+      if(sk==null)return false;
+      if(fromKey!==null&&sk<fromKey)return false;
+      if(toKey!==null&&sk>toKey)return false;
+      return true;
+    });
+  }
+
   if(deliveriesSortCol){
     rows.sort((a,b)=>{
       let av,bv;
@@ -8012,6 +8057,35 @@ function renderDeliveries(){
       </table>
     </div>`}
   `;
+}
+
+function clearDeliveriesFilters(){
+  const s=document.getElementById('deliveries-search');if(s)s.value='';
+  const df=document.getElementById('deliveries-date-from');if(df)df.value='';
+  const dt=document.getElementById('deliveries-date-to');if(dt)dt.value='';
+  renderDeliveries();
+}
+
+function printDeliveriesPDF(){
+  const now=new Date();
+  const dateStr=now.toLocaleDateString('en-AU',{day:'numeric',month:'long',year:'numeric'});
+  const search=(document.getElementById('deliveries-search')?.value||'').trim();
+  const dateFromVal=document.getElementById('deliveries-date-from')?.value||'';
+  const dateToVal=document.getElementById('deliveries-date-to')?.value||'';
+  const fmtIso=iso=>{if(!iso)return'';const[y,m,d]=iso.split('-');return`${d}/${m}/${y}`;};
+  const filterBits=[];
+  if(search)filterBits.push(`Search: "${search}"`);
+  if(dateFromVal||dateToVal)filterBits.push(`Arrival: ${dateFromVal?fmtIso(dateFromVal):'…'} – ${dateToVal?fmtIso(dateToVal):'…'}`);
+  const filterLine=filterBits.length?`<div style="font-size:11px;color:#666;margin-top:4px;">${filterBits.join(' · ')}</div>`:'';
+  const el=document.getElementById('deliveries-print-header');
+  if(el){
+    el.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:2px solid #1a2740;margin-bottom:20px;"><div><div style="font-size:20px;font-weight:700;color:#1a2740;letter-spacing:-0.3px;">WNDRR — Deliveries</div><div style="font-size:12px;color:#666;margin-top:2px;">Generated ${dateStr}</div>${filterLine}</div><div style="font-size:11px;color:#999;font-weight:500;">Demand Planning</div></div>`;
+  }
+  document.body.classList.add('printing-deliveries');
+  const cleanup=()=>{document.body.classList.remove('printing-deliveries');window.removeEventListener('afterprint',cleanup);};
+  window.addEventListener('afterprint',cleanup);
+  window.print();
+  setTimeout(cleanup,3000); // fallback in case afterprint doesn't fire
 }
 
 /* ── AM CATALOGUE SYNC (launch dates + CORE collection) ──
@@ -10604,6 +10678,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.3.4 — Deliveries: add a Warehouse Arrival Date range filter (From/To) alongside the search box, plus a "Print / PDF" button that prints the currently filtered/sorted table (all columns) via the browser's native print dialog — same pattern as the Insights screen's print, scoped separately so the two never interfere
 // v2.3.3 — Deliveries: rename "Due Date" column header to "Warehouse Arrival Date" — label only, same AM date_due field and sort behaviour
 // v2.3.2 — Deliveries: add a sortable SOH column between Product Name and Qty On Order — current stock on hand for that exact style, summed across all its sizes from the live variant data (same style-level match already used for Product Name)
 // v2.3.1 — Deliveries: drop the AM-description "Product Name" column (the Shopify-matched "Web Title" column already covered this better) and rename Web Title to Product Name in its place, left-aligned. All columns now sortable (click header, click again to reverse) — Due Date sorts as a real date, not text
