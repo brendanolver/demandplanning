@@ -2174,7 +2174,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.3.5';
+const APP_VERSION='v2.3.6';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -6988,7 +6988,8 @@ function startAutoSync(){
   syncAMMidCodes(true);
   syncAMStock(true); // Phase 1 of AM migration — same background/re-render pattern; no-ops if kill switch is off
   syncAMSales(true); // Phase 2 of AM migration — units sold + real sell price overlay; no-ops if kill switch is off
-  syncMysteryBoxHistory(); // one-off historical backfill for products with no CSV history at all — deliberately NOT forced, respects its own 30-day cache since a full crawl is expensive
+  syncMysteryBoxHistory(); // full historical backfill for products with no CSV history at all — deliberately NOT forced, respects its own 30-day cache since a full crawl is expensive
+  topUpMysteryBoxHistory(); // cheap catch-up for any days since the last backfill/top-up, so an active promo isn't left undercounted between full crawls
   autoSyncPipeline().then(ok=>{
     if(!ok){
       console.log('⚠️ Pipeline unavailable — falling back to Google Drive');
@@ -7013,6 +7014,7 @@ function startBackgroundAutoRefresh(){
     if(document.visibilityState!=='visible')return;
     syncAMStock(true);
     syncAMSales(true);
+    topUpMysteryBoxHistory(); // own TTL/guards decide whether there's actually anything to catch up
   },BG_REFRESH_INTERVAL_MS);
 }
 
@@ -8547,20 +8549,32 @@ async function syncAMSales(force=false){
    permanently zero historical sold units, which starves Planning's budget
    calculations of any real signal. Unlike regular products' CSV history,
    there's no existing data source to overlay on top of — this crawls AM's
-   order history directly, once, going back far enough to cover a realistic
+   order history directly, going back far enough to cover a realistic
    promo-drop product's whole lifetime.
    Confirmed against real data (both current mystery box products) that sales
    land in short, concentrated promotional windows (days, not a steady drip),
-   not spread evenly across the lookback period — so this is a genuine
-   one-off backfill of real historical events, not an ever-growing crawl.
+   not spread evenly across the lookback period.
    Verified: 466 days x 2 customer accounts, paginated, ~5 min, 66k orders
    scanned, 829 real mystery box order lines found across two distinct promo
-   windows. That cost is real (a lot of AM API calls), so this deliberately
-   does NOT run on every page load like the other syncs — it respects a long
-   TTL and effectively runs once per device, not once per session. */
+   windows. That cost is real (a lot of AM API calls), so the full crawl
+   deliberately does NOT run on every page load like the other syncs — it
+   respects a long TTL and effectively runs once per device, not once per
+   session.
+   That 30-day gate used to be the *only* thing keeping this data current,
+   which left a real hole: a promo running right now sells outside the 3-day
+   live bridge but isn't picked up again until the next 30-day full crawl —
+   exactly the gap that made Sales Cadence undercount an active Mystery Box
+   promo against the real Shopify numbers. topUpMysteryBoxHistory() closes
+   that hole cheaply: once the full backfill has run at least once on a
+   device, it just crawls forward from the newest cached day to today (a
+   handful of days, not 500) on the same cadence as the other background
+   syncs, so an active promo's sales never sit uncovered for more than one
+   refresh cycle. */
 const AM_MB_HISTORY_CACHE_KEY='amMysteryBoxHistoryV1';
-const AM_MB_HISTORY_TTL=30*24*60*60*1000; // 30 days — this is a backfill of static past events, not a live feed
+const AM_MB_HISTORY_TTL=30*24*60*60*1000; // 30 days — full re-crawl safety net; topUpMysteryBoxHistory() is what actually keeps it current day-to-day
 const AM_MB_HISTORY_LOOKBACK_DAYS=500; // generous cover for a promo line's realistic lifetime
+const AM_MB_TOPUP_TTL=AM_SALES_TTL; // same cadence as the live 3-day sales bridge
+const AM_MB_TOPUP_MAX_DAYS=60; // bound a catch-up crawl (e.g. first run after this feature ships, or a device left closed a while) — the periodic full re-crawl trues up anything older
 function loadMysteryBoxHistoryCache(){
   try{
     const c=JSON.parse(localStorage.getItem(AM_MB_HISTORY_CACHE_KEY)||'null');
@@ -8571,6 +8585,43 @@ function loadMysteryBoxHistoryCache(){
 loadMysteryBoxHistoryCache();
 let _amMbHistorySyncing=false;
 let _amMbHistoryLastError=null;
+// Crawls AM order history for `dates` and returns a {sku:{iso:{qty,cogs}}} map
+// of mystery-box sales — shared by the full backfill and the incremental
+// top-up, which differ only in which dates they ask for.
+async function crawlMysteryBoxOrders(dates,idToSku,mbStyles){
+  const salesMap={};
+  const BATCH=6; // keep concurrent AM requests bounded across a large date range
+  for(let i=0;i<dates.length;i+=BATCH){
+    const batchDates=dates.slice(i,i+BATCH);
+    const batchPromises=[];
+    for(const iso of batchDates){
+      for(const cust of AM_ONLINE_CUSTOMERS){
+        batchPromises.push(
+          crawlAMProxy('orders',`&customer_name=${encodeURIComponent(cust)}&date=${encodeURIComponent(isoToUsDate(iso))}`)
+            .then(orders=>({iso,orders}))
+        );
+      }
+    }
+    const batchResults=await Promise.all(batchPromises);
+    for(const{iso,orders}of batchResults){
+      for(const order of orders){
+        if((order.credit_status||'')!=='Approved')continue;
+        for(const item of order.order_items||[]){
+          const styleNum=(item.style_number||'').trim().toUpperCase();
+          if(!mbStyles.has(styleNum))continue;
+          const sku=idToSku[(item.sku_id||'').toString()];
+          if(!sku)continue;
+          const qty=(parseFloat(item.qty)||0)-(parseFloat(item.qty_cxl)||0);
+          if(qty<=0)continue;
+          if(!salesMap[sku])salesMap[sku]={};
+          if(!salesMap[sku][iso])salesMap[sku][iso]={qty:0,cogs:0};
+          salesMap[sku][iso].qty+=qty;
+        }
+      }
+    }
+  }
+  return salesMap;
+}
 async function syncMysteryBoxHistory(force=false){
   if(!isAMSyncEnabled())return; // manual kill switch — see toggleAMSync()
   if(_amMbHistorySyncing)return;
@@ -8588,37 +8639,7 @@ async function syncMysteryBoxHistory(force=false){
     // not just the bare style prefix.
     const mbStyles=new Set(Object.keys(window.amMysteryBoxMeta).map(sku=>styleFromSku(sku)));
     const dates=businessDatesBack(AM_MB_HISTORY_LOOKBACK_DAYS);
-    const salesMap={};
-    const BATCH=6; // keep concurrent AM requests bounded across a large date range
-    for(let i=0;i<dates.length;i+=BATCH){
-      const batchDates=dates.slice(i,i+BATCH);
-      const batchPromises=[];
-      for(const iso of batchDates){
-        for(const cust of AM_ONLINE_CUSTOMERS){
-          batchPromises.push(
-            crawlAMProxy('orders',`&customer_name=${encodeURIComponent(cust)}&date=${encodeURIComponent(isoToUsDate(iso))}`)
-              .then(orders=>({iso,orders}))
-          );
-        }
-      }
-      const batchResults=await Promise.all(batchPromises);
-      for(const{iso,orders}of batchResults){
-        for(const order of orders){
-          if((order.credit_status||'')!=='Approved')continue;
-          for(const item of order.order_items||[]){
-            const styleNum=(item.style_number||'').trim().toUpperCase();
-            if(!mbStyles.has(styleNum))continue;
-            const sku=idToSku[(item.sku_id||'').toString()];
-            if(!sku)continue;
-            const qty=(parseFloat(item.qty)||0)-(parseFloat(item.qty_cxl)||0);
-            if(qty<=0)continue;
-            if(!salesMap[sku])salesMap[sku]={};
-            if(!salesMap[sku][iso])salesMap[sku][iso]={qty:0,cogs:0};
-            salesMap[sku][iso].qty+=qty;
-          }
-        }
-      }
-    }
+    const salesMap=await crawlMysteryBoxOrders(dates,idToSku,mbStyles);
     // An empty result here is ambiguous (mystery boxes may genuinely have sold
     // nothing yet) rather than a clear failure signal like the other syncs —
     // still safe to skip the write, since a null/absent entry falls through
@@ -8632,6 +8653,46 @@ async function syncMysteryBoxHistory(force=false){
     }
   }catch(e){_amMbHistoryLastError=(e&&e.message)||'Unknown error';console.error('Mystery box history backfill failed:',e);}
   finally{_amMbHistorySyncing=false;updateAMSyncToggleUI();}
+}
+// Keeps the backfill current between full 30-day re-crawls: crawls forward
+// from the newest day already in window.amMysteryBoxHistory through today,
+// so an active promo's sales don't sit in the gap between the 3-day live
+// bridge and the next scheduled full crawl. No-ops until a full backfill has
+// run at least once on this device (nothing to crawl forward from yet).
+let _amMbTopUpTs=0;
+async function topUpMysteryBoxHistory(){
+  if(!isAMSyncEnabled())return;
+  if(_amMbHistorySyncing)return;
+  if(!window.amMysteryBoxHistory)return;
+  if(Date.now()-_amMbTopUpTs<AM_MB_TOPUP_TTL)return;
+  _amMbTopUpTs=Date.now();
+  try{
+    let lastCovered=null;
+    for(const sku in window.amMysteryBoxHistory){
+      for(const day in window.amMysteryBoxHistory[sku]){
+        if(!lastCovered||day>lastCovered)lastCovered=day;
+      }
+    }
+    if(!lastCovered)return; // no days recorded yet — leave it to the next full backfill
+    const today=getBusinessToday();
+    if(lastCovered>=today)return; // already current
+    const gapDays=Math.min(AM_MB_TOPUP_MAX_DAYS,Math.round((new Date(today+'T00:00:00Z')-new Date(lastCovered+'T00:00:00Z'))/86400000));
+    const idToSku=await getAMSkuIdMap();
+    if(!window.amMysteryBoxMeta||!Object.keys(window.amMysteryBoxMeta).length)return;
+    const mbStyles=new Set(Object.keys(window.amMysteryBoxMeta).map(sku=>styleFromSku(sku)));
+    const dates=businessDatesBack(gapDays); // today back through (and slightly past) lastCovered — re-covering the last known day is harmless, values are summed fresh per day, not accumulated
+    const freshSales=await crawlMysteryBoxOrders(dates,idToSku,mbStyles);
+    if(!Object.keys(freshSales).length)return;
+    for(const sku in freshSales){
+      if(!window.amMysteryBoxHistory[sku])window.amMysteryBoxHistory[sku]={};
+      Object.assign(window.amMysteryBoxHistory[sku],freshSales[sku]);
+    }
+    try{localStorage.setItem(AM_MB_HISTORY_CACHE_KEY,JSON.stringify({ts:Date.now(),salesMap:window.amMysteryBoxHistory}))}catch(e){}
+    if(allVariantRows&&allVariantRows.length){
+      buildVariantRows();
+      if(currentScreen==='dashboard')setView(currentView);
+    }
+  }catch(e){console.error('Mystery box history top-up failed:',e);}
 }
 
 /* ── HELPERS ── */
@@ -10679,6 +10740,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.3.6 — Fix Sales Cadence undercounting active Mystery Box promos: syncMysteryBoxHistory()'s real order-history backfill only ran once every 30 days, so any promo still selling after that window closed had a gap between the 3-day live AM sales bridge and the stale backfill — days in between showed zero sold even though real sales existed (confirmed against a live Shopify report: app showed 167 units sold over 7 days for two Mystery Box products vs Shopify's real 416). Added topUpMysteryBoxHistory(), which crawls forward from the newest cached day to today (cheap — normally just 1-2 days) on the same cadence as the other background AM syncs, so an active promo's sales no longer sit uncovered between full 30-day crawls
 // v2.3.5 — Deliveries: fix search box misaligned against the date-range inputs — gave it a matching (invisible) label row and switched the control row to align-items:flex-end, so search/date fields/Clear/Print all sit flush on the same baseline
 // v2.3.4 — Deliveries: add a Warehouse Arrival Date range filter (From/To) alongside the search box, plus a "Print / PDF" button that prints the currently filtered/sorted table (all columns) via the browser's native print dialog — same pattern as the Insights screen's print, scoped separately so the two never interfere
 // v2.3.3 — Deliveries: rename "Due Date" column header to "Warehouse Arrival Date" — label only, same AM date_due field and sort behaviour
