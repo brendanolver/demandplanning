@@ -8739,16 +8739,18 @@ async function topUpMysteryBoxHistory(){
    fetched and reduced to {sku:{day:{qty}}} server-side, in the proxy
    function (fetchAndAggregateBulkResult in shopify-proxy.js) — Netlify
    Functions run on Lambda under the hood, which hard-caps a function's own
-   response at 6MB, and a year of raw NDJSON blew straight past that on the
-   very first real run (an opaque 502, fixed here by never returning the raw
-   file at all). That first run failed at the download-fetch stage though,
-   before any parsing was attempted — so the parsing shape itself (nested
-   lineItems flattened into the JSONL with a __parentId column, each parent
-   Order row streamed before its own child LineItem rows, per Shopify's
-   documented bulk-export behaviour) is STILL unverified against a real
-   response. If a future run's numbers look wrong or suspiciously empty,
-   this ordering assumption is the first thing to check — e.g. by having the
-   proxy log a few raw lines of a real result for inspection. */
+   response at 6MB, and a year of raw NDJSON blew straight past that on a
+   real run (an opaque 502, fixed by never returning the raw file at all).
+   A second real run (a genuine 260,746-object export, status COMPLETED, no
+   errorCode) then came back with zero sales despite that — the parsing had
+   assumed each parent Order row precedes its own child LineItem rows in the
+   file, and that assumption was simply wrong. Confirmed via
+   window.shopifyOrderSalesMap only ever containing the last few days (i.e.
+   exactly what the separate top-up contributes) while Shopify's own
+   currentBulkOperation record showed a large, successful export — the
+   backfill was silently producing nothing. Fixed with a two-pass parse
+   (collect every order's date first, then aggregate line items against the
+   complete map) that doesn't depend on row order at all. */
 const SHOPIFY_SALES_CACHE_KEY='shopifyOrderSalesV1';
 const SHOPIFY_SALES_BACKFILL_TTL=30*24*60*60*1000; // 30 days — mirrors the AM Mystery Box pattern; the full pull is the expensive one
 const SHOPIFY_SALES_TOPUP_TTL=AM_SALES_TTL; // same cadence as the other background syncs

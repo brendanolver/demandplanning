@@ -40,24 +40,36 @@ const PRODUCT_STYLE_RE = /^[A-Z]\d{2}[A-Z]{2}\d{3}[A-Z]{3}/;
 // file FROM Google Cloud Storage has no such limit; only this function's
 // OWN response back to the browser does, and the aggregated map is orders
 // of magnitude smaller than the source file.
+//
+// Two-pass by necessity, not caution: a first real run against a live
+// 260,746-object export came back with zero sales despite Shopify reporting
+// a clean COMPLETED status and a real result file — a single left-to-right
+// pass assumed each parent Order row precedes its own child LineItem rows,
+// and that assumption was simply wrong. Collecting every order's date first,
+// then aggregating line items against the now-complete map, works
+// regardless of what order the file actually streams rows in.
 async function fetchAndAggregateBulkResult(url) {
   const resp = await fetch(url);
   if (!resp.ok) throw new Error(`Bulk result fetch failed: HTTP ${resp.status}`);
   const text = await resp.text();
-  const salesMap = {};
-  const orderDateById = {};
+  const rows = [];
   for (const line of text.split('\n')) {
     if (!line.trim()) continue;
-    let row;
     try {
-      row = JSON.parse(line);
+      rows.push(JSON.parse(line));
     } catch (e) {
-      continue;
+      // skip malformed line
     }
-    if (!row.__parentId) {
-      if (row.id && row.createdAt) orderDateById[row.id] = row.createdAt.slice(0, 10);
-      continue;
+  }
+  const orderDateById = {};
+  for (const row of rows) {
+    if (!row.__parentId && row.id && row.createdAt) {
+      orderDateById[row.id] = row.createdAt.slice(0, 10);
     }
+  }
+  const salesMap = {};
+  for (const row of rows) {
+    if (!row.__parentId) continue;
     const day = orderDateById[row.__parentId];
     const sku = (row.sku || '').trim().toUpperCase();
     const qty = parseFloat(row.currentQuantity) || 0;
