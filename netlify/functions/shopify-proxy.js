@@ -27,27 +27,66 @@ function isAllowedQuery(query) {
   return /bulkOperationRunQuery\s*\(/i.test(query) && !/bulkOperationRunMutation/i.test(query);
 }
 
-exports.handler = async (event) => {
-  if (!SHOPIFY_TOKEN) {
-    return { statusCode: 500, body: JSON.stringify({ error: 'SHOPIFY_ADMIN_TOKEN environment variable is not set' }) };
-  }
+// Same real-WNDRR-style-code shape the app's own AM_PRODUCT_STYLE_RE uses,
+// to drop non-product service lines (return coverage, order protection,
+// etc.) that show up as real line items in the order data too.
+const PRODUCT_STYLE_RE = /^[A-Z]\d{2}[A-Z]{2}\d{3}[A-Z]{3}/;
 
+// Fetches a completed bulk operation's NDJSON result and reduces it to
+// {sku:{day:{qty,cogs}}} server-side, rather than returning the raw file —
+// a year of order/line-item data easily runs to tens of MB, and Netlify
+// Functions run on Lambda under the hood, which hard-caps a function's own
+// response at 6MB (returns exactly the 502 this replaced). Fetching a large
+// file FROM Google Cloud Storage has no such limit; only this function's
+// OWN response back to the browser does, and the aggregated map is orders
+// of magnitude smaller than the source file.
+async function fetchAndAggregateBulkResult(url) {
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`Bulk result fetch failed: HTTP ${resp.status}`);
+  const text = await resp.text();
+  const salesMap = {};
+  const orderDateById = {};
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue;
+    let row;
+    try {
+      row = JSON.parse(line);
+    } catch (e) {
+      continue;
+    }
+    if (!row.__parentId) {
+      if (row.id && row.createdAt) orderDateById[row.id] = row.createdAt.slice(0, 10);
+      continue;
+    }
+    const day = orderDateById[row.__parentId];
+    const sku = (row.sku || '').trim().toUpperCase();
+    const qty = parseFloat(row.currentQuantity) || 0;
+    if (!day || !sku || qty <= 0 || !PRODUCT_STYLE_RE.test(sku)) continue;
+    if (!salesMap[sku]) salesMap[sku] = {};
+    if (!salesMap[sku][day]) salesMap[sku][day] = { qty: 0, cogs: 0 };
+    salesMap[sku][day].qty += qty;
+  }
+  return salesMap;
+}
+
+exports.handler = async (event) => {
   const method = event.httpMethod || 'GET';
 
-  // GET is only used to fetch a completed bulk operation's result file —
-  // everything else goes through POST as a GraphQL request.
+  // GET is only used to fetch+aggregate a completed bulk operation's result
+  // file, straight from Google Cloud Storage — it never touches Shopify's
+  // API itself, so it doesn't need (and shouldn't require) the Shopify
+  // token. Everything else goes through POST as a GraphQL request, which does.
   if (method === 'GET') {
     const download = (event.queryStringParameters || {}).download;
     if (!download || !isAllowedDownloadUrl(download)) {
       return { statusCode: 400, body: JSON.stringify({ error: 'invalid or disallowed download url' }) };
     }
     try {
-      const resp = await fetch(download);
-      const text = await resp.text();
+      const salesMap = await fetchAndAggregateBulkResult(download);
       return {
-        statusCode: resp.status,
-        headers: { 'Content-Type': 'application/x-ndjson', 'Access-Control-Allow-Origin': '*' },
-        body: text,
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        body: JSON.stringify({ salesMap }),
       };
     } catch (err) {
       return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
@@ -55,6 +94,9 @@ exports.handler = async (event) => {
   }
 
   if (method === 'POST') {
+    if (!SHOPIFY_TOKEN) {
+      return { statusCode: 500, body: JSON.stringify({ error: 'SHOPIFY_ADMIN_TOKEN environment variable is not set' }) };
+    }
     let payload;
     try {
       payload = JSON.parse(event.body || '{}');

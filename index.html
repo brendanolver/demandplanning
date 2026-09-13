@@ -6964,7 +6964,13 @@ function checkPassword(){
   try{
     if(localStorage.getItem('wndrr_auth')==='1'){
       document.getElementById('password-screen').style.display='none';
-      startAutoSync();
+      // Deferred rather than called inline: this IIFE runs synchronously
+      // while the script is still being parsed, before several `let`
+      // declarations further down the file (_amStockSyncing etc.) have
+      // executed — calling startAutoSync() directly here throws a temporal-
+      // dead-zone ReferenceError for each of them. setTimeout pushes it to
+      // after the whole script has finished its first pass.
+      setTimeout(startAutoSync,0);
     }
   }catch(e){}
 })();
@@ -8729,12 +8735,20 @@ async function topUpMysteryBoxHistory(){
    Bulk Operations (rather than a plain paginated query) is used for the
    historical pull specifically because Shopify's own guidance is to use it
    for large exports — a naive paginated crawl of a year of orders risks
-   GraphQL cost-based rate-limit throttling. Parsing assumes Shopify's
-   documented bulk-export behaviour: nested connections (lineItems) are
-   flattened into the JSONL with a __parentId column, and each parent Order
-   row is streamed before its own child LineItem rows — unverified against a
-   real response yet, since building this required no live token access;
-   first real run should be checked against a known order to confirm. */
+   GraphQL cost-based rate-limit throttling. The result file itself is
+   fetched and reduced to {sku:{day:{qty}}} server-side, in the proxy
+   function (fetchAndAggregateBulkResult in shopify-proxy.js) — Netlify
+   Functions run on Lambda under the hood, which hard-caps a function's own
+   response at 6MB, and a year of raw NDJSON blew straight past that on the
+   very first real run (an opaque 502, fixed here by never returning the raw
+   file at all). That first run failed at the download-fetch stage though,
+   before any parsing was attempted — so the parsing shape itself (nested
+   lineItems flattened into the JSONL with a __parentId column, each parent
+   Order row streamed before its own child LineItem rows, per Shopify's
+   documented bulk-export behaviour) is STILL unverified against a real
+   response. If a future run's numbers look wrong or suspiciously empty,
+   this ordering assumption is the first thing to check — e.g. by having the
+   proxy log a few raw lines of a real result for inspection. */
 const SHOPIFY_SALES_CACHE_KEY='shopifyOrderSalesV1';
 const SHOPIFY_SALES_BACKFILL_TTL=30*24*60*60*1000; // 30 days — mirrors the AM Mystery Box pattern; the full pull is the expensive one
 const SHOPIFY_SALES_TOPUP_TTL=AM_SALES_TTL; // same cadence as the other background syncs
@@ -8752,14 +8766,18 @@ async function shopifyGraphQL(query,variables){
   if(d.errors&&d.errors.length)throw new Error(d.errors.map(e=>e.message).join('; ')); // Shopify GraphQL errors
   return d.data;
 }
+// The proxy fetches+aggregates the bulk result file itself and returns the
+// compact {sku:{day:{qty,cogs}}} map, not the raw NDJSON — a year of order
+// data easily runs to tens of MB, and Netlify Functions (Lambda under the
+// hood) hard-cap a function's own response at 6MB, which came back as an
+// opaque 502 the one time this was tried against real data. Fetching FROM
+// Google Cloud Storage server-side has no such limit; only the response
+// back to this browser does.
 async function shopifyDownloadBulkResult(url){
   const resp=await fetchWithTimeout(`/.netlify/functions/shopify-proxy?download=${encodeURIComponent(url)}`,60000,1);
-  if(!resp.ok){
-    let msg=`HTTP ${resp.status}`;
-    try{const d=await resp.json();if(d.error)msg=d.error;}catch(e){}
-    throw new Error(msg);
-  }
-  return await resp.text();
+  const d=await safeAMJson(resp);
+  if(!resp.ok||d.error)throw new Error(d.error||`HTTP ${resp.status}`);
+  return d.salesMap||{};
 }
 function buildBulkOrdersQuery(sinceISO){
   // Block-string (""") embedding is Shopify's own documented pattern for
@@ -8808,33 +8826,6 @@ async function pollShopifyBulkOperation(maxWaitMs=6*60*1000,intervalMs=4000){
   }
   throw new Error('Bulk operation timed out client-side (may still be running in Shopify — try again shortly)');
 }
-// Bulk export JSONL: each line is either a parent Order row or a child
-// LineItem row carrying __parentId back to its order — see the module
-// comment above re: this being unverified against a real response yet.
-function parseShopifyBulkOrdersNdjson(text){
-  const salesMap={}; // {sku:{iso:{qty,cogs}}}
-  const orderDateById={};
-  for(const line of text.split('\n')){
-    if(!line.trim())continue;
-    let row;
-    try{row=JSON.parse(line);}catch(e){continue;}
-    if(!row.__parentId){
-      if(row.id&&row.createdAt)orderDateById[row.id]=row.createdAt.slice(0,10);
-      continue;
-    }
-    const day=orderDateById[row.__parentId];
-    const sku=(row.sku||'').trim().toUpperCase();
-    const qty=parseFloat(row.currentQuantity)||0;
-    // Same non-product service-line filter as the AM sales overlay (return
-    // coverage, order protection, etc. show up as real line items here too,
-    // just under Shopify's own SKU field instead of AM's style_number).
-    if(!day||!sku||qty<=0||!AM_PRODUCT_STYLE_RE.test(sku))continue;
-    if(!salesMap[sku])salesMap[sku]={};
-    if(!salesMap[sku][day])salesMap[sku][day]={qty:0,cogs:0};
-    salesMap[sku][day].qty+=qty;
-  }
-  return salesMap;
-}
 function loadShopifySalesCache(){
   try{
     const c=JSON.parse(localStorage.getItem(SHOPIFY_SALES_CACHE_KEY)||'null');
@@ -8861,7 +8852,7 @@ async function syncShopifyOrderSalesBackfill(force=false){
       throw new Error(result.userErrors.map(e=>e.message).join('; '));
     }
     const url=await pollShopifyBulkOperation();
-    window.shopifyOrderSalesMap=url?parseShopifyBulkOrdersNdjson(await shopifyDownloadBulkResult(url)):{};
+    window.shopifyOrderSalesMap=url?await shopifyDownloadBulkResult(url):{};
     try{localStorage.setItem(SHOPIFY_SALES_CACHE_KEY,JSON.stringify({ts:Date.now(),salesMap:window.shopifyOrderSalesMap}))}catch(e){}
   }catch(e){_shopifySalesLastError=(e&&e.message)||'Unknown error';console.error('Shopify order sales backfill failed:',e);}
   finally{_shopifySalesSyncing=false;updateShopifySalesToggleUI();}
