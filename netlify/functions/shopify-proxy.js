@@ -53,12 +53,13 @@ async function fetchAndAggregateBulkResult(url) {
   if (!resp.ok) throw new Error(`Bulk result fetch failed: HTTP ${resp.status}`);
   const text = await resp.text();
   const rows = [];
+  let malformedLines = 0;
   for (const line of text.split('\n')) {
     if (!line.trim()) continue;
     try {
       rows.push(JSON.parse(line));
     } catch (e) {
-      // skip malformed line
+      malformedLines++;
     }
   }
   const orderDateById = {};
@@ -68,17 +69,39 @@ async function fetchAndAggregateBulkResult(url) {
     }
   }
   const salesMap = {};
+  // Debug counters — two real runs against genuine 260k-object exports have
+  // now produced zero sales for reasons the salesMap alone can't explain, so
+  // this instruments every filter step rather than guessing again blindly.
+  const debug = {
+    totalLines: rows.length,
+    malformedLines,
+    parentRows: 0,
+    childRows: 0,
+    childRowsWithResolvedDay: 0,
+    childRowsPassingStyleFilter: 0,
+    sampleParentRow: null,
+    sampleChildRow: null,
+  };
   for (const row of rows) {
-    if (!row.__parentId) continue;
+    if (!row.__parentId) {
+      debug.parentRows++;
+      if (!debug.sampleParentRow) debug.sampleParentRow = row;
+      continue;
+    }
+    debug.childRows++;
+    if (!debug.sampleChildRow) debug.sampleChildRow = row;
     const day = orderDateById[row.__parentId];
+    if (!day) continue;
+    debug.childRowsWithResolvedDay++;
     const sku = (row.sku || '').trim().toUpperCase();
     const qty = parseFloat(row.currentQuantity) || 0;
-    if (!day || !sku || qty <= 0 || !PRODUCT_STYLE_RE.test(sku)) continue;
+    if (!sku || qty <= 0 || !PRODUCT_STYLE_RE.test(sku)) continue;
+    debug.childRowsPassingStyleFilter++;
     if (!salesMap[sku]) salesMap[sku] = {};
     if (!salesMap[sku][day]) salesMap[sku][day] = { qty: 0, cogs: 0 };
     salesMap[sku][day].qty += qty;
   }
-  return salesMap;
+  return { salesMap, debug };
 }
 
 exports.handler = async (event) => {
@@ -94,11 +117,11 @@ exports.handler = async (event) => {
       return { statusCode: 400, body: JSON.stringify({ error: 'invalid or disallowed download url' }) };
     }
     try {
-      const salesMap = await fetchAndAggregateBulkResult(download);
+      const { salesMap, debug } = await fetchAndAggregateBulkResult(download);
       return {
         statusCode: 200,
         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-        body: JSON.stringify({ salesMap }),
+        body: JSON.stringify({ salesMap, debug }),
       };
     } catch (err) {
       return { statusCode: 500, body: JSON.stringify({ error: err.message }) };

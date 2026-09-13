@@ -8779,6 +8779,11 @@ async function shopifyDownloadBulkResult(url){
   const resp=await fetchWithTimeout(`/.netlify/functions/shopify-proxy?download=${encodeURIComponent(url)}`,60000,1);
   const d=await safeAMJson(resp);
   if(!resp.ok||d.error)throw new Error(d.error||`HTTP ${resp.status}`);
+  // Stashed for inspection — two real runs against genuine ~260k-object
+  // exports both produced an empty salesMap for reasons not yet explained,
+  // so the server now reports exactly where rows got filtered out. Check
+  // window._shopifyBulkDebug after a sync to see it.
+  window._shopifyBulkDebug=d.debug||null;
   return d.salesMap||{};
 }
 function buildBulkOrdersQuery(sinceISO){
