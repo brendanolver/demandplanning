@@ -889,6 +889,7 @@ th{position:relative;}
       <div class="topbar-pill"><span class="live-dot"></span>Shopify</div>
       <div class="topbar-pill" id="am-pill"><span class="live-dot"></span>Apparel Magic</div>
       <div class="topbar-pill" id="am-sync-toggle" onclick="toggleAMSync()" style="cursor:pointer;"></div>
+      <div class="topbar-pill" id="shopify-sales-pill" onclick="shopifySalesPillClick()" style="cursor:pointer;">Shopify Sales: not synced</div>
       <div class="topbar-pill" id="nav-count">— SKUs</div>
       <div class="screen-nav">
         <button class="screen-btn active" id="btn-dashboard" onclick="showScreen('dashboard')">📊 Dashboard</button>
@@ -2174,12 +2175,13 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.3.6';
+const APP_VERSION='v2.4.0';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
   updateAMSyncToggleUI();
+  updateShopifySalesToggleUI();
 });
 
 /* ── AM MIGRATION KILL SWITCH ──
@@ -7015,6 +7017,7 @@ function startBackgroundAutoRefresh(){
     syncAMStock(true);
     syncAMSales(true);
     topUpMysteryBoxHistory(); // own TTL/guards decide whether there's actually anything to catch up
+    syncShopifyOrderSalesTopUp(); // no-ops until the research overlay's first manual backfill has run
   },BG_REFRESH_INTERVAL_MS);
 }
 
@@ -8693,6 +8696,316 @@ async function topUpMysteryBoxHistory(){
       if(currentScreen==='dashboard')setView(currentView);
     }
   }catch(e){console.error('Mystery box history top-up failed:',e);}
+}
+
+/* ── SHOPIFY ORDER SALES OVERLAY (research/validation — not wired into
+   production numbers yet) ──
+   Everything above (AM stock/sales, Mystery Box backfill) treats the Shopify
+   CSV/Report Pipeline export as the primary historical sales source, with AM
+   only ever a short live bridge — and AM's own order record is itself a
+   re-booked copy of the same Shopify orders (see the real-price
+   reconstruction/Iconic-commission logic in the AM SALES section above), not
+   the original transaction. That's exactly the setup that let the Mystery
+   Box promo undercount for days: the CSV pipeline simply didn't have their
+   sales yet.
+   This pulls sales directly from Shopify's own Orders/LineItems via the
+   GraphQL Admin API instead — the actual system of record for every online
+   order — using LineItem.currentQuantity, which already excludes
+   refunded/removed units natively, no discount/commission reconstruction
+   needed. ShopifyQL's shopifyqlQuery was considered first (it's literally
+   what Shopify's own Analytics reports run on) but its 'sales' dataset is
+   deprecated and its replacement ('orders') can't group by variant_sku —
+   confirmed against a real Shopify dev-support thread hitting the same
+   wall — so it can't give the per-SKU breakdown Sales Cadence and Planning
+   actually need.
+   Deliberately kept separate from salesBySkuDay for now — populates
+   window.shopifyOrderSalesMap and its own cache only. A manual pill in the
+   header triggers the sync and opens a comparison against the numbers
+   already on screen, so the data can be validated before it becomes anyone's
+   source of truth. Not part of startAutoSync()/the 10-min background
+   refresh yet for the same reason — the first (expensive, ~minutes-long)
+   backfill shouldn't fire silently for every session while unproven; the
+   cheap top-up only runs once a backfill already exists.
+   Bulk Operations (rather than a plain paginated query) is used for the
+   historical pull specifically because Shopify's own guidance is to use it
+   for large exports — a naive paginated crawl of a year of orders risks
+   GraphQL cost-based rate-limit throttling. Parsing assumes Shopify's
+   documented bulk-export behaviour: nested connections (lineItems) are
+   flattened into the JSONL with a __parentId column, and each parent Order
+   row is streamed before its own child LineItem rows — unverified against a
+   real response yet, since building this required no live token access;
+   first real run should be checked against a known order to confirm. */
+const SHOPIFY_SALES_CACHE_KEY='shopifyOrderSalesV1';
+const SHOPIFY_SALES_BACKFILL_TTL=30*24*60*60*1000; // 30 days — mirrors the AM Mystery Box pattern; the full pull is the expensive one
+const SHOPIFY_SALES_TOPUP_TTL=AM_SALES_TTL; // same cadence as the other background syncs
+const SHOPIFY_SALES_LOOKBACK_DAYS=365; // match the Shopify CSV's own history window
+const SHOPIFY_SALES_TOPUP_DAYS=4; // small overlapping window, cheap enough for a plain paginated query every cycle
+
+async function shopifyGraphQL(query,variables){
+  const resp=await fetch('/.netlify/functions/shopify-proxy',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({query,variables:variables||{}}),
+  });
+  const d=await safeAMJson(resp);
+  if(d.error)throw new Error(d.error); // our own proxy's validation/env errors
+  if(d.errors&&d.errors.length)throw new Error(d.errors.map(e=>e.message).join('; ')); // Shopify GraphQL errors
+  return d.data;
+}
+async function shopifyDownloadBulkResult(url){
+  const resp=await fetchWithTimeout(`/.netlify/functions/shopify-proxy?download=${encodeURIComponent(url)}`,60000,1);
+  if(!resp.ok){
+    let msg=`HTTP ${resp.status}`;
+    try{const d=await resp.json();if(d.error)msg=d.error;}catch(e){}
+    throw new Error(msg);
+  }
+  return await resp.text();
+}
+function buildBulkOrdersQuery(sinceISO){
+  // Block-string (""") embedding is Shopify's own documented pattern for
+  // bulkOperationRunQuery — avoids manually escaping every quote in the
+  // nested query text.
+  return`mutation {
+    bulkOperationRunQuery(
+      query: """
+      {
+        orders(query: "created_at:>='${sinceISO}'") {
+          edges {
+            node {
+              id
+              createdAt
+              lineItems {
+                edges {
+                  node {
+                    sku
+                    currentQuantity
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      """
+    ) {
+      bulkOperation { id status }
+      userErrors { field message }
+    }
+  }`;
+}
+async function pollShopifyBulkOperation(maxWaitMs=6*60*1000,intervalMs=4000){
+  const q=`{ currentBulkOperation { id status errorCode objectCount url partialDataUrl } }`;
+  const start=Date.now();
+  while(Date.now()-start<maxWaitMs){
+    const data=await shopifyGraphQL(q);
+    const op=data.currentBulkOperation;
+    if(!op)throw new Error('No bulk operation found');
+    if(op.status==='COMPLETED')return op.url||op.partialDataUrl||null;
+    if(op.status==='FAILED'||op.status==='CANCELED'||op.status==='EXPIRED'){
+      throw new Error(`Bulk operation ${op.status}${op.errorCode?` (${op.errorCode})`:''}`);
+    }
+    await new Promise(res=>setTimeout(res,intervalMs));
+  }
+  throw new Error('Bulk operation timed out client-side (may still be running in Shopify — try again shortly)');
+}
+// Bulk export JSONL: each line is either a parent Order row or a child
+// LineItem row carrying __parentId back to its order — see the module
+// comment above re: this being unverified against a real response yet.
+function parseShopifyBulkOrdersNdjson(text){
+  const salesMap={}; // {sku:{iso:{qty,cogs}}}
+  const orderDateById={};
+  for(const line of text.split('\n')){
+    if(!line.trim())continue;
+    let row;
+    try{row=JSON.parse(line);}catch(e){continue;}
+    if(!row.__parentId){
+      if(row.id&&row.createdAt)orderDateById[row.id]=row.createdAt.slice(0,10);
+      continue;
+    }
+    const day=orderDateById[row.__parentId];
+    const sku=(row.sku||'').trim().toUpperCase();
+    const qty=parseFloat(row.currentQuantity)||0;
+    // Same non-product service-line filter as the AM sales overlay (return
+    // coverage, order protection, etc. show up as real line items here too,
+    // just under Shopify's own SKU field instead of AM's style_number).
+    if(!day||!sku||qty<=0||!AM_PRODUCT_STYLE_RE.test(sku))continue;
+    if(!salesMap[sku])salesMap[sku]={};
+    if(!salesMap[sku][day])salesMap[sku][day]={qty:0,cogs:0};
+    salesMap[sku][day].qty+=qty;
+  }
+  return salesMap;
+}
+function loadShopifySalesCache(){
+  try{
+    const c=JSON.parse(localStorage.getItem(SHOPIFY_SALES_CACHE_KEY)||'null');
+    if(c&&c.salesMap){window.shopifyOrderSalesMap=c.salesMap;return c.ts||0;}
+  }catch(e){}
+  return 0;
+}
+loadShopifySalesCache();
+let _shopifySalesSyncing=false; // guards the (rare, ~minutes-long) full backfill only
+let _shopifySalesLastError=null;
+let _shopifyTopUpTs=0;
+async function syncShopifyOrderSalesBackfill(force=false){
+  if(_shopifySalesSyncing)return;
+  const ts=loadShopifySalesCache();
+  if(!force&&Date.now()-ts<SHOPIFY_SALES_BACKFILL_TTL)return;
+  _shopifySalesSyncing=true;
+  _shopifySalesLastError=null;
+  updateShopifySalesToggleUI();
+  try{
+    const since=businessDatesBack(SHOPIFY_SALES_LOOKBACK_DAYS).slice(-1)[0];
+    const submitData=await shopifyGraphQL(buildBulkOrdersQuery(since));
+    const result=submitData.bulkOperationRunQuery;
+    if(result.userErrors&&result.userErrors.length){
+      throw new Error(result.userErrors.map(e=>e.message).join('; '));
+    }
+    const url=await pollShopifyBulkOperation();
+    window.shopifyOrderSalesMap=url?parseShopifyBulkOrdersNdjson(await shopifyDownloadBulkResult(url)):{};
+    try{localStorage.setItem(SHOPIFY_SALES_CACHE_KEY,JSON.stringify({ts:Date.now(),salesMap:window.shopifyOrderSalesMap}))}catch(e){}
+  }catch(e){_shopifySalesLastError=(e&&e.message)||'Unknown error';console.error('Shopify order sales backfill failed:',e);}
+  finally{_shopifySalesSyncing=false;updateShopifySalesToggleUI();}
+}
+async function syncShopifyOrderSalesTopUp(){
+  if(_shopifySalesSyncing)return; // don't race a full backfill
+  if(!window.shopifyOrderSalesMap)return; // needs the initial backfill first
+  if(Date.now()-_shopifyTopUpTs<SHOPIFY_SALES_TOPUP_TTL)return;
+  _shopifyTopUpTs=Date.now();
+  try{
+    const since=businessDatesBack(SHOPIFY_SALES_TOPUP_DAYS).slice(-1)[0];
+    const q=`query($cursor:String){
+      orders(first:50, after:$cursor, query:"created_at:>='${since}'"){
+        pageInfo{hasNextPage endCursor}
+        edges{node{
+          id createdAt
+          lineItems(first:100){edges{node{sku currentQuantity}}}
+        }}
+      }
+    }`;
+    let cursor=null,hasNext=true;
+    const fresh={};
+    while(hasNext){
+      const data=await shopifyGraphQL(q,{cursor});
+      const conn=data.orders;
+      for(const edge of conn.edges){
+        const day=(edge.node.createdAt||'').slice(0,10);
+        for(const liEdge of(edge.node.lineItems.edges||[])){
+          const sku=(liEdge.node.sku||'').trim().toUpperCase();
+          const qty=parseFloat(liEdge.node.currentQuantity)||0;
+          if(!sku||qty<=0||!AM_PRODUCT_STYLE_RE.test(sku))continue;
+          if(!fresh[sku])fresh[sku]={};
+          if(!fresh[sku][day])fresh[sku][day]={qty:0,cogs:0};
+          fresh[sku][day].qty+=qty;
+        }
+      }
+      hasNext=conn.pageInfo.hasNextPage;
+      cursor=conn.pageInfo.endCursor;
+    }
+    for(const sku in fresh){
+      if(!window.shopifyOrderSalesMap[sku])window.shopifyOrderSalesMap[sku]={};
+      Object.assign(window.shopifyOrderSalesMap[sku],fresh[sku]);
+    }
+    try{localStorage.setItem(SHOPIFY_SALES_CACHE_KEY,JSON.stringify({ts:Date.now(),salesMap:window.shopifyOrderSalesMap}))}catch(e){}
+  }catch(e){_shopifySalesLastError=(e&&e.message)||'Unknown error';console.error('Shopify order sales top-up failed:',e);}
+  finally{updateShopifySalesToggleUI();}
+}
+function updateShopifySalesToggleUI(){
+  const el=document.getElementById('shopify-sales-pill');
+  if(!el)return;
+  let status,warn=false;
+  if(_shopifySalesSyncing){
+    status='Syncing… (first run can take a few minutes)';
+  }else if(_shopifySalesLastError){
+    status='Sync failed';warn=true;
+  }else{
+    const ts=(()=>{try{return JSON.parse(localStorage.getItem(SHOPIFY_SALES_CACHE_KEY)||'null')?.ts||0}catch(e){return 0}})();
+    if(ts){
+      const mins=Math.round((Date.now()-ts)/60000);
+      status=(mins<1?'Synced just now':`Synced ${mins}m ago`)+' — click to compare';
+    }else{
+      status='Not synced — click to run (research overlay)';
+    }
+  }
+  el.innerHTML=`<span class="live-dot" style="background:${warn?'#dc2626':'#9ca3af'}"></span>Shopify Sales: ${status}`;
+  el.title=warn?`Last sync failed: ${_shopifySalesLastError}\nClick to retry`:'Research overlay — sources sales directly from Shopify\'s Orders API for comparison against the numbers shown elsewhere. Does not affect any displayed totals yet.';
+}
+async function shopifySalesPillClick(){
+  if(_shopifySalesSyncing)return;
+  if(!window.shopifyOrderSalesMap){
+    await syncShopifyOrderSalesBackfill(true);
+  }else{
+    await syncShopifyOrderSalesTopUp();
+  }
+  if(window.shopifyOrderSalesMap)showShopifySalesComparison();
+}
+// Sums both sources over the trailing `days` and returns rows sorted by
+// biggest absolute discrepancy — call directly from the console for a
+// longer window than the pill's panel shows, e.g.
+// compareShopifySalesVsApp(30).
+function compareShopifySalesVsApp(days=7){
+  if(!window.shopifyOrderSalesMap){
+    console.warn('Shopify sales overlay has not synced yet — click the "Shopify Sales" pill, or call syncShopifyOrderSalesBackfill(true).');
+    return[];
+  }
+  const dates=businessDatesBack(days);
+  const appMap=window._salesBySkuDay||{};
+  const skus=new Set([...Object.keys(window.shopifyOrderSalesMap),...Object.keys(appMap)]);
+  const rows=[];
+  for(const sku of skus){
+    let shopifyQty=0,appQty=0;
+    for(const day of dates){
+      shopifyQty+=(window.shopifyOrderSalesMap[sku]&&window.shopifyOrderSalesMap[sku][day]&&window.shopifyOrderSalesMap[sku][day].qty)||0;
+      appQty+=(appMap[sku]&&appMap[sku][day]&&appMap[sku][day].qty)||0;
+    }
+    if(shopifyQty||appQty)rows.push({sku,shopifyQty,appQty,delta:shopifyQty-appQty});
+  }
+  rows.sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta));
+  console.table(rows);
+  return rows;
+}
+function showShopifySalesComparison(){
+  if(!window.shopifyOrderSalesMap){alert('No Shopify sales data synced yet.');return;}
+  document.getElementById('shopify-compare-overlay')?.remove();
+  const days=7;
+  const rows=compareShopifySalesVsApp(days);
+  const priceMap=(_cachedSalesMaps&&_cachedSalesMaps.priceMap)||{};
+  const nameFor=sku=>{
+    const p=priceMap[sku];
+    return p?`${p.productName||''}${p.colour?' - '+p.colour:''}`:sku;
+  };
+  const top=rows.slice(0,40);
+  const html=`
+    <div id="shopify-compare-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center;">
+      <div style="background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--shadow);max-width:900px;width:92%;max-height:85vh;display:flex;flex-direction:column;">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="font-weight:700;font-size:15px;">Shopify Sales Overlay — last ${days} days</div>
+            <div style="font-size:11px;color:var(--text-muted);">Research comparison only — not wired into any displayed totals yet. Sorted by biggest discrepancy.</div>
+          </div>
+          <button onclick="document.getElementById('shopify-compare-overlay').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted);">&times;</button>
+        </div>
+        <div style="overflow:auto;padding:0 20px 20px;">
+          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead><tr style="text-align:left;color:var(--text-muted);border-bottom:1px solid var(--border);">
+              <th style="padding:8px 6px;">SKU / Product</th>
+              <th style="padding:8px 6px;text-align:right;">Shopify Qty</th>
+              <th style="padding:8px 6px;text-align:right;">App Qty</th>
+              <th style="padding:8px 6px;text-align:right;">Delta</th>
+            </tr></thead>
+            <tbody>
+              ${top.map(r=>`<tr style="border-bottom:1px solid var(--border-light);">
+                <td style="padding:6px;">${nameFor(r.sku)}<div style="color:var(--text-muted);font-size:10px;">${r.sku}</div></td>
+                <td style="padding:6px;text-align:right;">${r.shopifyQty}</td>
+                <td style="padding:6px;text-align:right;">${r.appQty}</td>
+                <td style="padding:6px;text-align:right;font-weight:600;color:${r.delta===0?'var(--text-muted)':(Math.abs(r.delta)>=5?'var(--red)':'var(--amber)')};">${r.delta>0?'+':''}${r.delta}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+          ${rows.length>top.length?`<div style="padding:10px 6px;color:var(--text-muted);font-size:11px;">+ ${rows.length-top.length} more rows with no discrepancy — full data in window.shopifyOrderSalesMap, or call compareShopifySalesVsApp(days) in the console for a longer window.</div>`:''}
+        </div>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend',html);
 }
 
 /* ── HELPERS ── */
@@ -10740,6 +11053,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.4.0 — Add a Shopify Order Sales overlay (research/validation only, not wired into any displayed totals yet): pulls sales directly from Shopify's own Orders/LineItems via the GraphQL Admin API (new netlify/functions/shopify-proxy.js, reading SHOPIFY_ADMIN_TOKEN) instead of through AM's re-booked copy of the same orders — LineItem.currentQuantity already excludes refunds/removals natively, no discount/commission reconstruction needed like the AM Phase 2 overlay requires. ShopifyQL's shopifyqlQuery was ruled out first: its 'sales' dataset is deprecated and the replacement 'orders' dataset can't group by variant_sku, so it can't give per-SKU numbers. Historical pull (365 days) uses a Bulk Operation (Shopify's recommended approach for a crawl this size, avoids GraphQL rate-limit throttling); a cheap top-up (last 4 days, plain paginated query) runs on the existing 10-min background cadence once the initial backfill exists. New "Shopify Sales" header pill triggers the sync and opens a comparison panel (or call compareShopifySalesVsApp(days) from the console) showing Shopify's numbers against the app's own salesBySkuDay side by side, so the data can be checked before it replaces anything. Also: moved the Apparel Magic API token out of am-proxy.js source (hardcoded and exposed in this public repo since Jul 2, 2026) into an AM_API_TOKEN env var — token has been rotated
 // v2.3.6 — Fix Sales Cadence undercounting active Mystery Box promos: syncMysteryBoxHistory()'s real order-history backfill only ran once every 30 days, so any promo still selling after that window closed had a gap between the 3-day live AM sales bridge and the stale backfill — days in between showed zero sold even though real sales existed (confirmed against a live Shopify report: app showed 167 units sold over 7 days for two Mystery Box products vs Shopify's real 416). Added topUpMysteryBoxHistory(), which crawls forward from the newest cached day to today (cheap — normally just 1-2 days) on the same cadence as the other background AM syncs, so an active promo's sales no longer sit uncovered between full 30-day crawls
 // v2.3.5 — Deliveries: fix search box misaligned against the date-range inputs — gave it a matching (invisible) label row and switched the control row to align-items:flex-end, so search/date fields/Clear/Print all sit flush on the same baseline
 // v2.3.4 — Deliveries: add a Warehouse Arrival Date range filter (From/To) alongside the search box, plus a "Print / PDF" button that prints the currently filtered/sorted table (all columns) via the browser's native print dialog — same pattern as the Insights screen's print, scoped separately so the two never interfere
