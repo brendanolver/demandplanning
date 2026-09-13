@@ -8845,21 +8845,32 @@ let _shopifySalesSyncing=false; // guards the (rare, ~minutes-long) full backfil
 let _shopifySalesLastError=null;
 let _shopifyTopUpTs=0;
 async function syncShopifyOrderSalesBackfill(force=false){
-  if(_shopifySalesSyncing)return;
+  // Temporary trace logging — three real runs so far have each surfaced a
+  // different silent failure (502 from an oversized response, a parsing
+  // ordering bug, and now a run that produces neither an error nor a
+  // populated map nor even a debug object), so this makes every branch of
+  // the function visible in one console session instead of another round of
+  // bespoke follow-up snippets.
+  if(_shopifySalesSyncing){console.log('[shopify backfill] already syncing — skipped');return;}
   const ts=loadShopifySalesCache();
-  if(!force&&Date.now()-ts<SHOPIFY_SALES_BACKFILL_TTL)return;
+  if(!force&&Date.now()-ts<SHOPIFY_SALES_BACKFILL_TTL){console.log('[shopify backfill] within TTL — skipped');return;}
   _shopifySalesSyncing=true;
   _shopifySalesLastError=null;
   updateShopifySalesToggleUI();
+  console.log('[shopify backfill] starting…');
   try{
     const since=businessDatesBack(SHOPIFY_SALES_LOOKBACK_DAYS).slice(-1)[0];
+    console.log('[shopify backfill] submitting bulk query, since=',since);
     const submitData=await shopifyGraphQL(buildBulkOrdersQuery(since));
     const result=submitData.bulkOperationRunQuery;
+    console.log('[shopify backfill] submit result:',JSON.stringify(result));
     if(result.userErrors&&result.userErrors.length){
       throw new Error(result.userErrors.map(e=>e.message).join('; '));
     }
     const url=await pollShopifyBulkOperation();
+    console.log('[shopify backfill] poll returned url:',url);
     window.shopifyOrderSalesMap=url?await shopifyDownloadBulkResult(url):{};
+    console.log('[shopify backfill] final SKU count:',Object.keys(window.shopifyOrderSalesMap).length,'debug:',JSON.stringify(window._shopifyBulkDebug));
     try{localStorage.setItem(SHOPIFY_SALES_CACHE_KEY,JSON.stringify({ts:Date.now(),salesMap:window.shopifyOrderSalesMap}))}catch(e){}
   }catch(e){_shopifySalesLastError=(e&&e.message)||'Unknown error';console.error('Shopify order sales backfill failed:',e);}
   finally{_shopifySalesSyncing=false;updateShopifySalesToggleUI();}
