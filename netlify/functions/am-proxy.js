@@ -1,5 +1,5 @@
 const AM_BASE = 'https://kohindustries.app.apparelmagic.com/api';
-const AM_TOKEN = 'cff4a1e4a3d0b3726a4117e4f14a618a';
+const AM_TOKEN = process.env.AM_API_TOKEN;
 const ALLOWED = ['products', 'inventory', 'orders', 'order_items', 'warehouses', 'sku_warehouse'];
 // Paths that may be WRITTEN to (POST/PUT) — deliberately narrower than the
 // read-only ALLOWED list above, since a write creates or modifies a real
@@ -9,6 +9,12 @@ const WRITABLE = ['orders'];
 
 exports.handler = async (event) => {
   const method = event.httpMethod || 'GET';
+
+  if (!AM_TOKEN) {
+    // Fail loudly rather than silently sending token=undefined to AM's API —
+    // that would come back as an opaque auth error far from the real cause.
+    return { statusCode: 500, body: JSON.stringify({ error: 'AM_API_TOKEN environment variable is not set' }) };
+  }
 
   if (method === 'GET') {
     const params = { ...(event.queryStringParameters || {}) };
