@@ -362,6 +362,47 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
   body.printing-deliveries .cadence-table th,body.printing-deliveries .cadence-table td{padding:5px 8px!important;}
   body.printing-deliveries .cadence-table tr{break-inside:avoid;}
 }
+/* Order Priorities — report visual styling (screen + print share these rules) */
+.op-report-header{padding-bottom:14px;border-bottom:2px solid #1a2740;margin-bottom:16px;}
+.op-report-title{font-size:26px;font-weight:800;color:#1a2740;letter-spacing:-0.3px;text-align:center;}
+.op-report-subtitle{font-size:14px;font-weight:500;color:var(--text-secondary);margin-top:2px;}
+.op-report-meta{font-size:11.5px;color:#666;margin-top:6px;}
+.op-summary p{font-size:13px;line-height:1.6;color:var(--text);margin:0 0 10px;}
+.op-table-wrap{overflow-x:auto;margin-bottom:14px;}
+.op-table{width:100%;border-collapse:collapse;font-size:12px;}
+.op-table th{background:#1a2740;color:#fff;padding:8px 10px;text-align:right;font-weight:600;font-size:11px;white-space:nowrap;}
+.op-table th.op-left{text-align:left;}
+.op-table td{padding:6px 10px;text-align:right;border-bottom:1px solid var(--border-light);white-space:nowrap;}
+.op-table td.op-left{text-align:left;}
+.op-table td.op-bold{font-weight:700;}
+.op-table tbody tr:nth-child(even){background:#f4f5f7;}
+.op-table tr.op-total-row{background:#e8eaed!important;font-weight:700;border-top:2px solid #1a2740;}
+.op-summary-table{margin-bottom:8px;}
+.op-detail-section{margin-bottom:22px;}
+.op-cat-bar{background:#1a2740;color:#fff;padding:10px 16px;font-weight:700;font-size:13px;display:flex;justify-content:space-between;}
+.op-note{margin-bottom:20px;}
+.op-note p{font-size:11px;font-style:italic;color:var(--text-muted);line-height:1.6;margin:0;}
+/* Order Priorities print — gated by body.printing-orderpriorities, same isolation
+   pattern as Deliveries/Insights above (this time with the correct .topbar/.sidebar
+   CLASS selectors — those were wrongly targeted as #topbar/#sidebar IDs elsewhere
+   in this file until v2.4.2, which is why prints used to show the nav bar). */
+@media print{
+  body.printing-orderpriorities .topbar,body.printing-orderpriorities .sidebar,body.printing-orderpriorities #dashboard-layout,
+  body.printing-orderpriorities #cadence-screen,body.printing-orderpriorities #markdowns-screen,
+  body.printing-orderpriorities #performance-screen,body.printing-orderpriorities #insights-screen,
+  body.printing-orderpriorities #deliveries-screen,body.printing-orderpriorities #planning-screen,
+  body.printing-orderpriorities #upload-screen,body.printing-orderpriorities #password-screen,body.printing-orderpriorities #loading-screen,
+  body.printing-orderpriorities .sidebar-overlay{display:none!important;}
+  body.printing-orderpriorities #app{display:block!important;height:auto!important;overflow:visible!important;}
+  body.printing-orderpriorities #orderpriorities-screen{display:block!important;height:auto!important;overflow:visible!important;padding:16px!important;}
+  body.printing-orderpriorities .op-wrap{max-width:100%!important;}
+  body.printing-orderpriorities .op-table-wrap{overflow:visible!important;}
+  body.printing-orderpriorities .op-detail-table{font-size:9.5px!important;}
+  body.printing-orderpriorities .op-table th,body.printing-orderpriorities .op-table td{padding:4px 6px!important;}
+  body.printing-orderpriorities thead{display:table-header-group;} /* repeat headers across page breaks */
+  body.printing-orderpriorities tr{break-inside:avoid;}
+  body.printing-orderpriorities .op-cat-bar{break-after:avoid;break-inside:avoid;}
+}
 /* Insights screen */
 #insights-screen{flex:1;overflow-y:auto;padding:24px;}
 .insights-wrap{max-width:900px;margin:0 auto;}
@@ -896,6 +937,7 @@ th{position:relative;}
         <button class="screen-btn" id="btn-deliveries" onclick="showScreen('deliveries')">🚚 Deliveries</button>
         <button class="screen-btn" id="btn-insights" onclick="showScreen('insights')">💡 Insights</button>
         <button class="screen-btn" id="btn-planning" onclick="showScreen('planning')">📋 Planning</button>
+        <button class="screen-btn" id="btn-orderpriorities" onclick="showScreen('orderpriorities')">🎯 Order Priorities</button>
         <button class="screen-btn" id="btn-markdowns" onclick="showScreen('markdowns')">📝 Working</button>
         <button class="screen-btn" id="btn-performance" onclick="showScreen('performance')">🏅 Performance</button>
       </div>
@@ -1422,6 +1464,47 @@ th{position:relative;}
           <div class="insights-empty-ico">📋</div>
           <div class="insights-empty-title">Ready to plan</div>
           <div class="insights-empty-sub">Planning data will appear here once data is loaded.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ORDER PRIORITIES SCREEN -->
+  <div id="orderpriorities-screen" style="display:none;padding:28px;overflow-y:auto;height:calc(100vh - 56px);">
+    <div class="op-wrap" style="max-width:1400px;margin:0 auto;">
+      <div class="insights-header no-print" style="flex-wrap:wrap;gap:12px;">
+        <div>
+          <div class="insights-title">Order Priorities</div>
+          <div class="insights-sub">Upload a Planning &gt; Products Excel export, pick an ordering window, and get an ordering-only report — which SKUs are short, how much, and by when. Overstocked lines are never shown here.</div>
+        </div>
+      </div>
+      <div class="no-print" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:18px;">
+        <div>
+          <div style="font-size:10px;font-weight:600;color:var(--text-muted);margin-bottom:3px;">PLANNING EXPORT (.XLSX)</div>
+          <label class="tb-btn accent" style="cursor:pointer;padding:7px 14px;font-size:12px;">
+            📤 <span id="op-upload-label">Upload file</span>
+            <input type="file" accept=".xlsx" onchange="opHandleFileUpload(this)" style="display:none;">
+          </label>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:600;color:var(--text-muted);margin-bottom:3px;">PLAN FROM</div>
+          <select id="op-plan-from" disabled onchange="opRenderReport()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12.5px;color:var(--text);background:var(--surface2);outline:none;min-width:110px;">
+            <option value="">—</option>
+          </select>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:600;color:var(--text-muted);margin-bottom:3px;">COVERAGE UNTIL</div>
+          <select id="op-coverage-until" disabled onchange="opRenderReport()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12.5px;color:var(--text);background:var(--surface2);outline:none;min-width:110px;">
+            <option value="">—</option>
+          </select>
+        </div>
+        <button id="op-print-btn" class="tb-btn accent" style="display:none;padding:7px 14px;font-size:12px;" onclick="opPrintReport()">🖨️ Print / Export PDF</button>
+      </div>
+      <div id="op-report-body">
+        <div class="insights-empty">
+          <div class="insights-empty-ico">🎯</div>
+          <div class="insights-empty-title">Upload a Planning export to begin</div>
+          <div class="insights-empty-sub">Use Planning &gt; Products &gt; Export Excel to generate the file this reads.</div>
         </div>
       </div>
     </div>
@@ -2175,7 +2258,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.4.3';
+const APP_VERSION='v2.4.4';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -2250,7 +2333,7 @@ let currentScreen='dashboard';
 
 function showScreen(screen){
   currentScreen=screen;
-  ['dashboard','insights','cadence','deliveries','planning','markdowns','performance'].forEach(s=>{
+  ['dashboard','insights','cadence','deliveries','planning','orderpriorities','markdowns','performance'].forEach(s=>{
     const btn=document.getElementById('btn-'+s);
     if(btn)btn.classList.toggle('active',s===screen);
   });
@@ -2259,6 +2342,7 @@ function showScreen(screen){
   const cadenceScreen=document.getElementById('cadence-screen');
   const deliveriesScreen=document.getElementById('deliveries-screen');
   const planningScreen=document.getElementById('planning-screen');
+  const orderPrioritiesScreen=document.getElementById('orderpriorities-screen');
   const markdownsScreen=document.getElementById('markdowns-screen');
   const performanceScreen=document.getElementById('performance-screen');
   const periodBar=document.getElementById('period-bar');
@@ -2267,6 +2351,7 @@ function showScreen(screen){
   cadenceScreen.style.display=screen==='cadence'?'block':'none';
   if(deliveriesScreen)deliveriesScreen.style.display=screen==='deliveries'?'block':'none';
   planningScreen.style.display=screen==='planning'?'block':'none';
+  if(orderPrioritiesScreen)orderPrioritiesScreen.style.display=screen==='orderpriorities'?'block':'none';
   markdownsScreen.style.display=screen==='markdowns'?'block':'none';
   if(performanceScreen)performanceScreen.style.display=screen==='performance'?'block':'none';
   // period-bar (below topbar) — touch/mobile only, still needed for scrollable access
@@ -8157,6 +8242,320 @@ function exportPlanningExcel(){
   XLSX.writeFile(wb,`wndrr-planning-${now.toISOString().slice(0,10)}.xlsx`);
 }
 
+/* ── ORDER PRIORITIES ── Standalone report tool: upload a Planning > Products
+   Excel export (the exportPlanningExcel() file above), pick a Plan From / Coverage
+   Until month, and get an ordering-only report — which SKUs are short, how much,
+   and by when. Never shows overstocked/surplus lines. Fully client-side, no
+   connection to the rest of the app's data — the uploaded file is self-contained. */
+let opData=null; // {generatedDate, months:[{label,col}], skus:[{category,product,colour,soh,wksCover,months:[{budget,soh,onOrder,toOrder,variance}]}]}
+
+function opHandleFileUpload(input){
+  const file=input.files[0];if(!file)return;
+  const label=document.getElementById('op-upload-label');
+  if(label)label.textContent=file.name;
+  const rd=new FileReader();
+  rd.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      opParseSheet(aoa);
+    }catch(err){
+      alert('Could not read this file — is it a Planning > Products Excel export?\n\n'+((err&&err.message)||err));
+    }
+  };
+  rd.readAsArrayBuffer(file);
+}
+
+function opParseSheet(aoa){
+  // Scan for the "Generated ..." row and the header row (starts with "Category")
+  // rather than trusting fixed row numbers — resilient to minor export-format drift.
+  const generatedRow=aoa.find(r=>String(r?.[0]||'').trim().toUpperCase().startsWith('GENERATED'));
+  const generatedDate=generatedRow?String(generatedRow[0]||'').replace(/^Generated\s*/i,'').trim():'(date not found)';
+
+  let headerRowIdx=-1;
+  for(let r=0;r<aoa.length;r++){
+    if(String(aoa[r]?.[0]||'').trim().toUpperCase()==='CATEGORY'){headerRowIdx=r;break;}
+  }
+  if(headerRowIdx===-1){
+    alert('Could not find the header row in this file (expected a row starting with "Category") — make sure it\'s a Planning > Products Excel export.');
+    return;
+  }
+  const headerRow=aoa[headerRowIdx];
+  const months=[];
+  for(let c=5;c<headerRow.length;c+=5){
+    const raw=String(headerRow[c]||'').trim();
+    const label=raw.replace(/\s+Budget$/i,'').replace(/\s*★\s*$/,'').trim();
+    if(!label)break;
+    months.push({label,col:c});
+  }
+  if(!months.length){
+    alert('Could not detect any month columns in this file\'s header row — make sure it\'s a Planning > Products Excel export.');
+    return;
+  }
+
+  const skus=[];
+  for(let r=headerRowIdx+1;r<aoa.length;r++){
+    const row=aoa[r];
+    if(!row||!row.length)continue;
+    const category=String(row[0]||'').trim();
+    const product=String(row[1]||'').trim();
+    if(!category&&!product)continue; // skip stray blank rows
+    const colour=String(row[2]||'').trim();
+    const soh=parseFloat(row[3])||0;
+    const wksCoverRaw=parseFloat(row[4]);
+    const monthsData=months.map(m=>({
+      label:m.label,
+      budget:parseFloat(row[m.col])||0,
+      soh:parseFloat(row[m.col+1])||0,
+      onOrder:parseFloat(row[m.col+2])||0,
+      toOrder:parseFloat(row[m.col+3])||0,
+      // Blank Variance means that month's Budget was 0 — treat as 0 in every
+      // calculation. Always use the sheet's own Variance, never recompute it
+      // (SOH + On Order − Budget doesn't reliably hold — confirmed against a
+      // real export, roughly a third of cells didn't match that formula).
+      variance:parseFloat(row[m.col+4])||0
+    }));
+    skus.push({category,product,colour,soh,wksCover:isNaN(wksCoverRaw)?null:wksCoverRaw,months:monthsData});
+  }
+  if(!skus.length){
+    alert('No data rows found under the header row in this file.');
+    return;
+  }
+
+  opData={generatedDate,months,skus};
+  const pf=document.getElementById('op-plan-from'), cu=document.getElementById('op-coverage-until');
+  const opts=months.map((m,i)=>`<option value="${i}">${m.label}</option>`).join('');
+  pf.innerHTML='<option value="">—</option>'+opts;
+  cu.innerHTML='<option value="">—</option>'+opts;
+  pf.disabled=false;cu.disabled=false;
+  pf.value='';cu.value='';
+  opRenderReport();
+}
+
+// Month label parsing — raw labels look like "Sept 26", "Jan 27", "June 27" (matches
+// toLocaleString('en-AU',{month:'short',year:'2-digit'}), which isn't always a true
+// 3-letter abbreviation). short = the label's own alpha token as-is (e.g. "Sept",
+// not shortened to "Sep" — matches the reference report exactly); full/year are
+// looked up for the meta line and methodology note, which use full month names.
+const OP_MONTH_FULL={jan:'January',feb:'February',mar:'March',apr:'April',may:'May',jun:'June',june:'June',jul:'July',july:'July',aug:'August',sep:'September',sept:'September',oct:'October',nov:'November',dec:'December'};
+const OP_NUM_WORDS=['zero','one','two','three','four','five','six','seven','eight','nine','ten','eleven','twelve'];
+function opNumberWord(n){return OP_NUM_WORDS[n]!==undefined?OP_NUM_WORDS[n]:String(n);}
+function opParseMonthLabel(raw){
+  const m=String(raw||'').trim().match(/^([A-Za-z]+)\s+(\d{2,4})/);
+  if(!m)return{short:String(raw||''),full:String(raw||''),year:''};
+  const alpha=m[1].toLowerCase();
+  const full=OP_MONTH_FULL[alpha]||m[1];
+  let year=m[2];
+  if(year.length===2)year='20'+year;
+  const short=m[1].charAt(0).toUpperCase()+m[1].slice(1).toLowerCase();
+  return{short,full,year};
+}
+// Window range, used throughout the report's prose/headers — always short form,
+// year deliberately omitted (the meta line already states the year once, up top).
+function opWindowLabel(monthsArr){
+  if(!monthsArr||!monthsArr.length)return'';
+  const first=opParseMonthLabel(monthsArr[0].label).short;
+  const last=opParseMonthLabel(monthsArr[monthsArr.length-1].label).short;
+  return monthsArr.length===1?first:`${first}–${last}`;
+}
+// Reference-period range — short form WITH a trailing 2-digit year, since the
+// reference period often sits in a different calendar year than the window and
+// needs disambiguating (e.g. "Sept–Dec 26" while the window itself is 2027).
+function opRefLabel(monthsArr,withYear){
+  if(!monthsArr||!monthsArr.length)return'';
+  const first=opParseMonthLabel(monthsArr[0].label);
+  const last=opParseMonthLabel(monthsArr[monthsArr.length-1].label);
+  const base=monthsArr.length===1?first.short:`${first.short}–${last.short}`;
+  return withYear?`${base} ${last.year.slice(-2)}`:base;
+}
+function opFmt(n){return(n||0).toLocaleString();}
+
+function opRenderReport(){
+  const body=document.getElementById('op-report-body');
+  const printBtn=document.getElementById('op-print-btn');
+  if(!opData){
+    body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">🎯</div><div class="insights-empty-title">Upload a Planning export to begin</div><div class="insights-empty-sub">Use Planning &gt; Products &gt; Export Excel to generate the file this reads.</div></div>`;
+    if(printBtn)printBtn.style.display='none';
+    return;
+  }
+  const pfVal=document.getElementById('op-plan-from').value;
+  const cuVal=document.getElementById('op-coverage-until').value;
+  if(pfVal===''||cuVal===''){
+    const first=opData.months[0].label,last=opData.months[opData.months.length-1].label;
+    body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">📅</div><div class="insights-empty-title">Pick a Plan From and Coverage Until month</div><div class="insights-empty-sub">${opData.months.length} months detected in this file (${first} – ${last}).</div></div>`;
+    if(printBtn)printBtn.style.display='none';
+    return;
+  }
+  const planFromIdx=parseInt(pfVal),coverageUntilIdx=parseInt(cuVal);
+  if(coverageUntilIdx<planFromIdx){
+    body.innerHTML=`<div class="insights-error">⚠️ "Coverage until" must be the same as or after "Plan from".</div>`;
+    if(printBtn)printBtn.style.display='none';
+    return;
+  }
+
+  const months=opData.months;
+  const refMonths=months.slice(0,planFromIdx);
+  const windowMonths=months.slice(planFromIdx,coverageUntilIdx+1);
+  const hasRef=refMonths.length>0;
+  const windowLabel=opWindowLabel(windowMonths);
+  const refLabelWithYear=hasRef?opRefLabel(refMonths,true):'';
+  const refLabelShort=hasRef?opRefLabel(refMonths,false):'';
+  const planFromFull=opParseMonthLabel(windowMonths[0].label).full;
+  const planFromMeta=opParseMonthLabel(windowMonths[0].label);
+  const coverageUntilMeta=opParseMonthLabel(windowMonths[windowMonths.length-1].label);
+  const metaWindowLabel=windowMonths.length===1
+    ?`${planFromMeta.full} ${coverageUntilMeta.year}`
+    :`${planFromMeta.full} – ${coverageUntilMeta.full} ${coverageUntilMeta.year}`;
+
+  // Per-SKU calc — only months inside the window drive Order Qty
+  const reportSkus=[];
+  for(const sku of opData.skus){
+    let worstGap=Infinity,worstIdx=-1;
+    windowMonths.forEach((m,i)=>{
+      const v=sku.months[planFromIdx+i].variance;
+      if(v<worstGap){worstGap=v;worstIdx=i;}
+    });
+    if(worstGap>=0)continue; // no shortfall anywhere in the window — drop entirely
+    const orderQty=Math.abs(worstGap);
+    let refBudget=0,refOnOrder=0;
+    for(let i=0;i<planFromIdx;i++){refBudget+=sku.months[i].budget;refOnOrder+=sku.months[i].onOrder;}
+    const windowMonthsData=windowMonths.map((m,i)=>({label:m.label,budget:sku.months[planFromIdx+i].budget,onOrder:sku.months[planFromIdx+i].onOrder}));
+    const windowOnOrderTotal=windowMonthsData.reduce((s,m)=>s+m.onOrder,0);
+    reportSkus.push({
+      category:sku.category,product:sku.product,colour:sku.colour,soh:sku.soh,
+      refBudget,refOnOrder,windowMonthsData,
+      worstMonthLabel:opParseMonthLabel(windowMonths[worstIdx].label).short,orderQty,
+      hasWindowOnOrder:windowOnOrderTotal>0,hasRefOnOrder:refOnOrder>0
+    });
+  }
+
+  if(!reportSkus.length){
+    body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">✅</div><div class="insights-empty-title">No shortfalls</div><div class="insights-empty-sub">Every SKU in this file has enough stock and on-order cover for ${windowLabel}.</div></div>`;
+    if(printBtn)printBtn.style.display='none';
+    return;
+  }
+
+  const N=reportSkus.length;
+  const totalUnits=reportSkus.reduce((s,r)=>s+r.orderQty,0);
+  const M=reportSkus.filter(r=>r.hasWindowOnOrder).length;
+  const K=hasRef?reportSkus.filter(r=>r.hasRefOnOrder).length:0;
+
+  const catMap={};
+  for(const r of reportSkus){
+    if(!catMap[r.category])catMap[r.category]={category:r.category,skusShort:0,soh:0,refBudget:0,refOnOrder:0,windowBudget:0,windowOnOrder:0,unitsNeeded:0,skus:[]};
+    const c=catMap[r.category];
+    c.skusShort++;c.soh+=r.soh;c.refBudget+=r.refBudget;c.refOnOrder+=r.refOnOrder;
+    c.windowBudget+=r.windowMonthsData.reduce((s,m)=>s+m.budget,0);
+    c.windowOnOrder+=r.windowMonthsData.reduce((s,m)=>s+m.onOrder,0);
+    c.unitsNeeded+=r.orderQty;
+    c.skus.push(r);
+  }
+  const categories=Object.values(catMap).sort((a,b)=>b.unitsNeeded-a.unitsNeeded);
+  for(const c of categories)c.skus.sort((a,b)=>b.orderQty-a.orderQty);
+  const titleCase=s=>String(s||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
+
+  // Header
+  const headerHtml=`
+    <div class="op-report-header">
+      <div class="op-report-title">WNDRR</div>
+      <div class="op-report-subtitle">Stock Order Priorities — Core Range</div>
+      <div class="op-report-meta">Planning window: ${metaWindowLabel} | Source: demand planning export, generated ${opData.generatedDate}</div>
+    </div>`;
+
+  // Summary paragraphs — bold spans matching the reference report exactly
+  const p1=`<strong>${opFmt(N)} core SKUs</strong> have no stock or on-order cover for at least one month in the ${windowLabel} window. Closing every gap at its worst point needs a minimum of <strong>${opFmt(totalUnits)} units</strong> ordered across the range. This document lists only what's short — overstocked lines aren't included here.`;
+  const p2=M===0
+    ?`<strong>None of these ${opFmt(N)} SKUs currently have any stock on order for ${windowLabel}.</strong> Every gap below is completely unaddressed — there's nothing already inbound to net off against any of it.`
+    :`<strong>${opFmt(M)} of these ${opFmt(N)} SKUs already have some stock on order within the window</strong> (see the Ord columns below) — the Order Qty figure already accounts for it.`;
+  const p3=!hasRef?'':(K>0
+    ?`<strong>${opFmt(K)} of these ${opFmt(N)} SKUs had stock on order in ${refLabelWithYear}</strong> (see the new column below), but it's largely spoken for — ${refLabelShort} budgeted sales absorb most or all of it before the ${windowLabel} window even starts. These aren't gaps caused by ignoring stock that's already coming; the incoming stock is already being sold.`
+    :`<strong>None of these ${opFmt(N)} SKUs had any stock on order in ${refLabelWithYear} either</strong> — the shortfalls below aren't offset by anything already inbound before the ${windowLabel} window starts.`);
+  const summaryHtml=`<div class="op-summary"><p>${p1}</p><p>${p2}</p>${p3?`<p>${p3}</p>`:''}</div>`;
+
+  // Category summary table
+  const catTotals={skusShort:N,soh:0,refBudget:0,refOnOrder:0,windowBudget:0,windowOnOrder:0,unitsNeeded:totalUnits};
+  for(const c of categories){catTotals.soh+=c.soh;catTotals.refBudget+=c.refBudget;catTotals.refOnOrder+=c.refOnOrder;catTotals.windowBudget+=c.windowBudget;catTotals.windowOnOrder+=c.windowOnOrder;}
+  const catHeaderCells=['Category','SKUs short','SOH']
+    .concat(hasRef?[`${refLabelWithYear} Budget`,`${refLabelWithYear} On Order`]:[])
+    .concat([`${windowLabel} Budget`,`${windowLabel} On Order`,'Units needed']);
+  const catRowsHtml=categories.map(c=>`<tr>
+    <td class="op-left">${titleCase(c.category)}</td>
+    <td>${opFmt(c.skusShort)}</td>
+    <td>${opFmt(c.soh)}</td>
+    ${hasRef?`<td>${opFmt(c.refBudget)}</td><td>${opFmt(c.refOnOrder)}</td>`:''}
+    <td>${opFmt(c.windowBudget)}</td>
+    <td>${opFmt(c.windowOnOrder)}</td>
+    <td class="op-bold">${opFmt(c.unitsNeeded)}</td>
+  </tr>`).join('');
+  const catTotalRow=`<tr class="op-total-row">
+    <td class="op-left">Total</td>
+    <td>${opFmt(catTotals.skusShort)}</td>
+    <td>${opFmt(catTotals.soh)}</td>
+    ${hasRef?`<td>${opFmt(catTotals.refBudget)}</td><td>${opFmt(catTotals.refOnOrder)}</td>`:''}
+    <td>${opFmt(catTotals.windowBudget)}</td>
+    <td>${opFmt(catTotals.windowOnOrder)}</td>
+    <td>${opFmt(catTotals.unitsNeeded)}</td>
+  </tr>`;
+  const catTableHtml=`<div class="op-table-wrap"><table class="op-table op-summary-table">
+    <thead><tr>${catHeaderCells.map(h=>`<th class="${h==='Category'?'op-left':''}">${h}</th>`).join('')}</tr></thead>
+    <tbody>${catRowsHtml}${catTotalRow}</tbody>
+  </table></div>`;
+
+  // Methodology note — sits right under the category summary table
+  const methodologyHtml=`<div class="op-note"><p>"Order qty" is the size of the largest single-month gap for that SKU within ${windowLabel} (current SOH + confirmed on-order for that month, less that month's budget). Ordering this many units clears the worst point in the window; it isn't a sum of every month's shortfall, so it won't double count. "Ord" columns show confirmed on-order stock due to land that month — already netted into the Order qty figure, shown here so you can see what's (or isn't) already covering each gap.${hasRef?` "${refLabelWithYear} Bud / Ord" is a combined reference column, not part of the Order qty calculation: total budgeted sales and total confirmed on-order across the ${opNumberWord(refMonths.length)} month${refMonths.length===1?'':'s'} before the window, so you can see what's already been drawing down or topping up stock going into ${planFromFull}.`:''}</p></div>`;
+
+  // Per-category detail tables
+  const detailSections=categories.map(c=>{
+    const headerBar=`<div class="op-cat-bar"><span>${titleCase(c.category)}</span><span>${opFmt(c.skusShort)} SKU${c.skusShort===1?'':'s'} · ${opFmt(c.unitsNeeded)} unit${c.unitsNeeded===1?'':'s'} needed</span></div>`;
+    const monthHeaderCells=[];
+    windowMonths.forEach(m=>{const s=opParseMonthLabel(m.label).short;monthHeaderCells.push(`${s} Bud`,`${s} Ord`);});
+    const detailHeaderCells=['Product','Colour','SOH'].concat(hasRef?[`${refLabelWithYear} Bud / Ord`]:[]).concat(monthHeaderCells).concat(['Worst month','Order qty']);
+    const rowsHtml=c.skus.map(r=>{
+      const refCombined=hasRef?`<td>${opFmt(r.refBudget)} / ${opFmt(r.refOnOrder)}</td>`:'';
+      const monthCells=r.windowMonthsData.map(m=>`<td>${opFmt(m.budget)}</td><td>${opFmt(m.onOrder)}</td>`).join('');
+      return`<tr>
+        <td class="op-left">${titleCase(r.product)}</td>
+        <td class="op-left">${titleCase(r.colour)}</td>
+        <td>${opFmt(r.soh)}</td>
+        ${refCombined}
+        ${monthCells}
+        <td class="op-left">${r.worstMonthLabel}</td>
+        <td class="op-bold">${opFmt(r.orderQty)}</td>
+      </tr>`;
+    }).join('');
+    return`<div class="op-detail-section">
+      ${headerBar}
+      <div class="op-table-wrap">
+        <table class="op-table op-detail-table">
+          <thead><tr>${detailHeaderCells.map(h=>`<th class="${(h==='Product'||h==='Colour')?'op-left':''}">${h}</th>`).join('')}</tr></thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Closing note — sits at the very end, after every category's detail table
+  const closingHtml=`<div class="op-note"><p>Overstocked lines and colour-mix imbalances (e.g. surplus sitting in the wrong colourway of a style that's also short) aren't shown in this document — this is an ordering list only. Figures are drawn directly from the demand planning export; "Budget" reflects last year's sales plus budgeted increases, not a confirmed sales number.</p></div>`;
+
+  body.innerHTML=headerHtml+summaryHtml+catTableHtml+methodologyHtml+detailSections+closingHtml;
+  if(printBtn)printBtn.style.display='flex';
+}
+
+function opPrintReport(){
+  // Landscape, matching the reference report — @page can't be scoped by a body
+  // class in static CSS, so inject/remove it just for this print job.
+  const pageStyle=document.createElement('style');
+  pageStyle.id='op-print-page-style';
+  pageStyle.textContent='@media print{@page{size:A4 landscape;margin:10mm;}}';
+  document.head.appendChild(pageStyle);
+  document.body.classList.add('printing-orderpriorities');
+  const cleanup=()=>{document.body.classList.remove('printing-orderpriorities');pageStyle.remove();window.removeEventListener('afterprint',cleanup);};
+  window.addEventListener('afterprint',cleanup);
+  window.print();
+  setTimeout(cleanup,3000);
+}
+
 /* ── AM CATALOGUE SYNC (launch dates + CORE collection) ──
    Launch Date is stored in AM's mid_code field per product; CORE membership is
    the AM product group "AA CORE STYLES". The full catalogue (~3,800 products /
@@ -11119,6 +11518,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.4.4 — New "Order Priorities" screen, between Planning and Working: upload a Planning > Products Excel export, pick a Plan From / Coverage Until month, and get an ordering-only report — which SKUs are short, how much, and by when. Only ever shows shortfalls, never overstock. Order Qty is the single worst month's deficit within the window (not a sum — a gap carries forward, so summing would double-count), using the sheet's own Variance values directly rather than recomputing them (confirmed unreliable to rederive from SOH+OnOrder-Budget on a real export). Months before "Plan From" are a reference-only period (context, not part of the calculation). Category summary + per-category detail tables, black header bars, zebra striping, landscape print/PDF export with repeating headers across page breaks. Fully client-side (SheetJS, already loaded), independent of the rest of the app's data — the uploaded file is self-contained. Validated against a real export + its hand-built reference PDF: every number in the category table and a full detail table (Trackpants, 14 SKUs) matched exactly
 // v2.4.3 — Planning > Product view: swap the Print/PDF export for a real "Export Excel" (.xlsx) download — better fit for feeding into an AI chat than a print/PDF, since there's no page-width clipping, no wrapped/shrunk text, and cells are genuine numbers rather than formatted display strings. buildCells() now returns {html,cells} instead of just html, so renderPlanning() and the export always use the exact same per-month numbers — no separate calculation that could drift out of sync. Removes the printing-planning print CSS/button/header entirely (dead code, not a toggle)
 // v2.4.2 — Fix two real bugs in the new Planning print/PDF (v2.4.1), caught by a real exported PDF: (1) the print CSS hid the top nav/sidebar by ID (#topbar/#sidebar) but they're actually classes (.topbar/.sidebar) — the selector never matched anything, so the nav bar printed right into the PDF on every print/export (Insights and Deliveries had the exact same latent bug, fixed there too); (2) Planning's table genuinely got clipped — its cells force white-space:nowrap, so month columns past October ran off the page edge instead of shrinking to fit. Print now forces cells to wrap (table-layout:fixed, white-space:normal) so the full width actually compresses into the page, plus switches Planning's print job to A4 landscape (scoped to just this print via a dynamically injected/removed <style>, so Insights/Deliveries stay portrait)
 // v2.4.1 — Planning > Product view: add a "Print / PDF" button (same native-print pattern as Deliveries/Insights) so the currently-filtered, currently-sorted product list can be exported to feed into an external tool. Button only shows in Product view — Category view's rollup table isn't the shape this is for. Printed header states which filters were active (Core/Non-Core, Category, selected products) so the export is self-describing outside the app
