@@ -405,8 +405,15 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
   body.printing-orderpriorities #planning-screen{display:block!important;height:auto!important;overflow:visible!important;padding:16px!important;}
   body.printing-orderpriorities .planning-wrap{max-width:100%!important;}
   body.printing-orderpriorities .op-table-wrap{overflow:visible!important;}
-  body.printing-orderpriorities .op-detail-table{font-size:9.5px!important;}
-  body.printing-orderpriorities .op-table th,body.printing-orderpriorities .op-table td{padding:4px 6px!important;}
+  /* A wide window (many months) means many columns — .op-table td's base
+     white-space:nowrap forces every cell (including 3-digit Order Qty values)
+     to its unwrapped width, which the page can't always fit, so the rightmost
+     digits were silently clipped rather than shrinking (same bug class already
+     fixed for Planning's own table in v2.4.2). Force wrapping + a fixed layout
+     so long values wrap onto a second line instead of losing digits. */
+  body.printing-orderpriorities .op-table{table-layout:fixed!important;}
+  body.printing-orderpriorities .op-detail-table{font-size:8.5px!important;}
+  body.printing-orderpriorities .op-table th,body.printing-orderpriorities .op-table td{padding:3px 4px!important;white-space:normal!important;word-break:break-word!important;}
   body.printing-orderpriorities thead{display:table-header-group;} /* repeat headers across page breaks */
   body.printing-orderpriorities tr{break-inside:avoid;}
   body.printing-orderpriorities .op-cat-bar{break-after:avoid;break-inside:avoid;}
@@ -2253,7 +2260,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.4.6';
+const APP_VERSION='v2.4.7';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -11493,6 +11500,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.4.7 — Fix Order Priorities' printed PDF clipping digits off the right-hand columns (e.g. an Order Qty of 456 printing as "45") on wide windows (many months = many columns). Same bug class as the Planning table clipping fixed in v2.4.2, just missed on Order Priorities' own .op-table at the time: its cells had unconditional white-space:nowrap and the print CSS never forced wrapping or a fixed layout, so content past the page edge was silently cut rather than shrinking. Print now forces table-layout:fixed + white-space:normal so long values wrap onto a second line instead of losing digits, plus a smaller font (8.5px) for more headroom
 // v2.4.6 — Fix Order Priorities' printed PDF losing all its background colour (black category header bars, table header shading, zebra striping, totals-row shading) — browsers drop background-color when printing by default unless told to keep it, and this app's print CSS never had that override. Added `print-color-adjust:exact` globally in the print stylesheet, so this fixes it for every print output (Insights/Deliveries too), not just Order Priorities
 // v2.4.5 — Move Order Priorities from its own top-level screen into a third Planning view toggle (Category | Product | Order Priorities), and drop the xlsx upload — it now reads window._planExportRows/_planExportMonths directly (the same live numbers Product view's table and Export Excel already use), so it inherits the exact same Category/Product/Core filters instead of operating on a separate uploaded snapshot. opRenderReport() itself is unchanged; only how opData gets built changed (opBuildDataFromPlanning() adapts the live rows instead of opParseSheet() parsing a file, which is now deleted along with the upload UI). Re-validated end to end after the refactor: same real data through the new path produced the identical 67-SKU/6,161-unit report, number for number
 // v2.4.4 — New "Order Priorities" screen, between Planning and Working: upload a Planning > Products Excel export, pick a Plan From / Coverage Until month, and get an ordering-only report — which SKUs are short, how much, and by when. Only ever shows shortfalls, never overstock. Order Qty is the single worst month's deficit within the window (not a sum — a gap carries forward, so summing would double-count), using the sheet's own Variance values directly rather than recomputing them (confirmed unreliable to rederive from SOH+OnOrder-Budget on a real export). Months before "Plan From" are a reference-only period (context, not part of the calculation). Category summary + per-category detail tables, black header bars, zebra striping, landscape print/PDF export with repeating headers across page breaks. Fully client-side (SheetJS, already loaded), independent of the rest of the app's data — the uploaded file is self-contained. Validated against a real export + its hand-built reference PDF: every number in the category table and a full detail table (Trackpants, 14 SKUs) matched exactly
