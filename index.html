@@ -2146,7 +2146,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.5.1';
+const APP_VERSION='v2.5.2';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -8428,7 +8428,9 @@ function opRenderReport(){
   if(isCatMode){
     // Category mode: each reportSkus entry already IS a category (pooled by
     // buildCategoryPlanData) — one flat table, no nested per-category grouping.
-    reportSkus.sort((a,b)=>b.orderQty-a.orderQty);
+    // Alphabetical, not by units needed — this list is for working through
+    // categories systematically, not chasing the biggest number first.
+    reportSkus.sort((a,b)=>a.category.localeCompare(b.category));
     const monthHeaderCells=[];
     windowMonths.forEach(m=>{const s=opParseMonthLabel(m.label).short;monthHeaderCells.push(`${s} Bud`,`${s} Ord`);});
     const headerCells=['Category','SOH'].concat(hasRef?[`${refLabelWithYear} Bud / Ord`]:[]).concat(monthHeaderCells).concat(['Worst month','Order qty']);
@@ -8441,7 +8443,7 @@ function opRenderReport(){
         ${refCombined}
         ${monthCells}
         <td class="op-left">${r.worstMonthLabel}</td>
-        <td class="op-bold">${opFmt(r.orderQty)}</td>
+        <td class="op-bold" style="color:var(--red);">${opFmt(r.orderQty)}</td>
       </tr>`;
     }).join('');
     catTableHtml=`<div class="op-table-wrap"><table class="op-table op-summary-table">
@@ -11492,6 +11494,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.5.2 — Order Priorities > Category mode: sort the category list alphabetically instead of by units needed descending (easier to work through systematically), and colour the Order Qty figure red to flag it clearly
 // v2.5.1 — Order Priorities: add a "By Category" mode alongside the existing "By Product" one, via a small toggle next to Plan From/Coverage Until. Product mode is unchanged. Category mode pools Budget/SOH/On Order across every style in each category first, then finds the category's own worst month — rather than just summing each SKU's already-calculated Order Qty — so it catches category-wide gaps no single SKU shows on its own, and correctly counts brand-new pre-release styles (no Shopify SKU yet, so Product view's row list excludes them and they'd never surface a shortfall on their own) rather than only already-established styles. New buildCategoryPlanData() reuses buildCells()'s exact rolling-SOH/worst-month formula, pooled by category via getLYSalesByCategory()/getAMOnOrderByCategory() (both already category-scoped, no per-SKU exclusion) plus a fresh category SOH sum that — unlike Planning's own category view — doesn't exclude AM-only rows. Report layout in category mode is a single flat table (each row already is a category) instead of the product mode's summary-table-plus-per-category-detail-sections nesting, with wording adjusted throughout ("SKU"→"category")
 // v2.5.0 — Remove the Dashboard's left sidebar (Stock Alerts / Status quick-filter shortcuts) entirely — unused, was just taking up screen width. Removed the HTML, its CSS (including the mobile hamburger-toggle/slide-out-overlay variants across three responsive breakpoints), toggleSidebar(), renderSidebarCounts() and its 3 call sites, setSB() (already dead — never called), and quickVendor() (only ever called from the sidebar). Kept quickFlag() — it's also called by kpiDrillDown(), the Dashboard KPI tile click-through, which is unrelated to the sidebar and still needed. Main content now fills the full width freed up
 // v2.4.9 — Fix pre-release AM styles (open orders for products not yet live in Shopify, e.g. a new season's indent) missing entirely from Planning > Products' monthly On Order columns (and therefore Order Priorities, built on the same data) — Dashboard and Category view were unaffected. Root cause: _buildSkuPlanMap()'s fallback path (used when a style has no matching Shopify SKU) built the product lookup key as "STYLECODE||" instead of "ProductName||Colour", which nothing else in Planning ever looks up under — the on-order quantity was computed correctly but silently orphaned. Pre-release rows now match directly by their AM style code (processRows()' "AM-only products" block already puts the bare style in r.sku with no size suffix, so the old suffix-stripping logic never matched them) and use their real product name/colour, the same key format every other product uses. Also removed a meta.amOnly exclusion in getAMOnOrderByProduct() that read as intentional but was actually dead code — _buildSkuPlanMap() never set that field, so it never fired
