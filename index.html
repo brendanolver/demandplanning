@@ -2146,7 +2146,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.5.2';
+const APP_VERSION='v2.5.3';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -8368,38 +8368,47 @@ function opRenderReport(){
     ?`${planFromMeta.full} ${coverageUntilMeta.year}`
     :`${planFromMeta.full} – ${coverageUntilMeta.full} ${coverageUntilMeta.year}`;
 
-  // Per-SKU calc — only months inside the window drive Order Qty
-  const reportSkus=[];
+  const isCatMode=opGranularity==='category';
+  const rowNoun=isCatMode?'category':'SKU';
+  const rowNounCap=isCatMode?'Category':'SKU';
+  const rowNounPlural=isCatMode?'categories':'SKUs';
+
+  // Per-SKU/category calc — only months inside the window drive Order Qty. Product
+  // mode still drops any row with no shortfall entirely (too many SKUs to usefully
+  // list them all). Category mode instead keeps every category, shortfall or not —
+  // Order Qty is 0 for ones with enough cover, so the report shows the full
+  // picture rather than just the problems, with needsOrder driving red/black below.
+  const allRows=[];
   for(const sku of opData.skus){
     let worstGap=Infinity,worstIdx=-1;
     windowMonths.forEach((m,i)=>{
       const v=sku.months[planFromIdx+i].variance;
       if(v<worstGap){worstGap=v;worstIdx=i;}
     });
-    if(worstGap>=0)continue; // no shortfall anywhere in the window — drop entirely
-    const orderQty=Math.abs(worstGap);
+    const needsOrder=worstGap<0;
+    if(!needsOrder&&!isCatMode)continue;
+    const orderQty=needsOrder?Math.abs(worstGap):0;
     let refBudget=0,refOnOrder=0;
     for(let i=0;i<planFromIdx;i++){refBudget+=sku.months[i].budget;refOnOrder+=sku.months[i].onOrder;}
     const windowMonthsData=windowMonths.map((m,i)=>({label:m.label,budget:sku.months[planFromIdx+i].budget,onOrder:sku.months[planFromIdx+i].onOrder}));
     const windowOnOrderTotal=windowMonthsData.reduce((s,m)=>s+m.onOrder,0);
-    reportSkus.push({
+    allRows.push({
       category:sku.category,product:sku.product,colour:sku.colour,soh:sku.soh,
-      refBudget,refOnOrder,windowMonthsData,
+      refBudget,refOnOrder,windowMonthsData,needsOrder,
       worstMonthLabel:opParseMonthLabel(windowMonths[worstIdx].label).short,orderQty,
       hasWindowOnOrder:windowOnOrderTotal>0,hasRefOnOrder:refOnOrder>0
     });
   }
 
-  if(!reportSkus.length){
-    body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">✅</div><div class="insights-empty-title">No shortfalls</div><div class="insights-empty-sub">Every selected SKU has enough stock and on-order cover for ${windowLabel}.</div></div>`;
+  if(!allRows.length){
+    body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">✅</div><div class="insights-empty-title">No shortfalls</div><div class="insights-empty-sub">Every selected ${rowNoun} has enough stock and on-order cover for ${windowLabel}.</div></div>`;
     if(printBtn)printBtn.style.display='none';
     return;
   }
 
-  const isCatMode=opGranularity==='category';
-  const rowNoun=isCatMode?'category':'SKU';
-  const rowNounCap=isCatMode?'Category':'SKU';
-  const rowNounPlural=isCatMode?'categories':'SKUs';
+  // Stats/paragraphs always describe the shortfall subset, even in category mode
+  // where the table itself shows every category, short or not.
+  const reportSkus=allRows.filter(r=>r.needsOrder);
   const N=reportSkus.length;
   const totalUnits=reportSkus.reduce((s,r)=>s+r.orderQty,0);
   const M=reportSkus.filter(r=>r.hasWindowOnOrder).length;
@@ -8415,26 +8424,31 @@ function opRenderReport(){
     </div>`;
 
   // Summary paragraphs — bold spans matching the reference report exactly
-  const p1=`<strong>${opFmt(N)} core ${rowNounPlural}</strong> have no stock or on-order cover for at least one month in the ${windowLabel} window. Closing every gap at its worst point needs a minimum of <strong>${opFmt(totalUnits)} units</strong> ordered across the range. This document lists only what's short — overstocked lines aren't included here.`;
-  const p2=M===0
+  const p1=N===0
+    ?`<strong>All ${opFmt(allRows.length)} ${rowNounPlural}</strong> have enough stock and on-order cover for the ${windowLabel} window — nothing needs ordering right now.`
+    :isCatMode
+    ?`<strong>${opFmt(N)} of ${opFmt(allRows.length)} core ${rowNounPlural}</strong> have no stock or on-order cover for at least one month in the ${windowLabel} window, needing a minimum of <strong>${opFmt(totalUnits)} units</strong> ordered across the range. Every category is listed below — Order Qty is shown in black for categories with enough cover, red for categories that need ordering.`
+    :`<strong>${opFmt(N)} core ${rowNounPlural}</strong> have no stock or on-order cover for at least one month in the ${windowLabel} window. Closing every gap at its worst point needs a minimum of <strong>${opFmt(totalUnits)} units</strong> ordered across the range. This document lists only what's short — overstocked lines aren't included here.`;
+  const p2=N===0?'':(M===0
     ?`<strong>None of these ${opFmt(N)} ${rowNounPlural} currently have any stock on order for ${windowLabel}.</strong> Every gap below is completely unaddressed — there's nothing already inbound to net off against any of it.`
-    :`<strong>${opFmt(M)} of these ${opFmt(N)} ${rowNounPlural} already have some stock on order within the window</strong> (see the Ord columns below) — the Order Qty figure already accounts for it.`;
-  const p3=!hasRef?'':(K>0
+    :`<strong>${opFmt(M)} of these ${opFmt(N)} ${rowNounPlural} already have some stock on order within the window</strong> (see the Ord columns below) — the Order Qty figure already accounts for it.`);
+  const p3=(N===0||!hasRef)?'':(K>0
     ?`<strong>${opFmt(K)} of these ${opFmt(N)} ${rowNounPlural} had stock on order in ${refLabelWithYear}</strong> (see the new column below), but it's largely spoken for — ${refLabelShort} budgeted sales absorb most or all of it before the ${windowLabel} window even starts. These aren't gaps caused by ignoring stock that's already coming; the incoming stock is already being sold.`
     :`<strong>None of these ${opFmt(N)} ${rowNounPlural} had any stock on order in ${refLabelWithYear} either</strong> — the shortfalls below aren't offset by anything already inbound before the ${windowLabel} window starts.`);
-  const summaryHtml=`<div class="op-summary"><p>${p1}</p><p>${p2}</p>${p3?`<p>${p3}</p>`:''}</div>`;
+  const summaryHtml=`<div class="op-summary"><p>${p1}</p>${p2?`<p>${p2}</p>`:''}${p3?`<p>${p3}</p>`:''}</div>`;
 
   let catTableHtml='',detailSections='';
   if(isCatMode){
-    // Category mode: each reportSkus entry already IS a category (pooled by
+    // Category mode: each allRows entry already IS a category (pooled by
     // buildCategoryPlanData) — one flat table, no nested per-category grouping.
+    // Every category shows, not just short ones — needsOrder drives red vs black.
     // Alphabetical, not by units needed — this list is for working through
     // categories systematically, not chasing the biggest number first.
-    reportSkus.sort((a,b)=>a.category.localeCompare(b.category));
+    const catRows=[...allRows].sort((a,b)=>a.category.localeCompare(b.category));
     const monthHeaderCells=[];
     windowMonths.forEach(m=>{const s=opParseMonthLabel(m.label).short;monthHeaderCells.push(`${s} Bud`,`${s} Ord`);});
     const headerCells=['Category','SOH'].concat(hasRef?[`${refLabelWithYear} Bud / Ord`]:[]).concat(monthHeaderCells).concat(['Worst month','Order qty']);
-    const rowsHtml=reportSkus.map(r=>{
+    const rowsHtml=catRows.map(r=>{
       const refCombined=hasRef?`<td>${opFmt(r.refBudget)} / ${opFmt(r.refOnOrder)}</td>`:'';
       const monthCells=r.windowMonthsData.map(m=>`<td>${opFmt(m.budget)}</td><td>${opFmt(m.onOrder)}</td>`).join('');
       return`<tr>
@@ -8443,7 +8457,7 @@ function opRenderReport(){
         ${refCombined}
         ${monthCells}
         <td class="op-left">${r.worstMonthLabel}</td>
-        <td class="op-bold" style="color:var(--red);">${opFmt(r.orderQty)}</td>
+        <td class="op-bold" style="color:${r.needsOrder?'var(--red)':'var(--text)'};">${opFmt(r.orderQty)}</td>
       </tr>`;
     }).join('');
     catTableHtml=`<div class="op-table-wrap"><table class="op-table op-summary-table">
@@ -8528,11 +8542,11 @@ function opRenderReport(){
   }
 
   // Methodology note — sits right under the summary table
-  const methodologyHtml=`<div class="op-note"><p>"Order qty" is the size of the largest single-month gap for that ${rowNoun} within ${windowLabel} (current SOH + confirmed on-order for that month, less that month's budget). Ordering this many units clears the worst point in the window; it isn't a sum of every month's shortfall, so it won't double count. "Ord" columns show confirmed on-order stock due to land that month — already netted into the Order qty figure, shown here so you can see what's (or isn't) already covering each gap.${hasRef?` "${refLabelWithYear} Bud / Ord" is a combined reference column, not part of the Order qty calculation: total budgeted sales and total confirmed on-order across the ${opNumberWord(refMonths.length)} month${refMonths.length===1?'':'s'} before the window, so you can see what's already been drawing down or topping up stock going into ${planFromFull}.`:''}${isCatMode?' Category totals include every style in that category, including brand-new ones not yet live on the site — not just already-established products.':''}</p></div>`;
+  const methodologyHtml=`<div class="op-note"><p>"Order qty" is the size of the largest single-month gap for that ${rowNoun} within ${windowLabel} (current SOH + confirmed on-order for that month, less that month's budget). Ordering this many units clears the worst point in the window; it isn't a sum of every month's shortfall, so it won't double count. "Ord" columns show confirmed on-order stock due to land that month — already netted into the Order qty figure, shown here so you can see what's (or isn't) already covering each gap.${hasRef?` "${refLabelWithYear} Bud / Ord" is a combined reference column, not part of the Order qty calculation: total budgeted sales and total confirmed on-order across the ${opNumberWord(refMonths.length)} month${refMonths.length===1?'':'s'} before the window, so you can see what's already been drawing down or topping up stock going into ${planFromFull}.`:''}${isCatMode?' Category totals include every style in that category, including brand-new ones not yet live on the site — not just already-established products. An Order Qty of 0 (shown in black) means that category has enough cover throughout the window — it isn\'t a gap.':''}</p></div>`;
 
   // Closing note — sits at the very end
   const closingHtml=isCatMode
-    ?`<div class="op-note"><p>Overstocked categories aren't shown in this document — this is an ordering list only. Figures are drawn directly from live Planning data; "Budget" reflects last year's sales plus budgeted increases, not a confirmed sales number.</p></div>`
+    ?`<div class="op-note"><p>Every selected category is listed above, including ones that don't need ordering (shown in black, Order Qty 0) — only Order Qty figures in red require action. Figures are drawn directly from live Planning data; "Budget" reflects last year's sales plus budgeted increases, not a confirmed sales number.</p></div>`
     :`<div class="op-note"><p>Overstocked lines and colour-mix imbalances (e.g. surplus sitting in the wrong colourway of a style that's also short) aren't shown in this document — this is an ordering list only. Figures are drawn directly from the demand planning export; "Budget" reflects last year's sales plus budgeted increases, not a confirmed sales number.</p></div>`;
 
   body.innerHTML=headerHtml+summaryHtml+catTableHtml+methodologyHtml+detailSections+closingHtml;
@@ -11494,6 +11508,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.5.3 — Order Priorities > Category mode: show every selected category, not just short ones — categories with enough cover now show Order Qty 0 in black instead of being dropped entirely, while categories that need ordering stay red. Product mode is unchanged (still lists shortfall SKUs only — too many to usefully show every one). Summary paragraphs, methodology and closing notes all updated to describe the shortfall subset correctly even though the table itself now shows everyone
 // v2.5.2 — Order Priorities > Category mode: sort the category list alphabetically instead of by units needed descending (easier to work through systematically), and colour the Order Qty figure red to flag it clearly
 // v2.5.1 — Order Priorities: add a "By Category" mode alongside the existing "By Product" one, via a small toggle next to Plan From/Coverage Until. Product mode is unchanged. Category mode pools Budget/SOH/On Order across every style in each category first, then finds the category's own worst month — rather than just summing each SKU's already-calculated Order Qty — so it catches category-wide gaps no single SKU shows on its own, and correctly counts brand-new pre-release styles (no Shopify SKU yet, so Product view's row list excludes them and they'd never surface a shortfall on their own) rather than only already-established styles. New buildCategoryPlanData() reuses buildCells()'s exact rolling-SOH/worst-month formula, pooled by category via getLYSalesByCategory()/getAMOnOrderByCategory() (both already category-scoped, no per-SKU exclusion) plus a fresh category SOH sum that — unlike Planning's own category view — doesn't exclude AM-only rows. Report layout in category mode is a single flat table (each row already is a category) instead of the product mode's summary-table-plus-per-category-detail-sections nesting, with wording adjusted throughout ("SKU"→"category")
 // v2.5.0 — Remove the Dashboard's left sidebar (Stock Alerts / Status quick-filter shortcuts) entirely — unused, was just taking up screen width. Removed the HTML, its CSS (including the mobile hamburger-toggle/slide-out-overlay variants across three responsive breakpoints), toggleSidebar(), renderSidebarCounts() and its 3 call sites, setSB() (already dead — never called), and quickVendor() (only ever called from the sidebar). Kept quickFlag() — it's also called by kpiDrillDown(), the Dashboard KPI tile click-through, which is unrelated to the sidebar and still needed. Main content now fills the full width freed up
