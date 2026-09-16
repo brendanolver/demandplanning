@@ -2260,7 +2260,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.4.7';
+const APP_VERSION='v2.4.8';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -8434,7 +8434,10 @@ function opRenderReport(){
     c.skus.push(r);
   }
   const categories=Object.values(catMap).sort((a,b)=>b.unitsNeeded-a.unitsNeeded);
-  for(const c of categories)c.skus.sort((a,b)=>b.orderQty-a.orderQty);
+  // Category summary stays sorted by units needed (biggest problem first), but
+  // the per-category product list sorts alphabetically — easier to work through
+  // when placing the actual order than hunting by quantity
+  for(const c of categories)c.skus.sort((a,b)=>a.product.localeCompare(b.product)||a.colour.localeCompare(b.colour));
   const titleCase=s=>String(s||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
 
   // Header
@@ -11500,6 +11503,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.4.8 — Order Priorities: sort each category's product list alphabetically instead of by Order qty descending — easier to work through when actually placing the order. Category summary table is unchanged, still sorted by Units needed descending (biggest problem first)
 // v2.4.7 — Fix Order Priorities' printed PDF clipping digits off the right-hand columns (e.g. an Order Qty of 456 printing as "45") on wide windows (many months = many columns). Same bug class as the Planning table clipping fixed in v2.4.2, just missed on Order Priorities' own .op-table at the time: its cells had unconditional white-space:nowrap and the print CSS never forced wrapping or a fixed layout, so content past the page edge was silently cut rather than shrinking. Print now forces table-layout:fixed + white-space:normal so long values wrap onto a second line instead of losing digits, plus a smaller font (8.5px) for more headroom
 // v2.4.6 — Fix Order Priorities' printed PDF losing all its background colour (black category header bars, table header shading, zebra striping, totals-row shading) — browsers drop background-color when printing by default unless told to keep it, and this app's print CSS never had that override. Added `print-color-adjust:exact` globally in the print stylesheet, so this fixes it for every print output (Insights/Deliveries too), not just Order Priorities
 // v2.4.5 — Move Order Priorities from its own top-level screen into a third Planning view toggle (Category | Product | Order Priorities), and drop the xlsx upload — it now reads window._planExportRows/_planExportMonths directly (the same live numbers Product view's table and Export Excel already use), so it inherits the exact same Category/Product/Core filters instead of operating on a separate uploaded snapshot. opRenderReport() itself is unchanged; only how opData gets built changed (opBuildDataFromPlanning() adapts the live rows instead of opParseSheet() parsing a file, which is now deleted along with the upload UI). Re-validated end to end after the refactor: same real data through the new path produced the identical 67-SKU/6,161-unit report, number for number
