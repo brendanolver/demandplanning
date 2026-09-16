@@ -332,7 +332,7 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
   .print-only{display:block!important;}
   body{background:#fff!important;height:auto!important;overflow:visible!important;}
   /* Hide everything except the insights screen */
-  #topbar,#sidebar,#dashboard-layout,
+  .topbar,.sidebar,#dashboard-layout,
   #cadence-screen,#planning-screen,#markdowns-screen,#performance-screen,#deliveries-screen,
   #upload-screen,#password-screen,#loading-screen,
   .sidebar-overlay{display:none!important;}
@@ -349,7 +349,7 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 }
 /* Deliveries print — gated by body.printing-deliveries so it never fights the Insights print block above */
 @media print{
-  body.printing-deliveries #topbar,body.printing-deliveries #sidebar,body.printing-deliveries #dashboard-layout,
+  body.printing-deliveries .topbar,body.printing-deliveries .sidebar,body.printing-deliveries #dashboard-layout,
   body.printing-deliveries #cadence-screen,body.printing-deliveries #planning-screen,body.printing-deliveries #markdowns-screen,
   body.printing-deliveries #performance-screen,body.printing-deliveries #insights-screen,
   body.printing-deliveries #upload-screen,body.printing-deliveries #password-screen,body.printing-deliveries #loading-screen,
@@ -364,7 +364,7 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 }
 /* Planning print — gated by body.printing-planning, same isolation pattern as Deliveries above */
 @media print{
-  body.printing-planning #topbar,body.printing-planning #sidebar,body.printing-planning #dashboard-layout,
+  body.printing-planning .topbar,body.printing-planning .sidebar,body.printing-planning #dashboard-layout,
   body.printing-planning #cadence-screen,body.printing-planning #markdowns-screen,
   body.printing-planning #performance-screen,body.printing-planning #insights-screen,body.printing-planning #deliveries-screen,
   body.printing-planning #upload-screen,body.printing-planning #password-screen,body.printing-planning #loading-screen,
@@ -373,8 +373,13 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
   body.printing-planning #planning-screen{display:block!important;height:auto!important;overflow:visible!important;padding:16px!important;}
   body.printing-planning .planning-wrap{max-width:100%!important;}
   body.printing-planning .plan-table-wrap{overflow:visible!important;}
-  body.printing-planning .plan-table{width:100%!important;font-size:10.5px!important;}
-  body.printing-planning .plan-table th,body.printing-planning .plan-table td{padding:4px 6px!important;position:static!important;}
+  /* This table has a LOT of columns (up to 13 months x 5 sub-columns) — the base
+     white-space:nowrap forces every cell to its unwrapped width, which is wider
+     than any page, so content past the right margin was silently clipped instead
+     of shrinking. Force wrapping + a fixed layout so the browser actually respects
+     width:100% and compresses columns to fit, rather than overflowing the page. */
+  body.printing-planning .plan-table{width:100%!important;table-layout:fixed!important;font-size:9px!important;}
+  body.printing-planning .plan-table th,body.printing-planning .plan-table td{padding:3px 4px!important;position:static!important;white-space:normal!important;word-break:break-word!important;}
   body.printing-planning .plan-table tr{break-inside:avoid;}
 }
 
@@ -2192,7 +2197,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.4.1';
+const APP_VERSION='v2.4.2';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -8137,8 +8142,15 @@ function printPlanningPDF(){
   if(el){
     el.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:2px solid #1a2740;margin-bottom:20px;"><div><div style="font-size:20px;font-weight:700;color:#1a2740;letter-spacing:-0.3px;">WNDRR — Planning (Product View)</div><div style="font-size:12px;color:#666;margin-top:2px;">Generated ${dateStr}</div>${filterLine}</div><div style="font-size:11px;color:#999;font-weight:500;">Demand Planning</div></div>`;
   }
+  // Landscape, for the extra width this many-columned table needs — @page can't be
+  // scoped by a body class in static CSS, so inject/remove it just for this print job
+  // rather than switching every other print (Insights/Deliveries) to landscape too.
+  const pageStyle=document.createElement('style');
+  pageStyle.id='planning-print-page-style';
+  pageStyle.textContent='@media print{@page{size:A4 landscape;margin:10mm;}}';
+  document.head.appendChild(pageStyle);
   document.body.classList.add('printing-planning');
-  const cleanup=()=>{document.body.classList.remove('printing-planning');window.removeEventListener('afterprint',cleanup);};
+  const cleanup=()=>{document.body.classList.remove('printing-planning');pageStyle.remove();window.removeEventListener('afterprint',cleanup);};
   window.addEventListener('afterprint',cleanup);
   window.print();
   setTimeout(cleanup,3000); // fallback in case afterprint doesn't fire
@@ -11106,6 +11118,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.4.2 — Fix two real bugs in the new Planning print/PDF (v2.4.1), caught by a real exported PDF: (1) the print CSS hid the top nav/sidebar by ID (#topbar/#sidebar) but they're actually classes (.topbar/.sidebar) — the selector never matched anything, so the nav bar printed right into the PDF on every print/export (Insights and Deliveries had the exact same latent bug, fixed there too); (2) Planning's table genuinely got clipped — its cells force white-space:nowrap, so month columns past October ran off the page edge instead of shrinking to fit. Print now forces cells to wrap (table-layout:fixed, white-space:normal) so the full width actually compresses into the page, plus switches Planning's print job to A4 landscape (scoped to just this print via a dynamically injected/removed <style>, so Insights/Deliveries stay portrait)
 // v2.4.1 — Planning > Product view: add a "Print / PDF" button (same native-print pattern as Deliveries/Insights) so the currently-filtered, currently-sorted product list can be exported to feed into an external tool. Button only shows in Product view — Category view's rollup table isn't the shape this is for. Printed header states which filters were active (Core/Non-Core, Category, selected products) so the export is self-describing outside the app
 // v2.4.0 — Add a Shopify Order Sales overlay (research/validation only, not wired into any displayed totals yet): pulls sales directly from Shopify's own Orders/LineItems via the GraphQL Admin API (new netlify/functions/shopify-proxy.js, reading SHOPIFY_ADMIN_TOKEN) instead of through AM's re-booked copy of the same orders — LineItem.currentQuantity already excludes refunds/removals natively, no discount/commission reconstruction needed like the AM Phase 2 overlay requires. ShopifyQL's shopifyqlQuery was ruled out first: its 'sales' dataset is deprecated and the replacement 'orders' dataset can't group by variant_sku, so it can't give per-SKU numbers. Historical pull (365 days) uses a Bulk Operation (Shopify's recommended approach for a crawl this size, avoids GraphQL rate-limit throttling); a cheap top-up (last 4 days, plain paginated query) runs on the existing 10-min background cadence once the initial backfill exists. New "Shopify Sales" header pill triggers the sync and opens a comparison panel (or call compareShopifySalesVsApp(days) from the console) showing Shopify's numbers against the app's own salesBySkuDay side by side, so the data can be checked before it replaces anything. Also: moved the Apparel Magic API token out of am-proxy.js source (hardcoded and exposed in this public repo since Jul 2, 2026) into an AM_API_TOKEN env var — token has been rotated
 // v2.3.6 — Fix Sales Cadence undercounting active Mystery Box promos: syncMysteryBoxHistory()'s real order-history backfill only ran once every 30 days, so any promo still selling after that window closed had a gap between the 3-day live AM sales bridge and the stale backfill — days in between showed zero sold even though real sales existed (confirmed against a live Shopify report: app showed 167 units sold over 7 days for two Mystery Box products vs Shopify's real 416). Added topUpMysteryBoxHistory(), which crawls forward from the newest cached day to today (cheap — normally just 1-2 days) on the same cadence as the other background AM syncs, so an active promo's sales no longer sit uncovered between full 30-day crawls
