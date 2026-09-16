@@ -877,7 +877,7 @@ th{position:relative;}
       <div class="topbar-pill"><span class="live-dot"></span>Shopify</div>
       <div class="topbar-pill" id="am-pill"><span class="live-dot"></span>Apparel Magic</div>
       <div class="topbar-pill" id="am-sync-toggle" onclick="toggleAMSync()" style="cursor:pointer;"></div>
-      <div class="topbar-pill" id="shopify-sales-pill" onclick="shopifySalesPillClick()" style="cursor:pointer;">Shopify Sales: not synced</div>
+      <div class="topbar-pill" id="shopify-sales-pill" onclick="shopifySalesPillClick()" style="cursor:pointer;">Sales Check: not synced</div>
       <div class="topbar-pill" id="nav-count">— SKUs</div>
       <div class="screen-nav">
         <button class="screen-btn active" id="btn-dashboard" onclick="showScreen('dashboard')">📊 Dashboard</button>
@@ -2146,7 +2146,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.5.4';
+const APP_VERSION='v2.5.5';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -9390,20 +9390,20 @@ function updateShopifySalesToggleUI(){
   if(!el)return;
   let status,warn=false;
   if(_shopifySalesSyncing){
-    status='Syncing… (first run can take a few minutes)';
+    status='Syncing…';
   }else if(_shopifySalesLastError){
     status='Sync failed';warn=true;
   }else{
     const ts=(()=>{try{return JSON.parse(localStorage.getItem(SHOPIFY_SALES_CACHE_KEY)||'null')?.ts||0}catch(e){return 0}})();
     if(ts){
       const mins=Math.round((Date.now()-ts)/60000);
-      status=(mins<1?'Synced just now':`Synced ${mins}m ago`)+' — click to compare';
+      status=mins<1?'Synced just now':`Synced ${mins}m ago`;
     }else{
-      status='Not synced — click to run (research overlay)';
+      status='Not synced';
     }
   }
-  el.innerHTML=`<span class="live-dot" style="background:${warn?'#dc2626':'#9ca3af'}"></span>Shopify Sales: ${status}`;
-  el.title=warn?`Last sync failed: ${_shopifySalesLastError}\nClick to retry`:'Research overlay — sources sales directly from Shopify\'s Orders API for comparison against the numbers shown elsewhere. Does not affect any displayed totals yet.';
+  el.innerHTML=`<span class="live-dot" style="background:${warn?'#dc2626':'#9ca3af'}"></span>Sales Check: ${status}`;
+  el.title=warn?`Last sync failed: ${_shopifySalesLastError}\nClick to retry`:'Click to run/compare. Research overlay — sources sales directly from Shopify\'s Orders API for comparison against the numbers shown elsewhere (first run can take a few minutes). Does not affect any displayed totals yet.';
 }
 async function shopifySalesPillClick(){
   if(_shopifySalesSyncing)return;
@@ -11508,6 +11508,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.5.5 — Fix the header "Shopify Sales" research-overlay pill wrapping onto 3+ lines and blowing out the topbar height at normal widths: shortened its label ("Shopify Sales"→"Sales Check") and trimmed the dynamic status text ("Not synced — click to run (research overlay)"→"Not synced", "Synced Xm ago — click to compare"→"Synced Xm ago", "Syncing… (first run can take a few minutes)"→"Syncing…") — the dropped detail moved into the pill's title tooltip instead of being lost. Purely cosmetic; no change to the sync/compare logic itself
 // v2.5.4 — Order Priorities > Category mode: black (non-shortfall) categories now show their actual surplus cover at the tightest month in the window, instead of a flat 0 — same worst-month figure the red shortfall categories use, just positive instead of negative. Methodology and closing notes reworded to describe surplus rather than "Order Qty 0". Red shortfall figures and Product mode are unchanged
 // v2.5.3 — Order Priorities > Category mode: show every selected category, not just short ones — categories with enough cover now show Order Qty 0 in black instead of being dropped entirely, while categories that need ordering stay red. Product mode is unchanged (still lists shortfall SKUs only — too many to usefully show every one). Summary paragraphs, methodology and closing notes all updated to describe the shortfall subset correctly even though the table itself now shows everyone
 // v2.5.2 — Order Priorities > Category mode: sort the category list alphabetically instead of by units needed descending (easier to work through systematically), and colour the Order Qty figure red to flag it clearly
