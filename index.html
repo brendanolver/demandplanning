@@ -1387,6 +1387,13 @@ th{position:relative;}
       <div id="op-embedded-panel" style="display:none;">
         <div class="no-print" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:18px;">
           <div>
+            <div style="font-size:10px;font-weight:600;color:var(--text-muted);margin-bottom:3px;">GROUP BY</div>
+            <div style="display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:3px;gap:2px;">
+              <button id="op-gran-product" onclick="setOpGranularity('product')" style="border:none;cursor:pointer;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;padding:6px 14px;border-radius:999px;transition:all 0.15s;background:var(--teal);color:white;">📦 Product</button>
+              <button id="op-gran-category" onclick="setOpGranularity('category')" style="border:none;cursor:pointer;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;padding:6px 14px;border-radius:999px;transition:all 0.15s;background:transparent;color:var(--text-secondary);">🗂 Category</button>
+            </div>
+          </div>
+          <div>
             <div style="font-size:10px;font-weight:600;color:var(--text-muted);margin-bottom:3px;">PLAN FROM</div>
             <select id="op-plan-from" onchange="opRenderReport()" style="padding:7px 10px;border:1px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:12.5px;color:var(--text);background:var(--surface2);outline:none;min-width:110px;">
               <option value="">—</option>
@@ -2139,7 +2146,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.5.0';
+const APP_VERSION='v2.5.1';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -8176,12 +8183,77 @@ function exportPlanningExcel(){
    and Export Excel already use) via opBuildDataFromPlanning() below, so this is
    always in sync with the current filters — not a separate data source. */
 let opData=null; // {generatedDate, months:[{label}], skus:[{category,product,colour,soh,wksCover,months:[{budget,soh,onOrder,toOrder,variance}]}]}
+let opGranularity='product'; // 'product' | 'category'
+
+// Pooled category-level plan data for Order Priorities' "By Category" mode — sums
+// Budget/SOH/On Order across EVERY product in the category each month, then runs
+// the same rolling-SOH worst-month math buildCells() uses, pooled by category
+// instead of by individual product. Crucially, unlike the product-level path
+// (window._planExportRows, sourced from Planning's product row list), SOH here
+// includes pre-release/AM-only styles too — Product view excludes them (no sales
+// history to build a Budget from), but a category-wide total should still count
+// their stock and on-order, which is exactly what this fixes: a category total
+// that only reflected already-live styles undercounts what a new season's indent
+// is bringing in. Budget/On Order already come from getLYSalesByCategory()/
+// getAMOnOrderByCategory(), which never had that gap — only SOH needed fixing.
+function buildCategoryPlanData(catsFilter){
+  const months=getPlanMonths();
+  const activeAll=getActiveRows().filter(r=>(r.category||'UNCATEGORISED').toUpperCase()!=='GWP');
+  const catSohAll={};
+  for(const r of activeAll){
+    const c=r.category||'UNCATEGORISED';
+    if(catsFilter&&catsFilter.size>0&&!catsFilter.has(c))continue;
+    catSohAll[c]=(catSohAll[c]||0)+(r.stock||0);
+  }
+  const lyData=getLYSalesByCategory(months);
+  const onOrderData=getAMOnOrderByCategory(months);
+  const saved=getPlanningData();
+  const coverMonths=Math.max(1,Math.min(12,parseInt(saved['cover_months'])||2));
+  const cats=Object.keys(catSohAll).sort();
+  const skus=cats.map(cat=>{
+    let rollingSoh=catSohAll[cat]||0;
+    const lySource=lyData[cat]||{};
+    const onOrderSource=onOrderData[cat]||{};
+    const monthsData=months.map((m,mi)=>{
+      const growth=parseFloat(saved[`growth_${m.key}`]||0)||0;
+      const budget=Math.round((lySource[m.key]||0)*(1+growth/100));
+      const onOrder=Math.round(onOrderSource[m.key]||0);
+      const currentSoh=Math.max(0,Math.round(rollingSoh));
+      let cov=0;
+      for(let j=0;j<coverMonths;j++){const fm=months[mi+j];if(!fm)break;const fg=parseFloat(saved[`growth_${fm.key}`]||0)||0;cov+=Math.round((lySource[fm.key]||0)*(1+fg/100));}
+      const variance=cov===0?null:(currentSoh+onOrder)-cov;
+      rollingSoh=rollingSoh-budget+onOrder;
+      return{label:m.label,budget,soh:currentSoh,onOrder,toOrder:0,variance};
+    });
+    return{category:cat,product:cat,colour:'',soh:catSohAll[cat]||0,months:monthsData};
+  });
+  return{months:months.map(m=>({label:m.label})),skus};
+}
 
 // Adapts window._planExportRows/_planExportMonths (built by renderPlanning(), see
 // buildCells() above) into the same {months,skus} shape opRenderReport() expects —
 // this is the only thing that changed when Order Priorities stopped reading an
-// uploaded file; opRenderReport() itself needed zero changes.
+// uploaded file; opRenderReport() itself needed zero changes for product mode.
+// Category mode instead pools via buildCategoryPlanData() above.
 function opBuildDataFromPlanning(){
+  const generatedDate=new Date().toLocaleDateString('en-AU',{day:'numeric',month:'long',year:'numeric'});
+  if(opGranularity==='category'){
+    // Scope to selected categories; if only specific products were searched
+    // (no whole category ticked), derive their categories so category mode still
+    // shows something sensible rather than an empty "select a category" prompt.
+    let catsFilter=null;
+    if(planSelectedCats.size>0){
+      catsFilter=planSelectedCats;
+    }else if(planSelectedProds.size>0){
+      catsFilter=new Set();
+      for(const pk of planSelectedProds){
+        const r=allVariantRows.find(r=>(r.productName+'||'+r.colour)===pk);
+        if(r)catsFilter.add(r.category||'UNCATEGORISED');
+      }
+    }
+    const{months,skus}=buildCategoryPlanData(catsFilter);
+    return{generatedDate,months,skus};
+  }
   const rows=window._planExportRows||[];
   const months=(window._planExportMonths||[]).map(m=>({label:m.label}));
   const skus=rows.map(r=>({
@@ -8195,7 +8267,17 @@ function opBuildDataFromPlanning(){
     // the same way here so downstream math never has to special-case either source.
     months:r.months.map(m=>({label:m.label,budget:m.budget,soh:m.soh,onOrder:m.onOrder,toOrder:m.toOrder,variance:m.variance??0}))
   }));
-  return{generatedDate:new Date().toLocaleDateString('en-AU',{day:'numeric',month:'long',year:'numeric'}),months,skus};
+  return{generatedDate,months,skus};
+}
+
+function setOpGranularity(val){
+  opGranularity=val;
+  const prodBtn=document.getElementById('op-gran-product');
+  const catBtn=document.getElementById('op-gran-category');
+  if(prodBtn){prodBtn.style.background=val==='product'?'var(--teal)':'transparent';prodBtn.style.color=val==='product'?'white':'var(--text-secondary)';}
+  if(catBtn){catBtn.style.background=val==='category'?'var(--teal)':'transparent';catBtn.style.color=val==='category'?'white':'var(--text-secondary)';}
+  opData=opBuildDataFromPlanning();
+  opRenderReport();
 }
 
 // Month options never change mid-session (Planning's rolling window is always
@@ -8314,90 +8396,47 @@ function opRenderReport(){
     return;
   }
 
+  const isCatMode=opGranularity==='category';
+  const rowNoun=isCatMode?'category':'SKU';
+  const rowNounCap=isCatMode?'Category':'SKU';
+  const rowNounPlural=isCatMode?'categories':'SKUs';
   const N=reportSkus.length;
   const totalUnits=reportSkus.reduce((s,r)=>s+r.orderQty,0);
   const M=reportSkus.filter(r=>r.hasWindowOnOrder).length;
   const K=hasRef?reportSkus.filter(r=>r.hasRefOnOrder).length:0;
-
-  const catMap={};
-  for(const r of reportSkus){
-    if(!catMap[r.category])catMap[r.category]={category:r.category,skusShort:0,soh:0,refBudget:0,refOnOrder:0,windowBudget:0,windowOnOrder:0,unitsNeeded:0,skus:[]};
-    const c=catMap[r.category];
-    c.skusShort++;c.soh+=r.soh;c.refBudget+=r.refBudget;c.refOnOrder+=r.refOnOrder;
-    c.windowBudget+=r.windowMonthsData.reduce((s,m)=>s+m.budget,0);
-    c.windowOnOrder+=r.windowMonthsData.reduce((s,m)=>s+m.onOrder,0);
-    c.unitsNeeded+=r.orderQty;
-    c.skus.push(r);
-  }
-  const categories=Object.values(catMap).sort((a,b)=>b.unitsNeeded-a.unitsNeeded);
-  // Category summary stays sorted by units needed (biggest problem first), but
-  // the per-category product list sorts alphabetically — easier to work through
-  // when placing the actual order than hunting by quantity
-  for(const c of categories)c.skus.sort((a,b)=>a.product.localeCompare(b.product)||a.colour.localeCompare(b.colour));
   const titleCase=s=>String(s||'').toLowerCase().replace(/\b\w/g,c=>c.toUpperCase());
 
   // Header
   const headerHtml=`
     <div class="op-report-header">
       <div class="op-report-title">WNDRR</div>
-      <div class="op-report-subtitle">Stock Order Priorities — Core Range</div>
+      <div class="op-report-subtitle">Stock Order Priorities — Core Range${isCatMode?' (by Category)':''}</div>
       <div class="op-report-meta">Planning window: ${metaWindowLabel} | Source: live Planning data, as of ${opData.generatedDate}</div>
     </div>`;
 
   // Summary paragraphs — bold spans matching the reference report exactly
-  const p1=`<strong>${opFmt(N)} core SKUs</strong> have no stock or on-order cover for at least one month in the ${windowLabel} window. Closing every gap at its worst point needs a minimum of <strong>${opFmt(totalUnits)} units</strong> ordered across the range. This document lists only what's short — overstocked lines aren't included here.`;
+  const p1=`<strong>${opFmt(N)} core ${rowNounPlural}</strong> have no stock or on-order cover for at least one month in the ${windowLabel} window. Closing every gap at its worst point needs a minimum of <strong>${opFmt(totalUnits)} units</strong> ordered across the range. This document lists only what's short — overstocked lines aren't included here.`;
   const p2=M===0
-    ?`<strong>None of these ${opFmt(N)} SKUs currently have any stock on order for ${windowLabel}.</strong> Every gap below is completely unaddressed — there's nothing already inbound to net off against any of it.`
-    :`<strong>${opFmt(M)} of these ${opFmt(N)} SKUs already have some stock on order within the window</strong> (see the Ord columns below) — the Order Qty figure already accounts for it.`;
+    ?`<strong>None of these ${opFmt(N)} ${rowNounPlural} currently have any stock on order for ${windowLabel}.</strong> Every gap below is completely unaddressed — there's nothing already inbound to net off against any of it.`
+    :`<strong>${opFmt(M)} of these ${opFmt(N)} ${rowNounPlural} already have some stock on order within the window</strong> (see the Ord columns below) — the Order Qty figure already accounts for it.`;
   const p3=!hasRef?'':(K>0
-    ?`<strong>${opFmt(K)} of these ${opFmt(N)} SKUs had stock on order in ${refLabelWithYear}</strong> (see the new column below), but it's largely spoken for — ${refLabelShort} budgeted sales absorb most or all of it before the ${windowLabel} window even starts. These aren't gaps caused by ignoring stock that's already coming; the incoming stock is already being sold.`
-    :`<strong>None of these ${opFmt(N)} SKUs had any stock on order in ${refLabelWithYear} either</strong> — the shortfalls below aren't offset by anything already inbound before the ${windowLabel} window starts.`);
+    ?`<strong>${opFmt(K)} of these ${opFmt(N)} ${rowNounPlural} had stock on order in ${refLabelWithYear}</strong> (see the new column below), but it's largely spoken for — ${refLabelShort} budgeted sales absorb most or all of it before the ${windowLabel} window even starts. These aren't gaps caused by ignoring stock that's already coming; the incoming stock is already being sold.`
+    :`<strong>None of these ${opFmt(N)} ${rowNounPlural} had any stock on order in ${refLabelWithYear} either</strong> — the shortfalls below aren't offset by anything already inbound before the ${windowLabel} window starts.`);
   const summaryHtml=`<div class="op-summary"><p>${p1}</p><p>${p2}</p>${p3?`<p>${p3}</p>`:''}</div>`;
 
-  // Category summary table
-  const catTotals={skusShort:N,soh:0,refBudget:0,refOnOrder:0,windowBudget:0,windowOnOrder:0,unitsNeeded:totalUnits};
-  for(const c of categories){catTotals.soh+=c.soh;catTotals.refBudget+=c.refBudget;catTotals.refOnOrder+=c.refOnOrder;catTotals.windowBudget+=c.windowBudget;catTotals.windowOnOrder+=c.windowOnOrder;}
-  const catHeaderCells=['Category','SKUs short','SOH']
-    .concat(hasRef?[`${refLabelWithYear} Budget`,`${refLabelWithYear} On Order`]:[])
-    .concat([`${windowLabel} Budget`,`${windowLabel} On Order`,'Units needed']);
-  const catRowsHtml=categories.map(c=>`<tr>
-    <td class="op-left">${titleCase(c.category)}</td>
-    <td>${opFmt(c.skusShort)}</td>
-    <td>${opFmt(c.soh)}</td>
-    ${hasRef?`<td>${opFmt(c.refBudget)}</td><td>${opFmt(c.refOnOrder)}</td>`:''}
-    <td>${opFmt(c.windowBudget)}</td>
-    <td>${opFmt(c.windowOnOrder)}</td>
-    <td class="op-bold">${opFmt(c.unitsNeeded)}</td>
-  </tr>`).join('');
-  const catTotalRow=`<tr class="op-total-row">
-    <td class="op-left">Total</td>
-    <td>${opFmt(catTotals.skusShort)}</td>
-    <td>${opFmt(catTotals.soh)}</td>
-    ${hasRef?`<td>${opFmt(catTotals.refBudget)}</td><td>${opFmt(catTotals.refOnOrder)}</td>`:''}
-    <td>${opFmt(catTotals.windowBudget)}</td>
-    <td>${opFmt(catTotals.windowOnOrder)}</td>
-    <td>${opFmt(catTotals.unitsNeeded)}</td>
-  </tr>`;
-  const catTableHtml=`<div class="op-table-wrap"><table class="op-table op-summary-table">
-    <thead><tr>${catHeaderCells.map(h=>`<th class="${h==='Category'?'op-left':''}">${h}</th>`).join('')}</tr></thead>
-    <tbody>${catRowsHtml}${catTotalRow}</tbody>
-  </table></div>`;
-
-  // Methodology note — sits right under the category summary table
-  const methodologyHtml=`<div class="op-note"><p>"Order qty" is the size of the largest single-month gap for that SKU within ${windowLabel} (current SOH + confirmed on-order for that month, less that month's budget). Ordering this many units clears the worst point in the window; it isn't a sum of every month's shortfall, so it won't double count. "Ord" columns show confirmed on-order stock due to land that month — already netted into the Order qty figure, shown here so you can see what's (or isn't) already covering each gap.${hasRef?` "${refLabelWithYear} Bud / Ord" is a combined reference column, not part of the Order qty calculation: total budgeted sales and total confirmed on-order across the ${opNumberWord(refMonths.length)} month${refMonths.length===1?'':'s'} before the window, so you can see what's already been drawing down or topping up stock going into ${planFromFull}.`:''}</p></div>`;
-
-  // Per-category detail tables
-  const detailSections=categories.map(c=>{
-    const headerBar=`<div class="op-cat-bar"><span>${titleCase(c.category)}</span><span>${opFmt(c.skusShort)} SKU${c.skusShort===1?'':'s'} · ${opFmt(c.unitsNeeded)} unit${c.unitsNeeded===1?'':'s'} needed</span></div>`;
+  let catTableHtml='',detailSections='';
+  if(isCatMode){
+    // Category mode: each reportSkus entry already IS a category (pooled by
+    // buildCategoryPlanData) — one flat table, no nested per-category grouping.
+    reportSkus.sort((a,b)=>b.orderQty-a.orderQty);
     const monthHeaderCells=[];
     windowMonths.forEach(m=>{const s=opParseMonthLabel(m.label).short;monthHeaderCells.push(`${s} Bud`,`${s} Ord`);});
-    const detailHeaderCells=['Product','Colour','SOH'].concat(hasRef?[`${refLabelWithYear} Bud / Ord`]:[]).concat(monthHeaderCells).concat(['Worst month','Order qty']);
-    const rowsHtml=c.skus.map(r=>{
+    const headerCells=['Category','SOH'].concat(hasRef?[`${refLabelWithYear} Bud / Ord`]:[]).concat(monthHeaderCells).concat(['Worst month','Order qty']);
+    const rowsHtml=reportSkus.map(r=>{
       const refCombined=hasRef?`<td>${opFmt(r.refBudget)} / ${opFmt(r.refOnOrder)}</td>`:'';
       const monthCells=r.windowMonthsData.map(m=>`<td>${opFmt(m.budget)}</td><td>${opFmt(m.onOrder)}</td>`).join('');
       return`<tr>
-        <td class="op-left">${titleCase(r.product)}</td>
-        <td class="op-left">${titleCase(r.colour)}</td>
+        <td class="op-left">${titleCase(r.category)}</td>
         <td>${opFmt(r.soh)}</td>
         ${refCombined}
         ${monthCells}
@@ -8405,19 +8444,94 @@ function opRenderReport(){
         <td class="op-bold">${opFmt(r.orderQty)}</td>
       </tr>`;
     }).join('');
-    return`<div class="op-detail-section">
-      ${headerBar}
-      <div class="op-table-wrap">
-        <table class="op-table op-detail-table">
-          <thead><tr>${detailHeaderCells.map(h=>`<th class="${(h==='Product'||h==='Colour')?'op-left':''}">${h}</th>`).join('')}</tr></thead>
-          <tbody>${rowsHtml}</tbody>
-        </table>
-      </div>
-    </div>`;
-  }).join('');
+    catTableHtml=`<div class="op-table-wrap"><table class="op-table op-summary-table">
+      <thead><tr>${headerCells.map(h=>`<th class="${h==='Category'?'op-left':''}">${h}</th>`).join('')}</tr></thead>
+      <tbody>${rowsHtml}</tbody>
+    </table></div>`;
+  }else{
+    const catMap={};
+    for(const r of reportSkus){
+      if(!catMap[r.category])catMap[r.category]={category:r.category,skusShort:0,soh:0,refBudget:0,refOnOrder:0,windowBudget:0,windowOnOrder:0,unitsNeeded:0,skus:[]};
+      const c=catMap[r.category];
+      c.skusShort++;c.soh+=r.soh;c.refBudget+=r.refBudget;c.refOnOrder+=r.refOnOrder;
+      c.windowBudget+=r.windowMonthsData.reduce((s,m)=>s+m.budget,0);
+      c.windowOnOrder+=r.windowMonthsData.reduce((s,m)=>s+m.onOrder,0);
+      c.unitsNeeded+=r.orderQty;
+      c.skus.push(r);
+    }
+    const categories=Object.values(catMap).sort((a,b)=>b.unitsNeeded-a.unitsNeeded);
+    // Category summary stays sorted by units needed (biggest problem first), but
+    // the per-category product list sorts alphabetically — easier to work through
+    // when placing the actual order than hunting by quantity
+    for(const c of categories)c.skus.sort((a,b)=>a.product.localeCompare(b.product)||a.colour.localeCompare(b.colour));
 
-  // Closing note — sits at the very end, after every category's detail table
-  const closingHtml=`<div class="op-note"><p>Overstocked lines and colour-mix imbalances (e.g. surplus sitting in the wrong colourway of a style that's also short) aren't shown in this document — this is an ordering list only. Figures are drawn directly from the demand planning export; "Budget" reflects last year's sales plus budgeted increases, not a confirmed sales number.</p></div>`;
+    // Category summary table
+    const catTotals={skusShort:N,soh:0,refBudget:0,refOnOrder:0,windowBudget:0,windowOnOrder:0,unitsNeeded:totalUnits};
+    for(const c of categories){catTotals.soh+=c.soh;catTotals.refBudget+=c.refBudget;catTotals.refOnOrder+=c.refOnOrder;catTotals.windowBudget+=c.windowBudget;catTotals.windowOnOrder+=c.windowOnOrder;}
+    const catHeaderCells=['Category','SKUs short','SOH']
+      .concat(hasRef?[`${refLabelWithYear} Budget`,`${refLabelWithYear} On Order`]:[])
+      .concat([`${windowLabel} Budget`,`${windowLabel} On Order`,'Units needed']);
+    const catRowsHtml=categories.map(c=>`<tr>
+      <td class="op-left">${titleCase(c.category)}</td>
+      <td>${opFmt(c.skusShort)}</td>
+      <td>${opFmt(c.soh)}</td>
+      ${hasRef?`<td>${opFmt(c.refBudget)}</td><td>${opFmt(c.refOnOrder)}</td>`:''}
+      <td>${opFmt(c.windowBudget)}</td>
+      <td>${opFmt(c.windowOnOrder)}</td>
+      <td class="op-bold">${opFmt(c.unitsNeeded)}</td>
+    </tr>`).join('');
+    const catTotalRow=`<tr class="op-total-row">
+      <td class="op-left">Total</td>
+      <td>${opFmt(catTotals.skusShort)}</td>
+      <td>${opFmt(catTotals.soh)}</td>
+      ${hasRef?`<td>${opFmt(catTotals.refBudget)}</td><td>${opFmt(catTotals.refOnOrder)}</td>`:''}
+      <td>${opFmt(catTotals.windowBudget)}</td>
+      <td>${opFmt(catTotals.windowOnOrder)}</td>
+      <td>${opFmt(catTotals.unitsNeeded)}</td>
+    </tr>`;
+    catTableHtml=`<div class="op-table-wrap"><table class="op-table op-summary-table">
+      <thead><tr>${catHeaderCells.map(h=>`<th class="${h==='Category'?'op-left':''}">${h}</th>`).join('')}</tr></thead>
+      <tbody>${catRowsHtml}${catTotalRow}</tbody>
+    </table></div>`;
+
+    // Per-category detail tables
+    detailSections=categories.map(c=>{
+      const headerBar=`<div class="op-cat-bar"><span>${titleCase(c.category)}</span><span>${opFmt(c.skusShort)} SKU${c.skusShort===1?'':'s'} · ${opFmt(c.unitsNeeded)} unit${c.unitsNeeded===1?'':'s'} needed</span></div>`;
+      const monthHeaderCells=[];
+      windowMonths.forEach(m=>{const s=opParseMonthLabel(m.label).short;monthHeaderCells.push(`${s} Bud`,`${s} Ord`);});
+      const detailHeaderCells=['Product','Colour','SOH'].concat(hasRef?[`${refLabelWithYear} Bud / Ord`]:[]).concat(monthHeaderCells).concat(['Worst month','Order qty']);
+      const rowsHtml=c.skus.map(r=>{
+        const refCombined=hasRef?`<td>${opFmt(r.refBudget)} / ${opFmt(r.refOnOrder)}</td>`:'';
+        const monthCells=r.windowMonthsData.map(m=>`<td>${opFmt(m.budget)}</td><td>${opFmt(m.onOrder)}</td>`).join('');
+        return`<tr>
+          <td class="op-left">${titleCase(r.product)}</td>
+          <td class="op-left">${titleCase(r.colour)}</td>
+          <td>${opFmt(r.soh)}</td>
+          ${refCombined}
+          ${monthCells}
+          <td class="op-left">${r.worstMonthLabel}</td>
+          <td class="op-bold">${opFmt(r.orderQty)}</td>
+        </tr>`;
+      }).join('');
+      return`<div class="op-detail-section">
+        ${headerBar}
+        <div class="op-table-wrap">
+          <table class="op-table op-detail-table">
+            <thead><tr>${detailHeaderCells.map(h=>`<th class="${(h==='Product'||h==='Colour')?'op-left':''}">${h}</th>`).join('')}</tr></thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // Methodology note — sits right under the summary table
+  const methodologyHtml=`<div class="op-note"><p>"Order qty" is the size of the largest single-month gap for that ${rowNoun} within ${windowLabel} (current SOH + confirmed on-order for that month, less that month's budget). Ordering this many units clears the worst point in the window; it isn't a sum of every month's shortfall, so it won't double count. "Ord" columns show confirmed on-order stock due to land that month — already netted into the Order qty figure, shown here so you can see what's (or isn't) already covering each gap.${hasRef?` "${refLabelWithYear} Bud / Ord" is a combined reference column, not part of the Order qty calculation: total budgeted sales and total confirmed on-order across the ${opNumberWord(refMonths.length)} month${refMonths.length===1?'':'s'} before the window, so you can see what's already been drawing down or topping up stock going into ${planFromFull}.`:''}${isCatMode?' Category totals include every style in that category, including brand-new ones not yet live on the site — not just already-established products.':''}</p></div>`;
+
+  // Closing note — sits at the very end
+  const closingHtml=isCatMode
+    ?`<div class="op-note"><p>Overstocked categories aren't shown in this document — this is an ordering list only. Figures are drawn directly from live Planning data; "Budget" reflects last year's sales plus budgeted increases, not a confirmed sales number.</p></div>`
+    :`<div class="op-note"><p>Overstocked lines and colour-mix imbalances (e.g. surplus sitting in the wrong colourway of a style that's also short) aren't shown in this document — this is an ordering list only. Figures are drawn directly from the demand planning export; "Budget" reflects last year's sales plus budgeted increases, not a confirmed sales number.</p></div>`;
 
   body.innerHTML=headerHtml+summaryHtml+catTableHtml+methodologyHtml+detailSections+closingHtml;
   if(printBtn)printBtn.style.display='flex';
@@ -11378,6 +11492,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.5.1 — Order Priorities: add a "By Category" mode alongside the existing "By Product" one, via a small toggle next to Plan From/Coverage Until. Product mode is unchanged. Category mode pools Budget/SOH/On Order across every style in each category first, then finds the category's own worst month — rather than just summing each SKU's already-calculated Order Qty — so it catches category-wide gaps no single SKU shows on its own, and correctly counts brand-new pre-release styles (no Shopify SKU yet, so Product view's row list excludes them and they'd never surface a shortfall on their own) rather than only already-established styles. New buildCategoryPlanData() reuses buildCells()'s exact rolling-SOH/worst-month formula, pooled by category via getLYSalesByCategory()/getAMOnOrderByCategory() (both already category-scoped, no per-SKU exclusion) plus a fresh category SOH sum that — unlike Planning's own category view — doesn't exclude AM-only rows. Report layout in category mode is a single flat table (each row already is a category) instead of the product mode's summary-table-plus-per-category-detail-sections nesting, with wording adjusted throughout ("SKU"→"category")
 // v2.5.0 — Remove the Dashboard's left sidebar (Stock Alerts / Status quick-filter shortcuts) entirely — unused, was just taking up screen width. Removed the HTML, its CSS (including the mobile hamburger-toggle/slide-out-overlay variants across three responsive breakpoints), toggleSidebar(), renderSidebarCounts() and its 3 call sites, setSB() (already dead — never called), and quickVendor() (only ever called from the sidebar). Kept quickFlag() — it's also called by kpiDrillDown(), the Dashboard KPI tile click-through, which is unrelated to the sidebar and still needed. Main content now fills the full width freed up
 // v2.4.9 — Fix pre-release AM styles (open orders for products not yet live in Shopify, e.g. a new season's indent) missing entirely from Planning > Products' monthly On Order columns (and therefore Order Priorities, built on the same data) — Dashboard and Category view were unaffected. Root cause: _buildSkuPlanMap()'s fallback path (used when a style has no matching Shopify SKU) built the product lookup key as "STYLECODE||" instead of "ProductName||Colour", which nothing else in Planning ever looks up under — the on-order quantity was computed correctly but silently orphaned. Pre-release rows now match directly by their AM style code (processRows()' "AM-only products" block already puts the bare style in r.sku with no size suffix, so the old suffix-stripping logic never matched them) and use their real product name/colour, the same key format every other product uses. Also removed a meta.amOnly exclusion in getAMOnOrderByProduct() that read as intentional but was actually dead code — _buildSkuPlanMap() never set that field, so it never fired
 // v2.4.8 — Order Priorities: sort each category's product list alphabetically instead of by Order qty descending — easier to work through when actually placing the order. Category summary table is unchanged, still sorted by Units needed descending (biggest problem first)
