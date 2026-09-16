@@ -2146,7 +2146,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.5.3';
+const APP_VERSION='v2.5.4';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -8387,7 +8387,7 @@ function opRenderReport(){
     });
     const needsOrder=worstGap<0;
     if(!needsOrder&&!isCatMode)continue;
-    const orderQty=needsOrder?Math.abs(worstGap):0;
+    const orderQty=Math.abs(worstGap);
     let refBudget=0,refOnOrder=0;
     for(let i=0;i<planFromIdx;i++){refBudget+=sku.months[i].budget;refOnOrder+=sku.months[i].onOrder;}
     const windowMonthsData=windowMonths.map((m,i)=>({label:m.label,budget:sku.months[planFromIdx+i].budget,onOrder:sku.months[planFromIdx+i].onOrder}));
@@ -8542,11 +8542,11 @@ function opRenderReport(){
   }
 
   // Methodology note — sits right under the summary table
-  const methodologyHtml=`<div class="op-note"><p>"Order qty" is the size of the largest single-month gap for that ${rowNoun} within ${windowLabel} (current SOH + confirmed on-order for that month, less that month's budget). Ordering this many units clears the worst point in the window; it isn't a sum of every month's shortfall, so it won't double count. "Ord" columns show confirmed on-order stock due to land that month — already netted into the Order qty figure, shown here so you can see what's (or isn't) already covering each gap.${hasRef?` "${refLabelWithYear} Bud / Ord" is a combined reference column, not part of the Order qty calculation: total budgeted sales and total confirmed on-order across the ${opNumberWord(refMonths.length)} month${refMonths.length===1?'':'s'} before the window, so you can see what's already been drawing down or topping up stock going into ${planFromFull}.`:''}${isCatMode?' Category totals include every style in that category, including brand-new ones not yet live on the site — not just already-established products. An Order Qty of 0 (shown in black) means that category has enough cover throughout the window — it isn\'t a gap.':''}</p></div>`;
+  const methodologyHtml=`<div class="op-note"><p>"Order qty" is the size of the largest single-month gap for that ${rowNoun} within ${windowLabel} (current SOH + confirmed on-order for that month, less that month's budget). Ordering this many units clears the worst point in the window; it isn't a sum of every month's shortfall, so it won't double count. "Ord" columns show confirmed on-order stock due to land that month — already netted into the Order qty figure, shown here so you can see what's (or isn't) already covering each gap.${hasRef?` "${refLabelWithYear} Bud / Ord" is a combined reference column, not part of the Order qty calculation: total budgeted sales and total confirmed on-order across the ${opNumberWord(refMonths.length)} month${refMonths.length===1?'':'s'} before the window, so you can see what's already been drawing down or topping up stock going into ${planFromFull}.`:''}${isCatMode?' Category totals include every style in that category, including brand-new ones not yet live on the site — not just already-established products. An Order Qty shown in black is a surplus, not a gap — it\'s how many units of cover that category still has at its tightest point in the window, above and beyond what\'s needed.':''}</p></div>`;
 
   // Closing note — sits at the very end
   const closingHtml=isCatMode
-    ?`<div class="op-note"><p>Every selected category is listed above, including ones that don't need ordering (shown in black, Order Qty 0) — only Order Qty figures in red require action. Figures are drawn directly from live Planning data; "Budget" reflects last year's sales plus budgeted increases, not a confirmed sales number.</p></div>`
+    ?`<div class="op-note"><p>Every selected category is listed above, including ones that don't need ordering — those show their surplus cover in black, while categories that do need ordering show the units short in red; only red figures require action. Figures are drawn directly from live Planning data; "Budget" reflects last year's sales plus budgeted increases, not a confirmed sales number.</p></div>`
     :`<div class="op-note"><p>Overstocked lines and colour-mix imbalances (e.g. surplus sitting in the wrong colourway of a style that's also short) aren't shown in this document — this is an ordering list only. Figures are drawn directly from the demand planning export; "Budget" reflects last year's sales plus budgeted increases, not a confirmed sales number.</p></div>`;
 
   body.innerHTML=headerHtml+summaryHtml+catTableHtml+methodologyHtml+detailSections+closingHtml;
@@ -11508,6 +11508,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.5.4 — Order Priorities > Category mode: black (non-shortfall) categories now show their actual surplus cover at the tightest month in the window, instead of a flat 0 — same worst-month figure the red shortfall categories use, just positive instead of negative. Methodology and closing notes reworded to describe surplus rather than "Order Qty 0". Red shortfall figures and Product mode are unchanged
 // v2.5.3 — Order Priorities > Category mode: show every selected category, not just short ones — categories with enough cover now show Order Qty 0 in black instead of being dropped entirely, while categories that need ordering stay red. Product mode is unchanged (still lists shortfall SKUs only — too many to usefully show every one). Summary paragraphs, methodology and closing notes all updated to describe the shortfall subset correctly even though the table itself now shows everyone
 // v2.5.2 — Order Priorities > Category mode: sort the category list alphabetically instead of by units needed descending (easier to work through systematically), and colour the Order Qty figure red to flag it clearly
 // v2.5.1 — Order Priorities: add a "By Category" mode alongside the existing "By Product" one, via a small toggle next to Plan From/Coverage Until. Product mode is unchanged. Category mode pools Budget/SOH/On Order across every style in each category first, then finds the category's own worst month — rather than just summing each SKU's already-calculated Order Qty — so it catches category-wide gaps no single SKU shows on its own, and correctly counts brand-new pre-release styles (no Shopify SKU yet, so Product view's row list excludes them and they'd never surface a shortfall on their own) rather than only already-established styles. New buildCategoryPlanData() reuses buildCells()'s exact rolling-SOH/worst-month formula, pooled by category via getLYSalesByCategory()/getAMOnOrderByCategory() (both already category-scoped, no per-SKU exclusion) plus a fresh category SOH sum that — unlike Planning's own category view — doesn't exclude AM-only rows. Report layout in category mode is a single flat table (each row already is a category) instead of the product mode's summary-table-plus-per-category-detail-sections nesting, with wording adjusted throughout ("SKU"→"category")
