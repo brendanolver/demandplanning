@@ -362,27 +362,6 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
   body.printing-deliveries .cadence-table th,body.printing-deliveries .cadence-table td{padding:5px 8px!important;}
   body.printing-deliveries .cadence-table tr{break-inside:avoid;}
 }
-/* Planning print — gated by body.printing-planning, same isolation pattern as Deliveries above */
-@media print{
-  body.printing-planning .topbar,body.printing-planning .sidebar,body.printing-planning #dashboard-layout,
-  body.printing-planning #cadence-screen,body.printing-planning #markdowns-screen,
-  body.printing-planning #performance-screen,body.printing-planning #insights-screen,body.printing-planning #deliveries-screen,
-  body.printing-planning #upload-screen,body.printing-planning #password-screen,body.printing-planning #loading-screen,
-  body.printing-planning .sidebar-overlay{display:none!important;}
-  body.printing-planning #app{display:block!important;height:auto!important;overflow:visible!important;}
-  body.printing-planning #planning-screen{display:block!important;height:auto!important;overflow:visible!important;padding:16px!important;}
-  body.printing-planning .planning-wrap{max-width:100%!important;}
-  body.printing-planning .plan-table-wrap{overflow:visible!important;}
-  /* This table has a LOT of columns (up to 13 months x 5 sub-columns) — the base
-     white-space:nowrap forces every cell to its unwrapped width, which is wider
-     than any page, so content past the right margin was silently clipped instead
-     of shrinking. Force wrapping + a fixed layout so the browser actually respects
-     width:100% and compresses columns to fit, rather than overflowing the page. */
-  body.printing-planning .plan-table{width:100%!important;table-layout:fixed!important;font-size:9px!important;}
-  body.printing-planning .plan-table th,body.printing-planning .plan-table td{padding:3px 4px!important;position:static!important;white-space:normal!important;word-break:break-word!important;}
-  body.printing-planning .plan-table tr{break-inside:avoid;}
-}
-
 /* Insights screen */
 #insights-screen{flex:1;overflow-y:auto;padding:24px;}
 .insights-wrap{max-width:900px;margin:0 auto;}
@@ -1410,7 +1389,7 @@ th{position:relative;}
           </div>
           <button onclick="planSendToSizeWorkings()" style="padding:7px 16px;background:#8b5cf6;color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">📐 Send to Size Workings</button>
           <button class="insights-refresh-btn" onclick="clearPlanningData()" style="background:var(--surface);border:1px solid var(--border);color:var(--text-secondary);">✕ Clear All</button>
-          <button id="plan-print-btn" class="tb-btn accent" style="display:none;background:#e11d48;border-color:#e11d48;padding:7px 12px;font-size:12px;" onclick="printPlanningPDF()">🖨️ Print / PDF</button>
+          <button id="plan-export-btn" class="tb-btn accent" style="display:none;padding:7px 12px;font-size:12px;" onclick="exportPlanningExcel()">⬇ Export Excel</button>
         </div>
       </div>
       <div id="plan-pin-panel" class="no-print" style="display:none;margin-bottom:12px;">
@@ -1438,7 +1417,6 @@ th{position:relative;}
           <button onclick="planProdClearFilters()" class="clear-btn" id="plan-prod-clear" style="display:none;">✕ Clear</button>
         </div>
       </div>
-      <div id="planning-print-header" class="print-only"></div>
       <div id="planning-body">
         <div class="insights-empty">
           <div class="insights-empty-ico">📋</div>
@@ -2197,7 +2175,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.4.2';
+const APP_VERSION='v2.4.3';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -4057,10 +4035,10 @@ function renderPlanning(){
   if(prodBtn){prodBtn.style.background=planView==='product'?'var(--teal)':'transparent';prodBtn.style.color=planView==='product'?'white':'var(--text-secondary)';}
   const pinPanel=document.getElementById('plan-pin-panel');
   if(pinPanel)pinPanel.style.display=planView==='product'?'block':'none';
-  // Print/export is Product-view only — Category view's rollup table isn't what
-  // this is for (feeding a product-level list into an external tool for gap-checking)
-  const printBtn=document.getElementById('plan-print-btn');
-  if(printBtn)printBtn.style.display=planView==='product'?'flex':'none';
+  // Export is Product-view only — Category view's rollup table isn't what this is
+  // for (feeding a product-level list into an external tool for gap-checking)
+  const exportBtn=document.getElementById('plan-export-btn');
+  if(exportBtn)exportBtn.style.display=planView==='product'?'flex':'none';
   // Only repopulate category dropdown on initial switch to product view
   if(planView==='product'&&!document.querySelector('#ms-plan-cat-options label')){
     planPopulateCatDropdown();
@@ -4108,9 +4086,14 @@ function renderPlanning(){
   const planThStyle='cursor:pointer;user-select:none;';
   const monthHeaders=months.map(m=>`<th class="plan-month" colspan="5" style="border-left:2px solid var(--border);${m.isCurrent?'background:rgba(14,165,160,0.12);color:var(--teal);':''}">${m.label}${m.isCurrent?` <span style="font-size:9px;opacity:0.8;">(${Math.round(m.prorateRatio*100)}%)</span>`:''}</th>`).join('');
   const subHeaders=months.map(()=>`<th style="border-left:2px solid var(--border);">Budget</th><th>SOH</th><th>On Order</th><th>To Order</th><th>Variance</th>`).join('');
+  // Returns {html, cells} — cells is the same per-month figures as raw numbers
+  // (budget/soh/onOrder/toOrder/variance), reused by exportPlanningExcel() so the
+  // export is always the exact same math as the screen, not a second calculation
+  // that could quietly drift out of sync with this one.
   function buildCells(lySource,onOrderSource,toOrderPrefix,soh){
     let rollingSoh=soh;
-    return months.map((m,mi)=>{
+    const cells=[];
+    const html=months.map((m,mi)=>{
       const growth=parseFloat(saved[`growth_${m.key}`]||0)||0;
       const budget=Math.round((lySource[m.key]||0)*(1+growth/100));
       const onOrder=Math.round(onOrderSource[m.key]||0);
@@ -4125,12 +4108,14 @@ function renderPlanning(){
       const varClass=cov===0?'':(variance<0?'plan-variance-warn':variance>=budget*3?'plan-variance-over':'plan-variance-ok');
       const bg=m.isCurrent?'background:rgba(14,165,160,0.04);':'';
       rollingSoh=rollingSoh-budget+onOrder+toOrder;
+      cells.push({label:m.label,budget,soh:currentSoh,onOrder,toOrder,variance:cov===0?null:variance});
       return`<td style="border-left:2px solid var(--border);${bg}"><span class="plan-budget">${budget>0?budget.toLocaleString():'—'}</span></td>
         <td style="${bg}"><span class="${currentSoh>0?'plan-soh':'cell-muted'}">${currentSoh>0?currentSoh.toLocaleString():'—'}</span></td>
         <td style="${bg}"><span class="${onOrder>0?'plan-onorder':'cell-muted'}">${onOrder>0?onOrder.toLocaleString():'—'}</span></td>
         <td style="padding:3px 5px;${bg}">${m.isCurrent?`<span style="font-size:11px;color:var(--text-muted);font-style:italic;">current</span>`:`<input class="plan-input" type="number" min="0" step="1" placeholder="${suggest>0?suggest:''}" value="${toOrderVal}" style="${!toOrderVal&&suggest>0?'color:#f97316;':''}" onchange="savePlanField('${toOrderKey}',this.value);renderPlanning();">`}</td>
         <td style="${bg}"><span class="${varClass}">${cov===0?'—':(variance>=0?'+':'')+variance.toLocaleString()}</span></td>`;
     }).join('');
+    return{html,cells};
   }
   // In product view with no selection, show prompt
   if(planView==='product'&&planSelectedProds.size===0&&planSelectedCats.size===0){
@@ -4142,6 +4127,9 @@ function renderPlanning(){
     return;
   }
 
+  // Populated only in Product view — one entry per visible row, raw numbers,
+  // consumed by exportPlanningExcel() so the export always matches this exact render.
+  const planExportRows=[];
   const catRows=sortedCats.map(cat=>{
     const soh=catSoh[cat]||0,vel=catVel30[cat]||0;
     const wksRaw=vel>0?(soh/(vel*7)):null,wks=wksRaw!==null?wksRaw.toFixed(1):null;
@@ -4157,11 +4145,13 @@ function renderPlanning(){
         const pSoh=prodSoh[p.pk]||0,pVel=prodVel30[p.pk]||0;
         const pWksRaw=pVel>0?(pSoh/(pVel*7)):null,pWks=pWksRaw!==null?pWksRaw.toFixed(1):null;
         const pWksClass=pWks===null?'plan-soh':parseFloat(pWks)>=12?'plan-wks-ok':'plan-wks-warn';
+        const built=buildCells(lyDataProd[p.pk]||{},onOrderDataProd[p.pk]||{},`to_prod_${p.pk}`,pSoh);
+        planExportRows.push({category:cat,productName:p.productName,colour:p.colour,soh:pSoh,wks:pWksRaw,months:built.cells});
         return`<tr style="background:var(--surface2);">
           <td class="plan-cat" style="padding-left:12px;font-size:12px;text-align:left;"><span style="font-weight:500;">${p.productName}</span><span style="color:var(--teal);"> — ${p.colour}</span></td>
           <td class="plan-soh" style="font-size:12px;">${pSoh.toLocaleString()}</td>
           <td class="${pWksClass}" style="font-size:12px;">${pWks!==null?pWks+'w':'—'}</td>
-          ${buildCells(lyDataProd[p.pk]||{},onOrderDataProd[p.pk]||{},`to_prod_${p.pk}`,pSoh)}</tr>`;
+          ${built.html}</tr>`;
       }).join('');
       return prodRows;
     }
@@ -4175,17 +4165,19 @@ function renderPlanning(){
         <td class="plan-cat" style="padding-left:28px;font-size:12px;text-align:left;"><span style="font-weight:500;">${p.productName}</span><span style="color:var(--teal);"> — ${p.colour}</span></td>
         <td class="plan-soh" style="font-size:12px;">${pSoh.toLocaleString()}</td>
         <td class="${pWksClass}" style="font-size:12px;">${pWks!==null?pWks+'w':'—'}</td>
-        ${buildCells(lyDataProd[p.pk]||{},onOrderDataProd[p.pk]||{},`to_prod_${p.pk}`,pSoh)}</tr>`;
+        ${buildCells(lyDataProd[p.pk]||{},onOrderDataProd[p.pk]||{},`to_prod_${p.pk}`,pSoh).html}</tr>`;
     }).join('');
 
     const catRow=`<tr style="cursor:pointer;" onclick="togglePlanExpand('${safeCat}')">
       <td class="plan-cat"><span style="display:inline-block;width:16px;text-align:center;font-size:10px;transform:${isExpanded?'rotate(90deg)':'rotate(0deg)'};transition:transform 0.15s;">▶</span> ${cat}</td>
       <td class="plan-soh">${soh.toLocaleString()}</td>
       <td class="${wksClass}">${wks!==null?wks+'w':'—'}</td>
-      ${buildCells(lyData[cat]||{},onOrderData[cat]||{},`to_${cat}`,soh)}</tr>`;
+      ${buildCells(lyData[cat]||{},onOrderData[cat]||{},`to_${cat}`,soh).html}</tr>`;
     if(!isExpanded)return catRow;
     return catRow+prodRows;
   }).join('');
+  window._planExportRows=planView==='product'?planExportRows:[];
+  window._planExportMonths=months;
 
   let totalRollingSoh=0;for(const cat of sortedCats)totalRollingSoh+=catSoh[cat]||0;
   const totalCells=months.map((m,mi)=>{
@@ -8126,10 +8118,20 @@ function printDeliveriesPDF(){
   setTimeout(cleanup,3000); // fallback in case afterprint doesn't fire
 }
 
-// Prints exactly what's on screen in Planning's Product view — every filter (Core/
-// Non-Core, Category, selected Products) and the current sort — so the export can
-// be fed straight into an external tool (e.g. an AI chat) to spot planning gaps.
-function printPlanningPDF(){
+// Exports exactly what's on screen in Planning's Product view — every filter (Core/
+// Non-Core, Category, selected Products) — as a real .xlsx, for feeding into an
+// external tool (e.g. an AI chat) to spot planning gaps. A genuine spreadsheet beats
+// a print/PDF here: no page-width clipping, no wrapped/shrunk text, real numeric
+// cells rather than formatted display strings. Reads window._planExportRows/
+// _planExportMonths, populated by renderPlanning() on every render — same numbers
+// as the screen, not a second calculation that could drift out of sync with it.
+function exportPlanningExcel(){
+  const rows=window._planExportRows||[];
+  const months=window._planExportMonths||[];
+  if(!rows.length){
+    alert('Nothing to export — select a category or search for products first.');
+    return;
+  }
   const now=new Date();
   const dateStr=now.toLocaleDateString('en-AU',{day:'numeric',month:'long',year:'numeric'});
   const filterBits=[];
@@ -8137,23 +8139,22 @@ function printPlanningPDF(){
   else if(globalCoreFilter==='noncore')filterBits.push('Non-Core only');
   if(planSelectedCats.size>0)filterBits.push(`Category: ${[...planSelectedCats].join(', ')}`);
   if(planSelectedProds.size>0)filterBits.push(`${planSelectedProds.size} product${planSelectedProds.size===1?'':'s'} selected`);
-  const filterLine=filterBits.length?`<div style="font-size:11px;color:#666;margin-top:4px;">${filterBits.join(' · ')}</div>`:'';
-  const el=document.getElementById('planning-print-header');
-  if(el){
-    el.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:2px solid #1a2740;margin-bottom:20px;"><div><div style="font-size:20px;font-weight:700;color:#1a2740;letter-spacing:-0.3px;">WNDRR — Planning (Product View)</div><div style="font-size:12px;color:#666;margin-top:2px;">Generated ${dateStr}</div>${filterLine}</div><div style="font-size:11px;color:#999;font-weight:500;">Demand Planning</div></div>`;
+
+  const header=['Category','Product','Colour','SOH','Wks Cover'];
+  for(const m of months)header.push(`${m.label} Budget`,`${m.label} SOH`,`${m.label} On Order`,`${m.label} To Order`,`${m.label} Variance`);
+
+  const aoa=[['WNDRR — Planning (Product View)'],[`Generated ${dateStr}`]];
+  if(filterBits.length)aoa.push([filterBits.join(' · ')]);
+  aoa.push([],header);
+  for(const r of rows){
+    const row=[r.category,r.productName,r.colour,r.soh,r.wks!=null?+r.wks.toFixed(1):null];
+    for(const m of r.months)row.push(m.budget,m.soh,m.onOrder,m.toOrder,m.variance);
+    aoa.push(row);
   }
-  // Landscape, for the extra width this many-columned table needs — @page can't be
-  // scoped by a body class in static CSS, so inject/remove it just for this print job
-  // rather than switching every other print (Insights/Deliveries) to landscape too.
-  const pageStyle=document.createElement('style');
-  pageStyle.id='planning-print-page-style';
-  pageStyle.textContent='@media print{@page{size:A4 landscape;margin:10mm;}}';
-  document.head.appendChild(pageStyle);
-  document.body.classList.add('printing-planning');
-  const cleanup=()=>{document.body.classList.remove('printing-planning');pageStyle.remove();window.removeEventListener('afterprint',cleanup);};
-  window.addEventListener('afterprint',cleanup);
-  window.print();
-  setTimeout(cleanup,3000); // fallback in case afterprint doesn't fire
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,'Planning');
+  XLSX.writeFile(wb,`wndrr-planning-${now.toISOString().slice(0,10)}.xlsx`);
 }
 
 /* ── AM CATALOGUE SYNC (launch dates + CORE collection) ──
@@ -11118,6 +11119,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.4.3 — Planning > Product view: swap the Print/PDF export for a real "Export Excel" (.xlsx) download — better fit for feeding into an AI chat than a print/PDF, since there's no page-width clipping, no wrapped/shrunk text, and cells are genuine numbers rather than formatted display strings. buildCells() now returns {html,cells} instead of just html, so renderPlanning() and the export always use the exact same per-month numbers — no separate calculation that could drift out of sync. Removes the printing-planning print CSS/button/header entirely (dead code, not a toggle)
 // v2.4.2 — Fix two real bugs in the new Planning print/PDF (v2.4.1), caught by a real exported PDF: (1) the print CSS hid the top nav/sidebar by ID (#topbar/#sidebar) but they're actually classes (.topbar/.sidebar) — the selector never matched anything, so the nav bar printed right into the PDF on every print/export (Insights and Deliveries had the exact same latent bug, fixed there too); (2) Planning's table genuinely got clipped — its cells force white-space:nowrap, so month columns past October ran off the page edge instead of shrinking to fit. Print now forces cells to wrap (table-layout:fixed, white-space:normal) so the full width actually compresses into the page, plus switches Planning's print job to A4 landscape (scoped to just this print via a dynamically injected/removed <style>, so Insights/Deliveries stay portrait)
 // v2.4.1 — Planning > Product view: add a "Print / PDF" button (same native-print pattern as Deliveries/Insights) so the currently-filtered, currently-sorted product list can be exported to feed into an external tool. Button only shows in Product view — Category view's rollup table isn't the shape this is for. Printed header states which filters were active (Core/Non-Core, Category, selected products) so the export is self-describing outside the app
 // v2.4.0 — Add a Shopify Order Sales overlay (research/validation only, not wired into any displayed totals yet): pulls sales directly from Shopify's own Orders/LineItems via the GraphQL Admin API (new netlify/functions/shopify-proxy.js, reading SHOPIFY_ADMIN_TOKEN) instead of through AM's re-booked copy of the same orders — LineItem.currentQuantity already excludes refunds/removals natively, no discount/commission reconstruction needed like the AM Phase 2 overlay requires. ShopifyQL's shopifyqlQuery was ruled out first: its 'sales' dataset is deprecated and the replacement 'orders' dataset can't group by variant_sku, so it can't give per-SKU numbers. Historical pull (365 days) uses a Bulk Operation (Shopify's recommended approach for a crawl this size, avoids GraphQL rate-limit throttling); a cheap top-up (last 4 days, plain paginated query) runs on the existing 10-min background cadence once the initial backfill exists. New "Shopify Sales" header pill triggers the sync and opens a comparison panel (or call compareShopifySalesVsApp(days) from the console) showing Shopify's numbers against the app's own salesBySkuDay side by side, so the data can be checked before it replaces anything. Also: moved the Apparel Magic API token out of am-proxy.js source (hardcoded and exposed in this public repo since Jul 2, 2026) into an AM_API_TOKEN env var — token has been rotated
