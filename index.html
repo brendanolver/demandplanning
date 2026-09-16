@@ -2260,7 +2260,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.4.8';
+const APP_VERSION='v2.4.9';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -3641,14 +3641,33 @@ function _buildSkuPlanMap(){
   const styleSet=new Set(amApiData.map(i=>(i.style_number||'').trim()).filter(Boolean));
   for(const r of allVariantRows){
     const sku=(r.sku||'').trim().toUpperCase();
+    if(!sku)continue;
+    // AM-only (pre-release, not yet in Shopify) rows: processRows()' "AM-only
+    // products" block sets r.sku to the bare style code with no size suffix
+    // appended, so match it directly rather than trying to strip a suffix that
+    // was never added — the suffix-stripping logic below is only valid for real
+    // Shopify SKUs. Without this branch, these rows fell through to the
+    // style-code-only fallback further down, which builds pk as "STYLE||" instead
+    // of "ProductName||Colour" — a key nothing else in Planning ever looks up, so
+    // pre-release styles' on-order figures were silently invisible to Planning >
+    // Products (and Order Priorities, built on the same data) despite being
+    // correctly present on the Dashboard and in Category view.
+    if(r.amOnly){
+      if(styleSet.has(sku)&&!m[sku]){
+        m[sku]={cat:(r.category||'UNCATEGORISED').toUpperCase(),pk:r.productName+'||'+r.colour};
+      }
+      continue;
+    }
     const size=(r.size||'').trim().toUpperCase();
-    if(!sku||!size)continue;
+    if(!size)continue;
     const baseSku=sku.endsWith(size)?sku.slice(0,-size.length):'';
     if(baseSku&&styleSet.has(baseSku)&&!m[baseSku]){
       m[baseSku]={cat:(r.category||'UNCATEGORISED').toUpperCase(),pk:r.productName+'||'+r.colour};
     }
   }
-  // Fallback: use AM product category for styles not matched via Shopify SKU (pre-release / uncategorised)
+  // Fallback: styles with an open AM order but no matching row anywhere in
+  // allVariantRows (genuinely unmatched) — use AM's own category, keyed by style
+  // code since there's no real product name/colour to key by here.
   const amCatMap=window.amStyleCategoryMap||{};
   for(const style of styleSet){
     if(!m[style]&&amCatMap[style]){
@@ -3709,7 +3728,7 @@ function getAMOnOrderByProduct(months){
   for(const item of amApiData){
     const qty=parseFloat(item.qty_open||0);if(qty<=0)continue;
     const sku=(item.style_number||'').trim();if(!sku)continue;
-    const meta=skuMap[sku];if(!meta||meta.amOnly)continue;
+    const meta=skuMap[sku];if(!meta)continue;
     const monthDue=parseDueGlobal(item.date_due);if(!monthDue)continue;
     const parts=monthDue.split(' - ');if(parts.length<2)continue;
     const yr=parseInt(parts[0]);const mi=MI.indexOf(parts[1].toLowerCase().trim());
@@ -11503,6 +11522,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.4.9 — Fix pre-release AM styles (open orders for products not yet live in Shopify, e.g. a new season's indent) missing entirely from Planning > Products' monthly On Order columns (and therefore Order Priorities, built on the same data) — Dashboard and Category view were unaffected. Root cause: _buildSkuPlanMap()'s fallback path (used when a style has no matching Shopify SKU) built the product lookup key as "STYLECODE||" instead of "ProductName||Colour", which nothing else in Planning ever looks up under — the on-order quantity was computed correctly but silently orphaned. Pre-release rows now match directly by their AM style code (processRows()' "AM-only products" block already puts the bare style in r.sku with no size suffix, so the old suffix-stripping logic never matched them) and use their real product name/colour, the same key format every other product uses. Also removed a meta.amOnly exclusion in getAMOnOrderByProduct() that read as intentional but was actually dead code — _buildSkuPlanMap() never set that field, so it never fired
 // v2.4.8 — Order Priorities: sort each category's product list alphabetically instead of by Order qty descending — easier to work through when actually placing the order. Category summary table is unchanged, still sorted by Units needed descending (biggest problem first)
 // v2.4.7 — Fix Order Priorities' printed PDF clipping digits off the right-hand columns (e.g. an Order Qty of 456 printing as "45") on wide windows (many months = many columns). Same bug class as the Planning table clipping fixed in v2.4.2, just missed on Order Priorities' own .op-table at the time: its cells had unconditional white-space:nowrap and the print CSS never forced wrapping or a fixed layout, so content past the page edge was silently cut rather than shrinking. Print now forces table-layout:fixed + white-space:normal so long values wrap onto a second line instead of losing digits, plus a smaller font (8.5px) for more headroom
 // v2.4.6 — Fix Order Priorities' printed PDF losing all its background colour (black category header bars, table header shading, zebra striping, totals-row shading) — browsers drop background-color when printing by default unless told to keep it, and this app's print CSS never had that override. Added `print-color-adjust:exact` globally in the print stylesheet, so this fixes it for every print output (Insights/Deliveries too), not just Order Priorities
