@@ -362,6 +362,21 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
   body.printing-deliveries .cadence-table th,body.printing-deliveries .cadence-table td{padding:5px 8px!important;}
   body.printing-deliveries .cadence-table tr{break-inside:avoid;}
 }
+/* Planning print — gated by body.printing-planning, same isolation pattern as Deliveries above */
+@media print{
+  body.printing-planning #topbar,body.printing-planning #sidebar,body.printing-planning #dashboard-layout,
+  body.printing-planning #cadence-screen,body.printing-planning #markdowns-screen,
+  body.printing-planning #performance-screen,body.printing-planning #insights-screen,body.printing-planning #deliveries-screen,
+  body.printing-planning #upload-screen,body.printing-planning #password-screen,body.printing-planning #loading-screen,
+  body.printing-planning .sidebar-overlay{display:none!important;}
+  body.printing-planning #app{display:block!important;height:auto!important;overflow:visible!important;}
+  body.printing-planning #planning-screen{display:block!important;height:auto!important;overflow:visible!important;padding:16px!important;}
+  body.printing-planning .planning-wrap{max-width:100%!important;}
+  body.printing-planning .plan-table-wrap{overflow:visible!important;}
+  body.printing-planning .plan-table{width:100%!important;font-size:10.5px!important;}
+  body.printing-planning .plan-table th,body.printing-planning .plan-table td{padding:4px 6px!important;position:static!important;}
+  body.printing-planning .plan-table tr{break-inside:avoid;}
+}
 
 /* Insights screen */
 #insights-screen{flex:1;overflow-y:auto;padding:24px;}
@@ -1370,8 +1385,8 @@ th{position:relative;}
 
   <!-- PLANNING SCREEN -->
   <div id="planning-screen" style="display:none;padding:28px;overflow-y:auto;height:calc(100vh - 56px);">
-    <div style="max-width:1400px;margin:0 auto;">
-      <div class="insights-header" style="margin-bottom:16px;">
+    <div class="planning-wrap" style="max-width:1400px;margin:0 auto;">
+      <div class="insights-header no-print" style="margin-bottom:16px;">
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
           <div>
             <div class="insights-title">Planning</div>
@@ -1390,9 +1405,10 @@ th{position:relative;}
           </div>
           <button onclick="planSendToSizeWorkings()" style="padding:7px 16px;background:#8b5cf6;color:white;border:none;border-radius:var(--r);font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;">📐 Send to Size Workings</button>
           <button class="insights-refresh-btn" onclick="clearPlanningData()" style="background:var(--surface);border:1px solid var(--border);color:var(--text-secondary);">✕ Clear All</button>
+          <button id="plan-print-btn" class="tb-btn accent" style="display:none;background:#e11d48;border-color:#e11d48;padding:7px 12px;font-size:12px;" onclick="printPlanningPDF()">🖨️ Print / PDF</button>
         </div>
       </div>
-      <div id="plan-pin-panel" style="display:none;margin-bottom:12px;">
+      <div id="plan-pin-panel" class="no-print" style="display:none;margin-bottom:12px;">
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
           <!-- Category filter -->
           <div class="ms-wrap" id="ms-plan-cat">
@@ -1417,6 +1433,7 @@ th{position:relative;}
           <button onclick="planProdClearFilters()" class="clear-btn" id="plan-prod-clear" style="display:none;">✕ Clear</button>
         </div>
       </div>
+      <div id="planning-print-header" class="print-only"></div>
       <div id="planning-body">
         <div class="insights-empty">
           <div class="insights-empty-ico">📋</div>
@@ -2175,7 +2192,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.4.0';
+const APP_VERSION='v2.4.1';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -4035,6 +4052,10 @@ function renderPlanning(){
   if(prodBtn){prodBtn.style.background=planView==='product'?'var(--teal)':'transparent';prodBtn.style.color=planView==='product'?'white':'var(--text-secondary)';}
   const pinPanel=document.getElementById('plan-pin-panel');
   if(pinPanel)pinPanel.style.display=planView==='product'?'block':'none';
+  // Print/export is Product-view only — Category view's rollup table isn't what
+  // this is for (feeding a product-level list into an external tool for gap-checking)
+  const printBtn=document.getElementById('plan-print-btn');
+  if(printBtn)printBtn.style.display=planView==='product'?'flex':'none';
   // Only repopulate category dropdown on initial switch to product view
   if(planView==='product'&&!document.querySelector('#ms-plan-cat-options label')){
     planPopulateCatDropdown();
@@ -8100,6 +8121,29 @@ function printDeliveriesPDF(){
   setTimeout(cleanup,3000); // fallback in case afterprint doesn't fire
 }
 
+// Prints exactly what's on screen in Planning's Product view — every filter (Core/
+// Non-Core, Category, selected Products) and the current sort — so the export can
+// be fed straight into an external tool (e.g. an AI chat) to spot planning gaps.
+function printPlanningPDF(){
+  const now=new Date();
+  const dateStr=now.toLocaleDateString('en-AU',{day:'numeric',month:'long',year:'numeric'});
+  const filterBits=[];
+  if(globalCoreFilter==='core')filterBits.push('Core only');
+  else if(globalCoreFilter==='noncore')filterBits.push('Non-Core only');
+  if(planSelectedCats.size>0)filterBits.push(`Category: ${[...planSelectedCats].join(', ')}`);
+  if(planSelectedProds.size>0)filterBits.push(`${planSelectedProds.size} product${planSelectedProds.size===1?'':'s'} selected`);
+  const filterLine=filterBits.length?`<div style="font-size:11px;color:#666;margin-top:4px;">${filterBits.join(' · ')}</div>`:'';
+  const el=document.getElementById('planning-print-header');
+  if(el){
+    el.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;padding-bottom:14px;border-bottom:2px solid #1a2740;margin-bottom:20px;"><div><div style="font-size:20px;font-weight:700;color:#1a2740;letter-spacing:-0.3px;">WNDRR — Planning (Product View)</div><div style="font-size:12px;color:#666;margin-top:2px;">Generated ${dateStr}</div>${filterLine}</div><div style="font-size:11px;color:#999;font-weight:500;">Demand Planning</div></div>`;
+  }
+  document.body.classList.add('printing-planning');
+  const cleanup=()=>{document.body.classList.remove('printing-planning');window.removeEventListener('afterprint',cleanup);};
+  window.addEventListener('afterprint',cleanup);
+  window.print();
+  setTimeout(cleanup,3000); // fallback in case afterprint doesn't fire
+}
+
 /* ── AM CATALOGUE SYNC (launch dates + CORE collection) ──
    Launch Date is stored in AM's mid_code field per product; CORE membership is
    the AM product group "AA CORE STYLES". The full catalogue (~3,800 products /
@@ -11062,6 +11106,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.4.1 — Planning > Product view: add a "Print / PDF" button (same native-print pattern as Deliveries/Insights) so the currently-filtered, currently-sorted product list can be exported to feed into an external tool. Button only shows in Product view — Category view's rollup table isn't the shape this is for. Printed header states which filters were active (Core/Non-Core, Category, selected products) so the export is self-describing outside the app
 // v2.4.0 — Add a Shopify Order Sales overlay (research/validation only, not wired into any displayed totals yet): pulls sales directly from Shopify's own Orders/LineItems via the GraphQL Admin API (new netlify/functions/shopify-proxy.js, reading SHOPIFY_ADMIN_TOKEN) instead of through AM's re-booked copy of the same orders — LineItem.currentQuantity already excludes refunds/removals natively, no discount/commission reconstruction needed like the AM Phase 2 overlay requires. ShopifyQL's shopifyqlQuery was ruled out first: its 'sales' dataset is deprecated and the replacement 'orders' dataset can't group by variant_sku, so it can't give per-SKU numbers. Historical pull (365 days) uses a Bulk Operation (Shopify's recommended approach for a crawl this size, avoids GraphQL rate-limit throttling); a cheap top-up (last 4 days, plain paginated query) runs on the existing 10-min background cadence once the initial backfill exists. New "Shopify Sales" header pill triggers the sync and opens a comparison panel (or call compareShopifySalesVsApp(days) from the console) showing Shopify's numbers against the app's own salesBySkuDay side by side, so the data can be checked before it replaces anything. Also: moved the Apparel Magic API token out of am-proxy.js source (hardcoded and exposed in this public repo since Jul 2, 2026) into an AM_API_TOKEN env var — token has been rotated
 // v2.3.6 — Fix Sales Cadence undercounting active Mystery Box promos: syncMysteryBoxHistory()'s real order-history backfill only ran once every 30 days, so any promo still selling after that window closed had a gap between the 3-day live AM sales bridge and the stale backfill — days in between showed zero sold even though real sales existed (confirmed against a live Shopify report: app showed 167 units sold over 7 days for two Mystery Box products vs Shopify's real 416). Added topUpMysteryBoxHistory(), which crawls forward from the newest cached day to today (cheap — normally just 1-2 days) on the same cadence as the other background AM syncs, so an active promo's sales no longer sit uncovered between full 30-day crawls
 // v2.3.5 — Deliveries: fix search box misaligned against the date-range inputs — gave it a matching (invisible) label row and switched the control row to align-items:flex-end, so search/date fields/Clear/Print all sit flush on the same baseline
