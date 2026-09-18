@@ -2146,7 +2146,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.5.5';
+const APP_VERSION='v2.5.6';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -3198,8 +3198,10 @@ function renderCadence(){
   // Total sold per row key (sum of all periods)
   const grandTotalSold=Object.values(totalByKey).reduce((s,v)=>s+v,0);
 
-  // Show Total + ST% columns only in product view
-  const showTotals=cadenceView==='prod';
+  // Total Sold shows in both Category and Product views; ST% (needs SOH
+  // context per-row to mean much) stays Product-only as before.
+  const showTotalSold=cadenceView==='cat'||cadenceView==='prod';
+  const showStPct=cadenceView==='prod';
 
   const tableRows=rowKeys.map(k=>{
     const soh=sohByKey[k]||0;
@@ -3226,9 +3228,8 @@ function renderCadence(){
       ${vsPct!==null?`<div style="font-size:10px;${vsColor}">${vsPct>=0?'+':''}${vsPct.toFixed(1)}%</div>`:'<div style="font-size:10px;color:var(--text-muted);">—</div>'}
     </td>`:'';
     const stColor=stPct===null?'color:var(--text-muted);':stPct>=60?'color:#15803d;font-weight:700;':stPct>=30?'color:var(--amber);font-weight:600;':'color:var(--red);font-weight:600;';
-    const totalCols=showTotals?`
-      <td class="cell-num" style="${stColor}">${stPct!==null?stPct.toFixed(1)+'%':'—'}</td>
-      <td class="cell-num" style="font-weight:700;color:var(--teal);">${totalSold>0?totalSold.toLocaleString():'—'}</td>`:'';
+    const totalCols=(showStPct?`<td class="cell-num" style="${stColor}">${stPct!==null?stPct.toFixed(1)+'%':'—'}</td>`:'')
+      +(showTotalSold?`<td class="cell-num" style="font-weight:700;color:var(--teal);">${totalSold>0?totalSold.toLocaleString():'—'}</td>`:'');
     const _vnd=cadenceView==='prod'?(vendorByKey[k]||''):'';
     const _vcls=_vnd==='CORE'?'rp-core':_vnd==='NEW'?'rp-new':_vnd==='CURRENT'?'rp-current':_vnd==='OLD'?'rp-old':_vnd==='REDUCED'?'rp-reduced':_vnd==='DRAFT'?'rp-draft':_vnd==='PRE-RELEASE'?'rp-prerelease':_vnd==='BUNDLE'?'rp-bundle':'rp-other';
     const statusCell=cadenceView==='prod'?`<td style="white-space:nowrap;"><span class="range-pill ${_vcls}">${_vnd||'—'}</span></td>`:'';
@@ -3266,12 +3267,10 @@ function renderCadence(){
 
   const grandStPct=grandTotalSold>0?grandTotalSold/(totalSoh+grandTotalSold)*100:null;
   const grandStColor=grandStPct===null?'':grandStPct>=60?'color:#15803d;font-weight:700;':grandStPct>=30?'color:var(--amber);font-weight:600;':'color:var(--red);font-weight:600;';
-  const totalColsTotal=showTotals?`
-    <td style="${grandStColor}">${grandStPct!==null?grandStPct.toFixed(1)+'%':'—'}</td>
-    <td style="font-weight:700;color:var(--teal);">${grandTotalSold>0?grandTotalSold.toLocaleString():'—'}</td>`:'';
-  const totalColsHeader=showTotals?`
-    <th style="${cadenceSortCol==='__stpct__'?thStyle+';color:var(--teal);':thStyle}" onclick="setCadenceSort('__stpct__')">ST%${sortArrow('__stpct__')}</th>
-    <th style="${thStyle};color:var(--teal);" onclick="setCadenceSort('__total__')">Total Sold${sortArrow('__total__')}</th>`:'';
+  const totalColsTotal=(showStPct?`<td style="${grandStColor}">${grandStPct!==null?grandStPct.toFixed(1)+'%':'—'}</td>`:'')
+    +(showTotalSold?`<td style="font-weight:700;color:var(--teal);">${grandTotalSold>0?grandTotalSold.toLocaleString():'—'}</td>`:'');
+  const totalColsHeader=(showStPct?`<th style="${cadenceSortCol==='__stpct__'?thStyle+';color:var(--teal);':thStyle}" onclick="setCadenceSort('__stpct__')">ST%${sortArrow('__stpct__')}</th>`:'')
+    +(showTotalSold?`<th style="${thStyle};color:var(--teal);" onclick="setCadenceSort('__total__')">Total Sold${sortArrow('__total__')}</th>`:'');
 
   const limitNote=cadenceView==='prod'&&!search&&!cadenceSortCol&&!getCadenceSelectedStatuses().length&&!getCadenceSelectedCats().length&&!getCadenceSelectedDelMonths().length&&!getCadenceSelectedLaunches().length&&!getCadenceSelectedDiscs().length&&!getCadenceSelectedFlags().length?`<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">Showing top 50 products — use search or filters to find specific products.</div>`:'';
   const noResults=rowKeys.length===0?`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No products found</div><div class="insights-empty-sub">Try a different search term.</div></div>`:'';
@@ -11508,6 +11507,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.5.6 — Sales Cadence > Category view: add a Total Sold column (sum across all shown periods), matching the one already in Product view. The underlying per-category total (totalByKey) was already computed regardless of view — this only changes the display gate. ST% stays Product-view-only, split out into its own flag rather than bundled with Total Sold's, since it needs per-row SOH context to mean much
 // v2.5.5 — Fix the header "Shopify Sales" research-overlay pill wrapping onto 3+ lines and blowing out the topbar height at normal widths: shortened its label ("Shopify Sales"→"Sales Check") and trimmed the dynamic status text ("Not synced — click to run (research overlay)"→"Not synced", "Synced Xm ago — click to compare"→"Synced Xm ago", "Syncing… (first run can take a few minutes)"→"Syncing…") — the dropped detail moved into the pill's title tooltip instead of being lost. Purely cosmetic; no change to the sync/compare logic itself
 // v2.5.4 — Order Priorities > Category mode: black (non-shortfall) categories now show their actual surplus cover at the tightest month in the window, instead of a flat 0 — same worst-month figure the red shortfall categories use, just positive instead of negative. Methodology and closing notes reworded to describe surplus rather than "Order Qty 0". Red shortfall figures and Product mode are unchanged
 // v2.5.3 — Order Priorities > Category mode: show every selected category, not just short ones — categories with enough cover now show Order Qty 0 in black instead of being dropped entirely, while categories that need ordering stay red. Product mode is unchanged (still lists shortfall SKUs only — too many to usefully show every one). Summary paragraphs, methodology and closing notes all updated to describe the shortfall subset correctly even though the table itself now shows everyone
