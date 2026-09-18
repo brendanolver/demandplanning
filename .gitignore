@@ -1,2 +1,7 @@
 # Local Netlify folder
 .netlify
+
+# Installed locally for testing netlify/functions/* — Netlify installs its
+# own copy from package.json during deploy. package-lock.json IS committed
+# (reproducible installs), only the installed tree itself is excluded here.
+node_modules

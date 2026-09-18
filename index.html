@@ -2165,7 +2165,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.5.11';
+const APP_VERSION='v2.6.0';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -4303,7 +4303,7 @@ function renderPlanning(){
               <input type="number" step="1" min="-100" max="200" placeholder="0" value="${saved[`growth_${m.key}`]||''}" tabindex="${i+1}" class="growth-quick-input"
                 style="width:56px;padding:6px;border:1.5px solid var(--border);border-radius:var(--r-sm);font-family:'Inter',sans-serif;font-size:13px;font-weight:700;text-align:center;outline:none;background:var(--surface);"
                 onfocus="this.style.borderColor='var(--teal)';this.select()" onblur="this.style.borderColor='var(--border)'"
-                onchange="savePlanField('growth_${m.key}',this.value);renderPlanning();"
+                onchange="savePlanField('growth_${m.key}',this.value);pushPlanningGrowthGlobal();renderPlanning();"
                 onkeydown="if(event.key==='Enter'){event.preventDefault();const inputs=document.querySelectorAll('.growth-quick-input');const idx=Array.from(inputs).indexOf(this);if(inputs[idx+1])inputs[idx+1].focus();}">
               <span style="font-size:11px;color:var(--text-muted);">%</span>
             </div>
@@ -4351,6 +4351,57 @@ function savePlanField(key,value){
   if(value===''||value===null)delete data[key];
   else data[key]=value;
   savePlanningData(data);
+}
+
+/* ── PLANNING GROWTH % — SHARED ACROSS SESSIONS ──
+   Growth % by Month used to be a purely per-browser setting (savePlanField
+   writes into localStorage, same as every other Planning field). Backed now
+   by netlify/functions/planning-globals.js (Netlify Blobs — already part of
+   this Netlify site, no new account/credential needed) so the same figures
+   show for everyone instead of drifting per device. localStorage remains
+   the fast local read on every render; this syncs it against the shared
+   copy in the background and re-renders if anything actually changed,
+   matching the AM/Shopify sync pattern already used elsewhere in this app. */
+const PLANNING_GROWTH_ENDPOINT='/.netlify/functions/planning-globals';
+const PLANNING_GROWTH_TTL=5*60*1000; // re-check periodically — someone else may have changed it mid-session
+let _planningGrowthSyncing=false;
+let _planningGrowthLastSyncTs=0;
+async function syncPlanningGrowthGlobal(force=false){
+  if(_planningGrowthSyncing)return;
+  if(!force&&Date.now()-_planningGrowthLastSyncTs<PLANNING_GROWTH_TTL)return;
+  _planningGrowthSyncing=true;
+  try{
+    const resp=await fetch(PLANNING_GROWTH_ENDPOINT);
+    const remote=await safeAMJson(resp);
+    if(remote&&typeof remote==='object'&&!Array.isArray(remote)){
+      const planData=getPlanningData();
+      let changed=false;
+      for(const[monthKey,val]of Object.entries(remote)){
+        const key=`growth_${monthKey}`;
+        if(String(planData[key]||'')!==String(val||'')){planData[key]=val;changed=true;}
+      }
+      if(changed){
+        savePlanningData(planData);
+        if(planView==='category'||planView==='product'||planView==='orderpriorities')renderPlanning();
+      }
+    }
+    _planningGrowthLastSyncTs=Date.now();
+  }catch(e){console.error('Planning growth global sync failed:',e);}
+  finally{_planningGrowthSyncing=false;}
+}
+async function pushPlanningGrowthGlobal(){
+  try{
+    const planData=getPlanningData();
+    const payload={};
+    for(const[k,v]of Object.entries(planData)){
+      if(k.startsWith('growth_'))payload[k.slice('growth_'.length)]=v;
+    }
+    await fetch(PLANNING_GROWTH_ENDPOINT,{
+      method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload),
+    });
+  }catch(e){console.error('Planning growth global push failed:',e);}
 }
 
 async function generateInsights(){
@@ -7101,6 +7152,7 @@ function startAutoSync(){
   syncAMSales(true); // Phase 2 of AM migration — units sold + real sell price overlay; no-ops if kill switch is off
   syncMysteryBoxHistory(); // full historical backfill for products with no CSV history at all — deliberately NOT forced, respects its own 30-day cache since a full crawl is expensive
   topUpMysteryBoxHistory(); // cheap catch-up for any days since the last backfill/top-up, so an active promo isn't left undercounted between full crawls
+  syncPlanningGrowthGlobal(true); // pull the shared Growth % by Month figures, forced since this is a fresh page load
   autoSyncPipeline().then(ok=>{
     if(!ok){
       console.log('⚠️ Pipeline unavailable — falling back to Google Drive');
@@ -7127,6 +7179,7 @@ function startBackgroundAutoRefresh(){
     syncAMSales(true);
     topUpMysteryBoxHistory(); // own TTL/guards decide whether there's actually anything to catch up
     syncShopifyOrderSalesTopUp(); // no-ops until the research overlay's first manual backfill has run
+    syncPlanningGrowthGlobal(); // own TTL decides whether it's actually due — picks up a colleague's edit mid-session
   },BG_REFRESH_INTERVAL_MS);
 }
 
@@ -11631,6 +11684,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.6.0 — Planning > Growth % by Month is now shared across sessions instead of a per-browser localStorage-only setting — the same figures show (and stay in sync) for everyone, on any device. New netlify/functions/planning-globals.js backed by Netlify Blobs (already part of this Netlify site, no new account/credential needed, unlike Shopify/AM) stores one small validated {"YYYY-MM":"<number>"} blob. This is the repo's first npm dependency — added package.json/package-lock.json (committed; node_modules is not) and pinned NODE_VERSION=22 in netlify.toml since @netlify/blobs needs >=22.12 and this site predates package.json entirely, so its previously-pinned Node version couldn't be assumed new enough. Client pulls the shared value on page load and every 10-min background cycle (own TTL, picks up a colleague's edit mid-session), pushes the full current set on every edit; localStorage stays the instant local read for rendering, synced in the background rather than blocking on it — same pattern as the AM/Shopify syncs already in this app. Verified function logic (round-trip, junk-key/value filtering, bad method/JSON) and the client pull/push/re-render flow against a mocked endpoint
 // v2.5.11 — Sales Cadence > Category view (12 Months only): swap Total Sold and LY MTD's column order — Total Sold now sits right after On Order, and LY MTD moves to sit immediately next to the current month's own column instead of before Total Sold. Product view's order is unchanged (LY MTD still before ST%/Total Sold) — this was scoped to Category view specifically, not applied to both
 // v2.5.10 — Order Planning > Product view: Order Qty's suggestion is now the bold figure and the editable input is lighter and starts blank instead of pre-filled with the suggestion — a row you haven't reviewed stays visibly blank rather than silently carrying the calculated value, so clicking Send to Size Workings only ever sends products you've actually typed a quantity into. Previously every row pre-filled with its suggestion, so a click into a field (without even changing it) could look confirmed when it wasn't
 // v2.5.9 — Order Planning: fix sticky ID columns visually garbling the header row (e.g. "SEPT" and "SOH" overlapping) — the hardcoded pixel offsets (v2.5.8) assumed a fixed column width, but table-layout:auto doesn't actually honour width/max-width as a hard constraint, so a short category name rendered narrower than assumed and the next sticky column overlapped real content underneath it. Replaced with opApplyStickyOffsets(), which measures each sticky column's real rendered width after render and sets the true cumulative left offset — correct regardless of content length, verified against both a short category name and a deliberately long product name. Also restored the calculated Order Qty suggestion as a visible (muted) reference next to the new editable input, rather than only living as the input's initial value and disappearing the moment it's overridden
