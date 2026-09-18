@@ -2165,7 +2165,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.5.10';
+const APP_VERSION='v2.5.11';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -3258,6 +3258,10 @@ function renderCadence(){
     const stColor=stPct===null?'color:var(--text-muted);':stPct>=60?'color:#15803d;font-weight:700;':stPct>=30?'color:var(--amber);font-weight:600;':'color:var(--red);font-weight:600;';
     const totalCols=(showStPct?`<td class="cell-num" style="${stColor}">${stPct!==null?stPct.toFixed(1)+'%':'—'}</td>`:'')
       +(showTotalSold?`<td class="cell-num" style="font-weight:700;color:var(--teal);">${totalSold>0?totalSold.toLocaleString():'—'}</td>`:'');
+    // Category view only: Total Sold sits before LY MTD instead of after it,
+    // so LY MTD lands immediately next to the current month's own column
+    // rather than the other way round. Product view is unchanged.
+    const lyTotalOrder=cadenceView==='cat'?totalCols+lyMtdCell:lyMtdCell+totalCols;
     const _vnd=cadenceView==='prod'?(vendorByKey[k]||''):'';
     const _vcls=_vnd==='CORE'?'rp-core':_vnd==='NEW'?'rp-new':_vnd==='CURRENT'?'rp-current':_vnd==='OLD'?'rp-old':_vnd==='REDUCED'?'rp-reduced':_vnd==='DRAFT'?'rp-draft':_vnd==='PRE-RELEASE'?'rp-prerelease':_vnd==='BUNDLE'?'rp-bundle':'rp-other';
     const statusCell=cadenceView==='prod'?`<td style="white-space:nowrap;"><span class="range-pill ${_vcls}">${_vnd||'—'}</span></td>`:'';
@@ -3273,8 +3277,7 @@ function renderCadence(){
       ${discCell}
       <td class="cell-num" style="font-weight:500;">${soh>0?soh.toLocaleString():'—'}</td>
       <td class="cell-num" style="color:var(--purple);font-weight:500;">${onOrder>0?onOrder.toLocaleString():'—'}</td>
-      ${lyMtdCell}
-      ${totalCols}
+      ${lyTotalOrder}
       ${cells}
     </tr>`;
   }).join('');
@@ -3297,8 +3300,16 @@ function renderCadence(){
   const grandStColor=grandStPct===null?'':grandStPct>=60?'color:#15803d;font-weight:700;':grandStPct>=30?'color:var(--amber);font-weight:600;':'color:var(--red);font-weight:600;';
   const totalColsTotal=(showStPct?`<td style="${grandStColor}">${grandStPct!==null?grandStPct.toFixed(1)+'%':'—'}</td>`:'')
     +(showTotalSold?`<td style="font-weight:700;color:var(--teal);">${grandTotalSold>0?grandTotalSold.toLocaleString():'—'}</td>`:'');
+  const lyMtdTotalCellOnly=showLyMtd?`<td style="background:#f0fdf4;border-left:2px solid var(--border);">
+    <div style="font-weight:700;">${lyMtdTotal>0?lyMtdTotal.toLocaleString():'—'}</div>
+    ${lyMtdVsPct!==null?`<div style="font-size:10px;${lyMtdTotalVsColor}">${lyMtdVsPct>=0?'+':''}${lyMtdVsPct.toFixed(1)}%</div>`:''}
+  </td>`:'';
+  const lyMtdTotalOrder=cadenceView==='cat'?totalColsTotal+lyMtdTotalCellOnly:lyMtdTotalCellOnly+totalColsTotal;
   const totalColsHeader=(showStPct?`<th style="${cadenceSortCol==='__stpct__'?thStyle+';color:var(--teal);':thStyle}" onclick="setCadenceSort('__stpct__')">ST%${sortArrow('__stpct__')}</th>`:'')
     +(showTotalSold?`<th style="${thStyle};color:var(--teal);" onclick="setCadenceSort('__total__')">Total Sold${sortArrow('__total__')}</th>`:'');
+  const lyMtdHeaderOnly=showLyMtd?`<th style="background:#f0fdf4;border-left:2px solid var(--border);min-width:80px;white-space:nowrap;">LY MTD<div style="font-size:9px;font-weight:400;opacity:0.8;">vs this MTD</div></th>`:'';
+  // Category view only — see lyTotalOrder above for the matching body-row swap
+  const lyMtdHeaderCell=cadenceView==='cat'?totalColsHeader+lyMtdHeaderOnly:lyMtdHeaderOnly+totalColsHeader;
 
   const limitNote=cadenceView==='prod'&&!search&&!cadenceSortCol&&!getCadenceSelectedStatuses().length&&!getCadenceSelectedCats().length&&!getCadenceSelectedDelMonths().length&&!getCadenceSelectedLaunches().length&&!getCadenceSelectedDiscs().length&&!getCadenceSelectedFlags().length?`<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">Showing top 50 products — use search or filters to find specific products.</div>`:'';
   const noResults=rowKeys.length===0?`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No products found</div><div class="insights-empty-sub">Try a different search term.</div></div>`:'';
@@ -3318,8 +3329,7 @@ function renderCadence(){
           ${cadenceView==='prod'?`<th style="${thStyle}" onclick="setCadenceSort('__launchdate__')">Launch Date${sortArrow('__launchdate__')}</th><th style="white-space:nowrap;">Status</th><th style="${thStyle}" onclick="setCadenceSort('__disc__')">Disc%${sortArrow('__disc__')}</th>`:''}
           <th style="${thStyle};min-width:60px;" onclick="setCadenceSort('soh')">SOH${sortArrow('soh')}</th>
           <th style="${thStyle};min-width:60px;color:var(--purple);" onclick="setCadenceSort('__onorder__')">On Order${sortArrow('__onorder__')}</th>
-          ${showLyMtd?`<th style="background:#f0fdf4;border-left:2px solid var(--border);min-width:80px;white-space:nowrap;">LY MTD<div style="font-size:9px;font-weight:400;opacity:0.8;">vs this MTD</div></th>`:''}
-          ${totalColsHeader}
+          ${lyMtdHeaderCell}
           ${headers}
         </tr></thead>
         <tbody>
@@ -3329,11 +3339,7 @@ function renderCadence(){
             ${cadenceView==='prod'?'<td></td><td></td><td></td><td></td>':''}
             <td style="font-weight:700;">${totalSoh>0?totalSoh.toLocaleString():"—"}</td>
             <td style="font-weight:700;color:var(--purple);">${totalOnOrder>0?totalOnOrder.toLocaleString():'—'}</td>
-            ${showLyMtd?`<td style="background:#f0fdf4;border-left:2px solid var(--border);">
-              <div style="font-weight:700;">${lyMtdTotal>0?lyMtdTotal.toLocaleString():'—'}</div>
-              ${lyMtdVsPct!==null?`<div style="font-size:10px;${lyMtdTotalVsColor}">${lyMtdVsPct>=0?'+':''}${lyMtdVsPct.toFixed(1)}%</div>`:''}
-            </td>`:''}
-            ${totalColsTotal}
+            ${lyMtdTotalOrder}
             ${totalCells}
           </tr>
         </tbody>
@@ -11625,6 +11631,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.5.11 — Sales Cadence > Category view (12 Months only): swap Total Sold and LY MTD's column order — Total Sold now sits right after On Order, and LY MTD moves to sit immediately next to the current month's own column instead of before Total Sold. Product view's order is unchanged (LY MTD still before ST%/Total Sold) — this was scoped to Category view specifically, not applied to both
 // v2.5.10 — Order Planning > Product view: Order Qty's suggestion is now the bold figure and the editable input is lighter and starts blank instead of pre-filled with the suggestion — a row you haven't reviewed stays visibly blank rather than silently carrying the calculated value, so clicking Send to Size Workings only ever sends products you've actually typed a quantity into. Previously every row pre-filled with its suggestion, so a click into a field (without even changing it) could look confirmed when it wasn't
 // v2.5.9 — Order Planning: fix sticky ID columns visually garbling the header row (e.g. "SEPT" and "SOH" overlapping) — the hardcoded pixel offsets (v2.5.8) assumed a fixed column width, but table-layout:auto doesn't actually honour width/max-width as a hard constraint, so a short category name rendered narrower than assumed and the next sticky column overlapped real content underneath it. Replaced with opApplyStickyOffsets(), which measures each sticky column's real rendered width after render and sets the true cumulative left offset — correct regardless of content length, verified against both a short category name and a deliberately long product name. Also restored the calculated Order Qty suggestion as a visible (muted) reference next to the new editable input, rather than only living as the input's initial value and disappearing the moment it's overridden
 // v2.5.8 — Planning > Order Priorities renamed to "Order Planning" (same 🎯 emoji, button label + report subtitle only — internal code/CSS names unchanged). Category view's Product/Category-summary table now sticks Category+SOH while scrolling through month columns; Product view's per-category detail table sticks Product+Colour+SOH the same way (fixed-width sticky columns, position:sticky, verified actual scroll behaviour not just the CSS property). Product view's Order Qty is now an editable input (pre-filled with the calculated worst-month figure, overridable), saved per-product under a new op_prod_ key — independent of any month, since unlike Planning > Products' per-month grid this report's Order Qty is already a single resolved number per product. planSendToSizeWorkings() (the existing header button) now checks for these first when Order Planning > Product is the active view, bypassing the to_prod_ flow's month-picker entirely (which would have silently dropped products whose own worst month differed from whichever one got picked)
