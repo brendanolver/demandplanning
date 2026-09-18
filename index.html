@@ -370,6 +370,21 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .op-table tbody tr:nth-child(even){background:#f4f5f7;}
 .op-table tr.op-total-row{background:#e8eaed!important;font-weight:700;border-top:2px solid #1a2740;}
 .op-summary-table{margin-bottom:8px;}
+/* Sticky ID columns — Category view sticks Category+SOH, Product view's detail
+   table sticks Product+Colour+SOH, so those stay visible while scrolling
+   through however many month columns the window covers. Left offsets are
+   fixed pixel values matching each column's own fixed width below (not
+   measured live), so overflow:hidden+ellipsis keeps long names from pushing
+   past their column and throwing off the next sticky column's offset. */
+.op-table .op-sticky{position:sticky;z-index:1;background:var(--surface);overflow:hidden;text-overflow:ellipsis;}
+.op-table th.op-sticky{background:#1a2740;z-index:2;}
+.op-table tbody tr:nth-child(even) td.op-sticky{background:#f4f5f7;}
+.op-table tr.op-total-row td.op-sticky{background:#e8eaed;}
+.op-sticky1-cat{left:0;width:160px;max-width:160px;}
+.op-sticky2-cat{left:160px;width:70px;max-width:70px;}
+.op-sticky1-prod{left:0;width:150px;max-width:150px;}
+.op-sticky2-prod{left:150px;width:90px;max-width:90px;}
+.op-sticky3-prod{left:240px;width:70px;max-width:70px;}
 .op-detail-section{margin-bottom:22px;}
 .op-cat-bar{background:#1a2740;color:#fff;padding:10px 16px;font-weight:700;font-size:13px;display:flex;justify-content:space-between;}
 .op-note{margin-bottom:20px;}
@@ -1334,7 +1349,7 @@ th{position:relative;}
           <div style="display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:3px;gap:2px;">
             <button id="plan-view-cat" onclick="setPlanView('category')" style="border:none;cursor:pointer;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;padding:5px 16px;border-radius:999px;transition:all 0.15s;background:var(--teal);color:white;">🗂 Category</button>
             <button id="plan-view-prod" onclick="setPlanView('product')" style="border:none;cursor:pointer;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;padding:5px 16px;border-radius:999px;transition:all 0.15s;background:transparent;color:var(--text-secondary);">📦 Products</button>
-            <button id="plan-view-op" onclick="setPlanView('orderpriorities')" style="border:none;cursor:pointer;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;padding:5px 16px;border-radius:999px;transition:all 0.15s;background:transparent;color:var(--text-secondary);">🎯 Order Priorities</button>
+            <button id="plan-view-op" onclick="setPlanView('orderpriorities')" style="border:none;cursor:pointer;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;padding:5px 16px;border-radius:999px;transition:all 0.15s;background:transparent;color:var(--text-secondary);">🎯 Order Planning</button>
           </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
@@ -2146,7 +2161,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.5.7';
+const APP_VERSION='v2.5.8';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -3754,6 +3769,39 @@ function planProdClearFilters(){
 function planPinRenderTags(){}
 
 function planSendToSizeWorkings(){
+  // Order Planning > Product view has its own directly-entered Order Qty per
+  // product (op_prod_ — see opGetSavedOrderQty/opSetOrderQty), with no month
+  // to disambiguate since each product's own worst month can differ from the
+  // next one's — nothing to pick between like the to_prod_ flow below.
+  // Prefer these entirely when that's the view currently on screen.
+  if(planView==='orderpriorities'&&opGranularity==='product'){
+    const saved=getPlanningData();
+    const products=[];
+    for(const[key,val]of Object.entries(saved)){
+      if(!key.startsWith('op_prod_'))continue;
+      const qty=parseInt(val)||0;if(!qty)continue;
+      const inner=key.slice('op_prod_'.length);
+      const si=inner.indexOf('||');if(si<0)continue;
+      const productName=inner.slice(0,si),colour=inner.slice(si+2);
+      products.push({fullTitle:productName+' - '+colour,productName,colour,qty});
+    }
+    if(!products.length){
+      alert('No Order Qty entered yet.\n\nEnter quantities in the Order Qty column above.');
+      return;
+    }
+    const swData=getSwData();
+    for(const{productName,colour,qty}of products){
+      const swKey=`${productName}||${colour}`;
+      if(!swData[swKey])swData[swKey]={};
+      swData[swKey].total=String(qty);
+    }
+    saveSwData(swData);
+    showScreen('markdowns');setWorkingView('sizeworkings');setSwTab('product');
+    window._roToSwProducts=products.map(p=>({fullTitle:p.fullTitle,qty:p.qty}));
+    renderRoSizeWorkings();
+    return;
+  }
+
   const saved=getPlanningData();
   const months=getPlanMonths();
 
@@ -8339,6 +8387,23 @@ function opRefLabel(monthsArr,withYear){
 }
 function opFmt(n){return(n||0).toLocaleString();}
 
+// Order Planning > Product view's editable Order Qty — a manually-entered
+// override the user fills in per product, independent of any month (unlike
+// Planning > Products' own "To Order" column, this report's Order Qty is
+// already a single resolved number per product — the worst month's gap —
+// not a per-month grid, so there's no month to key it against). Stored
+// under its own op_prod_ prefix in the same Planning data blob, separate
+// from to_prod_..._YYYY-MM, and read by planSendToSizeWorkings() when Order
+// Planning > Product is the active view.
+function opGetSavedOrderQty(pk){
+  const v=getPlanningData()['op_prod_'+pk];
+  return v!==undefined&&v!==''?parseInt(v)||0:null;
+}
+function opSetOrderQty(pk,val){
+  const n=parseInt(val);
+  savePlanField('op_prod_'+pk,(val===''||isNaN(n)||n<=0)?'':String(n));
+}
+
 function opRenderReport(){
   const body=document.getElementById('op-report-body');
   const printBtn=document.getElementById('op-print-btn');
@@ -8427,7 +8492,7 @@ function opRenderReport(){
   const headerHtml=`
     <div class="op-report-header">
       <div class="op-report-title">WNDRR</div>
-      <div class="op-report-subtitle">Stock Order Priorities — Core Range${isCatMode?' (by Category)':''}</div>
+      <div class="op-report-subtitle">Stock Order Planning — Core Range${isCatMode?' (by Category)':''}</div>
       <div class="op-report-meta">Planning window: ${metaWindowLabel} | Source: live Planning data, as of ${opData.generatedDate}</div>
     </div>`;
 
@@ -8460,8 +8525,8 @@ function opRenderReport(){
       const refCombined=hasRef?`<td>${opFmt(r.refBudget)} / ${opFmt(r.refOnOrder)}</td>`:'';
       const monthCells=r.windowMonthsData.map(m=>`<td>${opFmt(m.budget)}</td><td>${opFmt(m.onOrder)}</td>`).join('');
       return`<tr>
-        <td class="op-left">${titleCase(r.category)}</td>
-        <td>${opFmt(r.soh)}</td>
+        <td class="op-left op-sticky op-sticky1-cat">${titleCase(r.category)}</td>
+        <td class="op-sticky op-sticky2-cat">${opFmt(r.soh)}</td>
         ${refCombined}
         ${monthCells}
         <td class="op-left">${r.worstMonthLabel}</td>
@@ -8469,7 +8534,11 @@ function opRenderReport(){
       </tr>`;
     }).join('');
     catTableHtml=`<div class="op-table-wrap"><table class="op-table op-summary-table">
-      <thead><tr>${headerCells.map(h=>`<th class="${h==='Category'?'op-left':''}">${h}</th>`).join('')}</tr></thead>
+      <thead><tr>
+        <th class="op-left op-sticky op-sticky1-cat">Category</th>
+        <th class="op-sticky op-sticky2-cat">SOH</th>
+        ${headerCells.slice(2).map(h=>`<th>${h}</th>`).join('')}
+      </tr></thead>
       <tbody>${rowsHtml}</tbody>
     </table></div>`;
   }else{
@@ -8527,21 +8596,30 @@ function opRenderReport(){
       const rowsHtml=c.skus.map(r=>{
         const refCombined=hasRef?`<td>${opFmt(r.refBudget)} / ${opFmt(r.refOnOrder)}</td>`:'';
         const monthCells=r.windowMonthsData.map(m=>`<td>${opFmt(m.budget)}</td><td>${opFmt(m.onOrder)}</td>`).join('');
+        const pk=r.product+'||'+r.colour;
+        const safePk=pk.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        const savedQty=opGetSavedOrderQty(pk);
+        const qtyInputVal=savedQty!==null?savedQty:r.orderQty;
         return`<tr>
-          <td class="op-left">${titleCase(r.product)}</td>
-          <td class="op-left">${titleCase(r.colour)}</td>
-          <td>${opFmt(r.soh)}</td>
+          <td class="op-left op-sticky op-sticky1-prod">${titleCase(r.product)}</td>
+          <td class="op-left op-sticky op-sticky2-prod">${titleCase(r.colour)}</td>
+          <td class="op-sticky op-sticky3-prod">${opFmt(r.soh)}</td>
           ${refCombined}
           ${monthCells}
           <td class="op-left">${r.worstMonthLabel}</td>
-          <td class="op-bold">${opFmt(r.orderQty)}</td>
+          <td class="op-bold"><input type="number" min="0" step="1" value="${qtyInputVal}" oninput="opSetOrderQty('${safePk}',this.value)" style="width:64px;text-align:right;border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-family:inherit;font-size:12px;font-weight:700;"></td>
         </tr>`;
       }).join('');
       return`<div class="op-detail-section">
         ${headerBar}
         <div class="op-table-wrap">
           <table class="op-table op-detail-table">
-            <thead><tr>${detailHeaderCells.map(h=>`<th class="${(h==='Product'||h==='Colour')?'op-left':''}">${h}</th>`).join('')}</tr></thead>
+            <thead><tr>
+              <th class="op-left op-sticky op-sticky1-prod">Product</th>
+              <th class="op-left op-sticky op-sticky2-prod">Colour</th>
+              <th class="op-sticky op-sticky3-prod">SOH</th>
+              ${detailHeaderCells.slice(3).map(h=>`<th>${h}</th>`).join('')}
+            </tr></thead>
             <tbody>${rowsHtml}</tbody>
           </table>
         </div>
@@ -11516,6 +11594,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.5.8 — Planning > Order Priorities renamed to "Order Planning" (same 🎯 emoji, button label + report subtitle only — internal code/CSS names unchanged). Category view's Product/Category-summary table now sticks Category+SOH while scrolling through month columns; Product view's per-category detail table sticks Product+Colour+SOH the same way (fixed-width sticky columns, position:sticky, verified actual scroll behaviour not just the CSS property). Product view's Order Qty is now an editable input (pre-filled with the calculated worst-month figure, overridable), saved per-product under a new op_prod_ key — independent of any month, since unlike Planning > Products' per-month grid this report's Order Qty is already a single resolved number per product. planSendToSizeWorkings() (the existing header button) now checks for these first when Order Planning > Product is the active view, bypassing the to_prod_ flow's month-picker entirely (which would have silently dropped products whose own worst month differed from whichever one got picked)
 // v2.5.7 — Sales Cadence: widen the screen from 1200px to 1600px (matches Working, the app's other widest screen) so the dense weekly/monthly tables need less horizontal scrolling. Also add a Status column (the same NEW/CURRENT/OLD/REDUCED/CORE/BUNDLE pill Product view already shows) to Compare mode, between Product and SOH — vendor taken from each compared product's first matching variant, same CORE+inBundleDeal→BUNDLE override the regular Product view uses
 // v2.5.6 — Sales Cadence > Category view: add a Total Sold column (sum across all shown periods), matching the one already in Product view. The underlying per-category total (totalByKey) was already computed regardless of view — this only changes the display gate. ST% stays Product-view-only, split out into its own flag rather than bundled with Total Sold's, since it needs per-row SOH context to mean much
 // v2.5.5 — Fix the header "Shopify Sales" research-overlay pill wrapping onto 3+ lines and blowing out the topbar height at normal widths: shortened its label ("Shopify Sales"→"Sales Check") and trimmed the dynamic status text ("Not synced — click to run (research overlay)"→"Not synced", "Synced Xm ago — click to compare"→"Synced Xm ago", "Syncing… (first run can take a few minutes)"→"Syncing…") — the dropped detail moved into the pill's title tooltip instead of being lost. Purely cosmetic; no change to the sync/compare logic itself
