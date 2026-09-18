@@ -380,11 +380,15 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .op-table th.op-sticky{background:#1a2740;z-index:2;}
 .op-table tbody tr:nth-child(even) td.op-sticky{background:#f4f5f7;}
 .op-table tr.op-total-row td.op-sticky{background:#e8eaed;}
-.op-sticky1-cat{left:0;width:160px;max-width:160px;}
-.op-sticky2-cat{left:160px;width:70px;max-width:70px;}
-.op-sticky1-prod{left:0;width:150px;max-width:150px;}
-.op-sticky2-prod{left:150px;width:90px;max-width:90px;}
-.op-sticky3-prod{left:240px;width:70px;max-width:70px;}
+/* left offsets are set inline by opApplyStickyOffsets() after render, from
+   each column's real measured width — max-width here only caps how wide a
+   long name is allowed to push that column before eliding, it doesn't
+   determine the offset itself. */
+.op-sticky1-cat{max-width:180px;}
+.op-sticky2-cat{max-width:80px;}
+.op-sticky1-prod{max-width:170px;}
+.op-sticky2-prod{max-width:110px;}
+.op-sticky3-prod{max-width:80px;}
 .op-detail-section{margin-bottom:22px;}
 .op-cat-bar{background:#1a2740;color:#fff;padding:10px 16px;font-weight:700;font-size:13px;display:flex;justify-content:space-between;}
 .op-note{margin-bottom:20px;}
@@ -2161,7 +2165,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.5.8';
+const APP_VERSION='v2.5.9';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -8386,6 +8390,24 @@ function opRefLabel(monthsArr,withYear){
   return withYear?`${base} ${last.year.slice(-2)}`:base;
 }
 function opFmt(n){return(n||0).toLocaleString();}
+// Sticky ID columns' left offsets, measured after render rather than
+// hardcoded — a fixed pixel assumption (e.g. "the category column is
+// 160px") drifted out of sync with the real rendered width the moment
+// table-layout:auto sized a short category name (or a long product name)
+// differently, letting the next sticky column overlap and visually garble
+// the header text underneath it. This measures each sticky column's real
+// header-cell width and applies the true cumulative offset instead.
+function opApplyStickyOffsets(){
+  document.querySelectorAll('#op-report-body table.op-table').forEach(table=>{
+    let offset=0;
+    for(const th of table.querySelectorAll('thead th.op-sticky')){
+      const modClass=[...th.classList].find(c=>c!=='op-sticky'&&c!=='op-left');
+      if(!modClass)continue;
+      table.querySelectorAll('.'+modClass).forEach(cell=>{cell.style.left=offset+'px';});
+      offset+=th.getBoundingClientRect().width;
+    }
+  });
+}
 
 // Order Planning > Product view's editable Order Qty — a manually-entered
 // override the user fills in per product, independent of any month (unlike
@@ -8607,7 +8629,10 @@ function opRenderReport(){
           ${refCombined}
           ${monthCells}
           <td class="op-left">${r.worstMonthLabel}</td>
-          <td class="op-bold"><input type="number" min="0" step="1" value="${qtyInputVal}" oninput="opSetOrderQty('${safePk}',this.value)" style="width:64px;text-align:right;border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-family:inherit;font-size:12px;font-weight:700;"></td>
+          <td class="op-bold" style="white-space:nowrap;">
+            <span style="color:var(--text-muted);font-weight:600;margin-right:6px;" title="Calculated suggestion — the worst month's gap">${opFmt(r.orderQty)}</span>
+            <input type="number" min="0" step="1" value="${qtyInputVal}" oninput="opSetOrderQty('${safePk}',this.value)" title="Your order quantity — sent to Size Workings" style="width:56px;text-align:right;border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-family:inherit;font-size:12px;font-weight:700;">
+          </td>
         </tr>`;
       }).join('');
       return`<div class="op-detail-section">
@@ -8637,6 +8662,7 @@ function opRenderReport(){
 
   body.innerHTML=headerHtml+summaryHtml+catTableHtml+methodologyHtml+detailSections+closingHtml;
   if(printBtn)printBtn.style.display='flex';
+  opApplyStickyOffsets();
 }
 
 function opPrintReport(){
@@ -11594,6 +11620,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.5.9 — Order Planning: fix sticky ID columns visually garbling the header row (e.g. "SEPT" and "SOH" overlapping) — the hardcoded pixel offsets (v2.5.8) assumed a fixed column width, but table-layout:auto doesn't actually honour width/max-width as a hard constraint, so a short category name rendered narrower than assumed and the next sticky column overlapped real content underneath it. Replaced with opApplyStickyOffsets(), which measures each sticky column's real rendered width after render and sets the true cumulative left offset — correct regardless of content length, verified against both a short category name and a deliberately long product name. Also restored the calculated Order Qty suggestion as a visible (muted) reference next to the new editable input, rather than only living as the input's initial value and disappearing the moment it's overridden
 // v2.5.8 — Planning > Order Priorities renamed to "Order Planning" (same 🎯 emoji, button label + report subtitle only — internal code/CSS names unchanged). Category view's Product/Category-summary table now sticks Category+SOH while scrolling through month columns; Product view's per-category detail table sticks Product+Colour+SOH the same way (fixed-width sticky columns, position:sticky, verified actual scroll behaviour not just the CSS property). Product view's Order Qty is now an editable input (pre-filled with the calculated worst-month figure, overridable), saved per-product under a new op_prod_ key — independent of any month, since unlike Planning > Products' per-month grid this report's Order Qty is already a single resolved number per product. planSendToSizeWorkings() (the existing header button) now checks for these first when Order Planning > Product is the active view, bypassing the to_prod_ flow's month-picker entirely (which would have silently dropped products whose own worst month differed from whichever one got picked)
 // v2.5.7 — Sales Cadence: widen the screen from 1200px to 1600px (matches Working, the app's other widest screen) so the dense weekly/monthly tables need less horizontal scrolling. Also add a Status column (the same NEW/CURRENT/OLD/REDUCED/CORE/BUNDLE pill Product view already shows) to Compare mode, between Product and SOH — vendor taken from each compared product's first matching variant, same CORE+inBundleDeal→BUNDLE override the regular Product view uses
 // v2.5.6 — Sales Cadence > Category view: add a Total Sold column (sum across all shown periods), matching the one already in Product view. The underlying per-category total (totalByKey) was already computed regardless of view — this only changes the display gate. ST% stays Product-view-only, split out into its own flag rather than bundled with Total Sold's, since it needs per-row SOH context to mean much
