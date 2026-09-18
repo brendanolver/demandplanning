@@ -2165,7 +2165,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.5.9';
+const APP_VERSION='v2.5.10';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -8620,8 +8620,13 @@ function opRenderReport(){
         const monthCells=r.windowMonthsData.map(m=>`<td>${opFmt(m.budget)}</td><td>${opFmt(m.onOrder)}</td>`).join('');
         const pk=r.product+'||'+r.colour;
         const safePk=pk.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        // Blank unless the user has actually typed something for this
+        // product before — deliberately NOT defaulting to the calculated
+        // suggestion, so an untouched row sends nothing. Send to Size
+        // Workings only ever picks up op_prod_ entries that exist, so a
+        // blank input here is what keeps an unreviewed product out of it.
         const savedQty=opGetSavedOrderQty(pk);
-        const qtyInputVal=savedQty!==null?savedQty:r.orderQty;
+        const qtyInputVal=savedQty!==null?savedQty:'';
         return`<tr>
           <td class="op-left op-sticky op-sticky1-prod">${titleCase(r.product)}</td>
           <td class="op-left op-sticky op-sticky2-prod">${titleCase(r.colour)}</td>
@@ -8630,8 +8635,8 @@ function opRenderReport(){
           ${monthCells}
           <td class="op-left">${r.worstMonthLabel}</td>
           <td class="op-bold" style="white-space:nowrap;">
-            <span style="color:var(--text-muted);font-weight:600;margin-right:6px;" title="Calculated suggestion — the worst month's gap">${opFmt(r.orderQty)}</span>
-            <input type="number" min="0" step="1" value="${qtyInputVal}" oninput="opSetOrderQty('${safePk}',this.value)" title="Your order quantity — sent to Size Workings" style="width:56px;text-align:right;border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-family:inherit;font-size:12px;font-weight:700;">
+            <span style="font-weight:700;color:var(--text);margin-right:6px;" title="Calculated suggestion — the worst month's gap">${opFmt(r.orderQty)}</span>
+            <input type="number" min="0" step="1" value="${qtyInputVal}" placeholder="—" oninput="opSetOrderQty('${safePk}',this.value)" title="Your order quantity — only filled-in rows get sent to Size Workings" style="width:56px;text-align:right;border:1px solid var(--border);border-radius:4px;padding:3px 6px;font-family:inherit;font-size:12px;font-weight:400;color:var(--text-secondary);">
           </td>
         </tr>`;
       }).join('');
@@ -11620,6 +11625,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.5.10 — Order Planning > Product view: Order Qty's suggestion is now the bold figure and the editable input is lighter and starts blank instead of pre-filled with the suggestion — a row you haven't reviewed stays visibly blank rather than silently carrying the calculated value, so clicking Send to Size Workings only ever sends products you've actually typed a quantity into. Previously every row pre-filled with its suggestion, so a click into a field (without even changing it) could look confirmed when it wasn't
 // v2.5.9 — Order Planning: fix sticky ID columns visually garbling the header row (e.g. "SEPT" and "SOH" overlapping) — the hardcoded pixel offsets (v2.5.8) assumed a fixed column width, but table-layout:auto doesn't actually honour width/max-width as a hard constraint, so a short category name rendered narrower than assumed and the next sticky column overlapped real content underneath it. Replaced with opApplyStickyOffsets(), which measures each sticky column's real rendered width after render and sets the true cumulative left offset — correct regardless of content length, verified against both a short category name and a deliberately long product name. Also restored the calculated Order Qty suggestion as a visible (muted) reference next to the new editable input, rather than only living as the input's initial value and disappearing the moment it's overridden
 // v2.5.8 — Planning > Order Priorities renamed to "Order Planning" (same 🎯 emoji, button label + report subtitle only — internal code/CSS names unchanged). Category view's Product/Category-summary table now sticks Category+SOH while scrolling through month columns; Product view's per-category detail table sticks Product+Colour+SOH the same way (fixed-width sticky columns, position:sticky, verified actual scroll behaviour not just the CSS property). Product view's Order Qty is now an editable input (pre-filled with the calculated worst-month figure, overridable), saved per-product under a new op_prod_ key — independent of any month, since unlike Planning > Products' per-month grid this report's Order Qty is already a single resolved number per product. planSendToSizeWorkings() (the existing header button) now checks for these first when Order Planning > Product is the active view, bypassing the to_prod_ flow's month-picker entirely (which would have silently dropped products whose own worst month differed from whichever one got picked)
 // v2.5.7 — Sales Cadence: widen the screen from 1200px to 1600px (matches Working, the app's other widest screen) so the dense weekly/monthly tables need less horizontal scrolling. Also add a Status column (the same NEW/CURRENT/OLD/REDUCED/CORE/BUNDLE pill Product view already shows) to Compare mode, between Product and SOH — vendor taken from each compared product's first matching variant, same CORE+inBundleDeal→BUNDLE override the regular Product view uses
