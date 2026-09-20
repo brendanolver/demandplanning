@@ -1,4 +1,4 @@
-const { getStore } = require('@netlify/blobs');
+const { connectLambda, getStore } = require('@netlify/blobs');
 
 // A single small shared settings blob — Planning's "Growth % by Month" row,
 // which used to live only in each browser's own localStorage (savePlanField/
@@ -29,6 +29,12 @@ exports.handler = async (event) => {
   const method = event.httpMethod || 'GET';
   let store;
   try {
+    // This is a legacy-style (exports.handler) function, where Blobs is NOT
+    // auto-configured from the environment the way it is for the newer
+    // Request/Response style — without this, getStore() throws "The
+    // environment has not been configured to use Netlify Blobs" at runtime
+    // even though the build and deploy both succeed.
+    connectLambda(event);
     store = getStore(STORE_NAME);
   } catch (err) {
     return { statusCode: 500, body: JSON.stringify({ error: 'Netlify Blobs unavailable: ' + err.message }) };
