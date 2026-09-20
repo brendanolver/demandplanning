@@ -2165,7 +2165,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.6.0';
+const APP_VERSION='v2.6.1';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -9222,15 +9222,26 @@ async function syncAMSales(force=false){
    handful of days, not 500) on the same cadence as the other background
    syncs, so an active promo's sales never sit uncovered for more than one
    refresh cycle. */
-const AM_MB_HISTORY_CACHE_KEY='amMysteryBoxHistoryV1';
+// V2: V1 caches written under v2.3.6–v2.6.0's top-up froze each day at
+// whatever partial count existed when it was last crawled mid-day (see
+// topUpMysteryBoxHistory) — a new key forces every device to do one clean
+// full re-crawl instead of trusting a cache with permanently short days.
+const AM_MB_HISTORY_CACHE_KEY='amMysteryBoxHistoryV2';
+const AM_MB_HISTORY_CACHE_KEY_V1='amMysteryBoxHistoryV1';
 const AM_MB_HISTORY_TTL=30*24*60*60*1000; // 30 days — full re-crawl safety net; topUpMysteryBoxHistory() is what actually keeps it current day-to-day
 const AM_MB_HISTORY_LOOKBACK_DAYS=500; // generous cover for a promo line's realistic lifetime
 const AM_MB_TOPUP_TTL=AM_SALES_TTL; // same cadence as the live 3-day sales bridge
-const AM_MB_TOPUP_MAX_DAYS=60; // bound a catch-up crawl (e.g. first run after this feature ships, or a device left closed a while) — the periodic full re-crawl trues up anything older
+const AM_MB_TOPUP_MAX_DAYS=60; // bound a catch-up crawl (e.g. a device left closed a while) — the periodic full re-crawl trues up anything older
+const AM_MB_TOPUP_OVERLAP_DAYS=5; // always re-crawl at least this many trailing days — a day is only final once it's stopped taking orders, and the live 3-day bridge stops covering it after that
 function loadMysteryBoxHistoryCache(){
   try{
     const c=JSON.parse(localStorage.getItem(AM_MB_HISTORY_CACHE_KEY)||'null');
     if(c&&c.salesMap){window.amMysteryBoxHistory=c.salesMap;return c.ts||0;}
+    // No V2 cache yet — show the old one in the meantime (stale, some days
+    // short) rather than nothing, but report ts=0 so the TTL gate still
+    // triggers the clean full re-crawl straight away.
+    const old=JSON.parse(localStorage.getItem(AM_MB_HISTORY_CACHE_KEY_V1)||'null');
+    if(old&&old.salesMap){window.amMysteryBoxHistory=old.salesMap;}
   }catch(e){}
   return 0;
 }
@@ -9306,11 +9317,16 @@ async function syncMysteryBoxHistory(force=false){
   }catch(e){_amMbHistoryLastError=(e&&e.message)||'Unknown error';console.error('Mystery box history backfill failed:',e);}
   finally{_amMbHistorySyncing=false;updateAMSyncToggleUI();}
 }
-// Keeps the backfill current between full 30-day re-crawls: crawls forward
-// from the newest day already in window.amMysteryBoxHistory through today,
-// so an active promo's sales don't sit in the gap between the 3-day live
-// bridge and the next scheduled full crawl. No-ops until a full backfill has
-// run at least once on this device (nothing to crawl forward from yet).
+// Keeps the backfill current between full 30-day re-crawls by re-crawling
+// the trailing few days on every cycle and REPLACING those days' figures
+// with the fresh totals. It must re-crawl, not just extend forward: a day
+// captured mid-afternoon is only partly counted, and the first version of
+// this (v2.3.6) skipped anything already "covered" — so each day stayed
+// frozen at whatever half-day count it had when last crawled. The live
+// 3-day AM bridge hid that until a day rolled out of it, at which point it
+// dropped to its stale partial figure — launch-week days ended up well short
+// of Shopify/AM while today and yesterday still looked right. No-ops until a
+// full backfill has run at least once on this device.
 let _amMbTopUpTs=0;
 async function topUpMysteryBoxHistory(){
   if(!isAMSyncEnabled())return;
@@ -9325,19 +9341,25 @@ async function topUpMysteryBoxHistory(){
         if(!lastCovered||day>lastCovered)lastCovered=day;
       }
     }
-    if(!lastCovered)return; // no days recorded yet — leave it to the next full backfill
     const today=getBusinessToday();
-    if(lastCovered>=today)return; // already current
-    const gapDays=Math.min(AM_MB_TOPUP_MAX_DAYS,Math.round((new Date(today+'T00:00:00Z')-new Date(lastCovered+'T00:00:00Z'))/86400000));
+    const sinceLast=lastCovered?Math.round((new Date(today+'T00:00:00Z')-new Date(lastCovered+'T00:00:00Z'))/86400000)+1:0; // +1 so the last known day itself is re-crawled too
+    const gapDays=Math.min(AM_MB_TOPUP_MAX_DAYS,Math.max(AM_MB_TOPUP_OVERLAP_DAYS,sinceLast));
     const idToSku=await getAMSkuIdMap();
     if(!window.amMysteryBoxMeta||!Object.keys(window.amMysteryBoxMeta).length)return;
     const mbStyles=new Set(Object.keys(window.amMysteryBoxMeta).map(sku=>styleFromSku(sku)));
-    const dates=businessDatesBack(gapDays); // today back through (and slightly past) lastCovered — re-covering the last known day is harmless, values are summed fresh per day, not accumulated
+    const dates=businessDatesBack(gapDays);
     const freshSales=await crawlMysteryBoxOrders(dates,idToSku,mbStyles);
-    if(!Object.keys(freshSales).length)return;
-    for(const sku in freshSales){
+    // Replace, don't merge: for every re-crawled day, take AM's fresh answer
+    // as the whole truth for that SKU (including "no sales" — an order
+    // cancelled since the last crawl must not linger from the old figure).
+    const allSkus=new Set([...Object.keys(window.amMysteryBoxHistory),...Object.keys(freshSales)]);
+    for(const sku of allSkus){
       if(!window.amMysteryBoxHistory[sku])window.amMysteryBoxHistory[sku]={};
-      Object.assign(window.amMysteryBoxHistory[sku],freshSales[sku]);
+      for(const day of dates){
+        const fresh=freshSales[sku]&&freshSales[sku][day];
+        if(fresh)window.amMysteryBoxHistory[sku][day]=fresh;
+        else delete window.amMysteryBoxHistory[sku][day];
+      }
     }
     try{localStorage.setItem(AM_MB_HISTORY_CACHE_KEY,JSON.stringify({ts:Date.now(),salesMap:window.amMysteryBoxHistory}))}catch(e){}
     if(allVariantRows&&allVariantRows.length){
@@ -11684,6 +11706,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.6.1 — Fix Mystery Boxes undercounting on the Dashboard/Category views (Sold 30D showed 592 vs 753 in both Better Reports and a direct Shopify API pull for the same Aug 21–Sep 19 window; Apparel Magic itself matched Shopify exactly on the peak days, all orders Approved, so both sources were complete and the fault was this app's own cache). Root cause was v2.3.6's own topUpMysteryBoxHistory(): it skipped anything already "covered" (lastCovered>=today → return) and otherwise only crawled days AFTER the newest cached day, so each day stayed frozen at whatever partial count it had when last crawled mid-day. The live 3-day AM bridge masked that until a day rolled out of it, then it fell back to its stale half-day figure — launch-week days ended up far short while today/yesterday looked right. Now re-crawls at least the trailing 5 days every cycle and REPLACES those days' figures (including removing a since-cancelled day) rather than merging. Cache key bumped to amMysteryBoxHistoryV2 so every browser does one clean full re-crawl (~5 min, old figures shown meanwhile) instead of trusting a cache with permanently short days. Verified against a simulated cache with frozen partial days, a today-already-covered entry, and a since-cancelled day
 // v2.6.0 — Planning > Growth % by Month is now shared across sessions instead of a per-browser localStorage-only setting — the same figures show (and stay in sync) for everyone, on any device. New netlify/functions/planning-globals.js backed by Netlify Blobs (already part of this Netlify site, no new account/credential needed, unlike Shopify/AM) stores one small validated {"YYYY-MM":"<number>"} blob. This is the repo's first npm dependency — added package.json/package-lock.json (committed; node_modules is not) and pinned NODE_VERSION=22 in netlify.toml since @netlify/blobs needs >=22.12 and this site predates package.json entirely, so its previously-pinned Node version couldn't be assumed new enough. Client pulls the shared value on page load and every 10-min background cycle (own TTL, picks up a colleague's edit mid-session), pushes the full current set on every edit; localStorage stays the instant local read for rendering, synced in the background rather than blocking on it — same pattern as the AM/Shopify syncs already in this app. Verified function logic (round-trip, junk-key/value filtering, bad method/JSON) and the client pull/push/re-render flow against a mocked endpoint
 // v2.5.11 — Sales Cadence > Category view (12 Months only): swap Total Sold and LY MTD's column order — Total Sold now sits right after On Order, and LY MTD moves to sit immediately next to the current month's own column instead of before Total Sold. Product view's order is unchanged (LY MTD still before ST%/Total Sold) — this was scoped to Category view specifically, not applied to both
 // v2.5.10 — Order Planning > Product view: Order Qty's suggestion is now the bold figure and the editable input is lighter and starts blank instead of pre-filled with the suggestion — a row you haven't reviewed stays visibly blank rather than silently carrying the calculated value, so clicking Send to Size Workings only ever sends products you've actually typed a quantity into. Previously every row pre-filled with its suggestion, so a click into a field (without even changing it) could look confirmed when it wasn't
