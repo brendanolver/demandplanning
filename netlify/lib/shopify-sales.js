@@ -11,10 +11,14 @@
 // Mystery Box check, and Melbourne's daylight-saving change is 4 Oct).
 
 const DEFAULT_TZ = 'Australia/Melbourne';
-// Real WNDRR product SKUs only — drops order-protection, return coverage, gift
-// cards and other service lines that appear as line items (same shape the app's
-// AM_PRODUCT_STYLE_RE already relies on).
-const PRODUCT_STYLE_RE = /^[A-Z]\d{2}[A-Z]{2}\d{3}[A-Z]{3}/;
+// Line items that aren't products: order protection ("ORDPRO") and the
+// returns-coverage line ("OS"). Deliberately a small BLOCK-list rather than an
+// allow-list pattern — a strict SKU-shape regex silently dropped a real product
+// with an odd SKU (W256A002ASSL, 187 units/yr) that the old CSV path counted.
+// Anything else non-product that slips through is harmless: the app only adopts
+// units for SKUs it already knows from its own catalogue. Gift cards have no
+// SKU at all and are dropped by that rule.
+const NON_PRODUCT_SKUS = new Set(['ORDPRO', 'OS']);
 
 function makeDayOf(tz) {
   const f = new Intl.DateTimeFormat('en-CA', { timeZone: tz || DEFAULT_TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -36,7 +40,7 @@ function addLine(agg, rawSku, qty, day) {
   const sku = String(rawSku || '').trim().toUpperCase();
   const n = Number(qty) || 0;
   if (!day || n <= 0) return;
-  if (!sku || !PRODUCT_STYLE_RE.test(sku)) {
+  if (!sku || NON_PRODUCT_SKUS.has(sku)) {
     agg.droppedUnits += n;
     const k = sku || '(no sku)';
     agg.dropped[k] = (agg.dropped[k] || 0) + n;
@@ -193,7 +197,7 @@ function decodeCompact(c) {
 }
 
 module.exports = {
-  DEFAULT_TZ, PRODUCT_STYLE_RE, makeDayOf, addDays, daysBetween,
+  DEFAULT_TZ, NON_PRODUCT_SKUS, makeDayOf, addDays, daysBetween,
   newAggregate, addLine, topDropped, parseBulkNdjson, runBulkFull, fetchRecent,
   replaceDays, encodeCompact, decodeCompact,
 };

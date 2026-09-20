@@ -14,6 +14,10 @@ const FULL_MAX_AGE_MS = 24 * 60 * 60 * 1000;    // full rebuild daily — picks 
 const FULL_FORCE_MIN_AGE_MS = 30 * 60 * 1000;   // an explicit "full" request is honoured at most this often
 const RUNNING_STALE_MS = 20 * 60 * 1000;        // a lock older than this is a dead run, not a live one
 const FULL_LOOKBACK_DAYS = 365;
+// Bump whenever what gets stored changes (filters, bucketing, shape): a stored
+// feed built under older rules is rebuilt in full on the next run instead of
+// waiting up to a day for the scheduled rebuild.
+const FEED_VERSION = 2;
 const INCREMENTAL_DAYS = 5;                     // today + 4 trailing — a day is only final once it stops taking orders
 const MIN_KEEP_RATIO = 0.5;                     // a full rebuild below half the stored total is treated as broken, not adopted
 
@@ -51,6 +55,7 @@ async function runSync({ store, gql, fetchText, requested, now = Date.now(), sle
   if (meta.running && now - meta.running.startedTs < RUNNING_STALE_MS) return { ran: false, reason: 'already running' };
 
   const fullDue = !meta.lastFullTs
+    || meta.feedVersion !== FEED_VERSION
     || now - meta.lastFullTs > FULL_MAX_AGE_MS
     || (requested === 'full' && now - meta.lastFullTs > FULL_FORCE_MIN_AGE_MS);
   const incrDue = !meta.lastSuccessTs || now - meta.lastSuccessTs > MIN_INTERVAL_MS;
@@ -71,7 +76,7 @@ async function runSync({ store, gql, fetchText, requested, now = Date.now(), sle
       const oldTotal = totalUnits(oldMap), newTotal = totalUnits(map);
       if (!Object.keys(map).length) throw new Error('full rebuild returned no sales at all — keeping existing data');
       if (oldTotal > 0 && newTotal < oldTotal * MIN_KEEP_RATIO) throw new Error(`full rebuild total ${newTotal} is under ${MIN_KEEP_RATIO * 100}% of stored ${oldTotal} — keeping existing data`);
-      patch = { lastFullTs: now, coverageStart: sinceDay };
+      patch = { lastFullTs: now, coverageStart: sinceDay, feedVersion: FEED_VERSION };
     } else {
       const startDay = S.addDays(today, -(INCREMENTAL_DAYS - 1));
       const res = await S.fetchRecent({ gql, dayOf, startDay, sleep, log });
