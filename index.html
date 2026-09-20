@@ -896,7 +896,7 @@ th{position:relative;}
       <div class="topbar-pill"><span class="live-dot"></span>Shopify</div>
       <div class="topbar-pill" id="am-pill"><span class="live-dot"></span>Apparel Magic</div>
       <div class="topbar-pill" id="am-sync-toggle" onclick="toggleAMSync()" style="cursor:pointer;"></div>
-      <div class="topbar-pill" id="shopify-sales-pill" onclick="shopifySalesPillClick()" style="cursor:pointer;">Sales Check: not synced</div>
+      <div class="topbar-pill" id="shopify-sales-pill" onclick="shopifyFeedPillClick()" style="cursor:pointer;">Shopify Sales: Waiting…</div>
       <div class="topbar-pill" id="nav-count">— SKUs</div>
       <div class="screen-nav">
         <button class="screen-btn active" id="btn-dashboard" onclick="showScreen('dashboard')">📊 Dashboard</button>
@@ -2165,13 +2165,13 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.6.2';
+const APP_VERSION='v2.7.0';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
   if(badge)badge.textContent=APP_VERSION;
   updateAMSyncToggleUI();
-  updateShopifySalesToggleUI();
+  updateShopifyFeedPill();
 });
 
 /* ── AM MIGRATION KILL SWITCH ──
@@ -7150,8 +7150,14 @@ function startAutoSync(){
   syncAMMidCodes(true);
   syncAMStock(true); // Phase 1 of AM migration — same background/re-render pattern; no-ops if kill switch is off
   syncAMSales(true); // Phase 2 of AM migration — units sold + real sell price overlay; no-ops if kill switch is off
-  syncMysteryBoxHistory(); // full historical backfill for products with no CSV history at all — deliberately NOT forced, respects its own 30-day cache since a full crawl is expensive
-  topUpMysteryBoxHistory(); // cheap catch-up for any days since the last backfill/top-up, so an active promo isn't left undercounted between full crawls
+  // The AM-based Mystery Box history exists only because the CSV never had those
+  // products; once the Shopify feed is live it supersedes it, so don't spend the
+  // ~1,000 AM requests on a crawl whose result would be thrown away.
+  if(!shopifyFeedActive()){
+    syncMysteryBoxHistory(); // full historical backfill for products with no CSV history at all — deliberately NOT forced, respects its own 30-day cache since a full crawl is expensive
+    topUpMysteryBoxHistory(); // cheap catch-up for any days since the last backfill/top-up, so an active promo isn't left undercounted between full crawls
+  }
+  syncShopifyFeed();
   syncPlanningGrowthGlobal(true); // pull the shared Growth % by Month figures, forced since this is a fresh page load
   autoSyncPipeline().then(ok=>{
     if(!ok){
@@ -7177,8 +7183,9 @@ function startBackgroundAutoRefresh(){
     if(document.visibilityState!=='visible')return;
     syncAMStock(true);
     syncAMSales(true);
-    topUpMysteryBoxHistory(); // own TTL/guards decide whether there's actually anything to catch up
-    syncShopifyOrderSalesTopUp(); // no-ops until the research overlay's first manual backfill has run
+    if(!shopifyFeedActive())topUpMysteryBoxHistory(); // own TTL/guards decide whether there's actually anything to catch up
+    syncShopifyFeed(); // cheap: a ~1KB freshness check, and only pulls/triggers when something's actually due
+    updateShopifyFeedPill(); // keeps the "Xm ago" honest between syncs
     syncPlanningGrowthGlobal(); // own TTL decides whether it's actually due — picks up a colleague's edit mid-session
   },BG_REFRESH_INTERVAL_MS);
 }
@@ -9295,6 +9302,7 @@ async function syncMysteryBoxHistory(force=false){
   updateAMSyncToggleUI();
   try{
     const idToSku=await getAMSkuIdMap(); // also populates window.amMysteryBoxMeta as a side effect
+    if(shopifyFeedActive())return; // the feed arrived while the (slow) sku-id crawl above ran — this history is superseded
     if(!window.amMysteryBoxMeta||!Object.keys(window.amMysteryBoxMeta).length)return; // nothing to look for yet
     // Full style+colour codes (e.g. "W26AX002ASS") — AM's order_items
     // style_number already includes the colour suffix, confirmed against
@@ -9369,313 +9377,255 @@ async function topUpMysteryBoxHistory(){
   }catch(e){console.error('Mystery box history top-up failed:',e);}
 }
 
-/* ── SHOPIFY ORDER SALES OVERLAY (research/validation — not wired into
-   production numbers yet) ──
-   Everything above (AM stock/sales, Mystery Box backfill) treats the Shopify
-   CSV/Report Pipeline export as the primary historical sales source, with AM
-   only ever a short live bridge — and AM's own order record is itself a
-   re-booked copy of the same Shopify orders (see the real-price
-   reconstruction/Iconic-commission logic in the AM SALES section above), not
-   the original transaction. That's exactly the setup that let the Mystery
-   Box promo undercount for days: the CSV pipeline simply didn't have their
-   sales yet.
-   This pulls sales directly from Shopify's own Orders/LineItems via the
-   GraphQL Admin API instead — the actual system of record for every online
-   order — using LineItem.currentQuantity, which already excludes
-   refunded/removed units natively, no discount/commission reconstruction
-   needed. ShopifyQL's shopifyqlQuery was considered first (it's literally
-   what Shopify's own Analytics reports run on) but its 'sales' dataset is
-   deprecated and its replacement ('orders') can't group by variant_sku —
-   confirmed against a real Shopify dev-support thread hitting the same
-   wall — so it can't give the per-SKU breakdown Sales Cadence and Planning
-   actually need.
-   Deliberately kept separate from salesBySkuDay for now — populates
-   window.shopifyOrderSalesMap and its own cache only. A manual pill in the
-   header triggers the sync and opens a comparison against the numbers
-   already on screen, so the data can be validated before it becomes anyone's
-   source of truth. Not part of startAutoSync()/the 10-min background
-   refresh yet for the same reason — the first (expensive, ~minutes-long)
-   backfill shouldn't fire silently for every session while unproven; the
-   cheap top-up only runs once a backfill already exists.
-   Bulk Operations (rather than a plain paginated query) is used for the
-   historical pull specifically because Shopify's own guidance is to use it
-   for large exports — a naive paginated crawl of a year of orders risks
-   GraphQL cost-based rate-limit throttling. The result file itself is
-   fetched and reduced to {sku:{day:{qty}}} server-side, in the proxy
-   function (fetchAndAggregateBulkResult in shopify-proxy.js) — Netlify
-   Functions run on Lambda under the hood, which hard-caps a function's own
-   response at 6MB, and a year of raw NDJSON blew straight past that on a
-   real run (an opaque 502, fixed by never returning the raw file at all).
-   A second real run (a genuine 260,746-object export, status COMPLETED, no
-   errorCode) then came back with zero sales despite that — the parsing had
-   assumed each parent Order row precedes its own child LineItem rows in the
-   file, and that assumption was simply wrong. Confirmed via
-   window.shopifyOrderSalesMap only ever containing the last few days (i.e.
-   exactly what the separate top-up contributes) while Shopify's own
-   currentBulkOperation record showed a large, successful export — the
-   backfill was silently producing nothing. Fixed with a two-pass parse
-   (collect every order's date first, then aggregate line items against the
-   complete map) that doesn't depend on row order at all. */
-const SHOPIFY_SALES_CACHE_KEY='shopifyOrderSalesV1';
-const SHOPIFY_SALES_BACKFILL_TTL=30*24*60*60*1000; // 30 days — mirrors the AM Mystery Box pattern; the full pull is the expensive one
-const SHOPIFY_SALES_TOPUP_TTL=AM_SALES_TTL; // same cadence as the other background syncs
-const SHOPIFY_SALES_LOOKBACK_DAYS=365; // match the Shopify CSV's own history window
-const SHOPIFY_SALES_TOPUP_DAYS=4; // small overlapping window, cheap enough for a plain paginated query every cycle
+/* ── SHOPIFY SALES FEED (server-side) ──
+   Units sold come from a shared feed built server-side from Shopify's own
+   orders (netlify/functions/sales-sync-background.js → Netlify Blobs, served by
+   sales-data.js) instead of the CSV export plus a short Apparel Magic bridge:
+   the CSV pipeline lagged and dropped whole products for days (Mystery Boxes
+   showed 592 against a true 753), and AM's order record is itself a re-booked
+   copy of the same Shopify orders. Validated against Better Reports by product
+   type before this was wired in (Mystery Boxes exact, +0.75% overall). The CSV
+   still supplies everything that isn't units sold — sold-out sizes, core and
+   bundle styles, status, pricing, category/name/colour/size, first-sale date.
 
-async function shopifyGraphQL(query,variables){
-  const resp=await fetch('/.netlify/functions/shopify-proxy',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({query,variables:variables||{}}),
-  });
-  const d=await safeAMJson(resp);
-  if(d.error)throw new Error(d.error); // our own proxy's validation/env errors
-  if(d.errors&&d.errors.length)throw new Error(d.errors.map(e=>e.message).join('; ')); // Shopify GraphQL errors
-  return d.data;
+   Merge rule (applyShopifyFeed): for every SKU the app already knows
+   (priceMap ∪ salesBySkuDay — so any stray non-product SKU the feed carries is
+   simply ignored) the feed REPLACES that SKU's days inside the range the feed
+   covers, [coverageStart..lastDay]. Days before it keep the CSV figures; days
+   after it keep whatever the AM bridge has. A known SKU the feed has no sales
+   for inside that range reads as zero rather than keeping leftover CSV units.
+   Per-day COGS (only the last-resort margin fallback) carries over as the
+   SKU's own legacy cost-per-unit × the new units.
+
+   Safety: if the feed is missing or older than SHOPIFY_FEED_MAX_AGE_MS the
+   merge is skipped and the app behaves exactly as before (CSV + AM). The
+   header pill opens a panel with an OFF switch and a side-by-side against the
+   old method (the copy of each adopted SKU's pre-merge days is kept in
+   window._salesLegacyBySku for exactly that). */
+const SHOPIFY_FEED_URL='/.netlify/functions/sales-data';
+const SHOPIFY_FEED_TRIGGER_URL='/.netlify/functions/sales-sync-background';
+const SHOPIFY_FEED_CACHE_KEY='shopifySalesFeedV1';
+const SHOPIFY_FEED_MAX_AGE_MS=3*60*60*1000; // older than this is treated as unusable → fall back to CSV + AM
+const SHOPIFY_FEED_REFRESH_AFTER_MS=10*60*1000; // ask the server to refresh once its copy is this old
+try{localStorage.removeItem('shopifyOrderSalesV1');}catch(e){} // the retired per-browser research overlay's cache — several MB nothing reads any more
+function isShopifyFeedEnabled(){return localStorage.getItem('shopifyFeedDisabled')!=='1';}
+window.shopifyFeed=null; // {data:{v,tz,days[],skus:{SKU:[dayIdx,units,...]}}, meta}
+let _shopifyFeedSyncing=false;
+let _shopifyFeedLastError=null;
+let _shopifyFeedRecheckTimer=null;
+function shopifyFeedFresh(){
+  const f=window.shopifyFeed;
+  return!!(f&&f.meta&&f.meta.lastSuccessTs&&Date.now()-f.meta.lastSuccessTs<SHOPIFY_FEED_MAX_AGE_MS);
 }
-// The proxy fetches+aggregates the bulk result file itself and returns the
-// compact {sku:{day:{qty,cogs}}} map, not the raw NDJSON — a year of order
-// data easily runs to tens of MB, and Netlify Functions (Lambda under the
-// hood) hard-cap a function's own response at 6MB, which came back as an
-// opaque 502 the one time this was tried against real data. Fetching FROM
-// Google Cloud Storage server-side has no such limit; only the response
-// back to this browser does.
-async function shopifyDownloadBulkResult(url){
-  const resp=await fetchWithTimeout(`/.netlify/functions/shopify-proxy?download=${encodeURIComponent(url)}`,60000,1);
-  const d=await safeAMJson(resp);
-  if(!resp.ok||d.error)throw new Error(d.error||`HTTP ${resp.status}`);
-  // Stashed for inspection — two real runs against genuine ~260k-object
-  // exports both produced an empty salesMap for reasons not yet explained,
-  // so the server now reports exactly where rows got filtered out. Check
-  // window._shopifyBulkDebug after a sync to see it.
-  window._shopifyBulkDebug=d.debug||null;
-  return d.salesMap||{};
-}
-function buildBulkOrdersQuery(sinceISO){
-  // Block-string (""") embedding is Shopify's own documented pattern for
-  // bulkOperationRunQuery — avoids manually escaping every quote in the
-  // nested query text.
-  return`mutation {
-    bulkOperationRunQuery(
-      query: """
-      {
-        orders(query: "created_at:>='${sinceISO}'") {
-          edges {
-            node {
-              id
-              createdAt
-              lineItems {
-                edges {
-                  node {
-                    sku
-                    currentQuantity
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-      """
-    ) {
-      bulkOperation { id status }
-      userErrors { field message }
-    }
-  }`;
-}
-async function pollShopifyBulkOperation(maxWaitMs=6*60*1000,intervalMs=4000){
-  const q=`{ currentBulkOperation { id status errorCode objectCount url partialDataUrl } }`;
-  const start=Date.now();
-  while(Date.now()-start<maxWaitMs){
-    const data=await shopifyGraphQL(q);
-    const op=data.currentBulkOperation;
-    if(!op)throw new Error('No bulk operation found');
-    if(op.status==='COMPLETED')return op.url||op.partialDataUrl||null;
-    if(op.status==='FAILED'||op.status==='CANCELED'||op.status==='EXPIRED'){
-      throw new Error(`Bulk operation ${op.status}${op.errorCode?` (${op.errorCode})`:''}`);
-    }
-    await new Promise(res=>setTimeout(res,intervalMs));
-  }
-  throw new Error('Bulk operation timed out client-side (may still be running in Shopify — try again shortly)');
-}
-function loadShopifySalesCache(){
+function shopifyFeedActive(){return isShopifyFeedEnabled()&&shopifyFeedFresh();}
+function loadShopifyFeedCache(){
   try{
-    const c=JSON.parse(localStorage.getItem(SHOPIFY_SALES_CACHE_KEY)||'null');
-    if(c&&c.salesMap){window.shopifyOrderSalesMap=c.salesMap;return c.ts||0;}
+    const c=JSON.parse(localStorage.getItem(SHOPIFY_FEED_CACHE_KEY)||'null');
+    if(c&&c.data&&c.meta)window.shopifyFeed={data:c.data,meta:c.meta};
   }catch(e){}
-  return 0;
 }
-loadShopifySalesCache();
-let _shopifySalesSyncing=false; // guards the (rare, ~minutes-long) full backfill only
-let _shopifySalesLastError=null;
-let _shopifyTopUpTs=0;
-async function syncShopifyOrderSalesBackfill(force=false){
-  // Temporary trace logging — three real runs so far have each surfaced a
-  // different silent failure (502 from an oversized response, a parsing
-  // ordering bug, and now a run that produces neither an error nor a
-  // populated map nor even a debug object), so this makes every branch of
-  // the function visible in one console session instead of another round of
-  // bespoke follow-up snippets.
-  if(_shopifySalesSyncing){console.log('[shopify backfill] already syncing — skipped');return;}
-  const ts=loadShopifySalesCache();
-  if(!force&&Date.now()-ts<SHOPIFY_SALES_BACKFILL_TTL){console.log('[shopify backfill] within TTL — skipped');return;}
-  _shopifySalesSyncing=true;
-  _shopifySalesLastError=null;
-  updateShopifySalesToggleUI();
-  console.log('[shopify backfill] starting…');
+loadShopifyFeedCache();
+
+// Adopts the feed into salesBySkuDay IN PLACE (same object as
+// window._salesBySkuDay, which every consumer reads). Idempotent — buildVariantRows
+// runs this on every rebuild, after the AM overlays. Returns null if inactive.
+function applyShopifyFeed(salesBySkuDay,priceMap){
+  if(!shopifyFeedActive())return null;
+  const f=window.shopifyFeed,days=f.data.days,skus=f.data.skus;
+  const from=f.meta.coverageStart,to=f.meta.lastDay;
+  if(!from||!to||!days||!skus)return null;
+  if(window._salesLegacyFor!==salesBySkuDay){window._salesLegacyFor=salesBySkuDay;window._salesLegacyBySku={};}
+  const stash=window._salesLegacyBySku;
+  // Match the feed's (uppercased) SKU onto the app's own key. Where a SKU exists
+  // in both maps, prefer the key its sales already live under.
+  const keyOf={};
+  for(const k in priceMap)keyOf[k.toUpperCase()]=k;
+  for(const k in salesBySkuDay)keyOf[k.toUpperCase()]=k;
+  const inFeed=new Set();
+  let adopted=0,zeroed=0;
+  for(const fsku in skus){
+    const key=keyOf[fsku];
+    if(!key)continue; // not a SKU this app knows — service line, typo, retired product
+    inFeed.add(key);
+    const old=salesBySkuDay[key]||{};
+    if(!(key in stash))stash[key]=old;
+    let lq=0,lc=0;
+    for(const d in old){lq+=old[d].qty||0;lc+=old[d].cogs||0;}
+    const unitCogs=lq>0?lc/lq:0;
+    const next={};
+    for(const d in old)if(d<from||d>to)next[d]=old[d];
+    const arr=skus[fsku];
+    for(let i=0;i<arr.length;i+=2){const q=arr[i+1];next[days[arr[i]]]={qty:q,cogs:unitCogs?+(q*unitCogs).toFixed(2):0};}
+    salesBySkuDay[key]=next;
+    adopted++;
+  }
+  for(const key in salesBySkuDay){
+    if(inFeed.has(key))continue;
+    const old=salesBySkuDay[key];
+    let inRange=false;
+    for(const d in old)if(d>=from&&d<=to){inRange=true;break;}
+    if(!inRange)continue;
+    if(!(key in stash))stash[key]=old;
+    const next={};
+    for(const d in old)if(d<from||d>to)next[d]=old[d];
+    salesBySkuDay[key]=next;
+    zeroed++;
+  }
+  return{adopted,zeroed};
+}
+
+// A non-2xx or {error} reply is a failure to surface, not "no data yet" — the
+// sales-data function reports its own problems as {error} with a 500.
+async function shopifyFeedJson(url){
+  const r=await fetch(url);
+  let p;
+  try{p=await r.json();}catch(e){throw new Error('HTTP '+r.status);}
+  if(!r.ok||p.error)throw new Error(p.error||('HTTP '+r.status));
+  return p;
+}
+async function pullShopifyFeed(){
+  const p=await shopifyFeedJson(SHOPIFY_FEED_URL);
+  if(!p.ready)return false;
+  window.shopifyFeed={data:p.data,meta:p.meta};
+  try{localStorage.setItem(SHOPIFY_FEED_CACHE_KEY,JSON.stringify(window.shopifyFeed));}catch(e){}
+  if(allVariantRows&&allVariantRows.length){
+    buildVariantRows();
+    if(currentScreen==='dashboard')setView(currentView);
+  }
+  return true;
+}
+// After asking the server to refresh (or build for the first time — about 2.5
+// minutes), check back every 15s for a newer copy rather than waiting for the
+// next 10-minute cycle.
+function scheduleShopifyFeedRecheck(tries=0){
+  clearTimeout(_shopifyFeedRecheckTimer);
+  if(tries>=24)return;
+  _shopifyFeedRecheckTimer=setTimeout(async()=>{
+    try{
+      const m=await shopifyFeedJson(SHOPIFY_FEED_URL+'?meta=1');
+      const have=(window.shopifyFeed&&window.shopifyFeed.meta.lastSuccessTs)||0;
+      if(m.ready&&(m.meta.lastSuccessTs||0)>have&&!m.meta.syncing){await pullShopifyFeed();updateShopifyFeedPill();return;}
+      if(m.meta&&m.meta.lastError&&!m.meta.syncing){_shopifyFeedLastError=m.meta.lastError;updateShopifyFeedPill();return;}
+    }catch(e){}
+    scheduleShopifyFeedRecheck(tries+1);
+  },15000);
+}
+async function syncShopifyFeed(){
+  if(!isShopifyFeedEnabled()||_shopifyFeedSyncing)return;
+  _shopifyFeedSyncing=true;
+  _shopifyFeedLastError=null;
+  updateShopifyFeedPill();
   try{
-    const since=businessDatesBack(SHOPIFY_SALES_LOOKBACK_DAYS).slice(-1)[0];
-    console.log('[shopify backfill] submitting bulk query, since=',since);
-    const submitData=await shopifyGraphQL(buildBulkOrdersQuery(since));
-    const result=submitData.bulkOperationRunQuery;
-    console.log('[shopify backfill] submit result:',JSON.stringify(result));
-    if(result.userErrors&&result.userErrors.length){
-      throw new Error(result.userErrors.map(e=>e.message).join('; '));
+    const m=await shopifyFeedJson(SHOPIFY_FEED_URL+'?meta=1');
+    const have=(window.shopifyFeed&&window.shopifyFeed.meta.lastSuccessTs)||0;
+    if(m.ready&&(m.meta.lastSuccessTs||0)>have)await pullShopifyFeed();
+    const ageMs=m.meta&&m.meta.ageSec!=null?m.meta.ageSec*1000:Infinity;
+    if((!m.ready||ageMs>SHOPIFY_FEED_REFRESH_AFTER_MS)&&!(m.meta&&m.meta.syncing)){
+      // The server decides whether a run is actually due, so this is cheap to
+      // fire from every open tab.
+      fetch(SHOPIFY_FEED_TRIGGER_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).catch(()=>{});
+      scheduleShopifyFeedRecheck();
+    }else if(m.meta&&m.meta.syncing){
+      scheduleShopifyFeedRecheck();
     }
-    const url=await pollShopifyBulkOperation();
-    console.log('[shopify backfill] poll returned url:',url);
-    window.shopifyOrderSalesMap=url?await shopifyDownloadBulkResult(url):{};
-    console.log('[shopify backfill] final SKU count:',Object.keys(window.shopifyOrderSalesMap).length,'debug:',JSON.stringify(window._shopifyBulkDebug));
-    try{localStorage.setItem(SHOPIFY_SALES_CACHE_KEY,JSON.stringify({ts:Date.now(),salesMap:window.shopifyOrderSalesMap}))}catch(e){}
-  }catch(e){_shopifySalesLastError=(e&&e.message)||'Unknown error';console.error('Shopify order sales backfill failed:',e);}
-  finally{_shopifySalesSyncing=false;updateShopifySalesToggleUI();}
+    if(m.meta&&m.meta.lastError&&!m.ready)_shopifyFeedLastError=m.meta.lastError;
+  }catch(e){_shopifyFeedLastError=(e&&e.message)||'Unknown error';console.error('Shopify sales feed sync failed:',e);}
+  finally{_shopifyFeedSyncing=false;updateShopifyFeedPill();}
 }
-async function syncShopifyOrderSalesTopUp(){
-  if(_shopifySalesSyncing)return; // don't race a full backfill
-  if(!window.shopifyOrderSalesMap)return; // needs the initial backfill first
-  if(Date.now()-_shopifyTopUpTs<SHOPIFY_SALES_TOPUP_TTL)return;
-  _shopifyTopUpTs=Date.now();
-  try{
-    const since=businessDatesBack(SHOPIFY_SALES_TOPUP_DAYS).slice(-1)[0];
-    const q=`query($cursor:String){
-      orders(first:50, after:$cursor, query:"created_at:>='${since}'"){
-        pageInfo{hasNextPage endCursor}
-        edges{node{
-          id createdAt
-          lineItems(first:100){edges{node{sku currentQuantity}}}
-        }}
-      }
-    }`;
-    let cursor=null,hasNext=true;
-    const fresh={};
-    while(hasNext){
-      const data=await shopifyGraphQL(q,{cursor});
-      const conn=data.orders;
-      for(const edge of conn.edges){
-        const day=(edge.node.createdAt||'').slice(0,10);
-        for(const liEdge of(edge.node.lineItems.edges||[])){
-          const sku=(liEdge.node.sku||'').trim().toUpperCase();
-          const qty=parseFloat(liEdge.node.currentQuantity)||0;
-          if(!sku||qty<=0||!AM_PRODUCT_STYLE_RE.test(sku))continue;
-          if(!fresh[sku])fresh[sku]={};
-          if(!fresh[sku][day])fresh[sku][day]={qty:0,cogs:0};
-          fresh[sku][day].qty+=qty;
-        }
-      }
-      hasNext=conn.pageInfo.hasNextPage;
-      cursor=conn.pageInfo.endCursor;
-    }
-    for(const sku in fresh){
-      if(!window.shopifyOrderSalesMap[sku])window.shopifyOrderSalesMap[sku]={};
-      Object.assign(window.shopifyOrderSalesMap[sku],fresh[sku]);
-    }
-    try{localStorage.setItem(SHOPIFY_SALES_CACHE_KEY,JSON.stringify({ts:Date.now(),salesMap:window.shopifyOrderSalesMap}))}catch(e){}
-  }catch(e){_shopifySalesLastError=(e&&e.message)||'Unknown error';console.error('Shopify order sales top-up failed:',e);}
-  finally{updateShopifySalesToggleUI();}
-}
-function updateShopifySalesToggleUI(){
+
+function updateShopifyFeedPill(){
   const el=document.getElementById('shopify-sales-pill');
   if(!el)return;
-  let status,warn=false;
-  if(_shopifySalesSyncing){
-    status='Syncing…';
-  }else if(_shopifySalesLastError){
-    status='Sync failed';warn=true;
-  }else{
-    const ts=(()=>{try{return JSON.parse(localStorage.getItem(SHOPIFY_SALES_CACHE_KEY)||'null')?.ts||0}catch(e){return 0}})();
-    if(ts){
-      const mins=Math.round((Date.now()-ts)/60000);
-      status=mins<1?'Synced just now':`Synced ${mins}m ago`;
-    }else{
-      status='Not synced';
-    }
-  }
-  el.innerHTML=`<span class="live-dot" style="background:${warn?'#dc2626':'#9ca3af'}"></span>Sales Check: ${status}`;
-  el.title=warn?`Last sync failed: ${_shopifySalesLastError}\nClick to retry`:'Click to run/compare. Research overlay — sources sales directly from Shopify\'s Orders API for comparison against the numbers shown elsewhere (first run can take a few minutes). Does not affect any displayed totals yet.';
+  const enabled=isShopifyFeedEnabled();
+  let status,warn=false,tip;
+  const f=window.shopifyFeed,meta=f&&f.meta;
+  if(!enabled){status='OFF';tip='Shopify sales are switched OFF — units sold come from the CSV + Apparel Magic bridge. Click for options.';}
+  else if(shopifyFeedFresh()){
+    const mins=Math.max(0,Math.round((Date.now()-meta.lastSuccessTs)/60000));
+    status=mins<1?'Live':`${mins}m ago`;
+    tip=`Units sold come from Shopify's own orders (${meta.stats&&meta.stats.skus?meta.stats.skus.toLocaleString()+' SKUs, ':''}${meta.coverageStart} → ${meta.lastDay}, ${meta.tz}). Click for the comparison against the old CSV method and an OFF switch.`;
+  }else if(meta){status='Stale';warn=true;tip='The Shopify sales feed is more than 3 hours old, so the app is using the CSV + Apparel Magic bridge instead. Click for options.';}
+  else if(_shopifyFeedLastError){status='Unavailable';warn=true;tip=`Couldn't load the Shopify sales feed (${_shopifyFeedLastError}) — using the CSV + Apparel Magic bridge instead.`;}
+  else{status=_shopifyFeedSyncing?'Syncing…':'Waiting…';tip='Loading the Shopify sales feed — until it arrives the app uses the CSV + Apparel Magic bridge.';}
+  el.innerHTML=`<span class="live-dot" style="background:${warn?'#dc2626':(enabled?'':'#9ca3af')}"></span>Shopify Sales: ${status}`;
+  el.title=tip||'';
 }
-async function shopifySalesPillClick(){
-  if(_shopifySalesSyncing)return;
-  if(!window.shopifyOrderSalesMap){
-    await syncShopifyOrderSalesBackfill(true);
-  }else{
-    await syncShopifyOrderSalesTopUp();
-  }
-  if(window.shopifyOrderSalesMap)showShopifySalesComparison();
+function toggleShopifyFeed(){
+  const on=isShopifyFeedEnabled();
+  if(!confirm(on?'Turn OFF the Shopify sales feed?\n\nUnits sold go back to the CSV + Apparel Magic bridge until turned back on. The page will reload.':'Turn ON the Shopify sales feed? The page will reload.'))return;
+  localStorage.setItem('shopifyFeedDisabled',on?'1':'0');
+  location.reload();
 }
-// Sums both sources over the trailing `days` and returns rows sorted by
-// biggest absolute discrepancy — call directly from the console for a
-// longer window than the pill's panel shows, e.g.
-// compareShopifySalesVsApp(30).
-function compareShopifySalesVsApp(days=7){
-  if(!window.shopifyOrderSalesMap){
-    console.warn('Shopify sales overlay has not synced yet — click the "Shopify Sales" pill, or call syncShopifyOrderSalesBackfill(true).');
-    return[];
+function shopifyFeedPillClick(){showShopifyFeedPanel();}
+
+// Last-N-days units per category and per SKU: what the app shows now (Shopify
+// feed merged in) against what it showed before the merge (stashed CSV + AM
+// days for every SKU the feed touched; untouched SKUs are the same either way).
+function shopifyFeedComparison(days=30){
+  const set=new Set(businessDatesBack(days));
+  const cur=window._salesBySkuDay||{},stash=window._salesLegacyBySku||{};
+  const catOf=window._skuCategoryMap||{};
+  const sum=m=>{let t=0;for(const d in m)if(set.has(d))t+=m[d].qty||0;return t;};
+  const cats={},skus=[];
+  for(const sku in cur){
+    const now=sum(cur[sku]);
+    const before=sku in stash?sum(stash[sku]):now;
+    if(!now&&!before)continue;
+    const c=catOf[sku]||'UNCATEGORISED';
+    if(!cats[c])cats[c]={before:0,now:0};
+    cats[c].before+=before;cats[c].now+=now;
+    if(now!==before)skus.push({sku,before,now});
   }
-  const dates=businessDatesBack(days);
-  const appMap=window._salesBySkuDay||{};
-  const skus=new Set([...Object.keys(window.shopifyOrderSalesMap),...Object.keys(appMap)]);
-  const rows=[];
-  for(const sku of skus){
-    let shopifyQty=0,appQty=0;
-    for(const day of dates){
-      shopifyQty+=(window.shopifyOrderSalesMap[sku]&&window.shopifyOrderSalesMap[sku][day]&&window.shopifyOrderSalesMap[sku][day].qty)||0;
-      appQty+=(appMap[sku]&&appMap[sku][day]&&appMap[sku][day].qty)||0;
-    }
-    if(shopifyQty||appQty)rows.push({sku,shopifyQty,appQty,delta:shopifyQty-appQty});
-  }
-  rows.sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta));
-  console.table(rows);
-  return rows;
+  skus.sort((a,b)=>Math.abs(b.now-b.before)-Math.abs(a.now-a.before));
+  return{cats,skus};
 }
-function showShopifySalesComparison(){
-  if(!window.shopifyOrderSalesMap){alert('No Shopify sales data synced yet.');return;}
+function showShopifyFeedPanel(){
   document.getElementById('shopify-compare-overlay')?.remove();
-  const days=7;
-  const rows=compareShopifySalesVsApp(days);
+  const f=window.shopifyFeed,meta=f&&f.meta,enabled=isShopifyFeedEnabled();
+  const active=shopifyFeedActive();
+  const cmp=active?shopifyFeedComparison(30):{cats:{},skus:[]};
   const priceMap=(_cachedSalesMaps&&_cachedSalesMaps.priceMap)||{};
-  const nameFor=sku=>{
-    const p=priceMap[sku];
-    return p?`${p.productName||''}${p.colour?' - '+p.colour:''}`:sku;
-  };
-  const top=rows.slice(0,40);
+  const nameFor=sku=>{const p=priceMap[sku];return p?`${p.productName||''}${p.colour?' - '+p.colour:''}${p.size?' · '+p.size:''}`:sku;};
+  const catRows=Object.entries(cmp.cats).sort((a,b)=>b[1].now-a[1].now);
+  const totB=catRows.reduce((s,[,v])=>s+v.before,0),totN=catRows.reduce((s,[,v])=>s+v.now,0);
+  const dcol=d=>d===0?'var(--text-muted)':(Math.abs(d)>=5?'var(--red)':'var(--amber)');
+  const fmtD=d=>(d>0?'+':'')+d.toLocaleString();
+  const status=!enabled?'Switched OFF — units sold are coming from the CSV + Apparel Magic bridge.'
+    :active?`Live — last synced ${Math.max(0,Math.round((Date.now()-meta.lastSuccessTs)/60000))} min ago · covers ${meta.coverageStart} → ${meta.lastDay} (${meta.tz}) · ${meta.stats&&meta.stats.skus?meta.stats.skus.toLocaleString():'?'} SKUs`
+    :meta?'Feed is more than 3 hours old — the app is using the CSV + Apparel Magic bridge instead.'
+    :(_shopifyFeedLastError?`Couldn't load the feed (${_shopifyFeedLastError}).`:'Feed not loaded yet.');
   const html=`
     <div id="shopify-compare-overlay" style="position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:9999;display:flex;align-items:center;justify-content:center;">
-      <div style="background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--shadow);max-width:900px;width:92%;max-height:85vh;display:flex;flex-direction:column;">
-        <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+      <div style="background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--shadow);max-width:920px;width:94%;max-height:88vh;display:flex;flex-direction:column;">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">
           <div>
-            <div style="font-weight:700;font-size:15px;">Shopify Sales Overlay — last ${days} days</div>
-            <div style="font-size:11px;color:var(--text-muted);">Research comparison only — not wired into any displayed totals yet. Sorted by biggest discrepancy.</div>
+            <div style="font-weight:700;font-size:15px;">Shopify sales feed</div>
+            <div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;">${status}</div>
           </div>
-          <button onclick="document.getElementById('shopify-compare-overlay').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--text-muted);">&times;</button>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button onclick="toggleShopifyFeed()" style="padding:6px 12px;border:1px solid var(--border);background:var(--surface);border-radius:var(--r-sm);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;color:${enabled?'var(--red)':'var(--teal)'};">${enabled?'Turn OFF':'Turn ON'}</button>
+            <button onclick="document.getElementById('shopify-compare-overlay').remove()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--text-muted);line-height:1;">&times;</button>
+          </div>
         </div>
-        <div style="overflow:auto;padding:0 20px 20px;">
+        <div style="overflow:auto;padding:4px 20px 20px;">
+          ${active?`
+          <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin:14px 0 6px;">Units sold, last 30 days — old method (CSV + AM) vs now (Shopify)</div>
           <table style="width:100%;border-collapse:collapse;font-size:12px;">
             <thead><tr style="text-align:left;color:var(--text-muted);border-bottom:1px solid var(--border);">
-              <th style="padding:8px 6px;">SKU / Product</th>
-              <th style="padding:8px 6px;text-align:right;">Shopify Qty</th>
-              <th style="padding:8px 6px;text-align:right;">App Qty</th>
-              <th style="padding:8px 6px;text-align:right;">Delta</th>
-            </tr></thead>
+              <th style="padding:6px;">Category</th><th style="padding:6px;text-align:right;">Old</th><th style="padding:6px;text-align:right;">Now</th><th style="padding:6px;text-align:right;">Change</th></tr></thead>
             <tbody>
-              ${top.map(r=>`<tr style="border-bottom:1px solid var(--border-light);">
-                <td style="padding:6px;">${nameFor(r.sku)}<div style="color:var(--text-muted);font-size:10px;">${r.sku}</div></td>
-                <td style="padding:6px;text-align:right;">${r.shopifyQty}</td>
-                <td style="padding:6px;text-align:right;">${r.appQty}</td>
-                <td style="padding:6px;text-align:right;font-weight:600;color:${r.delta===0?'var(--text-muted)':(Math.abs(r.delta)>=5?'var(--red)':'var(--amber)')};">${r.delta>0?'+':''}${r.delta}</td>
-              </tr>`).join('')}
+              ${catRows.map(([c,v])=>`<tr style="border-bottom:1px solid var(--border-light);"><td style="padding:5px 6px;">${c}</td><td style="padding:5px 6px;text-align:right;">${v.before.toLocaleString()}</td><td style="padding:5px 6px;text-align:right;font-weight:600;">${v.now.toLocaleString()}</td><td style="padding:5px 6px;text-align:right;font-weight:600;color:${dcol(v.now-v.before)};">${fmtD(v.now-v.before)}</td></tr>`).join('')}
+              <tr style="border-top:2px solid var(--border);font-weight:700;"><td style="padding:6px;">Total</td><td style="padding:6px;text-align:right;">${totB.toLocaleString()}</td><td style="padding:6px;text-align:right;">${totN.toLocaleString()}</td><td style="padding:6px;text-align:right;color:${dcol(totN-totB)};">${fmtD(totN-totB)}</td></tr>
             </tbody>
           </table>
-          ${rows.length>top.length?`<div style="padding:10px 6px;color:var(--text-muted);font-size:11px;">+ ${rows.length-top.length} more rows with no discrepancy — full data in window.shopifyOrderSalesMap, or call compareShopifySalesVsApp(days) in the console for a longer window.</div>`:''}
+          <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin:18px 0 6px;">Biggest SKU changes (${cmp.skus.length.toLocaleString()} SKUs differ)</div>
+          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead><tr style="text-align:left;color:var(--text-muted);border-bottom:1px solid var(--border);">
+              <th style="padding:6px;">SKU / product</th><th style="padding:6px;text-align:right;">Old</th><th style="padding:6px;text-align:right;">Now</th><th style="padding:6px;text-align:right;">Change</th></tr></thead>
+            <tbody>
+              ${cmp.skus.slice(0,15).map(r=>`<tr style="border-bottom:1px solid var(--border-light);"><td style="padding:5px 6px;">${nameFor(r.sku)}<div style="color:var(--text-muted);font-size:10px;">${r.sku}</div></td><td style="padding:5px 6px;text-align:right;">${r.before}</td><td style="padding:5px 6px;text-align:right;font-weight:600;">${r.now}</td><td style="padding:5px 6px;text-align:right;font-weight:600;color:${dcol(r.now-r.before)};">${fmtD(r.now-r.before)}</td></tr>`).join('')||'<tr><td colspan="4" style="padding:10px 6px;color:var(--text-muted);">No differences.</td></tr>'}
+            </tbody>
+          </table>`:`<div style="padding:24px 6px;color:var(--text-muted);font-size:12.5px;">The comparison appears once the feed is live.</div>`}
         </div>
       </div>
     </div>`;
@@ -10336,6 +10286,9 @@ function buildVariantRows(){
       }
     }
   }
+  // Shopify feed last, so "known SKUs" includes anything the overlays above
+  // just injected (Mystery Boxes) and the feed wins over the CSV/AM units.
+  applyShopifyFeed(salesBySkuDay,priceMap);
   // Rebuilt here (after every overlay above has had a chance to touch
   // priceMap) rather than once inside the cache-miss block — a SKU whose
   // category only exists via an AM overlay (Mystery Boxes being the current
@@ -11706,6 +11659,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.7.0 — Units sold now come from the shared Shopify sales feed (Phase 2 of the CSV→Shopify move; the server side shipped in v2.6.2). For every SKU the app already knows, the feed replaces that SKU's days inside the range it covers ([coverageStart..lastDay]); older days keep the CSV figures, days after lastDay keep the AM bridge, and a known SKU the feed has no sales for reads as zero rather than keeping leftover CSV units. Unknown SKUs in the feed (service lines, typos) are ignored, per-day COGS (last-resort margin fallback only) carries over as the SKU's own legacy cost-per-unit × the new units, and the CSV still supplies everything that isn't units sold (sold-out sizes, core/bundle styles, status, pricing, category/name/colour/size, first-sale date). Sales Value is unchanged in method (units × current price) so it simply follows the new units. Safety: a missing feed, or one older than 3h, is skipped and the app behaves exactly as before (CSV + AM); the header pill ("Shopify Sales: Live / 4m ago / Waiting… / Stale / Unavailable / OFF") opens a panel with an OFF switch and a 30-day side-by-side of the old method vs Shopify by category and by SKU, for checking against Better Reports. Fetch: a ~1KB freshness check on load and every 10-min cycle, pulling the ~0.5MB feed only when newer, asking the server to refresh (POST sales-sync-background, safe from every tab) once its copy is >10 min old and re-checking every 15s until it lands — including the very first build (~2.5 min). Once the feed is live the AM-based Mystery Box history crawl is skipped (its ~1,000 AM requests would be thrown away) — that machinery, the AM 3-day bridge, and shopify-proxy's bulk-download path are now fallbacks/dead weight pending cleanup. Removed the per-browser research overlay (v2.4.0: syncShopifyOrderSalesBackfill/TopUp, its 365-day localStorage cache, compareShopifySalesVsApp) which this replaces; the old cache key is deleted on load to free several MB of localStorage. Tested with synthetic merges (range edges, case-insensitive keys, cogs carry-over, idempotence on rebuild, stale/disabled skip), against the live endpoints (pull 0.5MB in 2.6s; real feed merged → Mystery Boxes 753 for Aug 21–Sep 19 and the stale partial Sep 9 became the true 121), the first-ever-build trigger/poll flow, and an HTTP-500 feed (pill "Unavailable", app data untouched — which also caught and fixed a case where a 500 on the freshness check just showed "Waiting…")
 // v2.6.2 — (1) CORRECTION to v2.6.0: Growth % sharing did NOT actually work when shipped — planning-globals.js built and deployed fine but returned HTTP 500 at runtime ("environment has not been configured to use Netlify Blobs"): Blobs isn't auto-configured for legacy exports.handler-style functions and needs connectLambda(event) called first. Fixed and confirmed against the deployed endpoint (200), found only by hitting it rather than trusting the green deploy — the earlier "verified" was against a mocked store, which had no way to reveal it. (2) Phase 1 of moving sales units from the CSV to the Shopify API — server side only, NOTHING IN THE APP USES IT YET: new netlify/functions/sales-sync-background.js (15-min limit; full-year Shopify bulk rebuild daily + an incremental that re-crawls and REPLACES the trailing 5 days, the Mystery Box frozen-partial-day lesson applied from the start; gated by min interval, an overlap lock, a refuse-to-adopt-a-rebuild-under-half-the-stored-total guard, and a FEED_VERSION so a rules change rebuilds immediately), sales-data.js (serves it in a compact per-SKU format, ~0.5MB for a year vs Lambda's 6MB cap; ?meta=1 for freshness), shared logic in netlify/lib/, tests in tests/ (npm test). Stored in Netlify Blobs so every browser sees the same data. Days bucket in the SHOP's timezone (Australia/Melbourne, DST-aware — UTC bucketing gave 763 vs the true 753 on the Mystery Box check; daylight saving starts 4 Oct). Validated live against Better Reports (Aug 21–Sep 19, by product type): Mystery Boxes exact (753) with all 12 days matching a direct API pull, eight other types exact, 6,430 vs 6,382 overall (+0.75%, slightly high — consistent with counting units on their original order day where Better Reports also nets returns of older orders in-window). Service lines dropped by a small block-list (ORDPRO order protection, OS returns coverage, no-SKU gift cards) rather than a SKU-shape allow-list, which had silently dropped a real product with an odd SKU (W256A002ASSL). Trigger: POST /.netlify/functions/sales-sync-background (returns 202; safe to call repeatedly)
 // v2.6.1 — Fix Mystery Boxes undercounting on the Dashboard/Category views (Sold 30D showed 592 vs 753 in both Better Reports and a direct Shopify API pull for the same Aug 21–Sep 19 window; Apparel Magic itself matched Shopify exactly on the peak days, all orders Approved, so both sources were complete and the fault was this app's own cache). Root cause was v2.3.6's own topUpMysteryBoxHistory(): it skipped anything already "covered" (lastCovered>=today → return) and otherwise only crawled days AFTER the newest cached day, so each day stayed frozen at whatever partial count it had when last crawled mid-day. The live 3-day AM bridge masked that until a day rolled out of it, then it fell back to its stale half-day figure — launch-week days ended up far short while today/yesterday looked right. Now re-crawls at least the trailing 5 days every cycle and REPLACES those days' figures (including removing a since-cancelled day) rather than merging. Cache key bumped to amMysteryBoxHistoryV2 so every browser does one clean full re-crawl (~5 min, old figures shown meanwhile) instead of trusting a cache with permanently short days. Verified against a simulated cache with frozen partial days, a today-already-covered entry, and a since-cancelled day
 // v2.6.0 — Planning > Growth % by Month is now shared across sessions instead of a per-browser localStorage-only setting — the same figures show (and stay in sync) for everyone, on any device. New netlify/functions/planning-globals.js backed by Netlify Blobs (already part of this Netlify site, no new account/credential needed, unlike Shopify/AM) stores one small validated {"YYYY-MM":"<number>"} blob. This is the repo's first npm dependency — added package.json/package-lock.json (committed; node_modules is not) and pinned NODE_VERSION=22 in netlify.toml since @netlify/blobs needs >=22.12 and this site predates package.json entirely, so its previously-pinned Node version couldn't be assumed new enough. Client pulls the shared value on page load and every 10-min background cycle (own TTL, picks up a colleague's edit mid-session), pushes the full current set on every edit; localStorage stays the instant local read for rendering, synced in the background rather than blocking on it — same pattern as the AM/Shopify syncs already in this app. Verified function logic (round-trip, junk-key/value filtering, bad method/JSON) and the client pull/push/re-render flow against a mocked endpoint
