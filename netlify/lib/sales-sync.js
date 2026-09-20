@@ -1,8 +1,8 @@
 // Orchestration for the server-side sales feed: decides full vs incremental,
 // guards against overlapping/duplicate runs, and only ever overwrites stored
 // data with a result that passed sanity checks. Takes its store/network as
-// arguments so it can be tested with fakes (see the tests run before each
-// deploy) — the function files are thin wrappers around this.
+// arguments so it can be tested with fakes (tests/sales-feed.test.js, run with
+// `npm test`) — the function files are thin wrappers around this.
 
 const S = require('./shopify-sales');
 

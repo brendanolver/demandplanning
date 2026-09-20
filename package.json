@@ -4,5 +4,8 @@
   "description": "Dependencies for netlify/functions/* — the app itself (index.html) is plain static HTML/JS, no build step.",
   "dependencies": {
     "@netlify/blobs": "11.1.0"
+  },
+  "scripts": {
+    "test": "node tests/sales-feed.test.js"
   }
 }
