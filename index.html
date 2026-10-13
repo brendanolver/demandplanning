@@ -705,6 +705,35 @@ th{position:relative;}
 .mdp-core{font-size:9.5px;font-weight:700;color:#0e7490;background:#e0f7fa;border-radius:4px;padding:1px 5px;}
 .mdp-exc{font-size:9.5px;font-weight:700;color:#b45309;background:#fef3c7;border-radius:4px;padding:1px 5px;cursor:help;}
 .mdp-foot{font-size:11.5px;color:#6b7280;line-height:1.55;margin-top:12px;}
+
+/* Sale setup / plans strip */
+.mdp-top{display:flex;align-items:center;gap:14px;margin-bottom:14px;flex-wrap:wrap;}
+.mdp-logo{width:44px;height:44px;border-radius:12px;background:#0a66e8;color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;}
+.mdp-title{font-size:20px;font-weight:700;color:#111827;}.mdp-tsub{font-size:12.5px;color:#6b7280;margin-top:2px;}
+.mdp-fresh{margin-left:auto;font-size:11px;color:#6b7280;background:#fff;border:1px solid #e4e8ef;border-radius:999px;padding:6px 12px;}
+.mdp-strip{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff;border:1px solid #e4e8ef;border-radius:16px;padding:10px 16px;margin-bottom:16px;}
+.mdp-lbl{font-size:10.5px;font-weight:700;color:#6b7280;letter-spacing:.06em;margin-right:4px;}
+.mdp-tab{border:1px solid #dfe3ec;background:#fff;border-radius:999px;padding:6px 14px;font-family:'Inter',sans-serif;font-size:12.5px;font-weight:600;color:#374151;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+.mdp-tab.on{background:#0a66e8;border-color:#0a66e8;color:#fff;cursor:default;}
+.mdp-pen{border:none;background:none;color:#cfe0ff;cursor:pointer;font-size:13px;padding:0;}.mdp-pen:hover{color:#fff;}
+.mdp-rename{border:none;outline:none;background:transparent;color:#fff;font-family:'Inter',sans-serif;font-size:12.5px;font-weight:600;width:140px;}
+.mdp-act{border:none;background:none;color:#0a66e8;font-family:'Inter',sans-serif;font-size:12.5px;font-weight:600;cursor:pointer;padding:6px 6px;}.mdp-act:hover{text-decoration:underline;}
+.mdp-archived{flex-basis:100%;display:flex;gap:8px;flex-wrap:wrap;padding-top:6px;}
+.mdp-chip{display:inline-flex;align-items:center;gap:6px;background:#eef1f6;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600;color:#374151;margin:0 6px 4px 0;}
+.mdp-chip button{border:none;background:none;color:#0a66e8;font-weight:700;cursor:pointer;font-size:12px;padding:0;}
+.mdp-sech{cursor:pointer;user-select:none;margin-bottom:0;}.mdp-sech .mdp-chev{margin-left:auto;color:#9ca3af;font-size:16px;}
+.mdp-secb{margin-top:14px;}
+.mdp-wide{grid-column:span 2;}@media(max-width:700px){.mdp-wide{grid-column:span 1;}}
+.mdp-row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;}
+.mdp-row label{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:600;color:#6b7280;}
+.mdp-in{padding:7px 10px;border:1px solid #dfe3ec;border-radius:9px;background:#fff;font-family:'Inter',sans-serif;font-size:12.5px;color:#111827;min-width:130px;}
+.mdp-in:focus,.mdp-sel:focus{outline:2px solid #bcd3fb;border-color:#0a66e8;}
+.mdp-add{min-width:90px;width:100px;}
+.mdp-dur{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:600;color:#6b7280;}.mdp-dur b{font-size:14px;color:#111827;padding:6px 0;}
+.mdp-bt2{font-size:11px;font-weight:600;color:#6b7280;margin-bottom:5px;}
+.mdp-msgs{margin-bottom:12px;display:flex;flex-direction:column;gap:6px;}
+.mdp-err{background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;border-radius:10px;padding:8px 12px;font-size:12.5px;}
+.mdp-warn{background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:10px;padding:8px 12px;font-size:12.5px;}
 </style>
 </head>
 <body>
@@ -2189,7 +2218,8 @@ th{position:relative;}
     </div>
   </div>
 
-<script src="markdown-engine.js?v=2.7.7"></script>
+<script src="markdown-engine.js?v=2.7.8"></script>
+<script src="markdown-plans.js?v=2.7.8"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2223,7 +2253,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.7.7';
+const APP_VERSION='v2.7.8';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -5545,16 +5575,27 @@ function setWorkingView(v){
 const MDP_KEY='wndrr_mdplanner_v1',MDP_MODE_KEY='wndrr_mdmode_v1';
 let mdMode='classic';
 try{if(localStorage.getItem(MDP_MODE_KEY)==='planner')mdMode='planner';}catch(e){}
-let mdpSettings=null;
+let mdpState=null,mdpRenaming=false,mdpShowArchived=false;
+const mdpCollapsed=new Set(['C','D','E']);
 const mdpOpenCats=new Set();
 function mdpEsc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function mdpEngineOk(){return typeof window.MarkdownEngine==='object';}
-function mdpLoadSettings(){
-  if(mdpSettings||!mdpEngineOk())return;
-  let saved={};try{saved=(JSON.parse(localStorage.getItem(MDP_KEY)||'{}')||{}).settings||{};}catch(e){}
-  mdpSettings=MarkdownEngine.mergeSettings(saved);
+// Sale plans live in localStorage for now (per browser). All plan logic is in markdown-plans.js,
+// which only ever returns a new state — so swapping this for shared storage later means
+// changing just these two functions.
+const MDP_PLANS_KEY='wndrr_mdplans_v1';
+function mdpPlansOk(){return typeof window.MarkdownPlans==='object'&&mdpEngineOk();}
+function mdpLoadState(){
+  if(mdpState||!mdpPlansOk())return;
+  let raw=null,legacy=null;
+  try{raw=JSON.parse(localStorage.getItem(MDP_PLANS_KEY)||'null');}catch(e){}
+  try{legacy=(JSON.parse(localStorage.getItem(MDP_KEY)||'null')||{}).settings||null;}catch(e){}
+  mdpState=MarkdownPlans.migrate(raw,legacy);
+  mdpSaveState();
 }
-function mdpSaveSettings(){try{localStorage.setItem(MDP_KEY,JSON.stringify({settings:mdpSettings}));}catch(e){}}
+function mdpSaveState(){try{localStorage.setItem(MDP_PLANS_KEY,JSON.stringify(mdpState));}catch(e){}}
+function mdpPlan(){mdpLoadState();return mdpState.plans[mdpState.activeId];}
+function mdpCommit(next){mdpState=next;mdpSaveState();renderMarkdownPlanner();}
 function mdSetMode(m){
   mdMode=m==='planner'?'planner':'classic';
   try{localStorage.setItem(MDP_MODE_KEY,mdMode);}catch(e){}
@@ -5567,17 +5608,43 @@ function mdSetMode(m){
   if(sub)sub.textContent=mdMode==='planner'?'Category-led sale planning — which products go on sale, at what discount':'Tick styles & set proposed markdown % — export selected to CSV';
   if(mdMode==='planner')renderMarkdownPlanner();else renderMarkdowns();
 }
-function mdpSet(key,val){mdpLoadSettings();mdpSettings[key]=val;mdpSaveSettings();renderMarkdownPlanner();}
+function mdpSet(key,val){const pl=mdpPlan();mdpCommit(MarkdownPlans.updatePlan(mdpState,pl.id,{settings:{[key]:val}}));}
+function mdpSetup(key,val){const pl=mdpPlan();mdpCommit(MarkdownPlans.updatePlan(mdpState,pl.id,{setup:{[key]:val}}));}
+function mdpNumSetup(key,el){const v=el.value===''?null:Number(el.value);mdpSetup(key,v);}
 function mdpToggleDiscount(d,on){
-  mdpLoadSettings();
-  const set=new Set(mdpSettings.allowedDiscounts);
+  const pl=mdpPlan(),set=new Set(pl.settings.allowedDiscounts);
   if(on)set.add(d);else set.delete(d);
   if(!set.size)return renderMarkdownPlanner(); // never allow an empty list
-  mdpSettings.allowedDiscounts=[...set].sort((a,b)=>a-b);
-  mdpSaveSettings();renderMarkdownPlanner();
+  mdpSet('allowedDiscounts',[...set]);
 }
+function mdpAddLevel(el){
+  const v=Math.round(Number(el.value));
+  if(!(v>=5&&v<=90)){el.value='';return;}
+  const pl=mdpPlan();mdpSet('allowedDiscounts',[...pl.settings.allowedDiscounts,v]);
+}
+function mdpRemoveLevel(d){const pl=mdpPlan();if(pl.settings.allowedDiscounts.length<2)return;mdpSet('allowedDiscounts',pl.settings.allowedDiscounts.filter(x=>x!==d));}
+function mdpSelectPlan(id){mdpRenaming=false;mdpCommit(MarkdownPlans.setActive(mdpState,id));}
+function mdpAddPlan(){mdpLoadState();const r=MarkdownPlans.addPlan(mdpState,'Sale '+(Object.keys(mdpState.plans).length+1));mdpRenaming=true;mdpCommit(r.state);}
+function mdpDuplicatePlan(){const r=MarkdownPlans.duplicatePlan(mdpState,mdpState.activeId);mdpRenaming=true;mdpCommit(r.state);}
+function mdpStartRename(){mdpRenaming=true;renderMarkdownPlanner();}
+function mdpFinishRename(el,ok){
+  if(!mdpRenaming)return;
+  mdpRenaming=false;
+  const pl=mdpPlan(),v=(el.value||'').trim();
+  if(ok&&v&&v!==pl.name)mdpCommit(MarkdownPlans.renamePlan(mdpState,pl.id,v));else renderMarkdownPlanner();
+}
+function mdpRenameKey(ev,el){if(ev.key==='Enter'){ev.preventDefault();mdpFinishRename(el,true);}else if(ev.key==='Escape'){mdpFinishRename(el,false);}}
+function mdpArchivePlan(){
+  const pl=mdpPlan();
+  if(!confirm('Archive "'+pl.name+'"?\n\nIt is hidden from the sales list but never deleted — you can restore it from "Archived".'))return;
+  mdpCommit(MarkdownPlans.archivePlan(mdpState,pl.id));
+}
+function mdpRenameVal(v){v=(v||'').trim();const pl=mdpPlan();if(v&&v!==pl.name)mdpCommit(MarkdownPlans.renamePlan(mdpState,pl.id,v));}
+function mdpRestorePlan(id){mdpCommit(MarkdownPlans.restorePlan(mdpState,id));}
+function mdpToggleArchived(){mdpShowArchived=!mdpShowArchived;renderMarkdownPlanner();}
+function mdpToggleSection(k){if(mdpCollapsed.has(k))mdpCollapsed.delete(k);else mdpCollapsed.add(k);renderMarkdownPlanner();}
 function mdpToggleCat(c){if(mdpOpenCats.has(c))mdpOpenCats.delete(c);else mdpOpenCats.add(c);renderMarkdownPlanner();}
-function mdpResetSettings(){mdpSettings=MarkdownEngine.mergeSettings({});mdpSaveSettings();renderMarkdownPlanner();}
+function mdpResetSettings(){const pl=mdpPlan();mdpCommit(MarkdownPlans.updatePlan(mdpState,pl.id,{settings:MarkdownEngine.mergeSettings({})}));}
 
 // Weeks since the product launched: AM launch date if present, else the delivery month in its name.
 function mdpAgeWeeks(p){
@@ -5589,16 +5656,35 @@ function mdpAgeWeeks(p){
   }
   return t==null?null:(Date.now()-t)/6048e5;
 }
-// One engine input per Shopify product/colour (toProduct already rolls sizes up).
-function mdpInputs(){
+// On-order units per style that actually arrive by the sale's end (AM due dates).
+function mdpOnOrderByEnd(endIso){
+  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(endIso||'');
+  if(!m||!amApiData)return null;
+  const endKey=(+m[1])*10000+(+m[2])*100+(+m[3]),out={};
+  for(const it of amApiData){
+    const q=parseFloat(it.qty_open||0);if(!(q>0))continue;
+    const d=parseDeliveryDue(it.date_due||'');
+    if(!d||d.sortKey>endKey)continue;
+    const st=(it.style_number||'').trim();if(!st)continue;
+    out[st]=(out[st]||0)+q;
+  }
+  return out;
+}
+// One engine input per Shopify product/colour (toProduct already rolls sizes up). Incoming
+// stock follows the sale's setting: none, only what lands by the sale end, or everything on order.
+function mdpInputs(plan){
+  const mode=plan?plan.setup.incoming:'all';
+  const byEnd=mode==='sale'?mdpOnOrderByEnd(plan.setup.end):null;
   const prods=[...toProduct(allVariantRows.filter(r=>!r.amOnly))].filter(p=>(p.stock||0)>=1);
   return prods.map(p=>{
     const style=styleFromSku(p.sku||'');
+    const allOn=(p.onOrder||0)+(p.productOnOrder||0);
+    const onOrder=mode==='none'?0:(mode==='sale'&&byEnd)?(byEnd[style]||0):allOn;
     return{
       id:p.fullTitle,name:p.productName,colour:p.colour,category:p.category||'UNCATEGORISED',
       parentStyle:/^W\d{2}[A-Z]{2}\d{3}[A-Z]{3}$/.test(style)?style.slice(0,8):'',
       isCore:p.vendor==='CORE',status:p.vendor,isGWP:(p.category||'').toUpperCase()==='GWP',
-      soh:p.stock||0,sohCost:p.sohValue||0,onOrder:(p.onOrder||0)+(p.productOnOrder||0),
+      soh:p.stock||0,sohCost:p.sohValue||0,onOrder,
       sold:{d7:p.sold7||0,d30:p.sold30||0,d60:p.sold60||0,d90:p.sold90||0},
       rrp:p.compareAt||0,price:p.price||0,currentDiscountPct:p.discountPct||0,
       sizeCount:(p.sizes||[]).length,soldOutSizes:p.soldOutSizes||0,ageWeeks:mdpAgeWeeks(p)
@@ -5610,38 +5696,93 @@ function mdpSeg(id,opts,cur,fn){
 }
 function mdpMoney(n){return n==null?'—':'$'+Math.round(n).toLocaleString();}
 
+function mdpSec(key,title,tag,body){
+  const open=!mdpCollapsed.has(key);
+  return`<div class="mdp-card mdp-sec"><div class="mdp-h mdp-sech" onclick="mdpToggleSection('${key}')">${title}${tag?` <span class="mdp-tag">${tag}</span>`:''}<span class="mdp-chev">${open?'⌃':'⌄'}</span></div>${open?`<div class="mdp-secb">${body}</div>`:''}</div>`;
+}
+function mdpStockStamp(){
+  try{const c=JSON.parse(localStorage.getItem(AM_STOCK_CACHE_KEY)||'null');if(c&&c.ts&&typeof isAMSyncEnabled==='function'?isAMSyncEnabled():c&&c.ts)return'Stock: Apparel Magic, '+Math.max(0,Math.round((Date.now()-c.ts)/60000))+'m ago';}catch(e){}
+  return'Stock: CSV export';
+}
 function renderMarkdownPlanner(){
   const root=document.getElementById('md-planner');if(!root)return;
   if(!mdpEngineOk()){root.innerHTML='<div class="mdp-card">The markdown engine failed to load (markdown-engine.js) — switch to Classic and refresh.</div>';return;}
   if(!allVariantRows||!allVariantRows.length){root.innerHTML='<div class="mdp-card"><b>No data loaded</b><div class="mdp-sub">Load your data first, then come back to this tab.</div></div>';return;}
-  mdpLoadSettings();
-  const S=mdpSettings;
-  const plan=MarkdownEngine.buildPlan(mdpInputs(),S);
+  mdpLoadState();
+  const pl=mdpPlan();
+  const S=MarkdownPlans.engineSettings(pl);
+  const plan=MarkdownEngine.buildPlan(mdpInputs(pl),S);
   const clr=MarkdownEngine.clearanceLevel(plan.settings);
   const T=plan.totals;
   const f=window.shopifyFeed&&window.shopifyFeed.meta&&window.shopifyFeed.meta.lastSuccessTs;
-  const fresh=typeof shopifyFeedActive==='function'&&shopifyFeedActive()?`Sales: Shopify feed, ${Math.max(0,Math.round((Date.now()-f)/60000))}m ago`:'Sales: CSV + Apparel Magic (Shopify feed not active)';
-  const cb=d=>`<label class="mdp-chk"><input type="checkbox" ${S.allowedDiscounts.includes(d)?'checked':''} onchange="mdpToggleDiscount(${d},this.checked)"> ${d}%</label>`;
-  const settings=`
-  <div class="mdp-card">
-    <div class="mdp-h">A. Sale settings <span class="mdp-tag">preview — Sale Setup comes next</span><button class="mdp-link" onclick="mdpResetSettings()">Reset to defaults</button></div>
-    <div class="mdp-grid">
-      <div class="mdp-box"><div class="mdp-bt">Sales analysis period</div>${mdpSeg('p',[[7,'7d'],[30,'30d'],[60,'60d'],[90,'90d']],S.periodDays,"mdpSet.bind(null,'periodDays')")}</div>
-      <div class="mdp-box"><div class="mdp-bt">Sale length</div><select class="mdp-sel" onchange="mdpSet('saleDays',+this.value)">${[3,5,7,10,14,21].map(n=>`<option value="${n}" ${S.saleDays===n?'selected':''}>${n} days</option>`).join('')}</select></div>
-      <div class="mdp-box"><div class="mdp-bt">Max effective discount</div><select class="mdp-sel" onchange="mdpSet('maxDiscount',+this.value)">${S.allowedDiscounts.map(n=>`<option value="${n}" ${S.maxDiscount===n?'selected':''}>${n}% off RRP</option>`).join('')}</select></div>
-      <div class="mdp-box"><div class="mdp-bt">Allowed discount levels</div><div class="mdp-chks">${[20,30,40,50,60,70].map(cb).join('')}</div></div>
-      <div class="mdp-box"><div class="mdp-bt">Core products</div>${mdpSeg('c',[['protect','Protect'],['include','Include'],['exclude','Exclude']],S.coreMode,"mdpSet.bind(null,'coreMode')")}<div class="mdp-hint">Protect = Group A only</div></div>
-      <div class="mdp-box"><div class="mdp-bt">Already-reduced products</div>${mdpSeg('r',[['clearance','Move to '+clr+'%'],['retain','Retain'],['reassess','Reassess'],['exclude','Exclude']],S.existingReduced,"mdpSet.bind(null,'existingReduced')")}<div class="mdp-hint">Move = clearance tier; ones already there stay</div></div>
-      <div class="mdp-box"><div class="mdp-bt">Clearance tier</div>
-        <select class="mdp-sel mdp-sm" onchange="mdpSet('clearanceDiscount',+this.value)">${S.allowedDiscounts.filter(n=>n<=S.maxDiscount).map(n=>`<option value="${n}" ${clr===n?'selected':''}>${n}% off</option>`).join('')}</select>
-        <div class="mdp-hint" style="margin:8px 0 3px;">For slow stock with fewer than</div>
-        <select class="mdp-sel mdp-sm" onchange="mdpSet('minStockUnits',+this.value)">${[25,50,75,100].map(n=>`<option value="${n}" ${S.minStockUnits===n?'selected':''}>${n} units</option>`).join('')}</select> <span class="mdp-hint">and none on order, or</span>
-        <select class="mdp-sel mdp-sm" onchange="mdpSet('brokenSizesClearance',+this.value)">${[3,4,5,6].map(n=>`<option value="${n}" ${S.brokenSizesClearance===n?'selected':''}>${n}+ sizes out</option>`).join('')}</select></div>
-      <div class="mdp-box"><div class="mdp-bt">Core colour consistency</div>${mdpSeg('k',[['strict','Strict'],['preferred','Preferred'],['independent','Independent']],S.coreConsistency,"mdpSet.bind(null,'coreConsistency')")}</div>
-      <div class="mdp-box"><div class="mdp-bt">New arrivals</div><label class="mdp-chk"><input type="checkbox" ${S.excludeNew?'checked':''} onchange="mdpSet('excludeNew',this.checked)"> Protect if under</label> <select class="mdp-sel mdp-sm" onchange="mdpSet('newProductDays',+this.value)">${[14,28,42,56,84].map(n=>`<option value="${n}" ${S.newProductDays===n?'selected':''}>${n/7} wks</option>`).join('')}</select></div>
-    </div>
-  </div>`;
+  const fresh=(typeof shopifyFeedActive==='function'&&shopifyFeedActive()?`Sales: Shopify feed, ${Math.max(0,Math.round((Date.now()-f)/60000))}m ago`:'Sales: CSV + Apparel Magic (Shopify feed not active)')+' · '+mdpStockStamp();
+  const PS=pl.settings,SU=pl.setup;
+  const dur=MarkdownPlans.durationDays(SU.start,SU.end);
+  const val=MarkdownPlans.validatePlan(pl);
+  const OB=MarkdownPlans.OBJECTIVES;
+  const std=[20,30,40,50,60,70];
+  const cb=d=>`<label class="mdp-chk"><input type="checkbox" ${PS.allowedDiscounts.includes(d)?'checked':''} onchange="mdpToggleDiscount(${d},this.checked)"> ${d}%</label>`;
+  const custom=PS.allowedDiscounts.filter(d=>!std.includes(d)).map(d=>`<span class="mdp-chip">${d}% <button title="Remove" onclick="mdpRemoveLevel(${d})">×</button></span>`).join('');
+  const incl=plan.items.filter(i=>i.final.action!=='Exclude');
+  const clearedUnits=incl.reduce((a,i)=>a+i.forecast.units,0);
+  const clearedPct=T.soh>0?Math.round(clearedUnits/T.soh*1000)/10:0;
+  const targetLine=SU.targetClearPct?`<div class="mdp-hint">Baseline forecast clears ${clearedUnits.toLocaleString()} units (${clearedPct}% of SOH) against your ${SU.targetClearPct}% target — promotional uplift isn't modelled yet.</div>`:'';
 
+  // SALES strip
+  const live=mdpState.order.filter(id=>!mdpState.plans[id].archived);
+  const archived=mdpState.order.filter(id=>mdpState.plans[id].archived);
+  const tabs=live.map(id=>{
+    const q=mdpState.plans[id];
+    if(id===pl.id){
+      if(mdpRenaming)return`<span class="mdp-tab on"><input id="mdp-rename" class="mdp-rename" value="${mdpEsc(q.name)}" onblur="mdpFinishRename(this,true)" onkeydown="mdpRenameKey(event,this)"></span>`;
+      return`<span class="mdp-tab on">${mdpEsc(q.name)} <button class="mdp-pen" title="Rename this sale" onclick="mdpStartRename()">✎</button></span>`;
+    }
+    return`<button class="mdp-tab" onclick="mdpSelectPlan('${id}')">${mdpEsc(q.name)}</button>`;
+  }).join('');
+  const archList=mdpShowArchived&&archived.length?`<div class="mdp-archived">${archived.map(id=>`<span class="mdp-chip">${mdpEsc(mdpState.plans[id].name)} <button title="Restore" onclick="mdpRestorePlan('${id}')">Restore</button></span>`).join('')}</div>`:'';
+  const strip=`<div class="mdp-strip"><span class="mdp-lbl">SALES</span>${tabs}
+    <button class="mdp-act" onclick="mdpAddPlan()">＋ Add sale</button>
+    <button class="mdp-act" onclick="mdpDuplicatePlan()" title="Copies this sale's rules — not its dates, overrides or exports">⧉ Duplicate</button>
+    ${live.length>1?`<button class="mdp-act" onclick="mdpArchivePlan()">Archive</button>`:''}
+    ${archived.length?`<button class="mdp-act" onclick="mdpToggleArchived()">Archived (${archived.length})</button>`:''}${archList}</div>`;
+
+  const titleBar=`<div class="mdp-top"><div class="mdp-logo">🏷️</div><div><div class="mdp-title">Sale &amp; Markdown Planner</div><div class="mdp-tsub">Decide which products go on sale, at what discount, and in which collection.</div></div><div class="mdp-fresh">${fresh}</div></div>`;
+
+  const msgs=(val.errors.length||val.warnings.length)?`<div class="mdp-msgs">${val.errors.map(e=>`<div class="mdp-err">⚠ ${mdpEsc(e)}</div>`).join('')}${val.warnings.map(e=>`<div class="mdp-warn">ⓘ ${mdpEsc(e)}</div>`).join('')}</div>`:'';
+
+  const setupBody=`${msgs}<div class="mdp-grid">
+      <div class="mdp-box mdp-wide"><div class="mdp-bt">Sale details</div>
+        <div class="mdp-row"><label>Name<input class="mdp-in" type="text" value="${mdpEsc(pl.name)}" onchange="mdpRenameVal(this.value)"></label>
+          <label>Starts<input class="mdp-in" type="date" value="${mdpEsc(SU.start)}" onchange="mdpSetup('start',this.value)"></label>
+          <label>Ends<input class="mdp-in" type="date" value="${mdpEsc(SU.end)}" onchange="mdpSetup('end',this.value)"></label>
+          <div class="mdp-dur"><span>Duration</span><b>${dur?dur+(dur===1?' day':' days'):'—'}</b></div></div>
+        <div class="mdp-bt" style="margin-top:12px;">Primary objective</div>
+        ${mdpSeg('o',[['clear','Clear stock'],['balance','Balance'],['revenue','Revenue'],['profit','Gross profit']],SU.objective,"mdpSetup.bind(null,'objective')")}
+        <div class="mdp-hint">${OB[SU.objective].label}: a product enters the sale from a clearance score of ${OB[SU.objective].excludeBelow}, and the deeper Group B from ${OB[SU.objective].groupBAt}.</div>
+        <div class="mdp-row" style="margin-top:12px;"><label>Target revenue (optional, ex GST)<input class="mdp-in" type="number" min="0" step="1000" placeholder="$" value="${SU.targetRevenue==null?'':SU.targetRevenue}" onchange="mdpNumSetup('targetRevenue',this)"></label>
+          <label>Target stock cleared (optional, % of SOH)<input class="mdp-in" type="number" min="1" max="100" step="1" placeholder="%" value="${SU.targetClearPct==null?'':SU.targetClearPct}" onchange="mdpNumSetup('targetClearPct',this)"></label></div>${targetLine}
+      </div>
+      <div class="mdp-box"><div class="mdp-bt">Discount settings</div>
+        <div class="mdp-bt2">Max effective discount</div><select class="mdp-sel" onchange="mdpSet('maxDiscount',+this.value)">${PS.allowedDiscounts.map(n=>`<option value="${n}" ${PS.maxDiscount===n?'selected':''}>${n}% off RRP</option>`).join('')}</select>
+        <div class="mdp-bt2" style="margin-top:10px;">Allowed discount levels</div><div class="mdp-chks">${std.map(cb).join('')}</div>
+        <div style="margin-top:8px;">${custom} <input class="mdp-in mdp-add" type="number" min="5" max="90" placeholder="+ level %" onchange="mdpAddLevel(this)"></div>
+        <div class="mdp-hint">Always worked out against the original RRP — never stacked on a current sale price. Every level you offer needs its own Shopify collection at export.</div></div>
+      <div class="mdp-box"><div class="mdp-bt">Inventory handling</div>
+        <div class="mdp-bt2">Incoming stock</div>${mdpSeg('i',[['none','SOH only'],['sale','Arrives by sale end'],['all','All on order']],SU.incoming,"mdpSetup.bind(null,'incoming')")}
+        <div class="mdp-hint">${SU.incoming==='sale'&&!SU.end?'Set an end date — until then all stock on order is counted.':'Decides whether stock on order stops a product being treated as a remnant.'}</div>
+        <div class="mdp-bt2" style="margin-top:10px;">Already-reduced products</div>${mdpSeg('r',[['clearance','Move to '+clr+'%'],['retain','Retain'],['reassess','Reassess'],['exclude','Exclude']],PS.existingReduced,"mdpSet.bind(null,'existingReduced')")}
+        <div class="mdp-bt2" style="margin-top:10px;">Core products</div>${mdpSeg('c',[['protect','Protect'],['include','Include'],['exclude','Exclude']],PS.coreMode,"mdpSet.bind(null,'coreMode')")}<div class="mdp-hint">Protect = Group A only</div>
+        <div class="mdp-bt2" style="margin-top:10px;">New arrivals</div><label class="mdp-chk"><input type="checkbox" ${PS.excludeNew?'checked':''} onchange="mdpSet('excludeNew',this.checked)"> Protect if under</label> <select class="mdp-sel mdp-sm" onchange="mdpSet('newProductDays',+this.value)">${[14,28,42,56,84].map(n=>`<option value="${n}" ${PS.newProductDays===n?'selected':''}>${n/7} wks</option>`).join('')}</select></div>
+      <div class="mdp-box"><div class="mdp-bt">Clearance tier</div>
+        <select class="mdp-sel mdp-sm" onchange="mdpSet('clearanceDiscount',+this.value)">${PS.allowedDiscounts.filter(n=>n<=PS.maxDiscount).map(n=>`<option value="${n}" ${clr===n?'selected':''}>${n}% off</option>`).join('')}</select>
+        <div class="mdp-hint" style="margin:8px 0 3px;">For slow stock with fewer than</div>
+        <select class="mdp-sel mdp-sm" onchange="mdpSet('minStockUnits',+this.value)">${[25,50,75,100].map(n=>`<option value="${n}" ${PS.minStockUnits===n?'selected':''}>${n} units</option>`).join('')}</select> <span class="mdp-hint">and none on order, or</span>
+        <select class="mdp-sel mdp-sm" onchange="mdpSet('brokenSizesClearance',+this.value)">${[3,4,5,6].map(n=>`<option value="${n}" ${PS.brokenSizesClearance===n?'selected':''}>${n}+ sizes out</option>`).join('')}</select>
+        <div class="mdp-bt" style="margin-top:14px;">Sales analysis period</div>${mdpSeg('p',[[7,'7d'],[30,'30d'],[60,'60d'],[90,'90d']],PS.periodDays,"mdpSet.bind(null,'periodDays')")}
+        <div class="mdp-bt" style="margin-top:14px;">Core colour consistency</div>${mdpSeg('k',[['strict','Strict'],['preferred','Preferred'],['independent','Independent']],PS.coreConsistency,"mdpSet.bind(null,'coreConsistency')")}
+        <div style="margin-top:12px;"><button class="mdp-link" style="margin:0;" onclick="mdpResetSettings()">Reset this sale's rules to defaults</button></div></div>
+    </div>`;
+  const settings=mdpSec('A','A. Sale setup','',setupBody);
   const levelLabel=v=>v==null?'—':v+'%';
   const rows=plan.categories.map(c=>{
     const open=mdpOpenCats.has(c.category);
@@ -5665,9 +5806,7 @@ function renderMarkdownPlanner(){
     return head+`<tr class="mdp-sub"><td colspan="13"><table class="mdp-t2"><thead><tr><th class="l">Product / colour</th><th>SOH</th><th>Sold (${S.periodDays}d)</th><th>Cover (wks)</th><th>Score</th><th>Confidence</th><th>Group</th><th>Disc.</th><th>New price</th><th colspan="3" class="l">Why</th></tr></thead><tbody>${sub}</tbody></table></td></tr>`;
   }).join('');
 
-  const cats=`
-  <div class="mdp-card">
-    <div class="mdp-h">B. Category strategy <span class="mdp-tag">read-only preview</span></div>
+  const catsBody=`
     <div class="mdp-stats">
       <div><b>${T.products.toLocaleString()}</b><span>product/colours in stock</span></div>
       <div><b>${T.included.toLocaleString()}</b><span>in the sale</span></div>
@@ -5682,8 +5821,13 @@ function renderMarkdownPlanner(){
       <tbody>${rows}</tbody>
     </table></div>
     <div class="mdp-foot">* Sell-through is a proxy — units sold ÷ (units sold + stock now) — because stock-movement history isn't recorded yet. † Forecast is the recent sales run-rate over the sale length, capped at stock, with <b>no promotional uplift</b> (that needs calibrating against past sales). Click a category to see each product/colour, its clearance score and why. Group A/B discounts come from the category's score distribution and your allowed levels; nothing here changes prices or exports anything. ${fresh}.</div>
-  </div>`;
-  root.innerHTML=settings+cats;
+`;
+  const later=(k,t,txt)=>mdpSec(k,t,'next phase',`<div class="mdp-sub" style="margin:0 0 4px;">${txt}</div>`);
+  root.innerHTML=titleBar+strip+settings+mdpSec('B','B. Category strategy','read-only preview',catsBody)
+    +later('C','C. Product / colour review','Searchable review of every product/colour with approved discounts, overrides, exclusions, bulk actions and linked core colours.')
+    +later('D','D. Financial &amp; stock forecast','Low / base / high sale forecasts from past promotions, scenario comparison, projected revenue, gross profit, stock cleared and GWP cost.')
+    +later('E','E. Shopify / Hextom export','Collection mapping per discount level, pre-export validation and checklist, the Hextom import CSV, the full plan CSV and an audit summary.');
+  if(mdpRenaming){const el=document.getElementById('mdp-rename');if(el){el.focus();el.select();}}
 }
 function round1(v){return Math.round(v*10)/10;}
 
@@ -11874,6 +12018,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.7.8 — Markdown Planner, phase 2: Sale Setup. Named sale plans along a SALES strip (Add sale, Duplicate, inline Rename via the pencil, Archive with Restore — archived plans are hidden, never deleted, and the last live plan can't be archived); each plan saves its own setup and rules (per browser for now, behind two small load/save functions so shared storage can replace it later) and reserves slots for its own overrides, collection mappings and export history. A Duplicate is a template: it copies the rules but NOT the dates, overrides, mappings or exports, which belong to a different promotion. New Sale setup section after the Sale Creative Planner layout: name, start/end dates with an auto duration (inclusive days, DST-safe), primary objective (Clear stock / Balance / Revenue / Gross profit — each sets how readily products enter the sale and Group B; initial assumptions, shown on screen), optional target revenue and target % of stock cleared (compared against the baseline forecast), max effective discount, allowed levels 20-70% plus custom levels (e.g. 25%), incoming-stock handling (SOH only / arriving by sale end / all on order — 'by sale end' uses real AM due dates per style), and every rule from before. The page is now structured A-E (setup, category strategy, product review, forecast, export); C-E are labelled placeholders until their phases. Logic is in the new markdown-plans.js (pure, tested under Node via npm test); the one-off migration carries the previously saved settings into 'Sale 1'
 // v2.7.7 — Fix v2.7.6: the Clearance column header was missing from the category table (12 headers over 13 data columns, so every column after Group B was misaligned) — caught on live data before use
 // v2.7.6 — Markdown Planner: Clearance tier, from Brendan's rules. (1) Already-reduced products now move to the clearance level (50%) by default, and ones already at 50% stay at 50% (shown 'no change'; ones already deeper are left alone) — the old Retain/Reassess/Exclude options remain. (2) Remnant and broken-run stock is cleared at 50% rather than getting a normal tier: a product that isn't a healthy seller goes to Clearance if it has under 50 units AND nothing on order, or 4+ sizes sold out; stock on order means it isn't a remnant. Healthy sellers are never cleared just for being low on stock. Clearance is a fixed-% third tier beside Groups A and B (capped by the max effective discount and snapped to an allowed level), excluded from core colour linking, with its own settings (%, min units, sizes-out count), column, tile and pill. Engine + 40-odd new assertions in tests/markdown-engine.test.js
 // v2.7.5 — Markdown Planner wording: products left out of the sale are labelled 'Not in sale' (pill, tile, column) instead of 'Full price' — many are already reduced and retained at their current price (e.g. 50% off), so 'Full price' was wrong
