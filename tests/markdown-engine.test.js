@@ -108,6 +108,15 @@ for (const pl of [p1, p2]) {
   assert.equal(m2.final.action, 'Exclude'); assert.equal(m2.override, 'exclude'); assert.equal(m2.final.pct, null);
   assert.ok('systemPct' in m1);                                                                                     // the system recommendation is still visible
 }
+// a category whose Group B members were all retained at their existing price must not still advertise a Group B discount
+const allRet = E.buildPlan([mk('Q1', { currentDiscountPct: 50, price: 50, soh: 400, sold: { d7: 0, d30: 1, d60: 2, d90: 3 }, ageWeeks: 90 })], { maxDiscount: 50 });
+assert.equal(allRet.categories[0].groupB, null); assert.equal(allRet.categories[0].groupA, null); assert.equal(allRet.categories[0].countExcluded, 1);
+// core products with no launch date aren't penalised on confidence; exceptions are counted
+const kcat = [1, 2, 3, 4, 5, 6, 7].map(i => mk('K' + i, { isCore: i === 1, ageWeeks: i === 1 ? null : 30 }));
+assert.equal(E.scoreAll(kcat, {})[0].confidence, 'High');                              // core, no launch date, plenty of data
+assert.equal(E.scoreAll(kcat.map((k, i) => (i === 1 ? { ...k, ageWeeks: null } : k)), {})[1].confidence, 'Medium'); // non-core with no age is genuinely less certain
+assert.ok(E.buildPlan(core, { coreConsistency: 'preferred' }).totals.exceptions >= 1);
+assert.equal(E.buildPlan(core, { coreConsistency: 'strict' }).totals.exceptions, 0);
 // edge: empty input, single product, duplicate ids don't throw
 assert.equal(E.buildPlan([], {}).items.length, 0); assert.equal(E.buildPlan([mk('ONE')], {}).items.length, 1);
 assert.doesNotThrow(() => E.buildPlan([mk('D'), mk('D')], {}));

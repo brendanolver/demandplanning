@@ -683,6 +683,7 @@ th{position:relative;}
 .mdp-chk input{accent-color:#0a66e8;}
 .mdp-stats{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
 .mdp-stats div{background:#f7f8fb;border:1px solid #e8ebf2;border-radius:12px;padding:10px 16px;min-width:130px;}
+.mdp-stats .mdp-warnbox{background:#fffbeb;border-color:#fde68a;}
 .mdp-stats b{display:block;font-size:18px;color:#111827;}
 .mdp-stats span{font-size:11px;color:#6b7280;}
 .mdp-scroll{overflow-x:auto;border:1px solid #e8ebf2;border-radius:12px;}
@@ -2186,7 +2187,7 @@ th{position:relative;}
     </div>
   </div>
 
-<script src="markdown-engine.js?v=2.7.3"></script>
+<script src="markdown-engine.js?v=2.7.4"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2220,7 +2221,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.7.3';
+const APP_VERSION='v2.7.4';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -5560,6 +5561,8 @@ function mdSetMode(m){
   if(cl)cl.style.display=mdMode==='classic'?'block':'none';
   document.getElementById('md-mode-planner')?.classList.toggle('on',mdMode==='planner');
   document.getElementById('md-mode-classic')?.classList.toggle('on',mdMode==='classic');
+  const sub=document.getElementById('working-sub');
+  if(sub)sub.textContent=mdMode==='planner'?'Category-led sale planning — which products go on sale, at what discount':'Tick styles & set proposed markdown % — export selected to CSV';
   if(mdMode==='planner')renderMarkdownPlanner();else renderMarkdowns();
 }
 function mdpSet(key,val){mdpLoadSettings();mdpSettings[key]=val;mdpSaveSettings();renderMarkdownPlanner();}
@@ -5661,6 +5664,7 @@ function renderMarkdownPlanner(){
       <div><b>${T.products.toLocaleString()}</b><span>product/colours in stock</span></div>
       <div><b>${T.included.toLocaleString()}</b><span>in the sale</span></div>
       <div><b>${T.excluded.toLocaleString()}</b><span>full price</span></div>
+      ${T.exceptions?`<div class="mdp-warnbox"><b>${T.exceptions}</b><span>core colours to approve</span></div>`:''}
       <div><b>${T.soh.toLocaleString()}</b><span>SOH units</span></div>
       <div><b>${mdpMoney(T.sohCost)}</b><span>SOH at cost</span></div>
     </div>
@@ -11861,6 +11865,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.7.4 — Markdown Planner fixes found testing v2.7.3 on live data: a category no longer advertises a Group B (or A) discount when every product in it ended up retained at its existing sale price (SHORTS showed 'Group B 50%' with 0 products); core products with no launch date (121 of ~129 — evergreen by design) aren't marked lower-confidence for it; core colours pulled into a sibling's group are counted in a visible 'core colours to approve' tile; the Working subtitle reflects Planner mode. Live-data sanity check at v2.7.3: 438 product/colours in stock, 189 recommended (110 Group A 20%, 53 Group A 30%, 26 Group B 40-50%), 249 left at full price (137 healthy/low cover, 66 already reduced and retained, 37 new arrivals, 9 core-linked), SOH 40,142 units ties to the app's own total
 // v2.7.3 — Markdown Planner, phase 1: Working > Markdowns now has a Planner | Classic switch (defaults to Classic; the Planner replaces Classic once overrides and export exist). The Planner is a read-only Category Strategy preview, styled after the Sale Creative Planner (light panels, rounded cards, blue accent): sale settings (analysis period, sale length, max effective discount, allowed levels 20-70%, core protect/include/exclude, existing-reduced retain/reassess/exclude, core colour consistency, new-arrival protection) and a category table (products, SOH, SOH cost, sales, weeks cover, sell-through proxy, suggested Group A/B discounts, full-price count, baseline forecast) that expands to every product/colour with its 0-100 clearance score, confidence and a plain-English reason. All logic is in the new markdown-engine.js — pure functions, no DOM, unit-tested under Node (npm test) and loaded here via script tag: category-relative percentile scoring (so 12 weeks of cover isn't judged the same in every category) over the brief's six weighted factors, zero-sales/negative-stock/missing-data handled explicitly (no Infinity or fake cover), prices always computed off RRP and never stacked on an existing sale price, a max-effective-discount cap, core colour linking (Preferred flags exceptions for approval), and manual overrides that survive a regenerate. Honest labels: sell-through is a proxy (units sold ÷ units sold + stock) because no stock history is recorded yet, and the forecast is baseline run-rate with NO promotional uplift. Nothing here changes prices or exports; settings save per browser
 // v2.7.2 — Markdown Planner groundwork (server only, nothing in the app UI changes): the Shopify sales feed now also records SELLING PRICE per SKU per day — shelf price at checkout x units (a Hextom sale changes this, so it reveals which days a SKU sold on sale and at what level vs RRP) and net after every discount incl. order-level codes — and stores 2 years of history instead of 1, so last year's Black Friday/EOFY stay available as comparisons (the 365-day window would have dropped BF 2025 around BF 2026 itself). The units feed the app merges is still served as the trailing 365 days exactly as before (encodeCompact fromDay filter); price history is served from its own new endpoint, sales-price-data.js, so ordinary page loads never download it. FEED_VERSION 2→3 so the server rebuilds once in full (bigger bulk export) on its next run; parseBulkNdjson now makes two passes over the lines instead of holding every parsed row in memory (2 years doubles the export), and a failed run now backs off 10 min instead of letting every open tab re-trigger a multi-minute rebuild. Verified Shopify exposes originalUnitPriceSet / discountedUnitPriceAfterAllDiscountsSet on the live store. Also confirmed against the live token: read_products is already granted and the five BF collections exist as manual collections (some still holding last year's products — reconciliation matters before export)
 // v2.7.1 — Fix Deliveries showing "—" for Product Name on some pre-release/AM-only styles (e.g. STEEZY BOX FIT TEE OYSTER, THEME PANEL BOX FIT TEE WHITE MARLE): styleFromSku()'s size-suffix fallback only skipped the fixed-11-char-prefix shortcut when the input was longer than 11 chars, so a BARE style code (already exactly 11 chars, no size suffix — which is what these AM-only rows' sku already is) fell through to suffix-guessing and had its last letter chopped off whenever the 3-letter colour code happened to end in a real size letter (OYSTER→"...OYS" read as ending in "S", WHITE MARLE/LEMON→"...WHM"/"...LEM" read as ending in "M") — corrupting the style code so Deliveries' productNameByStyle lookup (keyed by the correct, unmangled style from the raw AM order data) never matched. Changed the length check from >11 to >=11 so a bare 11-char style matches itself. Same function is used for CORE/Mystery-Box style matching elsewhere, so this was silently affecting more than just Deliveries' display for any pre-release style with this colour-code shape — not verified how many, but the fix is general

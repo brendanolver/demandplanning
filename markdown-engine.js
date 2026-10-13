@@ -127,7 +127,7 @@
       };
       const score = Math.round(Object.keys(W).reduce((a, k) => a + W[k] * f[k], 0) / wsum);
       const catN = idxByCat[p.category || 'UNCATEGORISED'].length;
-      const hasRrp = num(p.rrp) > 0, ageKnown = m.ageWeeks != null;
+      const hasRrp = num(p.rrp) > 0, ageKnown = m.ageWeeks != null || p.isCore;   // evergreen core lines have no launch date by design
       const pts = (m.periodUnits >= 8 ? 1 : 0) + (catN >= S.minCategorySample ? 1 : 0) + (hasRrp && ageKnown ? 1 : 0);
       return { p, m, f, score, confidence: pts >= 3 ? 'High' : pts === 2 ? 'Medium' : 'Low', catN };
     });
@@ -265,7 +265,8 @@
       category: cp.category, products: cp.items.length, soh, sohCost: Math.round(cost), periodUnits: units,
       weeksCover: rate > 0 ? round1(soh / rate) : null,
       sellThroughProxy: units + soh > 0 ? round1(units / (units + soh) * 100) : null,
-      groupA: cp.groupA, groupB: cp.groupB,
+      groupA: cp.items.some(it => it.final.action === 'A') ? cp.groupA : null,   // a group nobody ended up in isn't offered
+      groupB: cp.items.some(it => it.final.action === 'B') ? cp.groupB : null,
       countA: cp.items.filter(it => it.final.action === 'A').length,
       countB: cp.items.filter(it => it.final.action === 'B').length,
       countManual: cp.items.filter(it => it.final.action === 'Manual').length,
@@ -280,6 +281,7 @@
     const inc = items.filter(it => it.final.action !== 'Exclude');
     return {
       products: items.length, included: inc.length, excluded: items.length - inc.length,
+      exceptions: items.filter(it => it.exception).length,
       soh: items.reduce((a, it) => a + it.row.m.soh, 0),
       sohCost: Math.round(items.reduce((a, it) => a + (num(it.row.p.sohCost) || 0), 0)),
     };
