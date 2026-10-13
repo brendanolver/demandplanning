@@ -371,6 +371,20 @@
     if (!!plan.reviewed[key] === !!val) return state;
     const s = clone(state); s.plans[planId].reviewed[key] = !!val; s.plans[planId].updatedTs = now || Date.now(); s.plans[planId].rev += 1; return s;
   }
+  // Products excluded from the Category Strategy tables are moved to Not on sale so step D always lists everything that is out of the sale. entries: [{ style, label, reason }]
+  function addNosStyles(state, planId, entries, now, idGen) {
+    const plan = state.plans[planId]; if (!plan || !(entries || []).length) return state;
+    const s = clone(state), p = s.plans[planId]; let changed = false;
+    for (const e of entries) {
+      const clean = sanitizeSelection('nos', { kind: 'style', value: String(e.style || '').toUpperCase(), label: e.label, auto: true, reason: e.reason }); if (!clean) continue;
+      const ex = p.notOnSale.items.find(x => sameSel(x, clean));
+      if (ex) { if (ex.auto) { Object.assign(ex, clean); changed = true; } continue; }                 // already covered by one of your own picks: leave that alone
+      p.notOnSale.items.push({ id: idGen ? idGen() : defaultId(now), ...clean, addedTs: now || Date.now() }); changed = true;
+      p.notOnSale.exceptions = p.notOnSale.exceptions.filter(x => x !== clean.value.toUpperCase());      // excluding it again cancels an earlier 'put back in the sale'
+    }
+    if (!changed) return state;
+    p.updatedTs = now || Date.now(); p.rev += 1; return s;
+  }
   // A style put back INTO the sale even though its collection / category is excluded.
   function addNosException(state, planId, style, now) {
     const plan = state.plans[planId], k = String(style || '').trim().toUpperCase(); if (!plan || !k || plan.notOnSale.exceptions.includes(k)) return state;
@@ -886,6 +900,7 @@
       out.pct = Math.round(pct * 10) / 10;
     }
     if (sel.label) out.label = String(sel.label).slice(0, 120);
+    if ((section === 'nos') && sel.auto) { out.auto = true; if (sel.reason) out.reason = String(sel.reason).slice(0, 60); }   // added automatically when products are excluded in Category Strategy
     return out;
   }
   const sameSel = (a, b) => a.kind === b.kind && norm(a.value) === norm(b.value);
@@ -1010,6 +1025,6 @@
     parseDay, durationDays, newPlan, createState, migrate, uniqueName, addPlan, duplicatePlan,
     renamePlan, setActive, archivePlan, restorePlan, cleanLevels, updatePlan, engineSettings, validatePlan,
     EXCLUDE_REASONS, VIEWS, sanitizeOverride, setOverrides, clearOverrides, overrideStats, buildReview,
-    SPECIAL_KINDS, GWP_KINDS, NOS_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setGwpQty, setGwpThreshold, lyWindow, lyUnitsByCategory, buildForecast, addDays, demandScenarios, forecastConfidence, crossCheck, scenarioLevels, commercialSummary, addSnapshot, removeSnapshot, setReviewed, addNosException, removeNosException, resolveNotOnSale, nosConflicts, categorySignature, OFFER_TYPES, BUNDLE_MODES, newOffer, sanitizeOffer, addOffer, updateOffer, duplicateOffer, deleteOffer, moveOffer, addOfferSelection, removeOfferSelection, setOfferException, resolveOfferConflict, resolveOffer, offerPricing, bundleText, offerConflicts, validateOffer, offerStatus, EXPORT_COLUMNS, toCsv, buildInitialExport, buildOfferExport, CHECKLIST, newExportRecord, addExportRecord, setMapping, defaultMappings, approveCategory, reopenCategory, releaseAllocation, refreshSuggestions, isApproved, frozenAllocs, categoryRows, approvalProgress, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
+    SPECIAL_KINDS, GWP_KINDS, NOS_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setGwpQty, setGwpThreshold, lyWindow, lyUnitsByCategory, buildForecast, addDays, demandScenarios, forecastConfidence, crossCheck, scenarioLevels, commercialSummary, addSnapshot, removeSnapshot, setReviewed, addNosStyles, addNosException, removeNosException, resolveNotOnSale, nosConflicts, categorySignature, OFFER_TYPES, BUNDLE_MODES, newOffer, sanitizeOffer, addOffer, updateOffer, duplicateOffer, deleteOffer, moveOffer, addOfferSelection, removeOfferSelection, setOfferException, resolveOfferConflict, resolveOffer, offerPricing, bundleText, offerConflicts, validateOffer, offerStatus, EXPORT_COLUMNS, toCsv, buildInitialExport, buildOfferExport, CHECKLIST, newExportRecord, addExportRecord, setMapping, defaultMappings, approveCategory, reopenCategory, releaseAllocation, refreshSuggestions, isApproved, frozenAllocs, categoryRows, approvalProgress, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
   };
 });

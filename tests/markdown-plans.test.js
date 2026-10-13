@@ -551,5 +551,18 @@ assert.deepEqual(P.buildForecast([], {}, 90).totals.demand, 0);
   assert.equal(rowsUp.find(r2 => r2.category === 'TEES').products, P.categoryRows(items, { categories: [] }, up.plans[eid], {}).find(r2 => r2.category === 'TEES').products - 1);
   assert.ok(up.plans[eid].catApprovals.TEES.approved);
 }
+// products excluded in the category tables are moved to Not on sale (auto entries)
+{
+  let st = P.createState(1, idGen); const id = st.activeId; let n = 0; const gen = () => 'a' + (++n);
+  st = P.addNosStyles(st, id, [{ style: 'w26aa001blk', label: 'ALPHA — BLACK', reason: 'Strong current sales' }, { style: 'W26BB002BLK', label: 'BETA — BLACK', reason: 'x'.repeat(200) }], 5, gen);
+  const it = st.plans[id].notOnSale.items; assert.equal(it.length, 2); assert.ok(it.every(e => e.auto === true && e.kind === 'style')); assert.equal(it[0].value, 'W26AA001BLK'); assert.equal(it[0].reason, 'Strong current sales'); assert.equal(it[1].reason.length, 60);
+  assert.strictEqual(P.addNosStyles(st, id, [], 6, gen), st);
+  const again = P.addNosStyles(st, id, [{ style: 'W26AA001BLK', label: 'ALPHA — BLACK', reason: 'Low stock cover' }], 7, gen); assert.equal(again.plans[id].notOnSale.items.length, 2); assert.equal(again.plans[id].notOnSale.items[0].reason, 'Low stock cover');   // same style: updated, not duplicated
+  // a style already picked by hand is left as the user's own pick
+  let hand = P.createState(1, idGen); const hid = hand.activeId; hand = P.addSelection(hand, hid, 'nos', { kind: 'style', value: 'W26AA001BLK' }, 1, gen).state; hand = P.addNosStyles(hand, hid, [{ style: 'W26AA001BLK', label: 'x', reason: 'y' }], 8, gen); assert.equal(hand.plans[hid].notOnSale.items.length, 1); assert.ok(!hand.plans[hid].notOnSale.items[0].auto);
+  // excluding it again cancels an earlier "put back in the sale"
+  let ex = P.addNosException(st, id, 'W26AA001BLK', 9); assert.deepEqual(ex.plans[id].notOnSale.exceptions, ['W26AA001BLK']); ex = P.removeSelection(ex, id, 'nos', ex.plans[id].notOnSale.items[0].id, 10); ex = P.addNosStyles(ex, id, [{ style: 'W26AA001BLK', label: 'A', reason: 'r' }], 11, gen); assert.deepEqual(ex.plans[id].notOnSale.exceptions, []);
+  assert.equal(P.sanitizeSelection('nos', { kind: 'style', value: 'X', auto: true, reason: 'r' }).auto, true); assert.equal(P.sanitizeSelection('gwp', { kind: 'style', value: 'X', auto: true }).auto, undefined);
+}
 console.log('markdown plans tests: all passed');
 })();

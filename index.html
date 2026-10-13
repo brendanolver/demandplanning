@@ -2417,8 +2417,8 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.2.9"></script>
-<script src="markdown-plans.js?v=3.2.9"></script>
+<script src="markdown-engine.js?v=3.3.0"></script>
+<script src="markdown-plans.js?v=3.3.0"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2452,7 +2452,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.2.9';
+const APP_VERSION='v3.3.0';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -6197,9 +6197,20 @@ function mdpApply(ids,value){
     if(value==='auto')entries[id]=null;
     else if(value.startsWith('pct:'))entries[id]={pct:+value.slice(4),kind:'discount'};
     else if(value.startsWith('grp:'))entries[id]={group:value.slice(4)};
-    else if(value.startsWith('excl:'))entries[id]={exclude:true,reason:value.slice(5)};
+    else if(value.startsWith('excl:'))entries[id]=null;
   }
-  mdpCommit(MarkdownPlans.setOverrides(mdpState,pl.id,entries));
+  // Excluding products here moves them to step D (Not on sale), so everything that's out of the sale is listed in one place. They leave the category
+  // tables and keep their current price; Remove them in step D to bring them back with the planner's recommendation.
+  let next=mdpState,moved=0;
+  if(value.startsWith('excl:')){
+    const reason=value.slice(5),list=[];
+    for(const id of ids){const it=byId[id];if(!it||it.row.p.isGWP||it.blocked||it.row.p.notOnSale)continue;
+      list.push({style:it.row.p.style,label:it.row.p.name+(it.row.p.colour?' — '+it.row.p.colour:''),reason});entries[id]=null;}   // no separate exclude decision: step D is the one place
+    moved=list.length;next=MarkdownPlans.addNosStyles(next,pl.id,list);
+  }
+  next=MarkdownPlans.setOverrides(next,pl.id,entries);
+  if(moved)mdpNoteMsg=moved+' product'+(moved===1?'':'s')+' moved to Not on sale (step D) — they keep their current price. Remove them there to put them back.';
+  mdpCommit(next,!!moved);
   if(skipped)setTimeout(()=>alert(skipped+' product'+(skipped===1?'':'s')+' skipped — gift-with-purchase items can\'t be discounted.'),50);
 }
 function mdpRowAction(i,v){mdpApply([mdpIds[i]],v);}
@@ -6815,7 +6826,7 @@ function mdpNosSection(plan,oo,hasEnd,pl){
   const counts={};nos.rows.forEach(r=>r.sels.forEach(s=>{(counts[s.id]=counts[s.id]||[]).push(r.style);}));
   const rows=pl.notOnSale.items.map(s=>{
     const sty=counts[s.id]||[],t=mdpStyleTotals(sty,oo);
-    return`<tr><td class="l"><span class="mdp-chip mdp-kind">${MDP_KIND_LABEL[s.kind]==='Style'?'Product / colour':MDP_KIND_LABEL[s.kind]}</span></td><td class="l"><b>${mdpEsc(s.label||s.value)}</b>${sty.length?'':' <span class="mdp-b-cf">no styles matched</span>'}</td><td>${t.n.toLocaleString()}</td><td>${t.soh.toLocaleString()}</td><td>${t.on.toLocaleString()}</td><td><button class="mdp-act" onclick="mdpRemoveSel('nos','${s.id}')">Remove</button></td></tr>`;}).join('');
+    return`<tr><td class="l"><span class="mdp-chip mdp-kind">${MDP_KIND_LABEL[s.kind]==='Style'?'Product / colour':MDP_KIND_LABEL[s.kind]}</span></td><td class="l"><b>${mdpEsc(s.label||s.value)}</b>${s.auto?` <span class="mdp-dim" title="Excluded in Category Strategy">· from Category Strategy${s.reason?' — '+mdpEsc(s.reason):''}</span>`:''}${sty.length?'':' <span class="mdp-b-cf">no styles matched</span>'}</td><td>${t.n.toLocaleString()}</td><td>${t.soh.toLocaleString()}</td><td>${t.on.toLocaleString()}</td><td><button class="mdp-act" onclick="mdpRemoveSel('nos','${s.id}')">Remove</button></td></tr>`;}).join('');
   const table=rows?`<div class="mdp-scroll" style="margin-top:12px;"><table class="mdp-t mdp-t2"><thead><tr><th class="l">Type</th><th class="l">Selection</th><th>Products</th><th>SOH</th><th>On order</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:'';
   const cat=mdpCatalogue()||[],titleOf=st=>{const e=cat.find(x=>x.style===st);return e?e.title:st;};
   const exc=pl.notOnSale.exceptions.map(st=>`<span class="mdp-chip">${mdpEsc(st)} <span class="mdp-dim">${mdpEsc(titleOf(st))}</span> <button title="Take it out of the sale again" onclick="mdpNosException('${mdpEsc(st)}',false)">×</button></span>`).join('');
@@ -13371,6 +13382,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.3.0 — Excluding products in the Category Strategy tables (the Proposed disc. 'Not in sale', Exclude selected, or the parent-row menu) now moves them to step D, Not on sale, automatically — each as a product/colour entry tagged 'from Category Strategy' with the reason you picked — so everything that's out of the sale is listed in one place with its SOH / on order. They leave the category tables and totals and keep their current price (no separate exclude decision is saved); Remove an entry in step D to bring the product back with the planner's recommendation. The planner's own 'not in sale' suggestions for healthy sellers are NOT moved there. From Brendan.
 // v3.2.9 — Not on sale and mid-sale offer pickers: the 'Collection' dropdown looked like a plain box, so searching by category or product wasn't obvious. They're now three clear tabs — Collection · Category · Product / colour — above the search box (placeholder and suggestions change with the tab; the tab you chose is remembered). Product search matches style code, name or colour; if you type a name instead of picking from the list and it points to exactly one product/colour it's used, otherwise you're asked to pick. From Brendan.
 // v3.2.8 — Markdown Planner workflow upgrade, from Brendan's brief. NEW ORDER: A Sale setup → B GWP → C Sale specific buys → D NOT ON SALE (new) → E Category strategy → F MID-SALE OFFERS (new) → G Product review → H Financial forecast → I Shopify/Hextom export. GWP, special buys and Not on sale each have a Reviewed tick (valid with nothing selected) and a compact summary (product/colours, SOH, on order). NOT ON SALE: pick Apparel Magic collections, categories or single product/colours (each counted once), put individual products back in, see unique excluded products / SOH / on order; those products keep their current price, are left out of every group, total and export, saved manual decisions on them are kept (and apply again if put back), and a product that is both Not on sale and a discounted special buy is flagged as a conflict (kept at full price until resolved). Category approvals remember what was upstream; if GWP / Not on sale / special buys change afterwards the category is flagged 'upstream changed — review' (nothing deleted). MID-SALE OFFERS: unlimited independent offers (create, edit, duplicate, reorder, delete, saved automatically), each with its own dates (checked against the sale), products (collection / category / product-colour + exceptions; GWP / Not on sale left out unless you confirm), Shopify collection, notes and status (Draft / Ready / Exported). Two types: FURTHER REDUCTION (a new total discount off the ORIGINAL RRP — never stacked, never raising a lower price, over-cap flagged) and BUNDLE (N for $X, buy N % off, buy N get M free, buy X get Y, mix-and-match — stored as a rule, not a % markdown). Overlapping offers on a product are detected and incompatible pricing needs an explicit winner. EXPORT: editable per-sale collection mapping (Black Friday names to start), an initial-sale collection-membership CSV (approved categories only; GWP / Not on sale / excluded / unmatched / unmapped left out and reported) and one CSV per offer, a 6-point pre-export checklist modal, export history and a downloadable audit summary, plus a full-plan CSV. LIMITS (stated in the app): no Shopify product IDs or collection access exist in this app and no Hextom template was supplied, so files are keyed by SKU with an UNVERIFIED column layout; collection membership does not create a Shopify discount or bundle price; nothing changes live prices. Plans: setReviewed, resolveNotOnSale, offers CRUD/pricing/overlaps/validation, buildInitialExport/buildOfferExport/toCsv, mappings, export records; engine: notOnSale + 'NOS' conflict. Tuesday not touched.
 // v3.2.7 — Month del filter is now a MULTI-SELECT dropdown: tick one month or several (and 'No month'), with counts and a Clear button; the button shows 'Sep-26, Oct-26' or 'N months del'. It works with every other filter and updates the category and product tables as you tick, leaving the menu open. MarkdownPlans.buildReview takes f.month as an array (a single month still works). From Brendan.
