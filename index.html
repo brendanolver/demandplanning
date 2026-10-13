@@ -814,6 +814,10 @@ th{position:relative;}
 .mdp-rvt td.mdp-nm{min-width:190px;max-width:240px;}
 .mdp-rvt td.mdp-why{min-width:130px;max-width:200px;}
 .mdp-apcell{gap:5px;}.mdp-appbtn,.mdp-donebtn{padding:3px 8px;}
+
+.mdp-rvt td.mdp-dim.l,.mdp-rvt td.l.mdp-dim{max-width:105px;}
+.mdp-rvt td.mdp-nm{min-width:180px;max-width:220px;}
+.mdp-rvt td,.mdp-rvt th{padding-left:6px;padding-right:6px;}
 .mdp-warn{background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:10px;padding:8px 12px;font-size:12.5px;}
 </style>
 </head>
@@ -2299,8 +2303,8 @@ th{position:relative;}
     </div>
   </div>
 
-<script src="markdown-engine.js?v=2.10.3"></script>
-<script src="markdown-plans.js?v=2.10.3"></script>
+<script src="markdown-engine.js?v=2.10.4"></script>
+<script src="markdown-plans.js?v=2.10.4"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2334,7 +2338,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.10.3';
+const APP_VERSION='v2.10.4';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -12661,6 +12665,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.10.4 — Compact review table trimmed a further ~70px so it fits a 1,500px screen without sideways scrolling
 // v2.10.3 — Review table fits a normal screen in Compact view: RRP moves to 'All columns' (Current price and New price stay), the '+N arriving' tag is shortened (full wording on hover) and the widest columns are tightened
 // v2.10.2 — Review table width: when sorted by category the Category column is hidden in Compact view (the category header already shows it) and column widths are tightened so the discount/approval controls, New price and Why fit on a normal screen without sideways scrolling
 // v2.10.1 — Fix v2.10.0 layout found testing on live data: the Why column was squeezed to ~80px so every reason wrapped into a tall block — rows averaged 100px (max 255px), making the 498-row review a 50,000px scroll. Each product is now ONE line (long text is cut with an ellipsis and shown in full on hover): the review is ~40px a row
