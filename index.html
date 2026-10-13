@@ -2250,8 +2250,8 @@ th{position:relative;}
     </div>
   </div>
 
-<script src="markdown-engine.js?v=2.9.2"></script>
-<script src="markdown-plans.js?v=2.9.2"></script>
+<script src="markdown-engine.js?v=2.9.3"></script>
+<script src="markdown-plans.js?v=2.9.3"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2285,7 +2285,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.9.2';
+const APP_VERSION='v2.9.3';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -6109,10 +6109,12 @@ function mdpSpecialSection(plan,oo,hasEnd,pl){
     if(r.conflict)flags.push(`<span class="mdp-b-cf" title="${mdpEsc(r.conflict)}">⚠ conflicting discounts</span>`);
     if(r.pct!=null&&r.pct>max)flags.push(`<span class="mdp-b-ov" title="Capped at your highest single discount (${max}%)">capped at ${max}%</span>`);
     if(res.gwpStyles.has(r.style))flags.push('<span class="mdp-b-cf" title="Also selected as gift with purchase">⚠ also GWP</span>');
+    if(hasEnd&&o&&o.units>0&&o.byEnd===0&&lv.soh<=0){const ks=Object.keys(o.due).map(Number).sort((a,b)=>a-b);flags.push(`<span class="mdp-b-ov" title="No stock on hand and nothing due before the sale ends">⚠ arrives ${ks.length?mdpDueLabel(ks[0]):'later'} — after the sale</span>`);}
     if(!cost)flags.push('<span class="mdp-dim" title="No landed cost in Apparel Magic">no cost</span>');
     return{r,e,lv,o,inc,pct,rrp,cost,units,status,flags,title:e.title||(lv.title)||r.style};
   });
   const pend=rows.filter(x=>x.status==='pending').length,bad=rows.filter(x=>x.flags.some(f=>/⚠/.test(f))).length;
+  const late=rows.filter(x=>x.flags.some(f=>/after the sale/.test(f))).length;
   const units=rows.reduce((a,x)=>a+x.units,0),costV=rows.reduce((a,x)=>a+x.units*x.cost,0);
   const tbl=rows.length?`<div class="mdp-scroll" style="max-height:420px;overflow:auto;margin-top:12px;"><table class="mdp-t mdp-t2"><thead><tr>
     <th class="l">Style</th><th class="l">Product</th><th class="l">Collection</th><th class="l">Category</th><th>Discount</th><th>SOH</th><th>On order</th><th>Due by sale end</th><th>Unit cost</th><th>RRP</th><th>Sale price</th><th class="l">Shopify</th><th class="l">Flags</th></tr></thead><tbody>
@@ -6124,7 +6126,7 @@ function mdpSpecialSection(plan,oo,hasEnd,pl){
   return note+`<div class="mdp-sub" style="margin:0 0 10px;line-height:1.55;">Styles bought specifically for this sale. Pick them straight from Apparel Magic and set the discount for each pick. They are <b>never scored against sales history</b> (they have none), are shown as <b>Special buys</b> in the review, and styles not yet in Shopify are <b>held back from the Hextom file</b> until matched. Rules still apply: nothing goes deeper than your highest single discount (${max}%), and gift-with-purchase can't also be discounted.</div>`
     +mdpAdder('special',['group','parent','style','po'],true,pl)+mdpSelChips('special',pl.special,mdpMatchedCounts(res.special),pl)
     +(rows.length?`<div class="mdp-revsum" style="margin-top:12px;"><span><b>${rows.length}</b> style${rows.length===1?'':'s'}</span><span class="mdp-dot"></span><span><b>${units.toLocaleString()}</b> units (stock + incoming)</span><span class="mdp-dot"></span><span><b>$${Math.round(costV).toLocaleString()}</b> at cost</span>
-      ${pend?`<span class="mdp-dot"></span><span class="mdp-newtag">${pend} pending Shopify match</span>`:''}${bad?`<span class="mdp-dot"></span><span class="mdp-b-cf">⚠ ${bad} need attention</span>`:''}</div>`:'')+tbl;
+      ${pend?`<span class="mdp-dot"></span><span class="mdp-newtag">${pend} pending Shopify match</span>`:''}${late?`<span class="mdp-dot"></span><span class="mdp-b-ov">${late} arrive after the sale ends</span>`:''}${bad?`<span class="mdp-dot"></span><span class="mdp-b-cf">⚠ ${bad} need attention</span>`:''}</div>`:'')+tbl;
 }
 
 function mdpGwpSection(plan,oo,hasEnd,pl){
@@ -6156,7 +6158,7 @@ function mdpGwpSection(plan,oo,hasEnd,pl){
   return note+conf+`<div class="mdp-sub" style="margin:0 0 10px;line-height:1.55;">Gift-with-purchase products, from Apparel Magic. They are <b>kept out of markdowns and the Hextom file</b>, and flagged as a blocking conflict if one also gets a discount. Planned giveaways default to everything available; the forecast will refine this later.</div>`
     +hint+mdpAdder('gwp',['category','group','style'],false,pl)+mdpSelChips('gwp',pl.gwp.items,mdpMatchedCounts(res.gwp),pl)
     +`<div class="mdp-row" style="margin-top:10px;"><label>Spend threshold (optional, $)<input class="mdp-in" type="number" min="0" step="1" placeholder="e.g. 150" value="${pl.gwp.threshold==null?'':pl.gwp.threshold}" onchange="mdpGwpThresholdSet(this.value)"></label></div>`
-    +(rows.length?`<div class="mdp-revsum" style="margin-top:12px;"><span><b>${rows.length}</b> GWP style${rows.length===1?'':'s'}</span><span class="mdp-dot"></span><span><b>${rows.reduce((a,x)=>a+x.eco.planned,0).toLocaleString()}</b> planned giveaways</span><span class="mdp-dot"></span><span>Est. GWP cost <b>$${Math.round(total).toLocaleString()}</b>${noCost?` <span class="mdp-dim">(${noCost} without a cost)</span>`:''}</span>${pl.gwp.threshold?`<span class="mdp-dot"></span><span>Threshold <b>$${pl.gwp.threshold}</b></span>`:''}</div>`:'')+tbl;
+    +(rows.length?`<div class="mdp-revsum" style="margin-top:12px;"><span><b>${rows.length}</b> GWP style${rows.length===1?'':'s'}</span><span class="mdp-dot"></span><span><b>${rows.reduce((a,x)=>a+x.eco.planned,0).toLocaleString()}</b> planned giveaways</span><span class="mdp-dot"></span><span>Est. GWP cost <b>$${Math.round(total).toLocaleString()}</b>${rows.every(x=>x.eco.defaulted)?' <span class="mdp-dim">(assumes everything available is given away — edit the planned giveaways)</span>':''}${noCost?` <span class="mdp-dim">(${noCost} without a cost)</span>`:''}</span>${pl.gwp.threshold?`<span class="mdp-dot"></span><span>Threshold <b>$${pl.gwp.threshold}</b></span>`:''}</div>`:'')+tbl;
 }
 function mdpQuickGwp(){const r=MarkdownPlans.addSelection(mdpState,mdpPlan().id,'gwp',{kind:'category',value:'GWP',label:'Apparel Magic GWP category'});mdpCommit(r.state);}
 
@@ -12514,6 +12516,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.9.3 — Markdown Planner: special buys now flag 'arrives <date> — after the sale' when they have no stock and nothing is due before the sale ends (the 16 IKIZAMA styles land 1 Feb 2027, after Black Friday, so they'd have 0 units to sell), with a count in the summary; the GWP cost estimate says it assumes everything available is given away until you edit the planned giveaways. Live-tested v2.9.2 on real data: catalogue cache 444 KB (3,978 styles), collection pick resolved 88 styles, GWP category 8 styles, GWP-vs-special-buy conflicts raise 3 blocking conflicts with one-click fixes
 // v2.9.2 — Markdown Planner, phase 6: Special buys (section D) and Gift with purchase (section E), from Apparel Magic. The existing AM catalogue crawl (every 6h) now also keeps each style's collection/group, category, title and RRP (cache upgraded; an older cache is treated as stale so the picker data arrives after one fresh ~2.5 min crawl). SPECIAL BUYS: add picks by collection, parent style, style or a customer PO on the open orders (a PO also reaches new styles missing from the catalogue) and set a discount per pick from your allowed levels; picks resolve to styles and show Style/Product/Collection/Category/Discount/SOH/On order/Due by sale end/Unit cost/RRP/Sale price/Shopify match. They feed the engine as a fixed 'Special' tier — never scored against sales history, not protected as new arrivals, not cleared as remnants, not colour-linked, counted in the average discount but never lowered by the cap, capped at your highest single discount, and a manual decision still wins. Styles not in Shopify yet are flagged 'Pending Shopify match' (to be held back from the Hextom file); overlapping picks with different discounts are flagged, never silently resolved. GWP: add by Apparel Magic's GWP category (one click), collection or style; shows SOH, incoming (per the sale's incoming-stock setting), unit cost, available, editable planned giveaways (default = all available, capped), estimated cost, optional spend threshold. GWP is excluded from markdowns, and a GWP style that also has a special-buy pick or a saved markdown decision raises a BLOCKING conflict with one-click fixes. Selections are per-sale allocations (a Duplicate doesn't copy them). The category table gains a Special column and the review gains a Special buys filter and pill. Logic is in markdown-plans.js (resolver, conflicts, economics) and markdown-engine.js, with ~70 new assertions
 // v2.9.1 — Fix v2.9.0: decisions were saved on the sale but the screen never passed them to the engine, so they had no visible effect (found testing every action on live data). They are now applied last on every render
 // v2.9.0 — Markdown Planner, phase 4: Product / Colour Review (section C), with saved decisions. One row per Shopify product/colour — product & colour, parent style, category, core flag, SOH, on order, sales 7/30/60/90d, cover, sell-through proxy, sizes out, RRP, current price, the planner's SUGGESTION, the APPLIED discount, new price, collection placeholder and the plain-English reason. Search, category / in-sale / group / clearance / my-decisions / needs-attention / core filters, and sort. Colours of one parent style collapse into an expandable parent row; its menu applies one discount (or exclusion) to every colour — 'Link all colours' for core styles. Per row, per parent style or in bulk (tick rows) you can: approve the suggestion (locks it), set a discount from the allowed levels, move to Group A / B / Clearance (follows that group's level), exclude with a reason (strong sales, low cover, new arrival, core protection, commercial decision, other), or reset. Decisions are saved on the sale and are never silently overwritten: they survive every regenerate, an approved figure that the system later disagrees with (e.g. a tighter average cap lowers its group) is KEPT and flagged 'differs from suggestion', GWP can never be discounted, a decision resolves a core-colour exception, and decisions for products no longer in stock are kept and counted. Visual markers keep system / approved (✓) / manual (✎) distinct. Pure review logic (filter, parent grouping, sort, decision save) is in markdown-plans.js with 60+ new assertions; engine decision logic in markdown-engine.js
