@@ -910,6 +910,8 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
 .mdp-dlg{background:#fff;border-radius:16px;max-width:640px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3);}
 .mdp-dlghead{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #eef0f5;font-size:15px;}.mdp-dlgbody{padding:16px 20px;overflow:auto;}.mdp-dlgfoot{display:flex;justify-content:flex-end;gap:10px;padding:14px 20px;border-top:1px solid #eef0f5;}
 .mdp-btn:disabled{opacity:.45;cursor:not-allowed;}
+/* v3.2.9: Collection / Category / Product tabs on the Not on sale and offer pickers */
+.mdp-adder3{align-items:center;}.mdp-adderseg{flex:none;}.mdp-adderseg button{white-space:nowrap;}
 /* v3.1.5: fixed layout with explicit column widths (the th widths in mdpReviewHtml). The auto layout let the full-width
    section / category header rows stretch the first column; this keeps every column exactly where it's set. Long text is cut
    with an ellipsis (hover for the full text). */
@@ -2415,8 +2417,8 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.2.8"></script>
-<script src="markdown-plans.js?v=3.2.8"></script>
+<script src="markdown-engine.js?v=3.2.9"></script>
+<script src="markdown-plans.js?v=3.2.9"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2450,7 +2452,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.2.8';
+const APP_VERSION='v3.2.9';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -6639,7 +6641,18 @@ function mdpFillList(section){
 function mdpAddSel(section){
   const pl=mdpPlan(),kind=mdpSelValue(section,'kind'),value=mdpSelValue(section,'val').trim();
   if(!value){alert('Type or pick a '+({group:'collection',category:'category',parent:'parent style',style:'product / colour',po:'customer PO'}[kind]||'value')+' first.');return;}
-  const entry={kind,value},isOffer=section.startsWith('offer-');
+  const isOffer=section.startsWith('offer-');
+  let pickVal=value;
+  if(kind==='style'&&(section==='nos'||isOffer)){
+    // typed a product name or part of a code instead of choosing from the list: use it if it points to exactly one product/colour
+    const cat=mdpCatalogue()||[],q=value.toLowerCase();
+    if(!cat.some(e=>e.style===value.toUpperCase())){
+      const hit=cat.filter(e=>(e.style+' '+e.title).toLowerCase().includes(q));
+      if(hit.length===1)pickVal=hit[0].style;
+      else if(hit.length>1){alert(hit.length+' products match "'+value+'". Pick one from the list that appears as you type (or type more of the name).');return;}
+    }
+  }
+  const entry={kind,value:pickVal};
   if(section==='special')entry.pct=Number(mdpSelValue(section,'pct'));
   const r=isOffer?MarkdownPlans.addOfferSelection(mdpState,pl.id,section.slice(6),entry):MarkdownPlans.addSelection(mdpState,pl.id,section,entry);
   if(!r.id){alert('That selection isn\'t valid.');return;}
@@ -6669,12 +6682,27 @@ function mdpClearDecisionFor(style){
 }
 
 const MDP_KIND_LABEL={group:'Collection',category:'Category',parent:'Parent style',style:'Style',po:'Customer PO'};
+// Where to look: Collection / Category / Product-colour tabs (Not on sale and mid-sale offers), or a plain dropdown (GWP, special buys).
+const mdpAdderKind={};
+const MDP_PLACEHOLDER={group:'Search collections…',category:'Search categories…',style:'Search products by style code, name or colour…',parent:'Search parent styles…',po:'Search customer POs…'};
+function mdpAdderTab(section,kind){
+  mdpAdderKind[section]=kind;
+  const h=document.getElementById('mdp-'+section+'-kind'),v=document.getElementById('mdp-'+section+'-val');
+  if(h)h.value=kind;if(v){v.value='';v.placeholder=MDP_PLACEHOLDER[kind]||'Search Apparel Magic…';}
+  document.querySelectorAll('[data-adder="'+section+'"] button[data-kind]').forEach(b=>b.classList.toggle('on',b.getAttribute('data-kind')===kind));
+  mdpFillList(section);if(v&&v.focus)v.focus();
+}
 function mdpAdder(section,kinds,withPct,pl){
-  const lab=k=>k==='style'&&(section==='nos'||section.startsWith('offer-'))?'Product / colour':MDP_KIND_LABEL[k];
+  const tabs=section==='nos'||section.startsWith('offer-');
+  const lab=k=>k==='style'&&tabs?'Product / colour':MDP_KIND_LABEL[k];
   const PS=pl.settings,lv=PS.allowedDiscounts.filter(d=>d<=PS.maxDiscount),def=lv.includes(50)?50:lv[lv.length-1];
-  return`<div class="mdp-adder">
-    <select id="mdp-${section}-kind" class="mdp-sel" onchange="mdpFillList('${section}')">${kinds.map(k=>`<option value="${k}">${lab(k)}</option>`).join('')}</select>
-    <input id="mdp-${section}-val" class="mdp-in mdp-grow" list="mdp-dl-${section}" placeholder="Search Apparel Magic…" autocomplete="off" oninput="mdpFillList('${section}')" onfocus="mdpFillList('${section}')">
+  const cur=mdpAdderKind[section]&&kinds.includes(mdpAdderKind[section])?mdpAdderKind[section]:kinds[0];
+  const kindCtl=tabs
+    ?`<input type="hidden" id="mdp-${section}-kind" value="${cur}"><div class="mdp-seg mdp-adderseg">${kinds.map(k=>`<button type="button" data-kind="${k}" class="${k===cur?'on':''}" onclick="mdpAdderTab('${section}','${k}')">${lab(k)}</button>`).join('')}</div>`
+    :`<select id="mdp-${section}-kind" class="mdp-sel" onchange="mdpFillList('${section}')">${kinds.map(k=>`<option value="${k}">${lab(k)}</option>`).join('')}</select>`;
+  return`<div class="mdp-adder${tabs?' mdp-adder3':''}" data-adder="${section}">
+    ${kindCtl}
+    <input id="mdp-${section}-val" class="mdp-in mdp-grow" list="mdp-dl-${section}" placeholder="${mdpEsc(MDP_PLACEHOLDER[cur]||'Search Apparel Magic…')}" autocomplete="off" oninput="mdpFillList('${section}')" onfocus="mdpFillList('${section}')">
     <datalist id="mdp-dl-${section}"></datalist>
     ${withPct?`<select id="mdp-${section}-pct" class="mdp-sel" title="Discount off RRP">${lv.map(d=>`<option value="${d}" ${d===def?'selected':''}>${d}% off</option>`).join('')}</select>`:''}
     <button class="mdp-btn" onclick="mdpAddSel('${section}')">＋ Add</button></div>`;
@@ -13343,6 +13371,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.2.9 — Not on sale and mid-sale offer pickers: the 'Collection' dropdown looked like a plain box, so searching by category or product wasn't obvious. They're now three clear tabs — Collection · Category · Product / colour — above the search box (placeholder and suggestions change with the tab; the tab you chose is remembered). Product search matches style code, name or colour; if you type a name instead of picking from the list and it points to exactly one product/colour it's used, otherwise you're asked to pick. From Brendan.
 // v3.2.8 — Markdown Planner workflow upgrade, from Brendan's brief. NEW ORDER: A Sale setup → B GWP → C Sale specific buys → D NOT ON SALE (new) → E Category strategy → F MID-SALE OFFERS (new) → G Product review → H Financial forecast → I Shopify/Hextom export. GWP, special buys and Not on sale each have a Reviewed tick (valid with nothing selected) and a compact summary (product/colours, SOH, on order). NOT ON SALE: pick Apparel Magic collections, categories or single product/colours (each counted once), put individual products back in, see unique excluded products / SOH / on order; those products keep their current price, are left out of every group, total and export, saved manual decisions on them are kept (and apply again if put back), and a product that is both Not on sale and a discounted special buy is flagged as a conflict (kept at full price until resolved). Category approvals remember what was upstream; if GWP / Not on sale / special buys change afterwards the category is flagged 'upstream changed — review' (nothing deleted). MID-SALE OFFERS: unlimited independent offers (create, edit, duplicate, reorder, delete, saved automatically), each with its own dates (checked against the sale), products (collection / category / product-colour + exceptions; GWP / Not on sale left out unless you confirm), Shopify collection, notes and status (Draft / Ready / Exported). Two types: FURTHER REDUCTION (a new total discount off the ORIGINAL RRP — never stacked, never raising a lower price, over-cap flagged) and BUNDLE (N for $X, buy N % off, buy N get M free, buy X get Y, mix-and-match — stored as a rule, not a % markdown). Overlapping offers on a product are detected and incompatible pricing needs an explicit winner. EXPORT: editable per-sale collection mapping (Black Friday names to start), an initial-sale collection-membership CSV (approved categories only; GWP / Not on sale / excluded / unmatched / unmapped left out and reported) and one CSV per offer, a 6-point pre-export checklist modal, export history and a downloadable audit summary, plus a full-plan CSV. LIMITS (stated in the app): no Shopify product IDs or collection access exist in this app and no Hextom template was supplied, so files are keyed by SKU with an UNVERIFIED column layout; collection membership does not create a Shopify discount or bundle price; nothing changes live prices. Plans: setReviewed, resolveNotOnSale, offers CRUD/pricing/overlaps/validation, buildInitialExport/buildOfferExport/toCsv, mappings, export records; engine: notOnSale + 'NOS' conflict. Tuesday not touched.
 // v3.2.7 — Month del filter is now a MULTI-SELECT dropdown: tick one month or several (and 'No month'), with counts and a Clear button; the button shows 'Sep-26, Oct-26' or 'N months del'. It works with every other filter and updates the category and product tables as you tick, leaving the menu open. MarkdownPlans.buildReview takes f.month as an array (a single month still works). From Brendan.
 // v3.2.6 — Fix: the planner jumped around after changing a Proposed disc. (or any decision) in Suggested categories, from Brendan. Cause: a change re-renders the planner and only the page and section C's table kept their scroll position — the product table inside an expanded category (and the category tables) snapped back to the top. Now every scroll box is remembered and restored by name across any re-render (page, ancestors, each category's product table, the category tables, section C). Rows still re-sort if you're sorted by the column you just changed.
