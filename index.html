@@ -2241,8 +2241,8 @@ th{position:relative;}
     </div>
   </div>
 
-<script src="markdown-engine.js?v=2.9.0"></script>
-<script src="markdown-plans.js?v=2.9.0"></script>
+<script src="markdown-engine.js?v=2.9.1"></script>
+<script src="markdown-plans.js?v=2.9.1"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2276,7 +2276,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.9.0';
+const APP_VERSION='v2.9.1';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -5989,7 +5989,7 @@ function renderMarkdownPlanner(){
   mdpLoadState();
   const pl=mdpPlan();
   const S=MarkdownPlans.engineSettings(pl);
-  const plan=MarkdownEngine.buildPlan(mdpInputs(pl),S);
+  const plan=MarkdownEngine.buildPlan(mdpInputs(pl),S,pl.overrides);   // the sale's saved decisions are applied last
   const clr=MarkdownEngine.clearanceLevel(plan.settings);
   const T=plan.totals;
   const f=window.shopifyFeed&&window.shopifyFeed.meta&&window.shopifyFeed.meta.lastSuccessTs;
@@ -12321,6 +12321,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.9.1 — Fix v2.9.0: decisions were saved on the sale but the screen never passed them to the engine, so they had no visible effect (found testing every action on live data). They are now applied last on every render
 // v2.9.0 — Markdown Planner, phase 4: Product / Colour Review (section C), with saved decisions. One row per Shopify product/colour — product & colour, parent style, category, core flag, SOH, on order, sales 7/30/60/90d, cover, sell-through proxy, sizes out, RRP, current price, the planner's SUGGESTION, the APPLIED discount, new price, collection placeholder and the plain-English reason. Search, category / in-sale / group / clearance / my-decisions / needs-attention / core filters, and sort. Colours of one parent style collapse into an expandable parent row; its menu applies one discount (or exclusion) to every colour — 'Link all colours' for core styles. Per row, per parent style or in bulk (tick rows) you can: approve the suggestion (locks it), set a discount from the allowed levels, move to Group A / B / Clearance (follows that group's level), exclude with a reason (strong sales, low cover, new arrival, core protection, commercial decision, other), or reset. Decisions are saved on the sale and are never silently overwritten: they survive every regenerate, an approved figure that the system later disagrees with (e.g. a tighter average cap lowers its group) is KEPT and flagged 'differs from suggestion', GWP can never be discounted, a decision resolves a core-colour exception, and decisions for products no longer in stock are kept and counted. Visual markers keep system / approved (✓) / manual (✎) distinct. Pure review logic (filter, parent grouping, sort, decision save) is in markdown-plans.js with 60+ new assertions; engine decision logic in markdown-engine.js
 // v2.8.4 — Correction to the v2.8.3 note below (text only): new styles are 16,720 of the 71,565 units on order, not ~58k
 // v2.8.3 — Markdown Planner: units on order from Apparel Magic, by category and by style. The category table gains On order (all open AM order lines, with a purple 'N new' tag for units sitting in styles not in Shopify yet) and Due by sale end (needs the sale's end date); categories that have stock on order but nothing in stock get their own 'on order only' row; expanding a category adds an 'On order — by style' table (style, product, Live/New style, SOH, on order, due by sale end, next arrival, customer PO — including brand-new styles); product rows show their on-order units; a tile shows the total (71,565 units across 230 styles today — only 16,720 of it, 23%, in new styles not yet in Shopify; the rest is for styles already live, many currently sold out). Tie-out: AM total = category sum = style sum, 0 uncategorised. Read straight from the AM orders — categories from the product rows, else the app's own AM product lookup (finishes a few seconds after the orders land; until then a style sits under '(category loading…)' and the Planner re-renders itself)
