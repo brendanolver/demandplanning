@@ -380,6 +380,25 @@ assert.equal(E.buildPlan(range, capSet(1)).cap.met, false);
     assert.equal(m.final.action, 'B'); assert.equal(m.final.pct, 60);                                                                           // follows the level you set for B
   }
 }
+// ── Not on sale: kept out of every group, keeps its price, saved decisions survive, conflicts with special buys are flagged ──
+{
+  const base = { sold: { d7: 1, d30: 4, d60: 9, d90: 14 }, ageWeeks: 60, soh: 200 };
+  const prods = [mk('N1', { ...base }), mk('N2', { ...base }), mk('N3', { ...base, notOnSale: true }), mk('N4', { ...base, notOnSale: true, specialPct: 50 }), mk('N5', { ...base, notOnSale: true, currentDiscountPct: 30, price: 70 })].concat(range);
+  const settings = { maxDiscount: 70, scope: 'all' }, pl = E.buildPlan(prods, settings), g = id => pl.items.find(i => i.row.p.id === id);
+  assert.equal(g('N3').final.action, 'Exclude'); assert.equal(g('N3').final.pct, null); assert.equal(g('N3').group, null); assert.match(g('N3').final.reason, /Not on sale/);
+  assert.equal(g('N5').final.pct, null);                                                                        // an already-reduced product that is Not on sale keeps its current price (no Group C)
+  assert.equal(g('N4').final.pct, null); assert.equal(g('N4').blocked, 'NOS');                                  // Not on sale + discounted special buy: a conflict, never silently discounted
+  assert.equal(g('N1').blocked, null);
+  // it is in no A/B/C count and no totals of eligible stock
+  const tees = pl.categories.find(c => c.category === 'TEES'), without = E.buildPlan(prods.filter(p => !p.notOnSale), settings).categories.find(c => c.category === 'TEES');
+  assert.equal(tees.eligible, without.eligible); assert.equal(tees.eligibleUnits, without.eligibleUnits); assert.equal(tees.countA + tees.countB + tees.countC + tees.countX, without.countA + without.countB + without.countC + without.countX);
+  // a saved manual decision is kept but not applied while it is Not on sale, and applies again when it is put back
+  const ov = { N3: { pct: 40, kind: 'discount' } };
+  const held = E.buildPlan(prods, settings, ov).items.find(i => i.row.p.id === 'N3'); assert.equal(held.final.pct, null); assert.equal(held.override, null);
+  const back = E.buildPlan(prods.map(p => p.id === 'N3' ? { ...p, notOnSale: false } : p), settings, ov).items.find(i => i.row.p.id === 'N3'); assert.equal(back.final.pct, 40); assert.equal(back.override, 'discount');
+  // GWP still wins over everything
+  assert.equal(E.buildPlan([mk('NG', { ...base, isGWP: true, notOnSale: true })].concat(range), settings).items[0].final.action, 'Exclude');
+}
 // deterministic: same input, same output
 assert.deepEqual(E.buildPlan(range, capSet(18)).items.map(i => i.final.pct), E.buildPlan(range, capSet(18)).items.map(i => i.final.pct));
 // the single-product ceiling still holds under a cap

@@ -72,12 +72,19 @@
       catApprovals: {}, // category approval: { CATEGORY: { approved, ts, A, B, alloc: { productId: 'A'|'B'|'C'|'Exclude' } } } — kept when a category is reopened
       snapshots: [],   // saved forecast snapshots (kept per sale; a Duplicate does not copy them)
       groupLevels: {}, // your own Group A / B level per category: { CATEGORY: { A: pct, B: pct } } (absent = the planner's suggestion)
-      mappings: {},    // phase 7: discount -> Shopify collection (id + title), independent per sale
+      mappings: defaultMappings(),    // discount % -> Shopify collection { title, id }, independent per sale (Black Friday names to start; editable)
       exports: [],     // phase 7: export + confirmation history
       special: [],     // special buys: Apparel Magic selections + the discount for each
       gwp: { items: [], threshold: null, qty: {} },   // gift with purchase: selections, optional spend threshold, planned giveaways per style
+      notOnSale: { items: [], exceptions: [] },        // stock kept OUT of the sale: collections / categories / styles picked from Apparel Magic, plus styles put back in
+      offers: [],                                      // mid-sale offers (further reductions, bundles), each with its own products, dates, pricing and collection
+      offerResolutions: {},                            // { STYLE: offerId } — which offer wins when a style sits in overlapping offers with incompatible pricing
+      reviewed: { gwp: false, special: false, notOnSale: false },   // each pre-planning step can be marked Reviewed, even with nothing selected
     };
   }
+
+  const BF_MAPPING = { 20: 'BF 20% OFF SALE ITEMS', 30: 'BF 30% OFF SALE ITEMS', 40: 'BF 40% OFF SALE ITEMS', 50: 'BF 50% OFF SALE ITEMS', 60: '', 70: 'BF 70% OFF SALE ITEMS' };
+  function defaultMappings() { const m = {}; for (const k of Object.keys(BF_MAPPING)) m[k] = { title: BF_MAPPING[k], id: '' }; return m; }
 
   function createState(now, idGen) {
     const p = newPlan('Sale 1', now, idGen && idGen());
@@ -95,6 +102,11 @@
         p.settings = Engine.mergeSettings(p.settings);
         p.groupLevels = p.groupLevels && typeof p.groupLevels === 'object' ? p.groupLevels : {};
         p.snapshots = Array.isArray(p.snapshots) ? p.snapshots : [];
+        p.notOnSale = { items: [], exceptions: [], ...(p.notOnSale || {}) }; if (!Array.isArray(p.notOnSale.items)) p.notOnSale.items = []; if (!Array.isArray(p.notOnSale.exceptions)) p.notOnSale.exceptions = [];
+        p.offers = Array.isArray(p.offers) ? p.offers : []; p.offerResolutions = p.offerResolutions && typeof p.offerResolutions === 'object' ? p.offerResolutions : {};
+        p.reviewed = { gwp: false, special: false, notOnSale: false, ...(p.reviewed || {}) };
+        if (!p.mappings || typeof p.mappings !== 'object' || !Object.keys(p.mappings).length) p.mappings = defaultMappings();
+        p.exports = Array.isArray(p.exports) ? p.exports : [];
         p.catApprovals = p.catApprovals && typeof p.catApprovals === 'object' && !Array.isArray(p.catApprovals) ? p.catApprovals : {};
         p.overrides = p.overrides || {}; p.mappings = p.mappings || {}; p.exports = p.exports || [];
         p.special = Array.isArray(p.special) ? p.special : [];
@@ -352,6 +364,262 @@
     const s = clone(state); s.plans[planId].snapshots = s.plans[planId].snapshots.filter(x => x.ts !== ts); s.plans[planId].rev += 1; return s;
   }
 
+  // ── Reviewed status + Not on Sale ───────────────────────────────────────────
+  // GWP, Sale specific buys and Not on sale each get a Reviewed tick — valid even when nothing is selected ("I checked, there's none").
+  function setReviewed(state, planId, key, val, now) {
+    const plan = state.plans[planId]; if (!plan || !['gwp', 'special', 'notOnSale'].includes(key)) return state;
+    if (!!plan.reviewed[key] === !!val) return state;
+    const s = clone(state); s.plans[planId].reviewed[key] = !!val; s.plans[planId].updatedTs = now || Date.now(); s.plans[planId].rev += 1; return s;
+  }
+  // A style put back INTO the sale even though its collection / category is excluded.
+  function addNosException(state, planId, style, now) {
+    const plan = state.plans[planId], k = String(style || '').trim().toUpperCase(); if (!plan || !k || plan.notOnSale.exceptions.includes(k)) return state;
+    const s = clone(state); s.plans[planId].notOnSale.exceptions.push(k); s.plans[planId].updatedTs = now || Date.now(); s.plans[planId].rev += 1; return s;
+  }
+  function removeNosException(state, planId, style, now) {
+    const plan = state.plans[planId], k = String(style || '').trim().toUpperCase(); if (!plan || !plan.notOnSale.exceptions.includes(k)) return state;
+    const s = clone(state); s.plans[planId].notOnSale.exceptions = s.plans[planId].notOnSale.exceptions.filter(x => x !== k); s.plans[planId].updatedTs = now || Date.now(); s.plans[planId].rev += 1; return s;
+  }
+  // Styles kept out of the sale: everything the selections match, less the exceptions. Overlapping picks never double count (a style is in the result once).
+  function resolveNotOnSale(plan, catalogue, ctx) {
+    const rows = resolveSelections(plan.notOnSale.items, catalogue, ctx), ex = new Set((plan.notOnSale.exceptions || []).map(x => String(x).toUpperCase()));
+    const kept = rows.filter(r => !ex.has(r.style));
+    return { rows: kept, styles: new Set(kept.map(r => r.style)), excepted: rows.filter(r => ex.has(r.style)).map(r => r.style) };
+  }
+  // A style that is Not on sale AND a discounted special buy: needs a decision, never silently discounted.
+  function nosConflicts(nosStyles, specialStyles) {
+    const n = nosStyles instanceof Set ? nosStyles : new Set(nosStyles || []);
+    return (specialStyles || []).map(x => String(x).toUpperCase()).filter(x => n.has(x));
+  }
+  // The things upstream of a category's markdowns (GWP, Not on sale, special buys). If this changes after the category was approved, it is flagged for review.
+  function categorySignature(items, category) {
+    const parts = [];
+    for (const it of items || []) {
+      const p = it.row.p; if ((p.category || 'UNCATEGORISED') !== category) continue;
+      const f = p.isGWP ? 'G' : p.notOnSale ? 'N' : p.specialPct != null ? 'S' + p.specialPct : '';
+      if (f) parts.push(p.id + ':' + f);
+    }
+    return parts.sort().join('|');
+  }
+
+  // ── Mid-sale offers ─────────────────────────────────────────────────────────
+  // An offer is its own promotion inside the sale: a FURTHER REDUCTION (a new total discount off the original RRP — never stacked) or a BUNDLE
+  // (a quantity-based rule, stored separately from percentage markdowns). Each has its own products, dates, pricing, Shopify collection and status.
+  const OFFER_TYPES = ['reduction', 'bundle'];
+  const BUNDLE_MODES = ['price', 'pct', 'free', 'buyget'];   // N for $X · N for Y% off · buy N get M free · buy X get Y (mix-and-match flag is separate)
+  function newOffer(name, now, id) {
+    const t = now || Date.now();
+    return { id: id || defaultId(t), name: String(name || 'New offer').trim().slice(0, 80) || 'New offer', type: 'reduction', start: '', end: '', pct: null,
+      bundle: { mode: 'price', qty: 2, price: null, pct: null, buyQty: 2, getQty: 1, mix: true },
+      items: [], exceptions: [], includeExcluded: false, collection: { title: '', id: '' }, notes: '', createdTs: t, updatedTs: t };
+  }
+  function sanitizeOffer(o) {
+    const n = v => { const x = Number(v); return v != null && v !== '' && isFinite(x) ? x : null; }, int = (v, d, lo, hi) => { const x = Math.floor(Number(v)); return isFinite(x) ? Math.max(lo, Math.min(hi, x)) : d; };
+    const b = o.bundle || {};
+    return { ...o, name: String(o.name || '').trim().slice(0, 80) || 'Offer', type: OFFER_TYPES.includes(o.type) ? o.type : 'reduction',
+      start: parseDay(o.start) == null ? '' : o.start, end: parseDay(o.end) == null ? '' : o.end,
+      pct: n(o.pct) != null && n(o.pct) >= 5 && n(o.pct) <= 95 ? Math.round(n(o.pct) * 10) / 10 : null,
+      bundle: { mode: BUNDLE_MODES.includes(b.mode) ? b.mode : 'price', qty: int(b.qty, 2, 2, 20), price: n(b.price) != null && n(b.price) > 0 ? Math.round(n(b.price) * 100) / 100 : null,
+        pct: n(b.pct) != null && n(b.pct) > 0 && n(b.pct) <= 95 ? Math.round(n(b.pct) * 10) / 10 : null, buyQty: int(b.buyQty, 2, 1, 20), getQty: int(b.getQty, 1, 1, 20), mix: b.mix !== false },
+      includeExcluded: !!o.includeExcluded, collection: { title: String((o.collection || {}).title || '').trim().slice(0, 120), id: String((o.collection || {}).id || '').trim().slice(0, 40) },
+      notes: String(o.notes || '').slice(0, 500) };
+  }
+  const offerIndex = (plan, id) => plan.offers.findIndex(o => o.id === id);
+  function addOffer(state, planId, name, now, idGen) {
+    if (!state.plans[planId]) return { state, id: null };
+    const s = clone(state), p = s.plans[planId], o = newOffer(name || 'Offer ' + (p.offers.length + 1), now, idGen && idGen());
+    p.offers.push(o); p.updatedTs = now || Date.now(); p.rev += 1; return { state: s, id: o.id };
+  }
+  function updateOffer(state, planId, offerId, patch, now) {
+    const plan = state.plans[planId]; if (!plan || offerIndex(plan, offerId) < 0) return state;
+    const s = clone(state), p = s.plans[planId], i = offerIndex(p, offerId), cur = p.offers[i];
+    const merged = { ...cur, ...patch, bundle: { ...cur.bundle, ...((patch || {}).bundle || {}) }, collection: { ...cur.collection, ...((patch || {}).collection || {}) } };
+    merged.id = cur.id; merged.items = cur.items; merged.exceptions = cur.exceptions; merged.createdTs = cur.createdTs;   // selections change only through their own functions
+    p.offers[i] = { ...sanitizeOffer(merged), updatedTs: now || Date.now() }; p.updatedTs = now || Date.now(); p.rev += 1; return s;
+  }
+  function duplicateOffer(state, planId, offerId, now, idGen) {
+    const plan = state.plans[planId]; if (!plan || offerIndex(plan, offerId) < 0) return { state, id: null };
+    const s = clone(state), p = s.plans[planId], src = p.offers[offerIndex(p, offerId)], o = clone(src);
+    o.id = idGen ? idGen() : defaultId(now); o.name = (src.name + ' (copy)').slice(0, 80); o.createdTs = o.updatedTs = now || Date.now();
+    o.items = o.items.map(x => ({ ...x, id: idGen ? idGen() : defaultId(now) }));
+    p.offers.splice(offerIndex(p, offerId) + 1, 0, o); p.updatedTs = now || Date.now(); p.rev += 1; return { state: s, id: o.id };
+  }
+  function deleteOffer(state, planId, offerId, now) {
+    const plan = state.plans[planId]; if (!plan || offerIndex(plan, offerId) < 0) return state;
+    const s = clone(state), p = s.plans[planId]; p.offers = p.offers.filter(o => o.id !== offerId);
+    for (const k of Object.keys(p.offerResolutions)) if (p.offerResolutions[k] === offerId) delete p.offerResolutions[k];
+    p.updatedTs = now || Date.now(); p.rev += 1; return s;
+  }
+  function moveOffer(state, planId, offerId, dir, now) {
+    const plan = state.plans[planId]; if (!plan) return state; const i = offerIndex(plan, offerId), j = i + (dir < 0 ? -1 : 1);
+    if (i < 0 || j < 0 || j >= plan.offers.length) return state;
+    const s = clone(state), p = s.plans[planId]; [p.offers[i], p.offers[j]] = [p.offers[j], p.offers[i]]; p.updatedTs = now || Date.now(); p.rev += 1; return s;
+  }
+  function addOfferSelection(state, planId, offerId, sel, now, idGen) {
+    const plan = state.plans[planId]; if (!plan || offerIndex(plan, offerId) < 0) return { state, id: null };
+    const clean = sanitizeSelection('offer', sel); if (!clean) return { state, id: null };
+    const s = clone(state), p = s.plans[planId], o = p.offers[offerIndex(p, offerId)], ex = o.items.find(x => sameSel(x, clean)); let id;
+    if (ex) { Object.assign(ex, clean); id = ex.id; } else { id = idGen ? idGen() : defaultId(now); o.items.push({ id, ...clean, addedTs: now || Date.now() }); }
+    o.updatedTs = p.updatedTs = now || Date.now(); p.rev += 1; return { state: s, id };
+  }
+  function removeOfferSelection(state, planId, offerId, selId, now) {
+    const plan = state.plans[planId]; if (!plan || offerIndex(plan, offerId) < 0 || !plan.offers[offerIndex(plan, offerId)].items.some(x => x.id === selId)) return state;
+    const s = clone(state), p = s.plans[planId], o = p.offers[offerIndex(p, offerId)]; o.items = o.items.filter(x => x.id !== selId); o.updatedTs = p.updatedTs = now || Date.now(); p.rev += 1; return s;
+  }
+  function setOfferException(state, planId, offerId, style, on, now) {
+    const plan = state.plans[planId], k = String(style || '').trim().toUpperCase(); if (!plan || !k || offerIndex(plan, offerId) < 0) return state;
+    const has = plan.offers[offerIndex(plan, offerId)].exceptions.includes(k); if (has === !!on) return state;
+    const s = clone(state), p = s.plans[planId], o = p.offers[offerIndex(p, offerId)];
+    o.exceptions = on ? o.exceptions.concat(k) : o.exceptions.filter(x => x !== k); o.updatedTs = p.updatedTs = now || Date.now(); p.rev += 1; return s;
+  }
+  function resolveOfferConflict(state, planId, style, offerId, now) {
+    const plan = state.plans[planId], k = String(style || '').toUpperCase(); if (!plan || !k) return state;
+    const s = clone(state), p = s.plans[planId]; if (offerId == null) delete p.offerResolutions[k]; else p.offerResolutions[k] = offerId;
+    p.updatedTs = now || Date.now(); p.rev += 1; return s;
+  }
+  // The styles an offer covers: its selections (collection / category / style) less its exceptions. GWP and Not on sale styles are left out unless the offer
+  // explicitly allows them (the UI asks for confirmation first). Special buys take part. `skipped` says what was left out and why.
+  function resolveOffer(offer, catalogue, ctx, excl) {
+    excl = excl || {}; const gwp = excl.gwp || new Set(), nos = excl.nos || new Set(), ex = new Set((offer.exceptions || []).map(x => String(x).toUpperCase()));
+    const rows = [], skipped = [];
+    for (const r of resolveSelections(offer.items, catalogue, ctx)) {
+      if (ex.has(r.style)) { skipped.push({ style: r.style, by: 'exception' }); continue; }
+      const by = gwp.has(r.style) ? 'gwp' : nos.has(r.style) ? 'nos' : null;
+      if (by && !offer.includeExcluded) { skipped.push({ style: r.style, by }); continue; }
+      rows.push({ ...r, excludedBy: by });
+    }
+    return { rows, skipped };
+  }
+  // Price a product under a further reduction: the NEW TOTAL discount is taken off the ORIGINAL RRP (never stacked on the initial sale discount),
+  // and an existing price that is already lower is never raised.
+  function offerPricing(prod, offer, maxDiscount) {
+    const rrp = Number(prod.rrp) > 0 ? Number(prod.rrp) : null, init = prod.initialPct != null ? Number(prod.initialPct) : null;
+    const base = rrp != null && init != null ? Math.round(rrp * (1 - init / 100) * 100) / 100 : (Number(prod.price) > 0 ? Number(prod.price) : null);   // what it sells for before the offer
+    if (offer.type === 'bundle') return { kind: 'bundle', rule: bundleText(offer.bundle), basePrice: base, price: null, pct: null, noChange: false, overCap: false };
+    const pct = offer.pct;
+    if (rrp == null || pct == null) return { kind: 'reduction', basePrice: base, price: null, pct, noChange: false, overCap: false, noRrp: rrp == null };
+    const target = Math.round(rrp * (1 - pct / 100) * 100) / 100, noChange = base != null && target >= base - 0.005;
+    return { kind: 'reduction', basePrice: base, price: noChange ? base : target, targetPrice: target, pct: noChange && base != null ? Math.round((1 - base / rrp) * 1000) / 10 : pct, noChange, overCap: maxDiscount != null && pct > maxDiscount };
+  }
+  function bundleText(b) {
+    if (!b) return '';
+    const mix = b.mix ? ' (mix and match)' : ' (same product)';
+    if (b.mode === 'price') return b.price ? b.qty + ' for $' + b.price + mix : b.qty + ' for a set price' + mix;
+    if (b.mode === 'pct') return b.pct ? 'Buy ' + b.qty + ', ' + b.pct + '% off' + mix : 'Buy ' + b.qty + ' for a % off' + mix;
+    if (b.mode === 'free') return 'Buy ' + b.qty + ', get ' + b.getQty + ' free' + mix;
+    return 'Buy ' + b.buyQty + ', get ' + b.getQty + mix;
+  }
+  // Date window of an offer, clamped for overlap maths (an offer with no dates is treated as the whole sale).
+  const offerWindow = (o, plan) => {
+    const a = parseDay(o.start) != null ? parseDay(o.start) : parseDay(plan.setup.start), b = parseDay(o.end) != null ? parseDay(o.end) : parseDay(plan.setup.end);
+    return { a: a == null ? -Infinity : a, b: b == null ? Infinity : b };
+  };
+  const rulesCompatible = (x, y) => x.type === 'reduction' && y.type === 'reduction' && x.pct === y.pct;
+  // Products that sit in 2+ offers whose dates overlap. Incompatible pricing (different %, or any bundle) needs an explicit winner; nothing is ever stacked.
+  // productsByOffer: { offerId: [styles] }
+  function offerConflicts(plan, productsByOffer) {
+    const out = [], by = {};
+    for (const o of plan.offers) for (const st of productsByOffer[o.id] || []) (by[st] = by[st] || []).push(o);
+    for (const st of Object.keys(by)) {
+      const os = by[st]; if (os.length < 2) continue;
+      for (let i = 0; i < os.length; i++) for (let j = i + 1; j < os.length; j++) {
+        const x = os[i], y = os[j], wx = offerWindow(x, plan), wy = offerWindow(y, plan), a = Math.max(wx.a, wy.a), b = Math.min(wx.b, wy.b);
+        if (a > b) continue;                                   // dates don't overlap
+        const iso = t => (isFinite(t) ? new Date(t).toISOString().slice(0, 10) : '');
+        const key = st + '|' + x.id + '|' + y.id, compatible = rulesCompatible(x, y), winner = plan.offerResolutions[st];
+        const resolved = !compatible && (winner === x.id || winner === y.id);
+        out.push({ key, style: st, offers: [x.id, y.id], names: [x.name, y.name], from: iso(a), to: iso(b), compatible, resolved, winner: resolved ? winner : null,
+          text: compatible ? 'Same reduction in both — only one is applied' : (x.type === 'bundle' || y.type === 'bundle' ? 'A bundle overlaps another offer' : 'Different reductions (' + x.pct + '% vs ' + y.pct + '%)') });
+      }
+    }
+    return out;
+  }
+  // Problems with one offer. Blocking errors stop its export; warnings don't.
+  function validateOffer(offer, plan, info) {
+    info = info || {}; const errors = [], warnings = [], sa = parseDay(plan.setup.start), sb = parseDay(plan.setup.end), a = parseDay(offer.start), b = parseDay(offer.end), max = plan.settings.maxDiscount;
+    if (!offer.start || !offer.end) errors.push('Set the offer start and end dates.');
+    else if (b < a) errors.push('The offer ends before it starts.');
+    if (sa != null && sb != null && a != null && b != null && (a < sa || b > sb)) errors.push('The offer dates fall outside the sale dates.');
+    if (offer.type === 'reduction') {
+      if (offer.pct == null) errors.push('Choose the new total discount.');
+      else if (offer.pct > max) errors.push('The ' + offer.pct + '% discount is above the sale\'s highest single discount (' + max + '%).');
+    } else {
+      const bd = offer.bundle;
+      if (bd.mode === 'price' && bd.price == null) errors.push('Enter the bundle price.');
+      if (bd.mode === 'pct' && bd.pct == null) errors.push('Enter the bundle % off.');
+    }
+    if (!offer.items.length) errors.push('Pick the products: a collection, category or product.');
+    else if (info.count === 0) errors.push('The selections match no products right now.');
+    if (!offer.collection.title) errors.push('Set the Shopify collection for this offer.');
+    if (info.unresolved) errors.push(info.unresolved + ' overlapping product' + (info.unresolved === 1 ? '' : 's') + ' need a decision.');
+    if (offer.type === 'bundle') warnings.push('Collection membership only: the bundle price itself must be set up as a Shopify discount — a collection export does not create it.');
+    if (info.noChange) warnings.push(info.noChange + ' product' + (info.noChange === 1 ? ' is' : 's are') + ' already priced at or below this offer — their price is not raised.');
+    if (info.excludedIncluded) warnings.push('Includes ' + info.excludedIncluded + ' GWP / Not on sale product' + (info.excludedIncluded === 1 ? '' : 's') + ' (you confirmed this).');
+    return { errors, warnings };
+  }
+  function offerStatus(offer, v, exported) {
+    if (v.errors.length) return 'draft';
+    return exported ? 'exported' : 'ready';
+  }
+
+  // ── Exports (collection membership for Hextom; nothing here changes live Shopify prices) ──
+  // ctx.variants(style) -> [{ sku, size }]. The Hextom column layout is NOT verified against your import template (none was provided), so the file is
+  // keyed by SKU + product title + collection title/ID and is clearly labelled as collection membership. See exportColumns.
+  const EXPORT_COLUMNS = ['Style', 'Product', 'Colour', 'Variant SKU', 'Size', 'Discount %', 'Sale price', 'Collection title', 'Collection ID', 'Source', 'Offer'];
+  const csvCell = v => { const t = v == null ? '' : String(v); return /[",\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+  function toCsv(rows, columns) { return [columns.map(csvCell).join(',')].concat(rows.map(r => columns.map(c => csvCell(r[c])).join(','))).join('\r\n') + '\r\n'; }
+  const mapKey = pct => String(Math.round(Number(pct)));
+  function mappingFor(plan, pct) { const m = plan.mappings[mapKey(pct)]; return m && m.title ? m : null; }
+  // Initial sale: approved categories only; GWP, Not on sale, excluded and unmatched products are left out. Returns { rows, issues, products, byPct }.
+  function buildInitialExport(items, plan, ctx) {
+    const rows = [], issues = [], seen = new Set(), byPct = {}; let products = 0, unmatched = 0, notApproved = 0, unmapped = new Set();
+    for (const it of items || []) {
+      const p = it.row.p, f = it.final;
+      if (p.isGWP || p.notOnSale || f.pct == null || f.action === 'Exclude') continue;
+      const cat = p.category || 'UNCATEGORISED';
+      if (!isApproved(plan, cat)) { notApproved++; continue; }
+      if (seen.has(p.id)) continue; seen.add(p.id);
+      const vs = (ctx && ctx.variants ? ctx.variants(p.style) : []) || [];
+      if (!vs.length) { unmatched++; continue; }
+      const m = mappingFor(plan, f.pct); if (!m) { unmapped.add(mapKey(f.pct)); continue; }
+      products++; byPct[mapKey(f.pct)] = (byPct[mapKey(f.pct)] || 0) + 1;
+      for (const v of vs) rows.push({ Style: p.style, Product: p.name, Colour: p.colour, 'Variant SKU': v.sku, Size: v.size || '', 'Discount %': f.pct, 'Sale price': it.price && it.price.newPrice != null ? it.price.newPrice.toFixed(2) : '', 'Collection title': m.title, 'Collection ID': m.id || '', Source: it.group === 'X' ? 'initial sale (exception)' : 'initial sale', Offer: '' });
+    }
+    if (unmapped.size) issues.push({ level: 'error', text: 'No Shopify collection mapped for ' + [...unmapped].sort().map(x => x + '%').join(', ') + ' — those products are not in the file.' });
+    if (unmatched) issues.push({ level: 'warn', text: unmatched + ' product' + (unmatched === 1 ? ' has' : 's have') + ' no Shopify variants matched yet — held back.' });
+    if (notApproved) issues.push({ level: 'warn', text: notApproved + ' product' + (notApproved === 1 ? '' : 's') + ' in categories that are not approved yet — not included.' });
+    if (!products) issues.push({ level: 'error', text: 'Nothing to export: approve at least one category that has a mapped collection.' });
+    return { rows, issues, products, byPct };
+  }
+  // One offer: its products into the offer's own collection. productInfo(style) -> { name, colour, price info }.
+  function buildOfferExport(offer, plan, styles, ctx) {
+    const rows = [], issues = []; let products = 0, unmatched = 0;
+    if (!offer.collection.title) issues.push({ level: 'error', text: 'This offer has no Shopify collection set.' });
+    for (const st of styles) {
+      const vs = (ctx && ctx.variants ? ctx.variants(st) : []) || [], info = (ctx && ctx.info ? ctx.info(st) : {}) || {};
+      if (!vs.length) { unmatched++; continue; }
+      products++;
+      for (const v of vs) rows.push({ Style: st, Product: info.name || '', Colour: info.colour || '', 'Variant SKU': v.sku, Size: v.size || '', 'Discount %': offer.type === 'reduction' ? (info.pct != null ? info.pct : offer.pct) : '', 'Sale price': info.price != null ? Number(info.price).toFixed(2) : '', 'Collection title': offer.collection.title, 'Collection ID': offer.collection.id || '', Source: offer.type === 'bundle' ? 'mid-sale bundle (collection membership only)' : 'mid-sale reduction', Offer: offer.name + ' (' + (offer.start || '?') + ' to ' + (offer.end || '?') + ')' });
+    }
+    if (unmatched) issues.push({ level: 'warn', text: unmatched + ' product' + (unmatched === 1 ? ' has' : 's have') + ' no Shopify variants matched yet — held back.' });
+    if (!products) issues.push({ level: 'error', text: 'No products to export for this offer.' });
+    return { rows, issues, products };
+  }
+  const CHECKLIST = ['The Shopify collections used here exist.', 'Existing collections have been cleared, or their old members reconciled.', 'The collection mappings are correct.', 'Every product has a valid Shopify match.', 'Excluded products (GWP, Not on sale, manual exclusions) are omitted.', 'Any conflicting offers have been resolved.'];
+  function newExportRecord(plan, kind, offer, built, now, idGen, filename) {
+    return { id: idGen ? idGen() : defaultId(now), planId: plan.id, planRev: plan.rev, offerId: offer ? offer.id : null, kind, ts: now || Date.now(), products: built.products, rows: built.rows.length,
+      collections: [...new Set(built.rows.map(r => r['Collection title']))], filename: filename || '', checklist: CHECKLIST.length };
+  }
+  function addExportRecord(state, planId, rec, now) {
+    if (!state.plans[planId]) return state; const s = clone(state), p = s.plans[planId];
+    p.exports.unshift(rec); if (p.exports.length > 200) p.exports.length = 200; p.updatedTs = now || Date.now(); p.rev += 1; return s;
+  }
+  function setMapping(state, planId, pct, title, id, now) {
+    const plan = state.plans[planId], k = mapKey(pct); if (!plan || !isFinite(Number(pct))) return state;
+    const s = clone(state), p = s.plans[planId]; p.mappings[k] = { title: String(title == null ? (p.mappings[k] || {}).title || '' : title).trim().slice(0, 120), id: String(id == null ? (p.mappings[k] || {}).id || '' : id).trim().slice(0, 40) };
+    p.updatedTs = now || Date.now(); p.rev += 1; return s;
+  }
+
   // ── Category approval (the main workflow) ───────────────────────────────────
   // Approving a category saves its final Group A / B levels and every product's allocation in it, and moves it to Approved. Reopening
   // moves it back but keeps everything saved (levels, allocations, your product decisions). 'Regenerate' drops the saved allocations of
@@ -362,7 +630,7 @@
     const s = clone(state), p = s.plans[planId], lvl = v => { const n = Number(v); return v != null && isFinite(n) && n > 0 ? Math.min(n, p.settings.maxDiscount) : null; };
     const A = lvl(snap && snap.A), B = snap && snap.B === 0 ? 0 : lvl(snap && snap.B), alloc = {};   // B === 0 = Group B switched off
     for (const id of Object.keys((snap && snap.alloc) || {})) if (ALLOC_OK.includes(snap.alloc[id])) alloc[id] = snap.alloc[id];
-    p.catApprovals = p.catApprovals || {}; p.catApprovals[category] = { approved: true, ts: now || Date.now(), A, B, alloc };
+    p.catApprovals = p.catApprovals || {}; p.catApprovals[category] = { approved: true, ts: now || Date.now(), A, B, alloc, sig: snap && snap.sig != null ? String(snap.sig) : null };   // sig = what was upstream (GWP / Not on sale / special buys) when approved
     p.groupLevels = p.groupLevels || {};
     const e = { ...(p.groupLevels[category] || {}) }; if (A != null) e.A = A; if (B != null) e.B = B;
     if (e.A != null || e.B != null) p.groupLevels[category] = e;
@@ -399,7 +667,7 @@
     const byCat = {}, blockedBy = {};
     for (const it of items || []) { if (it.blocked) { const k = it.row.p.category || 'UNCATEGORISED'; blockedBy[k] = (blockedBy[k] || 0) + 1; } }   // a GWP product that also has a discount (a genuine conflict) blocks its category
     for (const it of items || []) {
-      const p = it.row.p; if (p.isGWP) continue;
+      const p = it.row.p; if (p.isGWP || p.notOnSale) continue;   // GWP and Not on sale products aren't part of the sale at all
       const k = p.category || 'UNCATEGORISED';
       const c = byCat[k] || (byCat[k] = { category: k, products: 0, sold30: 0, needAttention: 0, changed: 0 });
       c.products++; c.sold30 += (p.sold && p.sold.d30) || 0;
@@ -415,7 +683,8 @@
         groupA: e.groupA == null ? null : e.groupA, groupB: e.groupB == null ? null : e.groupB, autoA: e.autoA == null ? null : e.autoA, autoB: e.autoB == null ? null : e.autoB,
         manualA: e.manualA == null ? null : e.manualA, manualB: e.manualB == null ? null : e.manualB, groupWarn: !!e.groupWarn,
         noB: !!e.noB, recB: e.recB || 0, levelA: e.levelA == null ? null : e.levelA, levelB: e.levelB == null ? null : e.levelB,
-        approved: !!(ap && ap.approved), reopened: !!(ap && !ap.approved), approvedTs: ap ? ap.ts : null };
+        approved: !!(ap && ap.approved), reopened: !!(ap && !ap.approved), approvedTs: ap ? ap.ts : null,
+        upstreamChanged: !!(ap && ap.approved && ap.sig != null && ap.sig !== categorySignature(items, k)) };   // GWP / Not on sale / special buys changed since approval: flagged for review, nothing deleted
     });
     return rows;
   }
@@ -601,11 +870,12 @@
   // style, or a customer PO on the open orders — and special-buy selections also carry the discount.
   const SPECIAL_KINDS = ['group', 'parent', 'style', 'po'];
   const GWP_KINDS = ['category', 'group', 'style'];
+  const NOS_KINDS = ['group', 'category', 'style'];   // collection / category / product-colour (also used by mid-sale offers)
   const norm = v => String(v == null ? '' : v).toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();   // same normalisation the app uses for AM group names
 
   function sanitizeSelection(section, sel) {
     if (!sel || typeof sel !== 'object') return null;
-    const kinds = section === 'gwp' ? GWP_KINDS : SPECIAL_KINDS;
+    const kinds = section === 'gwp' ? GWP_KINDS : (section === 'nos' || section === 'offer') ? NOS_KINDS : SPECIAL_KINDS;
     if (!kinds.includes(sel.kind)) return null;
     const value = String(sel.value == null ? '' : sel.value).trim().slice(0, 120);
     if (!value) return null;
@@ -620,7 +890,7 @@
   }
   const sameSel = (a, b) => a.kind === b.kind && norm(a.value) === norm(b.value);
 
-  function planList(plan, section) { return section === 'gwp' ? plan.gwp.items : plan.special; }
+  function planList(plan, section) { return section === 'gwp' ? plan.gwp.items : section === 'nos' ? plan.notOnSale.items : plan.special; }
 
   // Adding the same collection/style again updates it instead of duplicating.
   function addSelection(state, planId, section, sel, now, idGen) {
@@ -637,7 +907,7 @@
   function removeSelection(state, planId, section, selId, now) {
     const plan = state.plans[planId]; if (!plan || !planList(plan, section).some(x => x.id === selId)) return state;
     const s = clone(state), p = s.plans[planId];
-    if (section === 'gwp') p.gwp.items = p.gwp.items.filter(x => x.id !== selId); else p.special = p.special.filter(x => x.id !== selId);
+    if (section === 'gwp') p.gwp.items = p.gwp.items.filter(x => x.id !== selId); else if (section === 'nos') p.notOnSale.items = p.notOnSale.items.filter(x => x.id !== selId); else p.special = p.special.filter(x => x.id !== selId);
     p.updatedTs = now || Date.now(); p.rev += 1;
     return s;
   }
@@ -740,6 +1010,6 @@
     parseDay, durationDays, newPlan, createState, migrate, uniqueName, addPlan, duplicatePlan,
     renamePlan, setActive, archivePlan, restorePlan, cleanLevels, updatePlan, engineSettings, validatePlan,
     EXCLUDE_REASONS, VIEWS, sanitizeOverride, setOverrides, clearOverrides, overrideStats, buildReview,
-    SPECIAL_KINDS, GWP_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setGwpQty, setGwpThreshold, lyWindow, lyUnitsByCategory, buildForecast, addDays, demandScenarios, forecastConfidence, crossCheck, scenarioLevels, commercialSummary, addSnapshot, removeSnapshot, approveCategory, reopenCategory, releaseAllocation, refreshSuggestions, isApproved, frozenAllocs, categoryRows, approvalProgress, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
+    SPECIAL_KINDS, GWP_KINDS, NOS_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setGwpQty, setGwpThreshold, lyWindow, lyUnitsByCategory, buildForecast, addDays, demandScenarios, forecastConfidence, crossCheck, scenarioLevels, commercialSummary, addSnapshot, removeSnapshot, setReviewed, addNosException, removeNosException, resolveNotOnSale, nosConflicts, categorySignature, OFFER_TYPES, BUNDLE_MODES, newOffer, sanitizeOffer, addOffer, updateOffer, duplicateOffer, deleteOffer, moveOffer, addOfferSelection, removeOfferSelection, setOfferException, resolveOfferConflict, resolveOffer, offerPricing, bundleText, offerConflicts, validateOffer, offerStatus, EXPORT_COLUMNS, toCsv, buildInitialExport, buildOfferExport, CHECKLIST, newExportRecord, addExportRecord, setMapping, defaultMappings, approveCategory, reopenCategory, releaseAllocation, refreshSuggestions, isApproved, frozenAllocs, categoryRows, approvalProgress, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
   };
 });

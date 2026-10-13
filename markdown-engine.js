@@ -155,6 +155,7 @@
     const reasons = [];
     const exclude = r => ({ action: 'Exclude', reason: r, hard: true });   // hard = a rule, not a score: never overridden by colour linking
     if (p.isGWP) return exclude('Gift with purchase — never discounted');
+    if (p.notOnSale) return exclude('Not on sale — keeps its current price');   // picked in the Not on sale step (collection / category / style)
     if (m.soh <= 0) return exclude('No stock on hand');
     // Special buys are bought FOR this sale at a chosen discount: never scored against sales history
     // (they have none), never protected as "new arrivals", and never cleared as remnants.
@@ -348,9 +349,12 @@
       // they no longer pin anything — they're kept in the saved data but ignored. Only real decisions (a typed discount, a group move, an exclusion) apply.
       const o0 = ov[p.id], o = o0 && (o0.kind === 'approved' || (o0.exclude && o0.confirm)) ? null : o0;
       let override = null, conflict = false, blocked = null;
-      if (p.isGWP && p.specialPct != null) blocked = 'GWP';   // a GWP product also set up as a discounted special buy: a blocking conflict
+      if (p.isGWP && p.specialPct != null) blocked = 'GWP';
+      if (p.notOnSale && p.specialPct != null && !p.isGWP) blocked = 'NOS';   // Not on sale AND a discounted special buy: needs a decision, never silently discounted   // a GWP product also set up as a discounted special buy: a blocking conflict
       if (o && p.isGWP) {
         blocked = 'GWP';          // gift-with-purchase can never be discounted, whatever was saved
+      } else if (o && p.notOnSale) {
+        // Not on sale wins: the saved decision is KEPT (it applies again if the product is put back in the sale) but nothing is applied now
       } else if (o) {
         if (o.exclude && o.confirm) { action = 'Exclude'; pct = null; reason = 'Confirmed: stays out of the sale — ' + reason; override = 'confirmed'; }   // you confirmed the planner's "not in the sale"
         else if (o.exclude) { action = 'Exclude'; pct = null; reason = 'Excluded — ' + (o.reason || 'your decision') + (o.note ? ' (' + o.note + ')' : ''); override = 'exclude'; }

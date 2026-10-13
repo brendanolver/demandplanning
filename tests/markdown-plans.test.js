@@ -58,7 +58,7 @@ withData = P.updatePlan(withData, bfId, { setup: { start: '2026-11-27', end: '20
 const d = P.duplicatePlan(withData, bfId, 5000, idGen); const dp = d.state.plans[d.id];
 assert.equal(dp.name, 'Black Friday 2026 (copy)'); assert.equal(dp.setup.start, ''); assert.equal(dp.setup.end, '');
 assert.equal(dp.setup.objective, 'clear'); assert.equal(dp.settings.coreMode, 'exclude'); assert.equal(dp.settings.maxDiscount, withData.plans[bfId].settings.maxDiscount);
-assert.deepEqual(dp.overrides, {}); assert.deepEqual(dp.mappings, {}); assert.deepEqual(dp.exports, []); assert.equal(dp.rev, 1); assert.notEqual(d.id, bfId);
+assert.deepEqual(dp.overrides, {}); assert.deepEqual(dp.mappings, P.defaultMappings());   // collection names change between promotions: a duplicate starts from the defaults, not the old sale's mapping assert.deepEqual(dp.exports, []); assert.equal(dp.rev, 1); assert.notEqual(d.id, bfId);
 assert.equal(d.state.order[d.state.order.indexOf(bfId) + 1], d.id); assert.equal(d.state.activeId, d.id);
 assert.deepEqual(withData.plans[bfId].overrides, { X: { pct: 30 } });          // the source keeps its own decisions
 dp.settings.allowedDiscounts.push(99); assert.ok(!withData.plans[bfId].settings.allowedDiscounts.includes(99));   // deep copy, not shared references
@@ -456,6 +456,100 @@ assert.deepEqual(P.buildForecast([], {}, 90).totals.demand, 0);
   assert.equal(ids({ month: ['OCT-26', 'SEP-26'] }), 'abe'); assert.equal(ids({ month: ['NOV-26'] }), 'c'); assert.equal(ids({ month: ['SEP-26', '__none__'] }), 'bd');
   assert.equal(ids({ month: [] }), 'abcde'); assert.equal(ids({ month: 'OCT-26' }), 'ae');                          // a single month (the old form) still works
   assert.equal(ids({ month: ['OCT-26', 'SEP-26'], q: 'a' }), 'a'); assert.equal(ids({ month: ['DEC-26'] }), '');
+}
+// ── Not on sale, offers, pricing, overlaps, exports ──
+{
+  const cat = [
+    { style: 'W26AA001BLK', parentStyle: 'W26AA001', group: 'COL ONE', category: 'TEES', title: 'ALPHA TEE', rrp: 79.95, cost: 20 }, { style: 'W26AA001WHT', parentStyle: 'W26AA001', group: 'COL ONE', category: 'TEES', title: 'ALPHA TEE', rrp: 79.95, cost: 20 },
+    { style: 'W26BB002BLK', parentStyle: 'W26BB002', group: 'COL TWO', category: 'SHORTS', title: 'BETA SHORT', rrp: 60, cost: 15 }, { style: 'W26CC003BLK', parentStyle: 'W26CC003', group: 'COL ONE', category: 'SHORTS', title: 'GAMMA SHORT', rrp: 70, cost: 18 },
+    { style: 'W26GW001BLK', parentStyle: 'W26GW001', group: 'COL ONE', category: 'GWP', title: 'TOWEL', rrp: 30, cost: 5 },
+  ];
+  let st = P.createState(1, idGen); const id = st.activeId; let ids = 0; const gen = () => 'i' + (++ids);
+  assert.equal(P.NOS_KINDS.join(), 'group,category,style');
+  assert.equal(st.plans[id].reviewed.notOnSale, false); st = P.setReviewed(st, id, 'notOnSale', true, 5); assert.equal(st.plans[id].reviewed.notOnSale, true); assert.strictEqual(P.setReviewed(st, id, 'notOnSale', true, 6), st); assert.strictEqual(P.setReviewed(st, id, 'bogus', true, 6), st);
+  st = P.addSelection(st, id, 'nos', { kind: 'group', value: 'col one' }, 10, gen).state; st = P.addSelection(st, id, 'nos', { kind: 'category', value: 'shorts' }, 11, gen).state; st = P.addSelection(st, id, 'nos', { kind: 'style', value: 'w26aa001blk' }, 12, gen).state;
+  assert.equal(st.plans[id].notOnSale.items.length, 3); assert.equal(P.addSelection(st, id, 'nos', { kind: 'po', value: 'x' }, 13, gen).id, null);
+  let nos = P.resolveNotOnSale(st.plans[id], cat, {}); assert.deepEqual([...nos.styles].sort(), ['W26AA001BLK', 'W26AA001WHT', 'W26BB002BLK', 'W26CC003BLK', 'W26GW001BLK']);
+  st = P.addNosException(st, id, 'w26cc003blk', 14); nos = P.resolveNotOnSale(st.plans[id], cat, {}); assert.ok(!nos.styles.has('W26CC003BLK')); assert.deepEqual(nos.excepted, ['W26CC003BLK']);
+  st = P.removeNosException(st, id, 'W26CC003BLK', 15); assert.ok(P.resolveNotOnSale(st.plans[id], cat, {}).styles.has('W26CC003BLK'));
+  const selId = st.plans[id].notOnSale.items[1].id; st = P.removeSelection(st, id, 'nos', selId, 16); assert.equal(st.plans[id].notOnSale.items.length, 2);
+  assert.deepEqual(P.nosConflicts(new Set(['A', 'B']), ['b', 'C']), ['B']);
+  assert.deepEqual(P.migrate({ v: st.v, activeId: id, order: [id], plans: { [id]: { ...st.plans[id], notOnSale: undefined, offers: undefined, reviewed: undefined, mappings: {} } } }, null, 1, idGen).plans[id].notOnSale, { items: [], exceptions: [] });
+  const sigItems = [{ row: { p: { id: 'a', category: 'TEES', isGWP: false } } }, { row: { p: { id: 'b', category: 'TEES', notOnSale: true } } }];
+  assert.equal(P.categorySignature(sigItems, 'TEES'), 'b:N'); assert.notEqual(P.categorySignature(sigItems.concat([{ row: { p: { id: 'c', category: 'TEES', specialPct: 50 } } }]), 'TEES'), 'b:N');
+  let r = P.addOffer(st, id, 'Black Friday Reloaded', 20, gen); st = r.state; const oid = r.id; assert.equal(st.plans[id].offers.length, 1); assert.equal(st.plans[id].offers[0].type, 'reduction');
+  st = P.updateOffer(st, id, oid, { type: 'reduction', pct: '50', start: '2026-11-27', end: '2026-11-29', collection: { title: 'BF RELOADED 50% OFF', id: '123' }, notes: 'x'.repeat(900) }, 21);
+  let o = st.plans[id].offers[0]; assert.equal(o.pct, 50); assert.equal(o.collection.title, 'BF RELOADED 50% OFF'); assert.equal(o.notes.length, 500); assert.equal(o.id, oid);
+  st = P.updateOffer(st, id, oid, { pct: 99, start: 'junk' }, 22); o = st.plans[id].offers[0]; assert.equal(o.pct, null); assert.equal(o.start, '');
+  st = P.updateOffer(st, id, oid, { pct: 50, start: '2026-11-27', type: 'bundle', bundle: { mode: 'price', qty: 3, price: 100, mix: true } }, 23); o = st.plans[id].offers[0];
+  assert.equal(o.type, 'bundle'); assert.equal(o.bundle.qty, 3); assert.equal(o.bundle.price, 100); assert.equal(P.bundleText(o.bundle), '3 for $100 (mix and match)');
+  assert.equal(P.bundleText({ mode: 'free', qty: 2, getQty: 1, mix: false }), 'Buy 2, get 1 free (same product)'); assert.equal(P.bundleText({ mode: 'buyget', buyQty: 3, getQty: 1, mix: true }), 'Buy 3, get 1 (mix and match)'); assert.equal(P.bundleText({ mode: 'pct', qty: 2, pct: 20, mix: true }), 'Buy 2, 20% off (mix and match)');
+  st = P.updateOffer(st, id, oid, { type: 'reduction' }, 24);
+  st = P.addOfferSelection(st, id, oid, { kind: 'group', value: 'COL TWO', label: 'Col two' }, 25, gen).state; st = P.addOfferSelection(st, id, oid, { kind: 'style', value: 'W26AA001BLK' }, 26, gen).state; assert.equal(st.plans[id].offers[0].items.length, 2);
+  assert.equal(P.addOfferSelection(st, id, 'nope', { kind: 'group', value: 'X' }, 27, gen).id, null); assert.equal(P.addOfferSelection(st, id, oid, { kind: 'po', value: 'X' }, 27, gen).id, null);
+  st = P.setOfferException(st, id, oid, 'w26bb002blk', true, 28); assert.deepEqual(st.plans[id].offers[0].exceptions, ['W26BB002BLK']);
+  const ex = { gwp: new Set(['W26GW001BLK']), nos: new Set(['W26CC003BLK']) };
+  st = P.addOfferSelection(st, id, oid, { kind: 'group', value: 'COL ONE' }, 29, gen).state;
+  let res = P.resolveOffer(st.plans[id].offers[0], cat, {}, ex);
+  assert.deepEqual(res.rows.map(x => x.style).sort(), ['W26AA001BLK', 'W26AA001WHT']); assert.deepEqual(res.skipped.map(x => x.style + ':' + x.by).sort(), ['W26BB002BLK:exception', 'W26CC003BLK:nos', 'W26GW001BLK:gwp']);
+  st = P.updateOffer(st, id, oid, { includeExcluded: true }, 30); res = P.resolveOffer(st.plans[id].offers[0], cat, {}, ex); assert.deepEqual(res.rows.filter(x => x.excludedBy).map(x => x.style + ':' + x.excludedBy).sort(), ['W26CC003BLK:nos', 'W26GW001BLK:gwp']);
+  st = P.updateOffer(st, id, oid, { includeExcluded: false }, 31);
+  let d = P.duplicateOffer(st, id, oid, 32, gen); st = d.state; assert.equal(st.plans[id].offers.length, 2); assert.notEqual(d.id, oid); assert.equal(st.plans[id].offers[1].name, 'Black Friday Reloaded (copy)'); assert.equal(st.plans[id].offers[1].items.length, 3);
+  assert.notEqual(st.plans[id].offers[1].items[0].id, st.plans[id].offers[0].items[0].id);
+  st = P.moveOffer(st, id, d.id, -1, 33); assert.equal(st.plans[id].offers[0].id, d.id); assert.strictEqual(P.moveOffer(st, id, d.id, -1, 34), st);
+  const offer50 = { type: 'reduction', pct: 50 };
+  let pr = P.offerPricing({ rrp: 79.95, initialPct: 20 }, offer50, 70); assert.equal(pr.price, 39.98); assert.equal(pr.basePrice, 63.96); assert.equal(pr.noChange, false);
+  pr = P.offerPricing({ rrp: 79.95, initialPct: 60 }, offer50, 70); assert.equal(pr.price, 31.98); assert.equal(pr.noChange, true); assert.equal(pr.pct, 60);
+  pr = P.offerPricing({ rrp: 100, initialPct: null, price: 100 }, { type: 'reduction', pct: 40 }, 70); assert.equal(pr.price, 60); assert.equal(pr.basePrice, 100);
+  pr = P.offerPricing({ rrp: 100, initialPct: 50 }, { type: 'reduction', pct: 80 }, 70); assert.equal(pr.overCap, true);
+  pr = P.offerPricing({ rrp: 100, initialPct: 20 }, { type: 'bundle', bundle: { mode: 'price', qty: 2, price: 100, mix: true } }, 70); assert.equal(pr.kind, 'bundle'); assert.equal(pr.price, null); assert.match(pr.rule, /2 for \$100/);
+  assert.equal(P.offerPricing({ rrp: 0, price: 50, initialPct: null }, offer50, 70).noRrp, true);
+  st = P.updatePlan(st, id, { setup: { start: '2026-11-20', end: '2026-11-30' } }, 40);
+  const bad = st.plans[id].offers.find(x => x.id === oid), v1 = P.validateOffer(bad, st.plans[id], { count: 2, unresolved: 0 }); assert.equal(v1.errors.length, 0);
+  assert.ok(P.validateOffer({ ...bad, start: '2026-12-02', end: '2026-12-05' }, st.plans[id], { count: 2 }).errors.some(e => /outside the sale dates/.test(e)));
+  assert.ok(P.validateOffer({ ...bad, start: '2026-11-29', end: '2026-11-27' }, st.plans[id], { count: 2 }).errors.some(e => /ends before/.test(e)));
+  assert.ok(P.validateOffer({ ...bad, pct: 80 }, st.plans[id], { count: 2 }).errors.some(e => /highest single discount/.test(e)));
+  assert.ok(P.validateOffer({ ...bad, collection: { title: '', id: '' } }, st.plans[id], { count: 2 }).errors.some(e => /Shopify collection/.test(e)));
+  assert.ok(P.validateOffer({ ...bad, items: [] }, st.plans[id], { count: 0 }).errors.some(e => /Pick the products/.test(e)));
+  assert.ok(P.validateOffer(bad, st.plans[id], { count: 2, unresolved: 2 }).errors.some(e => /2 overlapping products need a decision/.test(e)));
+  assert.ok(P.validateOffer({ ...bad, type: 'bundle' }, st.plans[id], { count: 2 }).warnings.some(e => /does not create it/.test(e)));
+  assert.ok(P.validateOffer({ ...bad, type: 'bundle', bundle: { mode: 'price', qty: 2, price: null, mix: true } }, st.plans[id], { count: 2 }).errors.some(e => /bundle price/.test(e)));
+  assert.equal(P.offerStatus(bad, { errors: [] }, false), 'ready'); assert.equal(P.offerStatus(bad, { errors: [] }, true), 'exported'); assert.equal(P.offerStatus(bad, { errors: ['x'] }, false), 'draft');
+  let plan = st.plans[id]; const pbo = { [oid]: ['W26AA001BLK', 'W26AA001WHT'], [d.id]: ['W26AA001BLK'] };
+  let cf = P.offerConflicts(plan, pbo); assert.equal(cf.length, 1); assert.equal(cf[0].style, 'W26AA001BLK'); assert.equal(cf[0].compatible, true); assert.equal(cf[0].resolved, false);
+  st = P.updateOffer(st, id, d.id, { pct: 40 }, 41); plan = st.plans[id]; cf = P.offerConflicts(plan, pbo); assert.equal(cf[0].compatible, false); assert.equal(cf[0].resolved, false); assert.match(cf[0].text, /50% vs 40%|40% vs 50%/); assert.equal(cf[0].from, '2026-11-27');
+  st = P.resolveOfferConflict(st, id, 'W26AA001BLK', oid, 42); cf = P.offerConflicts(st.plans[id], pbo); assert.equal(cf[0].resolved, true); assert.equal(cf[0].winner, oid);
+  st = P.resolveOfferConflict(st, id, 'W26AA001BLK', 'someone-else', 43); assert.equal(P.offerConflicts(st.plans[id], pbo)[0].resolved, false);
+  st = P.resolveOfferConflict(st, id, 'W26AA001BLK', null, 44);
+  st = P.updateOffer(st, id, d.id, { start: '2026-11-21', end: '2026-11-22' }, 45); assert.equal(P.offerConflicts(st.plans[id], pbo).length, 0);
+  st = P.updateOffer(st, id, d.id, { type: 'bundle', start: '2026-11-27', end: '2026-11-28', bundle: { mode: 'price', qty: 2, price: 100 } }, 46); assert.equal(P.offerConflicts(st.plans[id], pbo)[0].compatible, false);
+  st = P.resolveOfferConflict(st, id, 'W26AA001BLK', oid, 47); st = P.deleteOffer(st, id, oid, 48); assert.equal(st.plans[id].offers.length, 1); assert.equal(st.plans[id].offerResolutions.W26AA001BLK, undefined);
+  const mkIt = (pid, cat2, pct, extra) => ({ row: { p: { id: pid, style: pid, name: pid + ' tee', colour: 'BLK', category: cat2, isGWP: false, ...(extra || {}) }, m: { soh: 10 } }, final: { action: pct == null ? 'Exclude' : 'A', pct }, group: pct == null ? null : 'A', price: { newPrice: pct == null ? null : 100 - pct } });
+  let ep = P.createState(1, idGen); const eid = ep.activeId;
+  const items = [mkIt('S1', 'TEES', 20), mkIt('S2', 'TEES', 50), mkIt('S3', 'TEES', 60), mkIt('S4', 'TEES', null), mkIt('S5', 'TEES', 30, { notOnSale: true }), mkIt('S6', 'TEES', 30, { isGWP: true }), mkIt('S7', 'SHORTS', 20), mkIt('S8', 'TEES', 40)];
+  const vars = { S1: [{ sku: 'S1-S', size: 'S' }, { sku: 'S1-M', size: 'M' }], S2: [{ sku: 'S2-S', size: 'S' }], S3: [{ sku: 'S3-S', size: 'S' }], S5: [{ sku: 'S5-S' }], S7: [{ sku: 'S7-S' }], S8: [] };
+  const ctxE = { variants: s2 => vars[s2] || [] };
+  let be = P.buildInitialExport(items, ep.plans[eid], ctxE); assert.equal(be.rows.length, 0); assert.ok(be.issues.some(i => /Nothing to export/.test(i.text)));
+  ep = P.approveCategory(ep, eid, 'TEES', { A: 20, alloc: {} }, 5); be = P.buildInitialExport(items, ep.plans[eid], ctxE);
+  assert.deepEqual(be.rows.map(r2 => r2['Variant SKU']).sort(), ['S1-M', 'S1-S', 'S2-S']);
+  assert.ok(be.rows.every(r2 => r2['Collection title'])); assert.equal(be.rows.find(r2 => r2.Style === 'S2')['Collection title'], 'BF 50% OFF SALE ITEMS'); assert.equal(be.rows.find(r2 => r2.Style === 'S1')['Collection title'], 'BF 20% OFF SALE ITEMS');
+  assert.ok(be.issues.some(i => i.level === 'error' && /60%/.test(i.text))); assert.ok(be.issues.some(i => /no Shopify variants/.test(i.text))); assert.ok(be.issues.some(i => /not approved/.test(i.text)));
+  assert.equal(be.products, 2); assert.deepEqual(be.byPct, { 20: 1, 50: 1 });
+  ep = P.setMapping(ep, eid, 60, 'BF 60% OFF', 'gid://shopify/Collection/60', 6); be = P.buildInitialExport(items, ep.plans[eid], ctxE); assert.ok(be.rows.some(r2 => r2.Style === 'S3' && r2['Collection ID'] === 'gid://shopify/Collection/60')); assert.ok(!be.issues.some(i => /No Shopify collection mapped/.test(i.text)));
+  const csv = P.toCsv([{ Style: 'A,B', Product: 'say "hi"', Colour: 'x' }], ['Style', 'Product', 'Colour']); assert.equal(csv, 'Style,Product,Colour\r\n"A,B","say ""hi""",x\r\n');
+  const offX = { ...P.newOffer('Reloaded', 1, 'o1'), collection: { title: 'BF RELOADED 50% OFF', id: '9' }, pct: 50, start: '2026-11-27', end: '2026-11-29' };
+  let bo = P.buildOfferExport(offX, ep.plans[eid], ['S1', 'S2', 'S8'], { variants: s2 => vars[s2] || [], info: s2 => ({ name: s2 + ' tee', colour: 'BLK', price: 39.98, pct: 50 }) });
+  assert.equal(bo.products, 2); assert.equal(bo.rows.length, 3); assert.ok(bo.rows.every(r2 => r2['Collection title'] === 'BF RELOADED 50% OFF' && /Reloaded \(2026-11-27 to 2026-11-29\)/.test(r2.Offer))); assert.ok(bo.issues.some(i => /no Shopify variants/.test(i.text)));
+  bo = P.buildOfferExport({ ...offX, type: 'bundle' }, ep.plans[eid], ['S1'], { variants: s2 => vars[s2] || [], info: () => ({}) }); assert.match(bo.rows[0].Source, /collection membership only/);
+  assert.ok(P.buildOfferExport({ ...offX, collection: { title: '', id: '' } }, ep.plans[eid], ['S1'], ctxE).issues.some(i => i.level === 'error' && /no Shopify collection/.test(i.text)));
+  const rec = P.newExportRecord(ep.plans[eid], 'offer', offX, bo, 99, gen, 'file.csv'); ep = P.addExportRecord(ep, eid, rec, 100); assert.equal(ep.plans[eid].exports.length, 1); assert.equal(ep.plans[eid].exports[0].offerId, 'o1'); assert.equal(ep.plans[eid].exports[0].filename, 'file.csv'); assert.equal(ep.plans[eid].exports[0].kind, 'offer');
+  assert.equal(P.CHECKLIST.length, 6);
+  const sigA = P.categorySignature(items, 'TEES'); let up = P.approveCategory(ep, eid, 'TEES', { A: 20, alloc: {}, sig: sigA }, 200);
+  assert.equal(P.categoryRows(items, { categories: [] }, up.plans[eid], {}).find(r2 => r2.category === 'TEES').upstreamChanged, false);
+  const itemsNow = items.map(i => i.row.p.id === 'S2' ? { ...i, row: { ...i.row, p: { ...i.row.p, notOnSale: true } } } : i);
+  const rowsUp = P.categoryRows(itemsNow, { categories: [] }, up.plans[eid], {}); assert.equal(rowsUp.find(r2 => r2.category === 'TEES').upstreamChanged, true);
+  assert.equal(rowsUp.find(r2 => r2.category === 'TEES').products, P.categoryRows(items, { categories: [] }, up.plans[eid], {}).find(r2 => r2.category === 'TEES').products - 1);
+  assert.ok(up.plans[eid].catApprovals.TEES.approved);
 }
 console.log('markdown plans tests: all passed');
 })();

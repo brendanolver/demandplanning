@@ -902,6 +902,14 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
 .mdp-mselarr{font-size:11px;color:#6b7280;margin-left:auto;}
 .mdp-mselmenu{position:absolute;z-index:30;top:calc(100% + 4px);left:0;min-width:200px;max-height:320px;overflow:auto;background:#fff;border:1px solid #dfe3ec;border-radius:10px;box-shadow:0 8px 24px rgba(16,24,40,.14);padding:8px 10px;}
 .mdp-mselmenu .mdp-chk{display:flex;padding:5px 2px;}.mdp-mselhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;font-size:12px;}
+/* v3.2.8: Not on sale, mid-sale offers, exports */
+.mdp-revbox{background:#fffbeb;border:1px solid #fde68a;}.mdp-revbox.on{background:#f0fdf4;border-color:#bbf7d0;}.mdp-revbox span{display:block;font-size:11px;color:#6b7280;margin-top:3px;max-width:230px;}
+.mdp-offer{border:1px solid #e3e9f5;border-radius:12px;background:#fff;margin:10px 0;overflow:hidden;}.mdp-offhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 14px;cursor:pointer;font-size:13px;}.mdp-offer.open .mdp-offhead{background:#f3f8ff;border-bottom:1px solid #e3e9f5;}
+.mdp-offbody{padding:14px;}.mdp-offbody .mdp-row label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:#6b7280;font-weight:600;flex:1;min-width:130px;}
+.mdp-modal{position:fixed;inset:0;background:rgba(17,24,39,.45);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;}
+.mdp-dlg{background:#fff;border-radius:16px;max-width:640px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3);}
+.mdp-dlghead{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid #eef0f5;font-size:15px;}.mdp-dlgbody{padding:16px 20px;overflow:auto;}.mdp-dlgfoot{display:flex;justify-content:flex-end;gap:10px;padding:14px 20px;border-top:1px solid #eef0f5;}
+.mdp-btn:disabled{opacity:.45;cursor:not-allowed;}
 /* v3.1.5: fixed layout with explicit column widths (the th widths in mdpReviewHtml). The auto layout let the full-width
    section / category header rows stretch the first column; this keeps every column exactly where it's set. Long text is cut
    with an ellipsis (hover for the full text). */
@@ -2407,8 +2415,8 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.2.7"></script>
-<script src="markdown-plans.js?v=3.2.7"></script>
+<script src="markdown-engine.js?v=3.2.8"></script>
+<script src="markdown-plans.js?v=3.2.8"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2442,7 +2450,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.2.7';
+const APP_VERSION='v3.2.8';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -5765,7 +5773,7 @@ const MDP_KEY='wndrr_mdplanner_v1',MDP_MODE_KEY='wndrr_mdmode_v1';
 let mdMode='classic';
 try{if(localStorage.getItem(MDP_MODE_KEY)==='planner')mdMode='planner';}catch(e){}
 let mdpState=null,mdpRenaming=false,mdpShowArchived=false;
-const mdpCollapsed=new Set(['A','C','F','G']);   // A shows its one-line summary until you press Edit setup
+const mdpCollapsed=new Set(['A','G','H','I']);   // A shows its one-line summary until you press Edit setup
 const mdpOpenCats=new Set();
 function mdpEsc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function mdpEngineOk(){return typeof window.MarkdownEngine==='object';}
@@ -5843,7 +5851,7 @@ function mdpForecastSection(ctx){
   const money=v=>'$'+Math.round(v).toLocaleString(),pctTxt=v=>(v>=0?'+':'')+v+'%';
   const gwp=mdpGwpTotals(pl,oo),base=fcSet.base,T=base.totals;
   const conf=MarkdownPlans.forecastConfidence(ly,win,SU.growthPct);
-  const cs=MarkdownPlans.commercialSummary(plan.items.filter(i=>!i.row.p.isGWP),gwp.cost);
+  const cs=MarkdownPlans.commercialSummary(plan.items.filter(i=>!i.row.p.isGWP&&!i.row.p.notOnSale),gwp.cost);
   const gpAfter=T.gp-gwp.cost,gmAfter=T.revenue>0?Math.round(gpAfter/T.revenue*1000)/10:null;
   window._mdpFcBase={demand:T.demand,sold:T.sold,revenue:T.revenue,gp:gpAfter,gpPct:gmAfter,effDiscount:plan.totals.effectiveDiscount,avail:T.avail,gwpCost:Math.round(gwp.cost)};
   const costCleared=Math.round(base.rows.reduce((a,r)=>a+r.sold*r.unitCost,0));
@@ -5875,7 +5883,7 @@ function mdpForecastSection(ctx){
   // 3. discount-strategy scenarios
   const lift=SU.liftPct||0,baseG=SU.growthPct==null?0:Number(SU.growthPct);
   const strat=[[-1,'Conservative','one allowed level lighter'],[0,'Balanced','your current plan'],[1,'Aggressive','one allowed level deeper']].map(([sh,label,sub])=>{
-    const pln=scen[String(sh)],g=Math.round(((1+baseG/100)*(1+lift*sh/100)-1)*1000)/10,f=MarkdownPlans.buildForecast(pln.items.filter(i=>!i.row.p.isGWP),fcSet.lyByCat,g),t=f.totals,gp=t.gp-gwp.cost;
+    const pln=scen[String(sh)],g=Math.round(((1+baseG/100)*(1+lift*sh/100)-1)*1000)/10,f=MarkdownPlans.buildForecast(pln.items.filter(i=>!i.row.p.isGWP&&!i.row.p.notOnSale),fcSet.lyByCat,g),t=f.totals,gp=t.gp-gwp.cost;
     const as=pln.categories.map(c=>c.groupA).filter(v=>v!=null),bs=pln.categories.map(c=>c.groupB).filter(v=>v!=null),rg=a=>a.length?(Math.min(...a)===Math.max(...a)?Math.min(...a)+'%':Math.min(...a)+'–'+Math.max(...a)+'%'):'—';
     const cc=Math.round(f.rows.reduce((a,r)=>a+r.sold*r.unitCost,0));
     return`<tr class="${sh===0?'mdp-base':''}"><td class="l"><b>${label}</b> <span class="mdp-dim">${sub}</span></td><td>A ${rg(as)} · B ${rg(bs)}</td><td>${pln.totals.effectiveDiscount}%</td><td>${t.sold.toLocaleString()}</td><td>${money(t.revenue)}</td><td>${money(gp)}</td><td>${t.revenue>0?Math.round(gp/t.revenue*1000)/10+'%':'—'}</td><td>${money(cc)}</td><td>${money(pln.totals.effOffValue)}</td></tr>`;}).join('');
@@ -6012,7 +6020,7 @@ function mdpInputs(plan){
     out.push({
       id:p.fullTitle,style,name:p.productName,colour:p.colour,category:p.category||'UNCATEGORISED',collection:(cat&&cat[style]&&cat[style][0])||'',
       parentStyle:MDP_STYLE_RE.test(style)?style.slice(0,8):'',
-      isCore:p.vendor==='CORE',status:p.vendor,deliveryMonth:p.deliveryMonth||'',isGWP:(p.category||'').toUpperCase()==='GWP'||!!(R&&R.gwpStyles.has(style)),
+      isCore:p.vendor==='CORE',status:p.vendor,deliveryMonth:p.deliveryMonth||'',notOnSale:!!(R&&R.nosStyles.has(style)),isGWP:(p.category||'').toUpperCase()==='GWP'||!!(R&&R.gwpStyles.has(style)),
       specialPct:R&&R.specialMap[style]?R.specialMap[style].pct:null,specialNote:R&&R.specialMap[style]?R.specialMap[style].note:'',
       soh:Math.max(0,stock),restockUnits:restock?incoming:0,
       sohCost:restock?Math.round(incoming*(cost[style]||0)*100)/100:(p.sohValue||0),onOrder:restock?0:incoming,
@@ -6099,7 +6107,7 @@ function mdpOoCells(oo,cat,hasEnd){
    All tables render what MarkdownPlans (buildReview / categoryRows) returns — the same data in sections B and C. */
 let mdpRev={q:'',category:'',collection:'',month:[],sugg:'',view:'all',core:'all',sort:'soh',dir:'',flat:true,compact:true};   // flat = one row per product/colour
 const mdpSel=new Set(),mdpOpenStyles=new Set();
-let mdpCtx=null,mdpIds=[],_mdpQT=null,mdpLastSel=null,mdpNoteMsg=null,mdpStep=2,mdpHelpOpen=false;
+let mdpCtx=null,mdpIds=[],_mdpQT=null,mdpLastSel=null,mdpNoteMsg=null,mdpStep=5,mdpHelpOpen=false;
 const mdpPanels={sug:true,app:false};
 const mdpGF={};
 // Click-to-sort for the Suggested / Approved category tables (text columns A→Z first, numbers biggest first; click again to reverse; empty values always last).
@@ -6159,7 +6167,7 @@ function mdpSelClick(ev,i){
 }
 // The products one table shows: this category's (or everything, for section C) after the filters. GWP is never listed — it lives in section D.
 function mdpVisible(cat){
-  const items=mdpCtx.plan.items.filter(i=>!i.row.p.isGWP);
+  const items=mdpCtx.plan.items.filter(i=>!i.row.p.isGWP&&!i.row.p.notOnSale);   // GWP and Not on sale products live in their own steps
   return MarkdownPlans.buildReview(items,{...mdpRev,category:cat||mdpRev.category,group:cat?mdpGF[cat]||'':''},mdpCtx.opts);
 }
 function mdpSelGroup(key,on,cat){
@@ -6208,7 +6216,7 @@ function mdpProdDiscount(i,v){
   if(v==='auto'){mdpApply([id],'auto');return;}
   const isGrp=v.startsWith('grp:'),n=isGrp?null:+v.slice(4),p=it.row.p,what=isGrp?'Group '+v.slice(4):n+'%';let ids=[id];
   if(p.isCore&&p.parentStyle){
-    const sibs=items.filter(x=>x.row.p.isCore&&!x.row.p.isGWP&&x.row.p.parentStyle===p.parentStyle&&x.row.p.id!==id&&x.final.action!=='S');
+    const sibs=items.filter(x=>x.row.p.isCore&&!x.row.p.isGWP&&!x.row.p.notOnSale&&x.row.p.parentStyle===p.parentStyle&&x.row.p.id!==id&&x.final.action!=='S');
     if(sibs.length&&confirm(what+' for this colour only, or for all '+(sibs.length+1)+' colours of this core style?\n\nOK = all '+(sibs.length+1)+' colours · Cancel = this colour only'))ids=ids.concat(sibs.map(x=>x.row.p.id));
   }
   if(isGrp)mdpApply(ids,v);else mdpSetPct(ids,n);
@@ -6231,7 +6239,7 @@ function mdpBulkCore(){
   if(!mdpCtx||!mdpSel.size)return;
   const items=mdpCtx.plan.items,byId=Object.fromEntries(items.map(x=>[x.row.p.id,x])),entries={};let n=0;
   [...mdpSel].forEach(id=>{const x=byId[id];if(!x||!x.row.p.isCore||!x.row.p.parentStyle||x.final.pct==null)return;
-    items.filter(y=>y.row.p.isCore&&!y.row.p.isGWP&&y.row.p.parentStyle===x.row.p.parentStyle&&y.row.p.id!==id&&y.final.action!=='S').forEach(y=>{entries[y.row.p.id]={pct:x.final.pct,kind:'discount'};n++;});});
+    items.filter(y=>y.row.p.isCore&&!y.row.p.isGWP&&!y.row.p.notOnSale&&y.row.p.parentStyle===x.row.p.parentStyle&&y.row.p.id!==id&&y.final.action!=='S').forEach(y=>{entries[y.row.p.id]={pct:x.final.pct,kind:'discount'};n++;});});
   if(!n){alert('Select core products (with a discount) that have other colours first.');return;}
   mdpCommit(MarkdownPlans.setOverrides(mdpState,mdpPlan().id,entries));
 }
@@ -6253,12 +6261,12 @@ function mdpActionOptions(first,row){
 function mdpApproveCategory(cat){
   if(!mdpCtx)return;
   const{plan,pl,rows}=mdpCtx,r=rows.find(x=>x.category===cat);if(!r)return;
-  if(r.blocked){mdpNote(`${cat} can't be approved yet: ${r.blocked} gift-with-purchase product${r.blocked===1?' is':'s are'} also set up with a discount. Sort that out in section D or E first.`);return;}
+  if(r.blocked){mdpNote(`${cat} can't be approved yet: ${r.blocked} product${r.blocked===1?' is':'s are'} in an unresolved conflict (gift with purchase or Not on sale, but also given a discount). Sort that out in the GWP, Special buys or Not on sale step first.`);return;}
   if(r.groupWarn){mdpNote(`${cat} can't be approved yet: Group B (${r.groupB}%) must be deeper than Group A (${r.groupA}%).`);return;}
   const alloc={};
-  plan.items.forEach(it=>{const p=it.row.p;if(p.isGWP||(p.category||'UNCATEGORISED')!==cat)return;if(['A','B','C','Exclude'].includes(it.action))alloc[p.id]=it.action;});
+  plan.items.forEach(it=>{const p=it.row.p;if(p.isGWP||p.notOnSale||(p.category||'UNCATEGORISED')!==cat)return;if(['A','B','C','Exclude'].includes(it.action))alloc[p.id]=it.action;});
   mdpNoteMsg=null;
-  mdpCommit(MarkdownPlans.approveCategory(mdpState,pl.id,cat,{A:r.groupA,B:r.groupB,alloc}));
+  mdpCommit(MarkdownPlans.approveCategory(mdpState,pl.id,cat,{A:r.groupA,B:r.noB?0:r.groupB,alloc,sig:MarkdownPlans.categorySignature(plan.items,cat)}));
 }
 function mdpReopenCategory(cat){mdpNoteMsg=null;mdpCommit(MarkdownPlans.reopenCategory(mdpState,mdpPlan().id,cat));}
 function mdpRefreshSuggestions(){
@@ -6267,7 +6275,7 @@ function mdpRefreshSuggestions(){
   if(next===mdpState)renderMarkdownPlanner();else mdpCommit(next,true);
 }
 function mdpGoStep(n){
-  mdpStep=n;const key={1:'A',2:'B',3:'C',4:'D',5:'E',6:'F',7:'G'}[n];
+  mdpStep=n;const key='ABCDEFGHI'[n-1];
   mdpCollapsed.delete(key);renderMarkdownPlanner();
   setTimeout(()=>{const el=document.getElementById('mdp-sec-'+key);if(el)el.scrollIntoView({behavior:'smooth',block:'start'});},30);
 }
@@ -6435,7 +6443,7 @@ function mdpPruneSelection(){
   if(!mdpCtx||!mdpSel.size)return;
   const vis=new Set();
   mdpCtx.rows.filter(r=>!r.approved&&mdpOpenCats.has(r.category)).forEach(r=>mdpVisible(r.category).groups.forEach(g=>g.items.forEach(it=>vis.add(it.row.p.id))));
-  if(!mdpCollapsed.has('C'))mdpVisible('').groups.forEach(g=>g.items.forEach(it=>vis.add(it.row.p.id)));
+  if(!mdpCollapsed.has('G'))mdpVisible('').groups.forEach(g=>g.items.forEach(it=>vis.add(it.row.p.id)));
   for(const id of [...mdpSel])if(!vis.has(id))mdpSel.delete(id);
 }
 function mdpTogglePanel(k){mdpPanels[k]=!mdpPanels[k];mdpRenderReview(true);}
@@ -6467,7 +6475,7 @@ function mdpCategoryBody(){
   }).join('');
   const appRows=app.map(r=>{
     const open=mdpOpenCats.has(r.category),bOn=!r.noB&&r.levelB>0&&(r.countB>0||r.manualB!=null);
-    return`<tr class="mdp-crow${open?' open':''}" onclick="mdpToggleCat(${cat(r)})"><td class="l"><span class="mdp-car">${open?'▾':'▸'}</span> <b>${mdpEsc(r.category)}</b></td>
+    return`<tr class="mdp-crow${open?' open':''}" onclick="mdpToggleCat(${cat(r)})"><td class="l"><span class="mdp-car">${open?'▾':'▸'}</span> <b>${mdpEsc(r.category)}</b>${r.upstreamChanged?' <span class="mdp-b-ov" title="GWP, Not on sale or special buys changed after this category was approved. Your decisions are kept — reopen it to review.">upstream changed — review</span>':''}</td>
       <td>${num(r.products)}${matchTxt(r)}</td><td>${num(r.soh)}</td><td>${num(r.onOrder)}</td><td>${num(r.sold30)}</td><td>${r.weeksCover==null?'—':r.weeksCover}</td>
       <td class="mdp-sug">${mdpGroupPills(r.levelA,bOn?r.levelB:null,r.levelC)}</td><td class="mdp-sp">${split(r)}</td>
       <td><button class="mdp-btn mdp-btn-sm mdp-btn-ghost" onclick="event.stopPropagation();mdpReopenCategory(${cat(r)})">Reopen</button></td></tr>`+(open?mdpCatPanel(r,true):'');
@@ -6512,7 +6520,7 @@ function mdpRenderReview(keepScroll){
   const cb=document.getElementById('mdp-cat-body'),fb=document.getElementById('mdp-review-body');
   mdpIds=[];
   if(cb)cb.innerHTML=mdpCategoryBody();
-  if(fb&&!mdpCollapsed.has('C'))fb.innerHTML=mdpFlatBody();
+  if(fb&&!mdpCollapsed.has('G'))fb.innerHTML=mdpFlatBody();
   if(keepScroll)mdpScrollRestore(snap);
 }
 // The filter bar + progress cards + the two category tables (section B body).
@@ -6521,13 +6529,13 @@ function mdpCategoryStrategy(plan,oo,hasEnd,pl,rows){
   const prog=MarkdownPlans.approvalProgress(rows);
   const cats=rows.map(r=>r.category).sort();
   const colls=[...new Set(plan.items.map(i=>i.row.p.collection).filter(Boolean))].sort();
-  const mCount={};plan.items.forEach(i=>{if(i.row.p.isGWP)return;const m=i.row.p.deliveryMonth||'__none__';mCount[m]=(mCount[m]||0)+1;});
+  const mCount={};plan.items.forEach(i=>{if(i.row.p.isGWP||i.row.p.notOnSale)return;const m=i.row.p.deliveryMonth||'__none__';mCount[m]=(mCount[m]||0)+1;});
   const MO={JAN:1,FEB:2,MAR:3,APR:4,MAY:5,JUN:6,JUL:7,AUG:8,SEP:9,OCT:10,NOV:11,DEC:12},yf=y=>parseInt(y)<50?2000+parseInt(y):1900+parseInt(y);
   const months=Object.keys(mCount).filter(m=>m!=='__none__'&&m!=='CORE').sort((a,b)=>{const[am,ay]=a.split('-'),[bm,by]=b.split('-');return yf(by)-yf(ay)||(MO[String(bm).toUpperCase()]||0)-(MO[String(am).toUpperCase()]||0)||a.localeCompare(b);}).concat(mCount.CORE?['CORE']:[]);
-  const sCount={};plan.items.forEach(i=>{if(i.row.p.isGWP)return;const k=i.systemPct==null?'__none__':String(i.systemPct);sCount[k]=(sCount[k]||0)+1;});
+  const sCount={};plan.items.forEach(i=>{if(i.row.p.isGWP||i.row.p.notOnSale)return;const k=i.systemPct==null?'__none__':String(i.systemPct);sCount[k]=(sCount[k]||0)+1;});
   const suggs=Object.keys(sCount).filter(k=>k!=='__none__').sort((a,b)=>Number(a)-Number(b));
   const opt=(v,l,cur)=>`<option value="${mdpEsc(v)}" ${String(cur)===String(v)?'selected':''}>${mdpEsc(l)}</option>`;
-  const nonGwp=plan.items.filter(i=>!i.row.p.isGWP),nGwp=plan.items.length-nonGwp.length,nSpecial=nonGwp.filter(i=>i.action==='S').length;
+  const nonGwp=plan.items.filter(i=>!i.row.p.isGWP&&!i.row.p.notOnSale),nGwp=plan.items.length-nonGwp.length,nSpecial=nonGwp.filter(i=>i.action==='S').length;
   const sortOpts=MDP_SORT_OPTS.concat(MDP_SORT_OPTS.some(o=>o[0]===mdpRev.sort)?[]:[['__col__','Sort: column header']]);
   const views=[['all','All products'],['overridden','Manually changed'],['attention','Needs attention'],['onorder','On order'],['restock','Restocking (sold out, stock arriving)'],['special','Special buys'],['sale','In the sale'],['notsale','Not in the sale'],['groupA','Lighter group (A)'],['groupB','Deeper group (B)'],['clearance','Clearance']];
   const card=(ico,cls,label,n,of)=>`<div class="mdp-pcard"><span class="mdp-pico ${cls}">${ico}</span><div><div class="mdp-plabel">${label}</div><div class="mdp-pnum"><b>${n.toLocaleString()}</b><span>of ${of.toLocaleString()}</span></div></div></div>`;
@@ -6592,7 +6600,8 @@ function mdpResolveAll(pl){
   const split=MarkdownPlans.splitGwpOverlap(specialAll,gwp),special=split.applied;
   const specialMap={};
   special.forEach(r=>{if(r.pct!=null){const first=pl.special.find(x=>x.id===(r.sels.find(s=>s.pct!=null)||{}).id);specialMap[r.style]={pct:r.pct,note:first?(first.label||first.value):''};}});
-  _mdpResKey=key;_mdpRes={special,gwpLeftOut:split.leftOut,specialAll,gwp,specialMap,gwpStyles:new Set(gwp.map(r=>r.style)),hasCatalogue:!!cat};
+  const nos=MarkdownPlans.resolveNotOnSale(pl,cs,ctx);
+  _mdpResKey=key;_mdpRes={special,gwpLeftOut:split.leftOut,specialAll,gwp,specialMap,gwpStyles:new Set(gwp.map(r=>r.style)),nos,nosStyles:nos.styles,hasCatalogue:!!cat};
   return _mdpRes;
 }
 function mdpLiveMap(){
@@ -6619,6 +6628,7 @@ function mdpFillList(section){
   if(kind==='group'){const c={};cat.forEach(e=>{if(e.group)c[e.group]=(c[e.group]||0)+1;});opts=Object.entries(c).sort((a,b)=>a[0].localeCompare(b[0])).map(([g,n])=>[g,n+' styles']);}
   else if(kind==='category'){const c={};cat.forEach(e=>{if(e.category)c[e.category]=(c[e.category]||0)+1;});opts=Object.entries(c).sort().map(([g,n])=>[g,n+' styles']);}
   else if(kind==='po'){opts=Object.keys(ctx.stylesByPo).sort().map(p=>[p,ctx.stylesByPo[p].length+' styles on order']);}
+  else if(kind==='style'&&(section==='nos'||section.startsWith('offer-'))){mdpFillExcList(section);return;}
   else{
     const open=new Set(Object.keys(ctx.fallback));
     const list=cat.filter(e=>open.has(e.style));
@@ -6628,16 +6638,17 @@ function mdpFillList(section){
 }
 function mdpAddSel(section){
   const pl=mdpPlan(),kind=mdpSelValue(section,'kind'),value=mdpSelValue(section,'val').trim();
-  if(!value){alert('Type or pick a '+({group:'collection',category:'category',parent:'parent style',style:'style',po:'customer PO'}[kind]||'value')+' first.');return;}
-  const entry={kind,value};
+  if(!value){alert('Type or pick a '+({group:'collection',category:'category',parent:'parent style',style:'product / colour',po:'customer PO'}[kind]||'value')+' first.');return;}
+  const entry={kind,value},isOffer=section.startsWith('offer-');
   if(section==='special')entry.pct=Number(mdpSelValue(section,'pct'));
-  const r=MarkdownPlans.addSelection(mdpState,pl.id,section,entry);
+  const r=isOffer?MarkdownPlans.addOfferSelection(mdpState,pl.id,section.slice(6),entry):MarkdownPlans.addSelection(mdpState,pl.id,section,entry);
   if(!r.id){alert('That selection isn\'t valid.');return;}
   mdpCommit(r.state);
-  const res=mdpResolveAll(mdpPlan()),list=section==='gwp'?res.gwp:res.specialAll;
+  const res=mdpResolveAll(mdpPlan()),now=mdpPlan();
+  const list=section==='gwp'?res.gwp:section==='special'?res.specialAll:MarkdownPlans.resolveSelections(isOffer?(now.offers.find(o=>o.id===section.slice(6))||{items:[]}).items:now.notOnSale.items,mdpCatalogue()||[],mdpSelCtx());
   if(!list.some(x=>x.sels.some(s=>s.id===r.id)))setTimeout(()=>alert('No Apparel Magic styles matched "'+value+'"'+(res.hasCatalogue?'.':' yet — the Apparel Magic catalogue is still loading.')),50);
 }
-function mdpRemoveSel(section,id){mdpCommit(MarkdownPlans.removeSelection(mdpState,mdpPlan().id,section,id));}
+function mdpRemoveSel(section,id){mdpCommit(section.startsWith('offer-')?MarkdownPlans.removeOfferSelection(mdpState,mdpPlan().id,section.slice(6),id):MarkdownPlans.removeSelection(mdpState,mdpPlan().id,section,id));}
 function mdpSpecialPctSet(id,v){mdpCommit(MarkdownPlans.setSpecialPct(mdpState,mdpPlan().id,id,Number(v)));}
 function mdpGwpQtySet(style,v){mdpCommit(MarkdownPlans.setGwpQty(mdpState,mdpPlan().id,style,v));}
 function mdpGwpThresholdSet(v){mdpCommit(MarkdownPlans.setGwpThreshold(mdpState,mdpPlan().id,v));}
@@ -6659,10 +6670,11 @@ function mdpClearDecisionFor(style){
 
 const MDP_KIND_LABEL={group:'Collection',category:'Category',parent:'Parent style',style:'Style',po:'Customer PO'};
 function mdpAdder(section,kinds,withPct,pl){
+  const lab=k=>k==='style'&&(section==='nos'||section.startsWith('offer-'))?'Product / colour':MDP_KIND_LABEL[k];
   const PS=pl.settings,lv=PS.allowedDiscounts.filter(d=>d<=PS.maxDiscount),def=lv.includes(50)?50:lv[lv.length-1];
   return`<div class="mdp-adder">
-    <select id="mdp-${section}-kind" class="mdp-sel" onchange="mdpFillList('${section}')">${kinds.map(k=>`<option value="${k}">${MDP_KIND_LABEL[k]}</option>`).join('')}</select>
-    <input id="mdp-${section}-val" class="mdp-in mdp-grow" list="mdp-dl-${section}" placeholder="Search or type…" autocomplete="off" onfocus="mdpFillList('${section}')">
+    <select id="mdp-${section}-kind" class="mdp-sel" onchange="mdpFillList('${section}')">${kinds.map(k=>`<option value="${k}">${lab(k)}</option>`).join('')}</select>
+    <input id="mdp-${section}-val" class="mdp-in mdp-grow" list="mdp-dl-${section}" placeholder="Search Apparel Magic…" autocomplete="off" oninput="mdpFillList('${section}')" onfocus="mdpFillList('${section}')">
     <datalist id="mdp-dl-${section}"></datalist>
     ${withPct?`<select id="mdp-${section}-pct" class="mdp-sel" title="Discount off RRP">${lv.map(d=>`<option value="${d}" ${d===def?'selected':''}>${d}% off</option>`).join('')}</select>`:''}
     <button class="mdp-btn" onclick="mdpAddSel('${section}')">＋ Add</button></div>`;
@@ -6705,7 +6717,8 @@ function mdpSpecialSection(plan,oo,hasEnd,pl){
       <td class="l">${x.status==='matched'?'<span class="mdp-pill x">Matched</span>':x.status==='nostock'?'<span class="mdp-pill x" title="In Shopify, no stock yet">Matched · no stock</span>':'<span class="mdp-pill n" title="Not in Shopify yet — held back from the Hextom file until matched">Pending Shopify match</span>'}</td>
       <td class="l mdp-why mdp-flagcol">${x.flags.join(' ')}</td></tr>`).join('')}</tbody></table></div>`:'';
   const lo=res.gwpLeftOut,loNote=lo.length?`<div class="mdp-hint" style="margin:0 0 10px;">ⓘ <b>${lo.length}</b> gift-with-purchase style${lo.length===1?' was':'s were'} in these picks and ${lo.length===1?'has':'have'} been <b>left out of the special buy automatically</b> (GWP wins, so ${lo.length===1?'it':'they'} won't be discounted): <span class="mdp-dim">${mdpEsc(lo.slice(0,8).map(r=>r.style).join(', '))}${lo.length>8?' …':''}</span></div>`:'';
-  return note+loNote+`<div class="mdp-sub" style="margin:0 0 10px;line-height:1.55;">Styles bought specifically for this sale. Pick them straight from Apparel Magic and set the discount for each pick. They are <b>never scored against sales history</b> (they have none), are shown as <b>Special buys</b> in the review, and styles not yet in Shopify are <b>held back from the Hextom file</b> until matched. Rules still apply: nothing goes deeper than your highest single discount (${max}%), and gift-with-purchase (section D) can't also be discounted — GWP styles that share a collection with your special buys are left out automatically.</div>`
+  const st0=mdpStyleTotals(res.special.map(r=>r.style),oo);
+  return note+mdpReviewedBar('special',pl,[[st0.n.toLocaleString(),'special-buy product/colours'],[st0.soh.toLocaleString(),'SOH units'],[st0.on.toLocaleString(),'on order units']])+loNote+`<div class="mdp-sub" style="margin:0 0 10px;line-height:1.55;">Styles bought specifically for this sale. Pick them straight from Apparel Magic and set the discount for each pick. They are <b>never scored against sales history</b> (they have none), are shown as <b>Special buys</b> in the review, and styles not yet in Shopify are <b>held back from the Hextom file</b> until matched. Rules still apply: nothing goes deeper than your highest single discount (${max}%), and gift-with-purchase (section D) can't also be discounted — GWP styles that share a collection with your special buys are left out automatically.</div>`
     +mdpAdder('special',['group','parent','style','po'],true,pl)+mdpSelChips('special',pl.special,mdpMatchedCounts(res.specialAll),pl,mdpMatchedCounts(res.gwpLeftOut))
     +(rows.length?`<div class="mdp-revsum" style="margin-top:12px;"><span><b>${rows.length}</b> style${rows.length===1?'':'s'}</span><span class="mdp-dot"></span><span><b>${units.toLocaleString()}</b> units (stock + incoming)</span><span class="mdp-dot"></span><span><b>$${Math.round(costV).toLocaleString()}</b> at cost</span>
       ${pend?`<span class="mdp-dot"></span><span class="mdp-newtag">${pend} pending Shopify match</span>`:''}${late?`<span class="mdp-dot"></span><span class="mdp-b-ov">${late} arrive after the sale ends</span>`:''}${bad?`<span class="mdp-dot"></span><span class="mdp-b-cf">⚠ ${bad} need attention</span>`:''}</div>`:'')+tbl;
@@ -6737,12 +6750,260 @@ function mdpGwpSection(plan,oo,hasEnd,pl){
       <td><input class="mdp-in mdp-qty" type="number" min="0" step="1" value="${x.eco.planned}" onchange="mdpGwpQtySet('${mdpEsc(x.r.style)}',this.value)">${x.eco.defaulted?'':` <button class="mdp-act" title="Back to everything available" onclick="mdpGwpQtySet('${mdpEsc(x.r.style)}','')">reset</button>`}</td>
       <td>${x.eco.totalCost==null?'<span class="mdp-dim">no cost</span>':'<b>$'+Math.round(x.eco.totalCost).toLocaleString()+'</b>'}</td>
       <td class="l mdp-why">${x.eco.available===0?'<span class="mdp-b-ov">nothing available</span>':''}${x.eco.costMissing?' <span class="mdp-dim">no landed cost in Apparel Magic</span>':''}${!x.lv.live?' <span class="mdp-dim">not in Shopify</span>':''}</td></tr>`).join('')}</tbody></table></div>`:'';
-  return note+conf+`<div class="mdp-sub" style="margin:0 0 10px;line-height:1.55;">Gift-with-purchase products, from Apparel Magic. They are <b>kept out of markdowns and the Hextom file</b>, and flagged as a blocking conflict only if you pick that exact style for a discount. A GWP style that sits in the same collection as your special buys is fine — GWP wins and it is left out of the special buy. Planned giveaways default to everything available; the forecast will refine this later.</div>`
+  const gt=mdpStyleTotals(res.gwp.map(r=>r.style),oo);
+  return note+mdpReviewedBar('gwp',pl,[[gt.n.toLocaleString(),'GWP product/colours'],[gt.soh.toLocaleString(),'SOH units'],[gt.on.toLocaleString(),'on order units']])+conf+`<div class="mdp-sub" style="margin:0 0 10px;line-height:1.55;">Gift-with-purchase products, from Apparel Magic. They are <b>kept out of markdowns and the Hextom file</b>, and flagged as a blocking conflict only if you pick that exact style for a discount. A GWP style that sits in the same collection as your special buys is fine — GWP wins and it is left out of the special buy. Planned giveaways default to everything available; the forecast will refine this later.</div>`
     +hint+mdpAdder('gwp',['category','group','style'],false,pl)+mdpSelChips('gwp',pl.gwp.items,mdpMatchedCounts(res.gwp),pl)
     +`<div class="mdp-row" style="margin-top:10px;"><label>Spend threshold (optional, $)<input class="mdp-in" type="number" min="0" step="1" placeholder="e.g. 150" value="${pl.gwp.threshold==null?'':pl.gwp.threshold}" onchange="mdpGwpThresholdSet(this.value)"></label></div>`
     +(rows.length?`<div class="mdp-revsum" style="margin-top:12px;"><span><b>${rows.length}</b> GWP style${rows.length===1?'':'s'}</span><span class="mdp-dot"></span><span><b>${rows.reduce((a,x)=>a+x.eco.planned,0).toLocaleString()}</b> planned giveaways</span><span class="mdp-dot"></span><span>Est. GWP cost <b>$${Math.round(total).toLocaleString()}</b>${rows.every(x=>x.eco.defaulted)?' <span class="mdp-dim">(assumes everything available is given away — edit the planned giveaways)</span>':''}${noCost?` <span class="mdp-dim">(${noCost} without a cost)</span>`:''}</span>${pl.gwp.threshold?`<span class="mdp-dot"></span><span>Threshold <b>$${pl.gwp.threshold}</b></span>`:''}</div>`:'')+tbl;
 }
 function mdpQuickGwp(){const r=MarkdownPlans.addSelection(mdpState,mdpPlan().id,'gwp',{kind:'category',value:'GWP',label:'Apparel Magic GWP category'});mdpCommit(r.state);}
+
+/* ── Pre-planning steps (GWP, Sale specific buys, Not on sale), mid-sale offers and exports ───────────────────────────────────────────
+   GWP / special buys / Not on sale are decided BEFORE the category strategy and each can be marked Reviewed (even with nothing picked).
+   Mid-sale offers are separate promotions inside the sale; exports build collection-membership CSVs. All logic is in markdown-plans.js (pure, tested). */
+const mdpOpenOffers=new Set();
+let mdpExportDlg=null,mdpExportChecks=[];
+
+// A compact summary row + the Reviewed tick used by GWP, Sale specific buys and Not on sale.
+function mdpReviewedBar(key,pl,cards){
+  const on=!!pl.reviewed[key];
+  return`<div class="mdp-stats" style="margin-bottom:10px;">${cards.map(([v,l])=>`<div><b>${v}</b><span>${l}</span></div>`).join('')}
+    <div class="mdp-revbox${on?' on':''}"><label class="mdp-chk"><input type="checkbox" ${on?'checked':''} onchange="mdpSetReviewed('${key}',this.checked)"> <b>${on?'✓ Reviewed':'Mark as reviewed'}</b></label><span>${on?'Done — even if nothing is selected':'Tick once you\'ve checked this step (it\'s fine if there\'s nothing to add)'}</span></div></div>`;
+}
+function mdpSetReviewed(key,on){mdpCommit(MarkdownPlans.setReviewed(mdpState,mdpPlan().id,key,on));}
+const mdpRevTag=(pl,key,n,noun)=>`${n} ${noun}${n===1?'':'s'}${pl.reviewed[key]?' · ✓ Reviewed':''}`;
+// Live SOH / on-order for a set of styles (each style counted once).
+function mdpStyleTotals(styles,oo){
+  const live=mdpLiveMap();let soh=0,on=0,n=0;
+  for(const st of styles){n++;const l=live[st];if(l&&l.soh>0)soh+=l.soh;const o=oo&&oo.by[st];if(o)on+=o.units;}
+  return{n,soh,on};
+}
+
+// ── Not on sale ──
+function mdpNosSection(plan,oo,hasEnd,pl){
+  const res=mdpResolveAll(pl),live=mdpLiveMap(),nos=res.nos;
+  const tot=mdpStyleTotals(res.nosStyles,oo);
+  const note=!res.hasCatalogue?`<div class="mdp-warn" style="margin-bottom:10px;">ⓘ The Apparel Magic catalogue is still loading — collections and categories appear once it has.</div>`:'';
+  const counts={};nos.rows.forEach(r=>r.sels.forEach(s=>{(counts[s.id]=counts[s.id]||[]).push(r.style);}));
+  const rows=pl.notOnSale.items.map(s=>{
+    const sty=counts[s.id]||[],t=mdpStyleTotals(sty,oo);
+    return`<tr><td class="l"><span class="mdp-chip mdp-kind">${MDP_KIND_LABEL[s.kind]==='Style'?'Product / colour':MDP_KIND_LABEL[s.kind]}</span></td><td class="l"><b>${mdpEsc(s.label||s.value)}</b>${sty.length?'':' <span class="mdp-b-cf">no styles matched</span>'}</td><td>${t.n.toLocaleString()}</td><td>${t.soh.toLocaleString()}</td><td>${t.on.toLocaleString()}</td><td><button class="mdp-act" onclick="mdpRemoveSel('nos','${s.id}')">Remove</button></td></tr>`;}).join('');
+  const table=rows?`<div class="mdp-scroll" style="margin-top:12px;"><table class="mdp-t mdp-t2"><thead><tr><th class="l">Type</th><th class="l">Selection</th><th>Products</th><th>SOH</th><th>On order</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:'';
+  const cat=mdpCatalogue()||[],titleOf=st=>{const e=cat.find(x=>x.style===st);return e?e.title:st;};
+  const exc=pl.notOnSale.exceptions.map(st=>`<span class="mdp-chip">${mdpEsc(st)} <span class="mdp-dim">${mdpEsc(titleOf(st))}</span> <button title="Take it out of the sale again" onclick="mdpNosException('${mdpEsc(st)}',false)">×</button></span>`).join('');
+  // a style that is Not on sale AND a discounted special buy needs a decision
+  const conflicts=MarkdownPlans.nosConflicts(res.nosStyles,Object.keys(res.specialMap));
+  const conf=conflicts.length?`<div class="mdp-err" style="margin:10px 0;"><b>⚠ ${conflicts.length} product${conflicts.length===1?' is':'s are'} both Not on sale and a discounted special buy</b> — they're kept at full price until you decide.${conflicts.slice(0,12).map(st=>{
+      const via=(res.special.find(x=>x.style===st)||{sels:[]}).sels.map(s=>`<button class="mdp-act" onclick="mdpRemoveSel('special','${s.id}')">Drop special buy “${mdpEsc((pl.special.find(x=>x.id===s.id)||{}).label||s.value)}”</button>`).join('');
+      return`<div style="margin-top:6px;"><b>${mdpEsc(st)}</b> ${mdpEsc(titleOf(st))} — <button class="mdp-act" onclick="mdpNosException('${mdpEsc(st)}',true)">Put back in the sale (keep its special-buy discount)</button> ${via}</div>`;}).join('')}${conflicts.length>12?`<div class="mdp-dim" style="margin-top:6px;">…and ${conflicts.length-12} more</div>`:''}</div>`:'';
+  return note+mdpReviewedBar('notOnSale',pl,[[tot.n.toLocaleString(),'unique product/colours not on sale'],[tot.soh.toLocaleString(),'excluded SOH units'],[tot.on.toLocaleString(),'excluded on order']])+conf
+    +`<div class="mdp-sub" style="margin:0 0 10px;line-height:1.55;">Stock kept <b>out of the sale</b>: it keeps its current Shopify price, gets no markdown and is left out of the category groups and the exports. Pick whole collections or categories, or single product/colours. A product listed in several picks is counted once.</div>`
+    +mdpAdder('nos',['group','category','style'],false,pl)+table
+    +`<div class="mdp-bt2" style="margin-top:14px;">Put a product back in the sale <span class="mdp-dim" style="font-weight:500;">(an exception inside an excluded collection or category)</span></div>
+      <div class="mdp-adder"><input id="mdp-nosx-val" class="mdp-in mdp-grow" list="mdp-dl-nosx" placeholder="Style code or product name…" autocomplete="off" oninput="mdpFillExcList('nosx')" onfocus="mdpFillExcList('nosx')"><datalist id="mdp-dl-nosx"></datalist><button class="mdp-btn" onclick="mdpNosException(document.getElementById('mdp-nosx-val').value,true)">＋ Put back in the sale</button></div>${exc?`<div style="margin-top:8px;">${exc}</div>`:''}`;
+}
+function mdpNosException(style,on){
+  const st=String(style||'').trim().toUpperCase();if(!st)return;
+  const pl=mdpPlan();
+  mdpCommit(on?MarkdownPlans.addNosException(mdpState,pl.id,st):MarkdownPlans.removeNosException(mdpState,pl.id,st));
+}
+// A type-ahead list of Apparel Magic styles (any style, not just ones on order) filtered by what's typed: style code, product name or colour text in the title.
+function mdpFillExcList(id){
+  const dl=document.getElementById('mdp-dl-'+id),el=document.getElementById('mdp-'+id+'-val');if(!dl||!el)return;
+  const q=el.value.trim().toLowerCase(),cat=mdpCatalogue()||[];
+  const hit=q?cat.filter(e=>(e.style+' '+e.title+' '+(e.group||'')).toLowerCase().includes(q)):cat;
+  dl.innerHTML=hit.slice(0,80).map(e=>`<option value="${mdpEsc(e.style)}">${mdpEsc(e.title)}</option>`).join('');
+}
+
+// ── Mid-sale offers ──
+function mdpOfferModel(plan,oo,pl,res){
+  const cat=mdpCatalogue()||[],ctx=mdpSelCtx(),live=mdpLiveMap(),byStyle={};
+  plan.items.forEach(i=>{byStyle[i.row.p.style]=i;});
+  const exported=new Set((pl.exports||[]).filter(e=>e.offerId).map(e=>e.offerId)),productsByOffer={},models=[];
+  pl.offers.forEach(o=>{
+    const r=MarkdownPlans.resolveOffer(o,cat,ctx,{gwp:res.gwpStyles,nos:res.nosStyles});
+    const rows=r.rows.map(x=>{
+      const it=byStyle[x.style],e=x.entry||{},lv=live[x.style]||{soh:0},p=it?it.row.p:null;
+      const initialPct=it&&it.final.pct!=null?it.final.pct:null,rrp=(p&&p.rrp)||e.rrp||lv.compareAt||0,price=(p&&p.price)||lv.price||0;
+      const pr=MarkdownPlans.offerPricing({rrp,initialPct,price},o,pl.settings.maxDiscount);
+      return{style:x.style,title:p?p.name+(p.colour?' — '+p.colour:''):(e.title||x.style),colour:p?p.colour:'',soh:lv.soh>0?lv.soh:0,onOrder:oo&&oo.by[x.style]?oo.by[x.style].units:0,initialPct,pricing:pr,excludedBy:x.excludedBy,special:!!(it&&it.final.action==='S')};
+    });
+    productsByOffer[o.id]=rows.map(x=>x.style);
+    models.push({offer:o,rows,skipped:r.skipped});
+  });
+  const conflicts=MarkdownPlans.offerConflicts(pl,productsByOffer);
+  models.forEach(m=>{
+    const unresolved=new Set(conflicts.filter(c=>c.offers.includes(m.offer.id)&&!c.compatible&&!c.resolved).map(c=>c.style)).size;
+    m.val=MarkdownPlans.validateOffer(m.offer,pl,{count:m.rows.length,unresolved,noChange:m.rows.filter(x=>x.pricing.noChange).length,excludedIncluded:m.rows.filter(x=>x.excludedBy).length});
+    m.status=MarkdownPlans.offerStatus(m.offer,m.val,exported.has(m.offer.id));
+    // a style that lost an overlap to another offer is left out of THIS offer's export
+    m.exportStyles=m.rows.map(x=>x.style).filter(st=>{const c=conflicts.find(k=>k.style===st&&k.offers.includes(m.offer.id)&&k.resolved);return !c||c.winner===m.offer.id;});
+    const t=mdpStyleTotals(m.rows.map(x=>x.style),oo);m.tot=t;
+  });
+  return{models,conflicts};
+}
+const MDP_OFFER_STATUS={draft:['Draft','n'],ready:['Ready','x'],exported:['Exported','x']};
+function mdpOffersSection(plan,oo,hasEnd,pl,res){
+  const{models,conflicts}=mdpOfferModel(plan,oo,pl,res),SU=pl.setup;
+  const win=SU.start&&SU.end?`${SU.start} → ${SU.end}`:'not set';
+  const sum=models.length?`<div class="mdp-scroll"><table class="mdp-t mdp-t2"><thead><tr><th class="l">Offer</th><th class="l">Dates</th><th class="l">Type</th><th>Products</th><th class="l">Shopify collection</th><th class="l">Status</th><th></th></tr></thead><tbody>${models.map((m,i)=>{const o=m.offer,st=MDP_OFFER_STATUS[m.status];
+      return`<tr><td class="l"><b>${mdpEsc(o.name)}</b></td><td class="l mdp-dim">${o.start&&o.end?mdpEsc(o.start+' → '+o.end):'<span class="mdp-b-cf">set dates</span>'}</td><td class="l">${o.type==='bundle'?'Bundle':'Further reduction'}${o.type==='reduction'&&o.pct?' · '+o.pct+'%':''}</td><td>${m.rows.length.toLocaleString()}</td><td class="l">${o.collection.title?mdpEsc(o.collection.title):'<span class="mdp-dim">not set</span>'}</td><td class="l"><span class="mdp-pill ${st[1]}">${st[0]}</span>${m.val.errors.length?` <span class="mdp-dim" title="${mdpEsc(m.val.errors.join(' · '))}">${m.val.errors.length} to fix</span>`:''}</td><td><button class="mdp-act" onclick="mdpToggleOffer('${o.id}')">${mdpOpenOffers.has(o.id)?'Close':'Edit'}</button></td></tr>`;}).join('')}</tbody></table></div>`
+    :`<div class="mdp-empty" style="padding:22px 12px;">No mid-sale offers yet.<br>Add one for a further reduction (a new total discount off the original RRP) or a bundle.</div>`;
+  const unres=conflicts.filter(c=>!c.compatible&&!c.resolved);
+  const confHtml=conflicts.length?`<div class="${unres.length?'mdp-err':'mdp-warn'}" style="margin:12px 0;"><b>${unres.length?'⚠ '+unres.length+' overlapping product'+(unres.length===1?'':'s')+' need a decision':'ⓘ '+conflicts.length+' overlap'+(conflicts.length===1?'':'s')+' (resolved or compatible)'}</b> — offers are never stacked: pick which offer applies.
+      <div class="mdp-scroll" style="margin-top:8px;max-height:260px;overflow:auto;background:#fff;"><table class="mdp-t mdp-t2"><thead><tr><th class="l">Product</th><th class="l">Overlapping offers</th><th class="l">Dates</th><th class="l">Pricing conflict</th><th class="l">Applies</th></tr></thead><tbody>${conflicts.slice(0,60).map(c=>`<tr><td class="l"><b>${mdpEsc(c.style)}</b></td><td class="l">${c.names.map(mdpEsc).join(' + ')}</td><td class="l mdp-dim">${c.from||'…'} → ${c.to||'…'}</td><td class="l">${mdpEsc(c.text)}</td>
+        <td class="l">${c.compatible?'<span class="mdp-dim">either (same)</span>':`<select class="mdp-sel mdp-xs" onchange="mdpResolveConflict('${mdpEsc(c.style)}',this.value)"><option value="">Choose…</option>${c.offers.map((id,k)=>`<option value="${id}" ${c.winner===id?'selected':''}>${mdpEsc(c.names[k])} only</option>`).join('')}</select>`}</td></tr>`).join('')}</tbody></table></div>${conflicts.length>60?`<div class="mdp-dim">…and ${conflicts.length-60} more</div>`:''}</div>`:'';
+  const cards=models.map((m,i)=>mdpOfferCard(m,i,models.length,pl)).join('');
+  return`<div class="mdp-sub" style="margin:0 0 10px;line-height:1.55;">Extra offers inside the sale — further reductions and bundles. Each has its own products, dates, pricing and Shopify collection, and is exported on its own. A further reduction is a <b>new total discount off the original RRP</b> (never stacked, never raising a lower price). Sale dates: <b>${mdpEsc(win)}</b>.</div>
+    <div class="mdp-row" style="margin-bottom:10px;"><button class="mdp-btn mdp-btn-go" onclick="mdpAddOffer()">＋ Add offer</button></div>${sum}${confHtml}${cards}`;
+}
+function mdpToggleOffer(id){if(mdpOpenOffers.has(id))mdpOpenOffers.delete(id);else mdpOpenOffers.add(id);renderMarkdownPlanner();}
+function mdpAddOffer(){const r=MarkdownPlans.addOffer(mdpState,mdpPlan().id,'Offer '+(mdpPlan().offers.length+1));if(r.id)mdpOpenOffers.add(r.id);mdpCollapsed.delete('F');mdpCommit(r.state);}
+function mdpOfferSet(id,key,val){mdpCommit(MarkdownPlans.updateOffer(mdpState,mdpPlan().id,id,{[key]:val}));}
+function mdpOfferSetNum(id,key,el){mdpOfferSet(id,key,el.value===''?null:Number(el.value));}
+function mdpOfferSetCol(id,key,val){mdpCommit(MarkdownPlans.updateOffer(mdpState,mdpPlan().id,id,{collection:{[key]:val}}));}
+function mdpOfferSetBundle(id,key,val){mdpCommit(MarkdownPlans.updateOffer(mdpState,mdpPlan().id,id,{bundle:{[key]:val}}));}
+function mdpOfferSetBundleNum(id,key,el){mdpOfferSetBundle(id,key,el.value===''?null:Number(el.value));}
+function mdpOfferDup(id){const r=MarkdownPlans.duplicateOffer(mdpState,mdpPlan().id,id);if(r.id)mdpOpenOffers.add(r.id);mdpCommit(r.state);}
+function mdpOfferDel(id){const o=mdpPlan().offers.find(x=>x.id===id);if(o&&confirm('Delete the offer "'+o.name+'"? Its products, dates and settings are removed (exports already made are kept in the history).')){mdpOpenOffers.delete(id);mdpCommit(MarkdownPlans.deleteOffer(mdpState,mdpPlan().id,id));}}
+function mdpOfferMove(id,dir){mdpCommit(MarkdownPlans.moveOffer(mdpState,mdpPlan().id,id,dir));}
+function mdpOfferIncludeExcluded(id,on){
+  if(on&&!confirm('GWP and Not on sale products are left out of offers by default.\n\nInclude them in this offer anyway?'))return renderMarkdownPlanner();
+  mdpOfferSet(id,'includeExcluded',on);
+}
+function mdpOfferException(id,style,on){const st=String(style||'').trim().toUpperCase();if(!st)return;mdpCommit(MarkdownPlans.setOfferException(mdpState,mdpPlan().id,id,st,on));}
+function mdpResolveConflict(style,offerId){mdpCommit(MarkdownPlans.resolveOfferConflict(mdpState,mdpPlan().id,style,offerId||null));}
+function mdpOfferCard(m,i,n,pl){
+  const o=m.offer,open=mdpOpenOffers.has(o.id),st=MDP_OFFER_STATUS[m.status],idq=o.id,PS=pl.settings,lv=PS.allowedDiscounts.filter(d=>d<=PS.maxDiscount),b=o.bundle;
+  const head=`<div class="mdp-offhead" onclick="mdpToggleOffer('${idq}')"><span class="mdp-car">${open?'▾':'▸'}</span><b>${mdpEsc(o.name)}</b><span class="mdp-pill ${st[1]}">${st[0]}</span><span class="mdp-dim">${o.type==='bundle'?mdpEsc(MarkdownPlans.bundleText(b)):'Further reduction'+(o.pct?' to '+o.pct+'% off RRP':'')} · ${m.rows.length.toLocaleString()} products · ${o.start&&o.end?mdpEsc(o.start+' → '+o.end):'no dates'}</span></div>`;
+  if(!open)return`<div class="mdp-offer">${head}</div>`;
+  const dateIn=(k,label)=>`<label>${label}<input class="mdp-in" type="date" value="${mdpEsc(o[k])}" onchange="mdpOfferSet('${idq}','${k}',this.value)"></label>`;
+  const pricing=o.type==='reduction'
+    ?`<label>New total discount off RRP<select class="mdp-sel" onchange="mdpOfferSet('${idq}','pct',this.value===''?null:+this.value)"><option value="">Choose…</option>${lv.map(d=>`<option value="${d}" ${o.pct===d?'selected':''}>${d}% off RRP</option>`).join('')}${o.pct!=null&&!lv.includes(o.pct)?`<option value="${o.pct}" selected>${o.pct}%</option>`:''}</select></label>`
+    :`<label>Bundle rule<select class="mdp-sel" onchange="mdpOfferSetBundle('${idq}','mode',this.value)">${[['price','N for $X'],['pct','Buy N, % off'],['free','Buy N, get M free'],['buyget','Buy X, get Y']].map(([v,l])=>`<option value="${v}" ${b.mode===v?'selected':''}>${l}</option>`).join('')}</select></label>
+       ${b.mode==='price'||b.mode==='pct'||b.mode==='free'?`<label>Quantity<input class="mdp-in" type="number" min="2" max="20" value="${b.qty}" onchange="mdpOfferSetBundleNum('${idq}','qty',this)"></label>`:''}
+       ${b.mode==='price'?`<label>Bundle price ($)<input class="mdp-in" type="number" min="0" step="0.01" value="${b.price==null?'':b.price}" onchange="mdpOfferSetBundleNum('${idq}','price',this)"></label>`:''}
+       ${b.mode==='pct'?`<label>% off the bundle<input class="mdp-in" type="number" min="1" max="95" step="1" value="${b.pct==null?'':b.pct}" onchange="mdpOfferSetBundleNum('${idq}','pct',this)"></label>`:''}
+       ${b.mode==='free'||b.mode==='buyget'?`${b.mode==='buyget'?`<label>Buy<input class="mdp-in" type="number" min="1" max="20" value="${b.buyQty}" onchange="mdpOfferSetBundleNum('${idq}','buyQty',this)"></label>`:''}<label>${b.mode==='free'?'Free':'Get'}<input class="mdp-in" type="number" min="1" max="20" value="${b.getQty}" onchange="mdpOfferSetBundleNum('${idq}','getQty',this)"></label>`:''}
+       <label class="mdp-chk" style="align-self:flex-end;padding-bottom:8px;"><input type="checkbox" ${b.mix?'checked':''} onchange="mdpOfferSetBundle('${idq}','mix',this.checked)"> Mix and match</label>`;
+  const counts={};m.rows.forEach(r=>{});const selCounts={};
+  const matched=MarkdownPlans.resolveSelections(o.items,mdpCatalogue()||[],mdpSelCtx());matched.forEach(r=>r.sels.forEach(s=>{selCounts[s.id]=(selCounts[s.id]||0)+1;}));
+  const exc=o.exceptions.map(st=>`<span class="mdp-chip">${mdpEsc(st)} <button title="Include it again" onclick="mdpOfferException('${idq}','${mdpEsc(st)}',false)">×</button></span>`).join('');
+  const skipped=m.skipped.filter(x=>x.by==='gwp'||x.by==='nos');
+  const rowsHtml=m.rows.slice(0,300).map(x=>{const pr=x.pricing;
+    return`<tr><td class="l"><b>${mdpEsc(x.style)}</b> <span class="mdp-dim">${mdpEsc(x.title)}</span>${x.special?' <span class="mdp-pill n">special buy</span>':''}${x.excludedBy?` <span class="mdp-b-ov">${x.excludedBy==='gwp'?'GWP':'Not on sale'} (included)</span>`:''}</td><td>${x.soh.toLocaleString()}</td><td>${x.onOrder.toLocaleString()}</td>
+      <td>${x.initialPct==null?'<span class="mdp-dim">not in sale</span>':x.initialPct+'%'}</td><td>${pr.basePrice!=null?'$'+pr.basePrice.toFixed(2):'—'}</td>
+      <td class="l">${pr.kind==='bundle'?mdpEsc(pr.rule):(o.pct!=null?o.pct+'% off RRP':'—')}</td><td>${pr.kind==='bundle'?'<span class="mdp-dim">at checkout</span>':pr.price==null?'—':'<b>$'+pr.price.toFixed(2)+'</b>'}${pr.noChange?' <span class="mdp-nochg" title="Already priced at or below this offer — the price is not raised">no change</span>':''}${pr.overCap?' <span class="mdp-b-ov">over cap</span>':''}</td></tr>`;}).join('');
+  const tbl=m.rows.length?`<div class="mdp-scroll" style="max-height:340px;overflow:auto;margin-top:10px;"><table class="mdp-t mdp-t2"><thead><tr><th class="l">Product / colour</th><th>SOH</th><th>On order</th><th>Initial sale disc.</th><th>Initial sale price</th><th class="l">Mid-sale offer</th><th>Offer price</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>${m.rows.length>300?`<div class="mdp-dim" style="margin-top:4px;">Showing the first 300 of ${m.rows.length.toLocaleString()}.</div>`:''}`:'';
+  return`<div class="mdp-offer open">${head}<div class="mdp-offbody">
+    <div class="mdp-row"><label style="flex:2;min-width:220px;">Offer name<input class="mdp-in" type="text" value="${mdpEsc(o.name)}" onchange="mdpOfferSet('${idq}','name',this.value)"></label>
+      <label>Type<select class="mdp-sel" onchange="mdpOfferSet('${idq}','type',this.value)"><option value="reduction" ${o.type==='reduction'?'selected':''}>Further reduction</option><option value="bundle" ${o.type==='bundle'?'selected':''}>Bundle</option></select></label>${dateIn('start','Starts')}${dateIn('end','Ends')}</div>
+    <div class="mdp-row" style="margin-top:10px;">${pricing}<label style="flex:2;min-width:220px;">Shopify collection (title)<input class="mdp-in" type="text" placeholder="e.g. BF RELOADED 50% OFF" value="${mdpEsc(o.collection.title)}" onchange="mdpOfferSetCol('${idq}','title',this.value)"></label><label>Collection ID<input class="mdp-in" type="text" placeholder="optional" value="${mdpEsc(o.collection.id)}" onchange="mdpOfferSetCol('${idq}','id',this.value)"></label></div>
+    ${o.type==='bundle'?`<div class="mdp-hint" style="margin-top:8px;">A bundle is stored as a rule, not a % markdown. Exporting puts its products in the collection — <b>the bundle price itself still has to be created as a Shopify discount</b>.</div>`:`<div class="mdp-hint" style="margin-top:8px;">Priced as ${o.pct==null?'a new total':o.pct+'%'} off the <b>original RRP</b> (never stacked on the sale discount); a product already cheaper keeps its price.</div>`}
+    <div class="mdp-bt2" style="margin-top:12px;">Products</div>${mdpAdder('offer-'+idq,['group','category','style'],false,pl)}
+    ${o.items.length?`<div class="mdp-selist">${o.items.map(s=>`<div class="mdp-selrow"><span class="mdp-chip mdp-kind">${s.kind==='style'?'Product / colour':MDP_KIND_LABEL[s.kind]}</span><b>${mdpEsc(s.label||s.value)}</b><span class="${selCounts[s.id]?'mdp-dim':'mdp-b-cf'}">${selCounts[s.id]?selCounts[s.id]+' style'+(selCounts[s.id]===1?'':'s'):'no styles matched'}</span><button class="mdp-act" onclick="mdpRemoveSel('offer-${idq}','${s.id}')">Remove</button></div>`).join('')}</div>`:''}
+    <div class="mdp-adder" style="margin-top:8px;"><input id="mdp-offx-${idq}-val" class="mdp-in mdp-grow" list="mdp-dl-offx-${idq}" placeholder="Take one product/colour out of this offer…" autocomplete="off" oninput="mdpFillExcList('offx-${idq}')" onfocus="mdpFillExcList('offx-${idq}')"><datalist id="mdp-dl-offx-${idq}"></datalist><button class="mdp-btn" onclick="mdpOfferException('${idq}',document.getElementById('mdp-offx-${idq}-val').value,true)">Exclude</button></div>${exc?`<div style="margin-top:6px;">${exc}</div>`:''}
+    <label class="mdp-chk" style="margin-top:8px;"><input type="checkbox" ${o.includeExcluded?'checked':''} onchange="mdpOfferIncludeExcluded('${idq}',this.checked)"> Include GWP / Not on sale products in this offer <span class="mdp-dim">(off by default${skipped.length?` — ${skipped.length} left out`:''})</span></label>
+    <label style="display:block;margin-top:10px;font-size:12px;color:#6b7280;">Internal notes<textarea class="mdp-in" rows="2" style="width:100%;" onchange="mdpOfferSet('${idq}','notes',this.value)">${mdpEsc(o.notes)}</textarea></label>
+    ${m.val.errors.length?`<div class="mdp-err" style="margin-top:10px;">${m.val.errors.map(e=>'⚠ '+mdpEsc(e)).join('<br>')}</div>`:''}${m.val.warnings.length?`<div class="mdp-warn" style="margin-top:8px;">${m.val.warnings.map(e=>'ⓘ '+mdpEsc(e)).join('<br>')}</div>`:''}
+    <div class="mdp-revsum" style="margin-top:10px;"><span><b>${m.rows.length.toLocaleString()}</b> products</span><span class="mdp-dot"></span><span><b>${m.tot.soh.toLocaleString()}</b> SOH</span><span class="mdp-dot"></span><span><b>${m.tot.on.toLocaleString()}</b> on order</span></div>${tbl}
+    <div class="mdp-row" style="margin-top:12px;"><button class="mdp-btn mdp-btn-ghost mdp-btn-sm" onclick="mdpOfferMove('${idq}',-1)" ${i===0?'disabled':''}>↑ Move up</button><button class="mdp-btn mdp-btn-ghost mdp-btn-sm" onclick="mdpOfferMove('${idq}',1)" ${i===n-1?'disabled':''}>↓ Move down</button><button class="mdp-btn mdp-btn-ghost mdp-btn-sm" onclick="mdpOfferDup('${idq}')">⧉ Duplicate</button><button class="mdp-btn mdp-btn-ghost mdp-btn-sm" onclick="mdpOfferDel('${idq}')">Delete</button>
+      <span style="margin-left:auto;font-size:12px;color:#6b7280;align-self:center;">Saved automatically · export it from section I</span></div></div></div>`;
+}
+
+// ── Exports ──
+let _mdpVarKey='',_mdpVar=null;
+function mdpVariantsByStyle(){
+  const key=allVariantRows.length+':'+(allVariantRows[0]&&allVariantRows[0].sku);
+  if(key===_mdpVarKey&&_mdpVar)return _mdpVar;
+  const m={};
+  for(const r of allVariantRows){if(r.amOnly)continue;const st=styleFromSku(r.sku||'');if(!st)continue;(m[st]=m[st]||[]).push({sku:r.sku,size:r.size||''});}
+  _mdpVarKey=key;_mdpVar=m;return m;
+}
+function mdpDownload(name,text,mime){
+  try{const b=new Blob(['﻿'+text],{type:mime||'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);}catch(e){alert('Could not create the file: '+e.message);}
+}
+const mdpSlug=t=>String(t||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40)||'plan';
+// Builds the rows for the initial sale or one offer, plus every problem found. Nothing here touches Shopify.
+function mdpBuildExport(kind,offerId){
+  const pl=mdpPlan(),res=mdpResolveAll(pl),plan=mdpCtx.plan,vm=mdpVariantsByStyle(),ctx={variants:s=>vm[s]||[]},issues=[];
+  if(kind==='initial'){
+    const built=MarkdownPlans.buildInitialExport(plan.items,pl,ctx);built.issues.forEach(i=>issues.push(i));
+    const blocked=plan.items.filter(i=>i.blocked&&mdpCtx.rows.some(r=>r.category===(i.row.p.category||'UNCATEGORISED')&&r.approved)).length;
+    if(blocked)issues.push({level:'error',text:blocked+' product'+(blocked===1?' is':'s are')+' in an unresolved GWP / Not on sale conflict.'});
+    const upstream=mdpCtx.rows.filter(r=>r.approved&&r.upstreamChanged).length;
+    if(upstream)issues.push({level:'warn',text:upstream+' approved categor'+(upstream===1?'y has':'ies have')+' changed upstream (GWP / Not on sale / special buys) since approval — review them.'});
+    return{kind,built,issues,label:'Initial sale markdowns',offer:null};
+  }
+  const om=mdpOfferModel(plan,mdpCtx.oo,pl,res),m=om.models.find(x=>x.offer.id===offerId);
+  if(!m)return{kind,built:{rows:[],products:0,issues:[]},issues:[{level:'error',text:'That offer no longer exists.'}],label:'Offer',offer:null};
+  const info=st=>{const r=m.rows.find(x=>x.style===st)||{};return{name:r.title,colour:r.colour,price:r.pricing&&r.pricing.price,pct:r.pricing&&r.pricing.pct};};
+  const built=MarkdownPlans.buildOfferExport(m.offer,pl,m.exportStyles,{variants:s=>vm[s]||[],info});
+  built.issues.forEach(i=>issues.push(i));
+  m.val.errors.forEach(e=>issues.push({level:'error',text:e}));
+  return{kind:'offer',built,issues,label:m.offer.name,offer:m.offer,model:m};
+}
+function mdpOpenExport(kind,offerId){mdpExportDlg={kind,offerId:offerId||null};mdpExportChecks=MarkdownPlans.CHECKLIST.map(()=>false);renderMarkdownPlanner();}
+function mdpCloseExport(){mdpExportDlg=null;renderMarkdownPlanner();}
+function mdpExportCheck(i,on){mdpExportChecks[i]=!!on;renderMarkdownPlanner();}
+function mdpExportFile(pl,x){
+  const d=new Date().toISOString().slice(0,10);
+  return x.kind==='initial'?`${mdpSlug(pl.name)}_initial-sale_collection-membership_${d}.csv`:`${mdpSlug(pl.name)}_offer-${mdpSlug(x.offer.name)}_${x.offer.start||'nodate'}_to_${x.offer.end||'nodate'}_collection-membership_${d}.csv`;
+}
+function mdpDoExport(){
+  if(!mdpExportDlg)return;
+  const pl=mdpPlan(),x=mdpBuildExport(mdpExportDlg.kind,mdpExportDlg.offerId);
+  if(x.issues.some(i=>i.level==='error')||!mdpExportChecks.every(Boolean)||!x.built.rows.length)return;
+  const name=mdpExportFile(pl,x),csv=MarkdownPlans.toCsv(x.built.rows,MarkdownPlans.EXPORT_COLUMNS);
+  mdpDownload(name,csv);
+  const rec=MarkdownPlans.newExportRecord(pl,x.kind,x.offer,x.built,Date.now(),null,name);
+  rec.label=x.label;rec.mappings=x.kind==='initial'?Object.fromEntries(Object.entries(x.built.byPct).map(([k])=>[k+'%',(pl.mappings[k]||{}).title])):{[x.offer.name]:x.offer.collection.title};
+  rec.confirmed=MarkdownPlans.CHECKLIST.slice();
+  mdpExportDlg=null;mdpCommit(MarkdownPlans.addExportRecord(mdpState,pl.id,rec));
+}
+function mdpAuditText(rec,pl){
+  return['WNDRR Markdown Planner — export audit summary','','Export ID: '+rec.id,'Sale plan: '+pl.name+' ('+rec.planId+', version '+rec.planRev+')','Type: '+(rec.kind==='initial'?'Initial sale markdowns':'Mid-sale offer'+(rec.label?': '+rec.label:'')),rec.offerId?'Offer ID: '+rec.offerId:'','Exported: '+new Date(rec.ts).toISOString(),'File: '+rec.filename,'Products: '+rec.products+' · rows (variants): '+rec.rows,'Collections: '+(rec.collections||[]).join('; '),'Mappings: '+JSON.stringify(rec.mappings||{}),'Confirmed by: not recorded (no user sign-in in this app)','','Checklist confirmed:'].concat((rec.confirmed||[]).map(c=>' ✓ '+c)).concat(['','This file is collection membership only. It does not change live Shopify prices and does not create any Shopify discount or bundle.']).filter(l=>l!==undefined).join('\r\n');
+}
+function mdpAuditDownload(id){const pl=mdpPlan(),rec=pl.exports.find(e=>e.id===id);if(rec)mdpDownload('audit_'+mdpSlug(pl.name)+'_'+rec.id+'.txt',mdpAuditText(rec,pl),'text/plain;charset=utf-8');}
+function mdpFullPlanCsv(){
+  const pl=mdpPlan(),vm=mdpVariantsByStyle(),rows=[];
+  mdpCtx.plan.items.forEach(it=>{const p=it.row.p;if(p.isGWP)return;
+    rows.push({Style:p.style,Product:p.name,Colour:p.colour,'Parent style':p.parentStyle,Category:p.category,Core:p.isCore?'CORE':'NON-CORE','Month del':p.deliveryMonth||'',SOH:it.row.m.sohNow,'On order':(mdpCtx.oo&&mdpCtx.oo.by[p.style]?mdpCtx.oo.by[p.style].units:0),'Sold 30d':p.sold.d30,'Current discount %':Math.round(p.currentDiscountPct||0),'Suggested %':it.systemPct==null?'':it.systemPct,'Proposed %':it.final.pct==null?'':it.final.pct,Group:p.notOnSale?'Not on sale':(it.group||(it.final.action==='S'?'Special buy':'Not in sale')),RRP:p.rrp?p.rrp.toFixed(2):'','Current price':p.price?p.price.toFixed(2):'','Proposed price':it.final.pct!=null&&it.price.newPrice!=null?it.price.newPrice.toFixed(2):'',Collection:it.final.pct!=null&&pl.mappings[String(Math.round(it.final.pct))]?pl.mappings[String(Math.round(it.final.pct))].title:'','Manual override':it.override?'yes ('+it.override+')':'',Variants:(vm[p.style]||[]).length,Reason:it.final.reason});});
+  const cols=Object.keys(rows[0]||{Style:1});
+  mdpDownload(mdpSlug(pl.name)+'_full-markdown-plan_'+new Date().toISOString().slice(0,10)+'.csv',MarkdownPlans.toCsv(rows,cols));
+}
+function mdpSetMapping(pct,field,val){const pl=mdpPlan(),cur=pl.mappings[String(pct)]||{};mdpCommit(MarkdownPlans.setMapping(mdpState,pl.id,pct,field==='title'?val:cur.title,field==='id'?val:cur.id));}
+function mdpExportSection(plan,oo,hasEnd,pl,res){
+  const init=mdpBuildExport('initial'),om=mdpOfferModel(plan,oo,pl,res);
+  const lvls=[...new Set(pl.settings.allowedDiscounts.concat(Object.keys(pl.mappings).map(Number)))].sort((a,b)=>a-b);
+  const map=`<div class="mdp-scroll"><table class="mdp-t mdp-t2"><thead><tr><th class="l">Discount</th><th class="l">Shopify collection title</th><th class="l">Collection ID</th><th>Products</th><th class="l">Status</th></tr></thead><tbody>${lvls.map(d=>{const m=pl.mappings[String(d)]||{title:'',id:''},n=init.built.byPct[String(d)]||0;
+      return`<tr><td class="l"><b>${d}%</b></td><td class="l"><input class="mdp-in" style="min-width:230px;" type="text" value="${mdpEsc(m.title)}" placeholder="Not mapped" onchange="mdpSetMapping(${d},'title',this.value)"></td><td class="l"><input class="mdp-in" style="width:150px;" type="text" value="${mdpEsc(m.id)}" placeholder="optional" onchange="mdpSetMapping(${d},'id',this.value)"></td><td>${n}</td><td class="l">${m.title?'<span class="mdp-pill x">Mapped</span>':'<span class="mdp-pill n" title="Products at this discount are held back until a collection is mapped">Unmapped — not exportable</span>'}</td></tr>`;}).join('')}</tbody></table></div>`;
+  const errs=init.issues.filter(i=>i.level==='error'),warns=init.issues.filter(i=>i.level!=='error');
+  const initCard=`<div class="mdp-offer open"><div class="mdp-offhead" style="cursor:default;"><b>A. Initial sale markdowns</b><span class="mdp-dim">${init.built.products.toLocaleString()} product/colours · ${init.built.rows.length.toLocaleString()} variant rows · approved categories only</span></div><div class="mdp-offbody">
+      ${errs.map(i=>`<div class="mdp-err" style="margin-bottom:6px;">⚠ ${mdpEsc(i.text)}</div>`).join('')}${warns.map(i=>`<div class="mdp-warn" style="margin-bottom:6px;">ⓘ ${mdpEsc(i.text)}</div>`).join('')}
+      <div class="mdp-row"><button class="mdp-btn mdp-btn-go" onclick="mdpOpenExport('initial')" ${init.built.rows.length?'':'disabled'}>Export initial sale…</button><button class="mdp-btn mdp-btn-ghost" onclick="mdpFullPlanCsv()" title="Every product with its group, discount, price, collection and reason">Download full plan CSV</button></div></div></div>`;
+  const offRows=om.models.map(m=>{const ex=mdpBuildExport('offer',m.offer.id),bad=ex.issues.some(i=>i.level==='error');
+    return`<tr><td class="l"><b>${mdpEsc(m.offer.name)}</b></td><td class="l mdp-dim">${m.offer.start&&m.offer.end?mdpEsc(m.offer.start+' → '+m.offer.end):'—'}</td><td class="l">${m.offer.type==='bundle'?'Bundle':'Reduction'}</td><td>${ex.built.products.toLocaleString()}</td><td class="l">${m.offer.collection.title?mdpEsc(m.offer.collection.title):'<span class="mdp-dim">not set</span>'}</td><td class="l"><span class="mdp-pill ${MDP_OFFER_STATUS[m.status][1]}">${MDP_OFFER_STATUS[m.status][0]}</span></td><td><button class="mdp-btn mdp-btn-sm" onclick="mdpOpenExport('offer','${m.offer.id}')" ${ex.built.rows.length?'':'disabled'} title="${bad?mdpEsc(ex.issues.filter(i=>i.level==='error').map(i=>i.text).join(' · ')):'Export this offer'}">Export…</button></td></tr>`;}).join('');
+  const offCard=`<div class="mdp-offer open"><div class="mdp-offhead" style="cursor:default;"><b>B. Mid-sale offers</b><span class="mdp-dim">each exported on its own into its own collection</span></div><div class="mdp-offbody">${om.models.length?`<div class="mdp-scroll"><table class="mdp-t mdp-t2"><thead><tr><th class="l">Offer</th><th class="l">Dates</th><th class="l">Type</th><th>Products</th><th class="l">Shopify collection</th><th class="l">Status</th><th></th></tr></thead><tbody>${offRows}</tbody></table></div>`:'<div class="mdp-dim">No mid-sale offers yet (section F).</div>'}</div></div>`;
+  const hist=pl.exports.length?`<div class="mdp-bt2" style="margin-top:16px;">Export history</div><div class="mdp-scroll"><table class="mdp-t mdp-t2"><thead><tr><th class="l">When</th><th class="l">Type</th><th class="l">Offer</th><th>Products</th><th class="l">Collections</th><th class="l">File</th><th>Plan v</th><th></th></tr></thead><tbody>${pl.exports.slice(0,30).map(e=>`<tr><td class="l">${new Date(e.ts).toLocaleString('en-AU',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})}</td><td class="l">${e.kind==='initial'?'Initial sale':'Mid-sale offer'}</td><td class="l">${e.offerId?mdpEsc(e.label||e.offerId):'—'}</td><td>${e.products}</td><td class="l mdp-dim">${mdpEsc((e.collections||[]).join('; '))}</td><td class="l mdp-dim">${mdpEsc(e.filename)}</td><td>${e.planRev}</td><td><button class="mdp-act" onclick="mdpAuditDownload('${e.id}')">Audit summary</button></td></tr>`).join('')}</tbody></table></div>`:'';
+  return`<div class="mdp-warn" style="margin-bottom:12px;line-height:1.55;"><b>What this export is — and isn't.</b> It builds <b>collection-membership CSVs</b> (which SKUs go into which Shopify collection). It does <b>not</b> change live Shopify prices, and putting products in a collection does <b>not</b> by itself create a Shopify discount or a working bundle price — that stays a Hextom / Shopify step. <b>Heads-up:</b> this app has no Shopify product IDs or collection access, and no Hextom template has been supplied, so the file is keyed by <b>SKU</b> and its column layout is <u>not yet verified</u> against your Hextom import — check one small file in Hextom first.</div>
+    <div class="mdp-bt2">Collection mapping <span class="mdp-dim" style="font-weight:500;">— saved per sale; edit any time. Collections aren't read from Shopify here, so type the title (and ID if you have it).</span></div>${map}
+    <div style="margin-top:16px;">${initCard}${offCard}</div>${hist}`;
+}
+function mdpExportModal(){
+  if(!mdpExportDlg||!mdpCtx)return'';
+  const pl=mdpPlan(),x=mdpBuildExport(mdpExportDlg.kind,mdpExportDlg.offerId),errs=x.issues.filter(i=>i.level==='error'),warns=x.issues.filter(i=>i.level!=='error');
+  const done=mdpExportChecks.every(Boolean),can=done&&!errs.length&&x.built.rows.length>0;
+  const cols=[...new Set(x.built.rows.map(r=>r['Collection title']))];
+  const when=x.offer?` (${mdpEsc(x.offer.start||'?')} → ${mdpEsc(x.offer.end||'?')})`:'';
+  return`<div class="mdp-modal" onclick="if(event.target===this)mdpCloseExport()"><div class="mdp-dlg"><div class="mdp-dlghead"><b>Export to Hextom — ${mdpEsc(x.label)}${when}</b><button class="mdp-chv2" onclick="mdpCloseExport()">✕</button></div>
+    <div class="mdp-dlgbody"><div class="mdp-revsum"><span><b>${x.built.products.toLocaleString()}</b> product/colours</span><span class="mdp-dot"></span><span><b>${x.built.rows.length.toLocaleString()}</b> variant rows</span><span class="mdp-dot"></span><span>${cols.length?cols.map(mdpEsc).join(' · '):'no collection'}</span></div>
+    ${x.kind==='offer'&&x.offer.type==='bundle'?`<div class="mdp-warn" style="margin:10px 0;">ⓘ Bundle: this puts the products in the collection only — the bundle price must still be created as a Shopify discount.</div>`:''}
+    ${errs.map(i=>`<div class="mdp-err" style="margin-top:8px;">⚠ ${mdpEsc(i.text)}</div>`).join('')}${warns.map(i=>`<div class="mdp-warn" style="margin-top:8px;">ⓘ ${mdpEsc(i.text)}</div>`).join('')}
+    <div class="mdp-bt2" style="margin-top:14px;">Before you export, confirm:</div>${MarkdownPlans.CHECKLIST.map((t,i)=>`<label class="mdp-chk" style="display:flex;padding:5px 0;"><input type="checkbox" ${mdpExportChecks[i]?'checked':''} onchange="mdpExportCheck(${i},this.checked)"> ${mdpEsc(t)}</label>`).join('')}
+    <div class="mdp-hint" style="margin-top:10px;">New collections must exist in Shopify first; reused collections must be cleared of the previous sale's products (a CSV that only adds will not remove them). Nothing here changes live prices.</div></div>
+    <div class="mdp-dlgfoot"><button class="mdp-btn mdp-btn-ghost" onclick="mdpCloseExport()">Cancel</button><button class="mdp-btn mdp-btn-go" ${can?'':'disabled'} onclick="mdpDoExport()">Download CSV</button></div></div></div>`;
+}
 
 function mdpSec(key,title,tag,body){
   const open=!mdpCollapsed.has(key);
@@ -6779,7 +7040,7 @@ function renderMarkdownPlanner(){
   const clearedPct=T.soh>0?Math.round(clearedUnits/T.soh*1000)/10:0;
   const{win:lyWin,ly:lyData}=mdpLyData(SU);
   const lyBy=lyData?Object.fromEntries(Object.entries(lyData.byCat).filter(([k])=>k!=='GWP')):{};   // gift-with-purchase isn't sold: its cost is in the GWP line
-  const fcItems=plan.items.filter(i=>!i.row.p.isGWP);
+  const fcItems=plan.items.filter(i=>!i.row.p.isGWP&&!i.row.p.notOnSale);
   const fcast=lyWin&&lyData&&lyData.total?MarkdownPlans.buildForecast(fcItems,lyBy,SU.growthPct):null;
   const fcByCat=fcast?Object.fromEntries(fcast.rows.map(r=>[String(r.category).toUpperCase(),r])):null;
   let fcSet=null;
@@ -6855,27 +7116,33 @@ function renderMarkdownPlanner(){
   const onOrderByCat=oo?Object.fromEntries(Object.entries(oo.cats).map(([k,v])=>[k,v.units])):{};
   const catRows=MarkdownPlans.categoryRows(plan.items,plan,pl,onOrderByCat);
   const bBody=mdpCategoryStrategy(plan,oo,hasEnd,pl,catRows);        // also sets mdpCtx (the table helpers read it)
-  const cBody=mdpCollapsed.has('C')?'':`<div id="mdp-review-body">${mdpFlatBody()}</div>`;
-  const aOpen=!mdpCollapsed.has('A'),bOpen=!mdpCollapsed.has('B');
+  const cBody=mdpCollapsed.has('G')?'':`<div id="mdp-review-body">${mdpFlatBody()}</div>`;
+  const aOpen=!mdpCollapsed.has('A'),bOpen=!mdpCollapsed.has('E');
   const dFmt=d=>{const t=MarkdownPlans.parseDay(d);return t==null?'—':new Date(t).toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short',year:'numeric',timeZone:'UTC'});};
   const settings=`<div class="mdp-card mdp-sec mdp-asec" id="mdp-sec-A"><div class="mdp-ahead"><span class="mdp-aico">▦</span><b class="mdp-atitle">A. Sale Setup</b>
       <span class="mdp-asum"><span>${dFmt(SU.start)} → ${dFmt(SU.end)}${dur?` (${dur} day${dur===1?'':'s'})`:''}</span>
       <span class="mdp-alvls"><span class="mdp-dim">Allowed discounts:</span> ${PS.allowedDiscounts.map(d=>`<span class="mdp-gp a">${d}%</span>`).join('')}</span>
       <span><span class="mdp-dim">Objective:</span> ${mdpEsc(OB[SU.objective].label)}</span>${val.errors.length?'<span class="mdp-b-cf">⚠ check the setup</span>':''}</span>
       <button class="mdp-btn mdp-btn-ghost mdp-btn-sm" onclick="mdpToggleSection('A')">${aOpen?'Done':'✎ Edit setup'}</button><button class="mdp-chv2" onclick="mdpToggleSection('A')">${aOpen?'⌃':'⌄'}</button></div>${aOpen?`<div class="mdp-secb">${setupBody}</div>`:''}</div>`;
-  const bSec=`<div class="mdp-card mdp-sec" id="mdp-sec-B"><div class="mdp-ahead"><span class="mdp-aico b">▥</span><b class="mdp-atitle">B. Category Strategy</b><span class="mdp-asum"><span class="mdp-dim">Review the recommended discount groups for each category, adjust if needed, then approve.</span></span>
+  const bSec=`<div class="mdp-card mdp-sec" id="mdp-sec-E"><div class="mdp-ahead"><span class="mdp-aico b">▥</span><b class="mdp-atitle">E. Category Strategy</b><span class="mdp-asum"><span class="mdp-dim">Review the recommended discount groups for each category, adjust if needed, then approve.</span></span>
       <span class="mdp-effchip" title="RRP value of every unit in the sale less the discount on each, as a % of that RRP value — updates live">Effective discount <b>${T.effectiveDiscount}%</b></span>
-      <button class="mdp-btn mdp-btn-ghost mdp-btn-sm" onclick="mdpRefreshSuggestions()" title="Re-suggest categories that aren't approved from the latest stock and sales. Approved categories and your decisions are kept.">↻ Regenerate recommendations</button><button class="mdp-chv2" onclick="mdpToggleSection('B')">${bOpen?'⌃':'⌄'}</button></div>${bOpen?`<div class="mdp-secb">${bBody}</div>`:''}</div>`;
-  const stepNames=[['A','Setup'],['B','Category Strategy'],['C','Product Review'],['D','GWP'],['E','Special Buys'],['F','Financials'],['G','Export']];
-  const stepper=`<div class="mdp-steps">${stepNames.map(([k,n],i)=>`<button class="mdp-step${mdpStep===i+1?' on':''}" onclick="mdpGoStep(${i+1})"><i>${i+1}</i>${n}</button>${i<6?'<span class="mdp-step-sep">›</span>':''}`).join('')}</div>`;
-  const help=mdpHelpOpen?`<div class="mdp-card mdp-help"><b>How this works</b><ol><li><b>Setup</b> — name, dates, allowed discounts and the rules (Edit setup).</li><li><b>Category Strategy</b> — each category gets two suggested discount groups. Change either with the dropdowns, open a category to adjust individual products, then <b>Approve</b>. It moves to Approved; <b>Reopen</b> brings it back and keeps every decision.</li><li><b>GWP</b> and <b>Special Buys</b> come from Apparel Magic. GWP is never discounted; special buys keep their own discount.</li><li><b>Financials</b> forecasts the sale; <b>Export</b> (coming) builds the Hextom files from the approved categories.</li></ol></div>`:'';
+      <button class="mdp-btn mdp-btn-ghost mdp-btn-sm" onclick="mdpRefreshSuggestions()" title="Re-suggest categories that aren't approved from the latest stock and sales. Approved categories and your decisions are kept.">↻ Regenerate recommendations</button><button class="mdp-chv2" onclick="mdpToggleSection('E')">${bOpen?'⌃':'⌄'}</button></div>${bOpen?`<div class="mdp-secb">${bBody}</div>`:''}</div>`;
+  const stepNames=[['A','Setup'],['B','GWP'],['C','Special Buys'],['D','Not on Sale'],['E','Category Strategy'],['F','Mid-Sale Offers'],['G','Product Review'],['H','Financials'],['I','Export']];
+  const stepper=`<div class="mdp-steps">${stepNames.map(([k,n],i)=>`<button class="mdp-step${mdpStep===i+1?' on':''}" onclick="mdpGoStep(${i+1})"><i>${i+1}</i>${n}</button>${i<8?'<span class="mdp-step-sep">›</span>':''}`).join('')}</div>`;
+  const help=mdpHelpOpen?`<div class="mdp-card mdp-help"><b>How this works</b><ol><li><b>Setup</b> — name, dates, allowed discounts and the rules.</li><li><b>GWP</b>, <b>Special buys</b>, <b>Not on sale</b> — decide what's outside the standard markdowns, from Apparel Magic. Tick <i>Reviewed</i> on each (even if there's nothing to add).</li><li><b>Category strategy</b> — each category gets Groups A / B / C. Adjust, then <b>Approve</b>; <b>Reopen</b> keeps every decision. If GWP / special buys / Not on sale change after approval, the category is flagged for review.</li><li><b>Mid-sale offers</b> — extra further reductions and bundles with their own dates, products and collection.</li><li><b>Financials</b> forecast the sale; <b>Export</b> builds collection-membership CSVs for the initial sale and for each offer.</li></ol></div>`:'';
   const later=(k,t,tag,txt)=>mdpSec(k,t,tag,`<div class="mdp-sub" style="margin:0 0 4px;line-height:1.55;">${txt}</div>`);
-  root.innerHTML=titleBar+help+stepper+strip+settings+bSec
-    +mdpSec('C','C. Product review','',cBody)
-    +mdpSec('D','D. Gift with purchase (from Apparel Magic)',pl.gwp.items.length+' pick'+(pl.gwp.items.length===1?'':'s'),mdpGwpSection(plan,oo,hasEnd,pl))
-    +mdpSec('E','E. Special buys (from Apparel Magic)',pl.special.length+' pick'+(pl.special.length===1?'':'s'),mdpSpecialSection(plan,oo,hasEnd,pl))
-    +mdpSec('F','F. Financial &amp; stock forecast',fcast?'last year × growth':'needs sale dates',mdpForecastSection({plan,pl,fcSet,win:lyWin,ly:lyData,SU,oo,PS,scen:fcSet?mdpScenarioPlans(pl,S,mdpIn,plan):null}))
-    +later('G','G. Shopify / Hextom export','planned · phase 7','Collection mapping per discount level, pre-export validation and checklist, the Hextom import CSV, the full plan CSV and an audit summary.');
+  const rv=k=>pl.reviewed[k]?' · ✓ Reviewed':'';
+  const res0=mdpResolveAll(pl);
+  root.innerHTML=titleBar+help+stepper+strip+settings
+    +mdpSec('B','B. GWP (gift with purchase)',mdpRevTag(pl,'gwp',res0.gwp.length,'product'),mdpGwpSection(plan,oo,hasEnd,pl))
+    +mdpSec('C','C. Sale specific buys',mdpRevTag(pl,'special',res0.special.length,'product'),mdpSpecialSection(plan,oo,hasEnd,pl))
+    +mdpSec('D','D. Not on sale',mdpRevTag(pl,'notOnSale',res0.nosStyles.size,'product'),mdpNosSection(plan,oo,hasEnd,pl))
+    +bSec
+    +mdpSec('F','F. Mid-sale offers',pl.offers.length+' offer'+(pl.offers.length===1?'':'s'),mdpOffersSection(plan,oo,hasEnd,pl,res0))
+    +mdpSec('G','G. Product review','',cBody)
+    +mdpSec('H','H. Financial &amp; stock forecast',fcast?'last year × growth':'needs sale dates',mdpForecastSection({plan,pl,fcSet,win:lyWin,ly:lyData,SU,oo,PS,scen:fcSet?mdpScenarioPlans(pl,S,mdpIn,plan):null}))
+    +mdpSec('I','I. Shopify / Hextom export',pl.exports.length?pl.exports.length+' export'+(pl.exports.length===1?'':'s')+' made':'',mdpCollapsed.has('I')?'':mdpExportSection(plan,oo,hasEnd,pl,res0))
+    +mdpExportModal();
   mdpScrollRestore(scrollSnap);
   if(mdpRenaming){const el=document.getElementById('mdp-rename');if(el){el.focus();el.select();}}
 }
@@ -13076,6 +13343,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.2.8 — Markdown Planner workflow upgrade, from Brendan's brief. NEW ORDER: A Sale setup → B GWP → C Sale specific buys → D NOT ON SALE (new) → E Category strategy → F MID-SALE OFFERS (new) → G Product review → H Financial forecast → I Shopify/Hextom export. GWP, special buys and Not on sale each have a Reviewed tick (valid with nothing selected) and a compact summary (product/colours, SOH, on order). NOT ON SALE: pick Apparel Magic collections, categories or single product/colours (each counted once), put individual products back in, see unique excluded products / SOH / on order; those products keep their current price, are left out of every group, total and export, saved manual decisions on them are kept (and apply again if put back), and a product that is both Not on sale and a discounted special buy is flagged as a conflict (kept at full price until resolved). Category approvals remember what was upstream; if GWP / Not on sale / special buys change afterwards the category is flagged 'upstream changed — review' (nothing deleted). MID-SALE OFFERS: unlimited independent offers (create, edit, duplicate, reorder, delete, saved automatically), each with its own dates (checked against the sale), products (collection / category / product-colour + exceptions; GWP / Not on sale left out unless you confirm), Shopify collection, notes and status (Draft / Ready / Exported). Two types: FURTHER REDUCTION (a new total discount off the ORIGINAL RRP — never stacked, never raising a lower price, over-cap flagged) and BUNDLE (N for $X, buy N % off, buy N get M free, buy X get Y, mix-and-match — stored as a rule, not a % markdown). Overlapping offers on a product are detected and incompatible pricing needs an explicit winner. EXPORT: editable per-sale collection mapping (Black Friday names to start), an initial-sale collection-membership CSV (approved categories only; GWP / Not on sale / excluded / unmatched / unmapped left out and reported) and one CSV per offer, a 6-point pre-export checklist modal, export history and a downloadable audit summary, plus a full-plan CSV. LIMITS (stated in the app): no Shopify product IDs or collection access exist in this app and no Hextom template was supplied, so files are keyed by SKU with an UNVERIFIED column layout; collection membership does not create a Shopify discount or bundle price; nothing changes live prices. Plans: setReviewed, resolveNotOnSale, offers CRUD/pricing/overlaps/validation, buildInitialExport/buildOfferExport/toCsv, mappings, export records; engine: notOnSale + 'NOS' conflict. Tuesday not touched.
 // v3.2.7 — Month del filter is now a MULTI-SELECT dropdown: tick one month or several (and 'No month'), with counts and a Clear button; the button shows 'Sep-26, Oct-26' or 'N months del'. It works with every other filter and updates the category and product tables as you tick, leaving the menu open. MarkdownPlans.buildReview takes f.month as an array (a single month still works). From Brendan.
 // v3.2.6 — Fix: the planner jumped around after changing a Proposed disc. (or any decision) in Suggested categories, from Brendan. Cause: a change re-renders the planner and only the page and section C's table kept their scroll position — the product table inside an expanded category (and the category tables) snapped back to the top. Now every scroll box is remembered and restored by name across any re-render (page, ancestors, each category's product table, the category tables, section C). Rows still re-sort if you're sorted by the column you just changed.
 // v3.2.5 — Suggested and Approved category tables: every column header is click-to-sort, like the product table (Category, Products, SOH, On order, 30d sales, Weeks cover, Suggested, Your groups, Split). Text A→Z first, numbers biggest first, click again to reverse, ▲/▼ on the active column, empty values always last; each table remembers its own sort (default SOH high to low). From Brendan.
