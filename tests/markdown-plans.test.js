@@ -281,7 +281,8 @@ assert.equal(P.lyWindow(fc.plans[fid].setup), null);
 fc = P.updatePlan(fc, fid, { setup: { start: '2026-11-27', end: '2026-11-30' } });
 assert.deepEqual(P.lyWindow(fc.plans[fid].setup), { start: '2025-11-28', end: '2025-12-01', days: 4 });                   // Black Friday lands on last year's Black Friday
 assert.equal(P.lyWindow({ start: '2026-11-30', end: '2026-11-27' }), null);
-assert.equal(fc.plans[fid].setup.growthPct, null);
+assert.equal(fc.plans[fid].setup.growthPct, null); assert.equal(fc.plans[fid].setup.liftPct, null);
+for (const [inp, out] of [[10, 10], ['7.26', 7.3], ['', null], [0, null], [-5, null], ['x', null], [99, 50]]) assert.equal(P.updatePlan(fc, fid, { setup: { liftPct: inp } }).plans[fid].setup.liftPct, out);
 for (const [inp, out] of [[90, 90], ['90', 90], ['12.34', 12.3], ['', null], ['x', null], [9999, 500], [-200, -90]]) assert.equal(P.updatePlan(fc, fid, { setup: { growthPct: inp } }).plans[fid].setup.growthPct, out);
 const sales = { S1: { '2025-11-27': { qty: 5 }, '2025-11-28': { qty: 10 }, '2025-12-01': { qty: 7 }, '2025-12-02': { qty: 99 } }, S2: { '2025-11-29': { qty: 20 } }, S3: { '2025-11-29': { qty: 1000 } } };   // S3 has no category
 const ly = P.lyUnitsByCategory(sales, { S1: 'Sweats', S2: 'SWEATS' }, P.lyWindow(fc.plans[fid].setup));
@@ -318,6 +319,47 @@ assert.deepEqual(P.buildForecast([], {}, 90).totals.demand, 0);
   assert.equal(ord({ sort: 'name', dir: 'desc' }), 'dcba'); assert.equal(ord({ sort: 'name' }), 'abcd');                    // text: asc by default
   assert.equal(ord({ sort: 'why', dir: 'asc' }), 'bcad');                                                                   // text a..z, blank last
   assert.equal(ord({ sort: 'bogus' }), ord({ sort: 'category' }));                                                           // unknown column falls back to category
+}
+// ── Phase 5: demand range, confidence, cross-check, scenario levels, commercial summary, snapshots ──
+{
+  assert.deepEqual(P.demandScenarios(90).map(s => s.growth), [45, 90, 112.5]);
+  assert.deepEqual(P.demandScenarios(null).map(s => s.growth), [-10, 0, 10]);
+  assert.deepEqual(P.demandScenarios(20).map(s => s.growth), [10, 20, 30]);                                   // spread is at least 10 points
+  assert.equal(P.demandScenarios(-80)[0].growth, -90);                                                        // never below -90%
+  assert.equal(P.addDays('2025-11-28', -28), '2025-10-31'); assert.equal(P.addDays('2025-12-31', 1), '2026-01-01');
+  // confidence
+  assert.equal(P.forecastConfidence({ total: 5000 }, { days: 4 }, 50).level, 'High');
+  assert.equal(P.forecastConfidence({ total: 5000 }, { days: 4 }, 90).level, 'High');
+  assert.equal(P.forecastConfidence({ total: 5000 }, { days: 4 }, 150).level, 'Medium'); assert.ok(P.forecastConfidence({ total: 5000 }, { days: 4 }, 150).notes.some(n => /more than double/.test(n)));
+  assert.equal(P.forecastConfidence({ total: 100 }, { days: 4 }, 0).level, 'Low'); assert.equal(P.forecastConfidence(null, null, 0).level, 'Low');
+  assert.equal(P.forecastConfidence({ total: 5000 }, { days: 1 }, 0).level, 'Medium');
+  // cross-check: LY window 4 days = 4000 units (1000/day) vs 28 days before = 2800 (100/day) -> uplift 10x; this year recent 28 days = 5600 (200/day) -> 200 x 10 x 4 days = 8000
+  const cc = P.crossCheck({ win: { days: 4 }, lyUnits: 4000, preUnits: 2800, preDays: 28, recentUnits: 5600, recentDays: 28, saleDays: 4, lyByCat: { X: 3000, Y: 1000 }, preByCat: { X: 1400, Y: 1400 }, recentByCat: { X: 2800, Y: 2800 } });
+  assert.equal(cc.uplift, 10); assert.equal(cc.projected, 8000); assert.equal(cc.recentDaily, 200); assert.equal(cc.preDaily, 100); assert.equal(cc.yoyTrend, 100);
+  assert.equal(cc.byCat.X, Math.round((2800 / 28) * ((3000 / 4) / (1400 / 28)) * 4)); assert.ok(cc.byCat.Y > 0 && cc.byCat.Y < cc.byCat.X);
+  assert.equal(P.crossCheck({ win: { days: 4 }, lyUnits: 4000, preUnits: 0, preDays: 28, recentUnits: 5600, recentDays: 28 }), null);   // no pre-sale baseline -> no cross-check
+  assert.equal(P.crossCheck(null), null);
+  // scenario levels: shift each category's current levels by allowed steps, clamped
+  const cats = [{ category: 'X', groupA: 20, groupB: 40 }, { category: 'Y', groupA: 30, groupB: null }, { category: 'Z', groupA: null, groupB: null }, { category: 'W', groupA: 50, groupB: 70 }];
+  assert.deepEqual(P.scenarioLevels(cats, [20, 30, 40, 50, 60, 70], 70, -1), { X: { A: 20, B: 30 }, Y: { A: 20 }, W: { A: 40, B: 60 } });   // lighter: clamped at the lowest level
+  assert.deepEqual(P.scenarioLevels(cats, [20, 30, 40, 50, 60, 70], 70, 1), { X: { A: 30, B: 50 }, Y: { A: 40 }, W: { A: 60, B: 70 } });     // deeper: clamped at the highest
+  assert.deepEqual(P.scenarioLevels(cats, [20, 30, 40, 50, 60, 70], 50, 1), { X: { A: 30, B: 50 }, Y: { A: 40 }, W: { A: 50, B: 50 } });      // never above the highest single discount
+  assert.deepEqual(P.scenarioLevels(cats, [], 70, 1), {});
+  // commercial summary
+  const ci = (id, soh, rrp, price, sohCost, pct, np) => ({ row: { p: { id, name: id, colour: '', rrp, price, sohCost }, m: { soh } }, final: { pct }, price: { newPrice: np } });
+  const cs = P.commercialSummary([ci('a', 100, 100, 100, 2000, 30, 70), ci('b', 50, 40, 40, 1500, 50, 20), ci('c', 10, 100, 100, 100, null, null), ci('d', 20, 100, 100, 800, 20, 80), ci('e', 10, 100, 100, 500, 40, 62)], 1234.4);
+  assert.equal(cs.units, 190); assert.equal(cs.cost, 4900); assert.equal(cs.retail, 100 * 100 + 50 * 40 + 10 * 100 + 20 * 100 + 10 * 100); assert.equal(cs.included, 4); assert.equal(cs.excluded, 1); assert.equal(cs.gwpCost, 1234);
+  assert.deepEqual(cs.belowCost.map(b => b.id), ['b']);                                                         // b: $20 inc GST = $18.18 ex vs $30 cost
+  assert.deepEqual(cs.lowMargin.map(b => b.id), ['e']);                                                          // e: $56.36 ex vs $50 cost = 11% margin (flagged, not blocked); a and d are comfortably above
+  // snapshots
+  let sn = P.createState(1, idGen); const sid = sn.activeId;
+  sn = P.addSnapshot(sn, sid, { label: 'Base', growthPct: 90, demand: 47000, sold: 40000, revenue: 1000000, gp: 500000, gpPct: 50, effDiscount: 31.4, avail: 90000, gwpCost: 5000 }, 100);
+  assert.equal(sn.plans[sid].snapshots.length, 1); assert.equal(sn.plans[sid].snapshots[0].revenue, 1000000); assert.equal(sn.plans[sid].snapshots[0].ts, 100);
+  sn = P.addSnapshot(sn, sid, { label: 'Later', growthPct: 60 }, 200); assert.equal(sn.plans[sid].snapshots[0].label, 'Later'); assert.equal(sn.plans[sid].snapshots[0].demand, null);   // newest first
+  for (let k = 0; k < 25; k++) sn = P.addSnapshot(sn, sid, { label: 'x' + k }, 300 + k); assert.equal(sn.plans[sid].snapshots.length, 20);
+  const ts0 = sn.plans[sid].snapshots[0].ts; assert.equal(P.removeSnapshot(sn, sid, ts0).plans[sid].snapshots.length, 19); assert.strictEqual(P.removeSnapshot(sn, sid, -1), sn);
+  const dd = P.duplicatePlan(sn, sid, 999, idGen); assert.deepEqual(dd.state.plans[dd.id].snapshots, []);   // snapshots describe one sale's past numbers: not copied
+  assert.deepEqual(P.migrate({ v: sn.v, activeId: sid, order: [sid], plans: { [sid]: { ...sn.plans[sid], snapshots: undefined } } }, null, 1, idGen).plans[sid].snapshots, []);
 }
 console.log('markdown plans tests: all passed');
 })();

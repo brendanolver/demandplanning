@@ -681,7 +681,7 @@ th{position:relative;}
 .mdp-chks{display:flex;flex-wrap:wrap;gap:6px 12px;}
 .mdp-chk{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:500;color:#374151;cursor:pointer;}
 .mdp-chk input{accent-color:#0a66e8;}
-.mdp-t2 .mdp-tot td{border-top:2px solid #dfe3ec;}.mdp-stats{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+.mdp-conf{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:2px 9px;margin-left:8px;}.mdp-conf-high{background:#dcfce7;color:#166534;}.mdp-conf-medium{background:#fef3c7;color:#92400e;}.mdp-conf-low{background:#fee2e2;color:#991b1b;}.mdp-t2 tr.mdp-base td{background:#f5f9ff;}.mdp-t2 .mdp-tot td{border-top:2px solid #dfe3ec;}.mdp-stats{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
 .mdp-stats div{background:#f7f8fb;border:1px solid #e8ebf2;border-radius:12px;padding:10px 16px;min-width:130px;}
 .mdp-stats .mdp-warnbox{background:#fffbeb;border-color:#fde68a;}
 .mdp-stats b{display:block;font-size:18px;color:#111827;}
@@ -2313,7 +2313,7 @@ th{position:relative;}
   </div>
 
 <script src="markdown-engine.js?v=2.10.8"></script>
-<script src="markdown-plans.js?v=2.10.11"></script>
+<script src="markdown-plans.js?v=2.11.0"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2347,7 +2347,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.10.11';
+const APP_VERSION='v2.11.0';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -5704,36 +5704,111 @@ function mdSetMode(m){
 }
 function mdpSet(key,val){const pl=mdpPlan();mdpCommit(MarkdownPlans.updatePlan(mdpState,pl.id,{settings:{[key]:val}}));}
 // Last year's units per category over this sale's dates shifted back 52 weeks (cached — it walks every SKU's daily sales).
+// Also the 28 days before that window last year (what "normal" looked like) and this year's last 28 days, for the uplift cross-check.
 let _mdpLyKey='',_mdpLy=null;
 function mdpLyData(SU){
   const win=MarkdownPlans.lyWindow(SU),sales=window._salesBySkuDay;
   if(!win||!sales)return{win,ly:null};
-  const key=win.start+'|'+win.end+'|'+Object.keys(sales).length+'|'+Object.keys(window._skuCategoryMap||{}).length;
-  if(key!==_mdpLyKey){_mdpLyKey=key;_mdpLy=MarkdownPlans.lyUnitsByCategory(sales,window._skuCategoryMap||{},win);}
+  const cat=window._skuCategoryMap||{},todayIso=new Date(Date.now()-86400000).toISOString().slice(0,10);
+  const key=win.start+'|'+win.end+'|'+Object.keys(sales).length+'|'+Object.keys(cat).length+'|'+todayIso;
+  if(key!==_mdpLyKey){
+    _mdpLyKey=key;
+    const preWin={start:MarkdownPlans.addDays(win.start,-28),end:MarkdownPlans.addDays(win.start,-1)},recWin={start:MarkdownPlans.addDays(todayIso,-27),end:todayIso};
+    _mdpLy={...MarkdownPlans.lyUnitsByCategory(sales,cat,win),pre:MarkdownPlans.lyUnitsByCategory(sales,cat,preWin),recent:MarkdownPlans.lyUnitsByCategory(sales,cat,recWin)};
+  }
   return{win,ly:_mdpLy};
 }
-function mdpForecastSection(plan,fc,win,ly,SU){
-  const MN=d=>{const x=new Date(d+'T00:00:00');return x.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});};
+// GWP campaign cost for the plan (planned giveaways x landed cost), from section D.
+function mdpGwpTotals(pl,oo){
+  const res=mdpResolveAll(pl),live=mdpLiveMap();let cost=0,units=0,noCost=0;
+  res.gwp.forEach(r=>{const e=r.entry||{},lv=live[r.style]||{soh:0},inc=mdpIncoming(oo,r.style,pl);
+    const eco=MarkdownPlans.gwpEconomics({style:r.style,soh:lv.soh,incoming:inc,cost:e.cost||(window.amStyleCostMap&&window.amStyleCostMap[r.style])||0},pl);
+    cost+=eco.totalCost||0;units+=eco.planned;if(eco.costMissing)noCost++;});
+  return{cost,units,noCost,styles:res.gwp.length};
+}
+// Discount-strategy scenarios: the same plan with every category's Group A/B moved one allowed level lighter / deeper.
+let _mdpScKey='',_mdpSc=null;
+function mdpScenarioPlans(pl,S,inputs,plan){
+  const key=[pl.id,pl.rev,inputs.length,amApiData?amApiData.length:0].join(':');
+  if(key===_mdpScKey&&_mdpSc)return _mdpSc;
+  const mk=shift=>shift===0?plan:MarkdownEngine.buildPlan(inputs,S,pl.overrides,MarkdownPlans.scenarioLevels(plan.categories,pl.settings.allowedDiscounts,pl.settings.maxDiscount,shift));
+  _mdpScKey=key;_mdpSc={'-1':mk(-1),'0':plan,'1':mk(1)};
+  return _mdpSc;
+}
+function mdpSaveSnapshot(){
+  const pl=mdpPlan(),f=window._mdpFcBase;if(!f)return;
+  mdpCommit(MarkdownPlans.addSnapshot(mdpState,pl.id,{label:'Base',growthPct:pl.setup.growthPct,...f}));
+}
+function mdpDeleteSnapshot(ts){mdpCommit(MarkdownPlans.removeSnapshot(mdpState,mdpPlan().id,ts));}
+function mdpForecastSection(ctx){
+  const{plan,pl,fcSet,win,ly,SU,oo,scen,PS}=ctx;
+  const MN=d=>new Date(d+'T00:00:00').toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});
   if(!win)return`<div class="mdp-sub" style="line-height:1.55;">Set the <b>sale start and end dates</b> in section A. The forecast is built from <b>last year's sales over the same dates</b> (52 weeks back, so Black Friday lines up with last year's Black Friday), grown by the % you set — not from the recent run-rate.</div>`;
   if(!ly||!ly.total)return`<div class="mdp-warn">ⓘ No sales found for last year's matching dates (${MN(win.start)} – ${MN(win.end)}). The forecast needs the 2-year sales history from Shopify; until it loads, the category table falls back to the recent run-rate.</div>`;
-  const T=fc.totals,g=fc.growthPct,money=v=>'$'+Math.round(v).toLocaleString();
-  const tgt=SU.targetRevenue?`<span class="mdp-dot"></span><span>Target revenue <b>${money(SU.targetRevenue)}</b> — forecast is <b class="${T.revenue>=SU.targetRevenue?'mdp-b-ap':''}">${Math.round(T.revenue/SU.targetRevenue*100)}%</b> of it</span>`:'';
-  const rows=fc.rows.filter(r=>r.ly||r.demand||r.avail).map(r=>`<tr><td class="l"><b>${mdpEsc(r.category)}</b></td><td>${r.ly.toLocaleString()}</td><td>${r.demand.toLocaleString()}</td><td>${r.avail.toLocaleString()}</td>
+  const money=v=>'$'+Math.round(v).toLocaleString(),pctTxt=v=>(v>=0?'+':'')+v+'%';
+  const gwp=mdpGwpTotals(pl,oo),base=fcSet.base,T=base.totals;
+  const conf=MarkdownPlans.forecastConfidence(ly,win,SU.growthPct);
+  const cs=MarkdownPlans.commercialSummary(plan.items.filter(i=>!i.row.p.isGWP),gwp.cost);
+  const gpAfter=T.gp-gwp.cost,gmAfter=T.revenue>0?Math.round(gpAfter/T.revenue*1000)/10:null;
+  window._mdpFcBase={demand:T.demand,sold:T.sold,revenue:T.revenue,gp:gpAfter,gpPct:gmAfter,effDiscount:plan.totals.effectiveDiscount,avail:T.avail,gwpCost:Math.round(gwp.cost)};
+  const costCleared=Math.round(base.rows.reduce((a,r)=>a+r.sold*r.unitCost,0));
+  const remaining=Math.max(0,T.avail-T.sold);
+  const tile=(v,l,cls,title)=>`<div class="${cls||''}"${title?` title="${mdpEsc(title)}"`:''}><b>${v}</b><span>${l}</span></div>`;
+  const confBadge=`<span class="mdp-conf mdp-conf-${conf.level.toLowerCase()}" title="${mdpEsc(conf.notes.join('; ')||'Plenty of history behind last year\'s window')}">${conf.level} confidence</span>`;
+
+  // 1. commercial dashboard (Base)
+  const dash=`<div class="mdp-stats">
+      ${tile(cs.units.toLocaleString(),'total SOH units')}${tile(money(cs.cost),'inventory at cost')}${tile(money(cs.retail),'inventory at RRP (retail value)')}
+      ${tile(cs.included.toLocaleString()+' / '+cs.excluded.toLocaleString(),'products in the sale / not in it')}${tile(plan.totals.effectiveDiscount+'%','effective discount (RRP-weighted)','',money(plan.totals.effOffValue)+' off '+money(plan.totals.effRrpValue)+' RRP')}
+      ${tile(T.demand.toLocaleString(),'forecast units (Base)')}${tile(T.sold.toLocaleString(),'projected units sold (capped at stock)')}${tile(remaining.toLocaleString(),'projected remaining SOH')}
+      ${tile(money(costCleared),'inventory cost cleared')}${tile(money(T.revenue),'projected revenue ex GST')}
+      ${tile(T.gpPct==null?'—':money(gpAfter),'projected gross profit'+(gwp.cost?' (after GWP)':''))}${tile(gmAfter==null?'—':gmAfter+'%','projected gross margin')}
+      ${tile(money(gwp.cost),'GWP campaign cost'+(gwp.styles?` (${gwp.units.toLocaleString()} giveaways)`:''),gwp.noCost?'mdp-warnbox':'',gwp.noCost?gwp.noCost+' GWP style(s) have no landed cost':'')}
+    </div>`;
+  const flags=[];
+  if(cs.belowCost.length)flags.push(`<div class="mdp-warn">ⓘ <b>${cs.belowCost.length}</b> product${cs.belowCost.length===1?' sells':'s sell'} below cost at the planned discount (price ex GST under landed cost): ${mdpEsc(cs.belowCost.slice(0,6).map(b=>b.name+(b.colour?' — '+b.colour:'')+' ('+b.pct+'%)').join('; '))}${cs.belowCost.length>6?' …':''}. Flagged for awareness — it doesn't block approval.</div>`);
+  if(cs.lowMargin.length)flags.push(`<div class="mdp-hint">${cs.lowMargin.length} more product${cs.lowMargin.length===1?'':'s'} would sit under a 15% margin.</div>`);
+  if(T.short)flags.push(`<div class="mdp-warn">ⓘ Base forecast demand is <b>${T.short.toLocaleString()}</b> units more than the stock available in ${base.rows.filter(r=>r.short).length} categor${base.rows.filter(r=>r.short).length===1?'y':'ies'} — revenue below is capped at stock.</div>`);
+
+  // 2. demand range
+  const dRows=['low','base','high'].map(k=>{const f=fcSet[k],sc=fcSet.meta[k],t=f.totals,gp=t.gp-gwp.cost;
+    return`<tr class="${k==='base'?'mdp-base':''}"><td class="l"><b>${sc.label}</b>${k==='base'?' <span class="mdp-dim">your target</span>':''}</td><td>${pctTxt(sc.growth)}</td><td>${t.demand.toLocaleString()}</td><td>${t.sold.toLocaleString()}</td><td>${t.short?`<span class="mdp-b-cf">${t.short.toLocaleString()} short</span>`:Math.max(0,t.left).toLocaleString()}</td><td>${money(t.revenue)}</td><td>${t.gpPct==null?'—':money(gp)}</td><td>${t.revenue>0&&t.gpPct!=null?Math.round(gp/t.revenue*1000)/10+'%':'—'}</td></tr>`;}).join('');
+  const range=`<div class="mdp-bt2" style="margin-top:16px;">Demand range ${confBadge}</div>
+    <div class="mdp-scroll"><table class="mdp-t mdp-t2"><thead><tr><th class="l">Scenario</th><th title="Growth on last year's units over the same dates">Growth vs LY</th><th>Forecast units</th><th>Units sold</th><th>Left / short</th><th>Revenue ex GST</th><th>Gross profit${gwp.cost?' (after GWP)':''}</th><th>Margin</th></tr></thead><tbody>${dRows}</tbody></table></div>
+    <div class="mdp-foot">Low and High are <b>assumptions</b>, not calibrated predictions: Low falls well short of your growth target, High beats it. ${conf.notes.length?'Confidence is reduced because '+mdpEsc(conf.notes.join('; '))+'. ':''}Units sold are capped at the stock available.${fcSet.low.totals.sold===fcSet.high.totals.sold?' <b>Stock is the limit in all three scenarios</b>, so units sold and revenue don\'t change across them — more demand only widens the shortfall.':''}</div>`;
+
+  // 3. discount-strategy scenarios
+  const lift=SU.liftPct||0,baseG=SU.growthPct==null?0:Number(SU.growthPct);
+  const strat=[[-1,'Conservative','one allowed level lighter'],[0,'Balanced','your current plan'],[1,'Aggressive','one allowed level deeper']].map(([sh,label,sub])=>{
+    const pln=scen[String(sh)],g=Math.round(((1+baseG/100)*(1+lift*sh/100)-1)*1000)/10,f=MarkdownPlans.buildForecast(pln.items.filter(i=>!i.row.p.isGWP),fcSet.lyByCat,g),t=f.totals,gp=t.gp-gwp.cost;
+    const as=pln.categories.map(c=>c.groupA).filter(v=>v!=null),bs=pln.categories.map(c=>c.groupB).filter(v=>v!=null),rg=a=>a.length?(Math.min(...a)===Math.max(...a)?Math.min(...a)+'%':Math.min(...a)+'–'+Math.max(...a)+'%'):'—';
+    const cc=Math.round(f.rows.reduce((a,r)=>a+r.sold*r.unitCost,0));
+    return`<tr class="${sh===0?'mdp-base':''}"><td class="l"><b>${label}</b> <span class="mdp-dim">${sub}</span></td><td>A ${rg(as)} · B ${rg(bs)}</td><td>${pln.totals.effectiveDiscount}%</td><td>${t.sold.toLocaleString()}</td><td>${money(t.revenue)}</td><td>${money(gp)}</td><td>${t.revenue>0?Math.round(gp/t.revenue*1000)/10+'%':'—'}</td><td>${money(cc)}</td><td>${money(pln.totals.effOffValue)}</td></tr>`;}).join('');
+  const strategy=`<div class="mdp-bt2" style="margin-top:16px;">Discount strategy</div>
+    <div class="mdp-scroll"><table class="mdp-t mdp-t2"><thead><tr><th class="l">Scenario</th><th title="Range of the category Group A / Group B levels">Group levels</th><th>Effective discount</th><th>Units sold</th><th>Revenue ex GST</th><th>Gross profit${gwp.cost?' (after GWP)':''}</th><th>Margin</th><th>Cost cleared</th><th title="RRP value given away in discount">Discount given</th></tr></thead><tbody>${strat}</tbody></table></div>
+    <div class="mdp-foot">${lift?`Assumes demand moves <b>${lift}%</b> per level of discount (Aggressive up, Conservative down) — your assumption, set in section A.`:'<b>Units are the same in every row</b> — a deeper discount is not assumed to sell more, because that needs calibrating against your past sales. So this shows what each strategy gives up or earns if demand doesn\'t change. You can test an assumption with “Demand lift per level” in section A.'} Levels stay within your allowed discounts and highest single discount, Group B stays deeper than Group A, and your product decisions are kept.</div>`;
+
+  // 4. cross-check
+  const cc=MarkdownPlans.crossCheck({win,lyUnits:ly.total,preUnits:ly.pre.total,preDays:28,recentUnits:ly.recent.total,recentDays:28,saleDays:win.days,lyByCat:ly.byCat,preByCat:ly.pre.byCat,recentByCat:ly.recent.byCat});
+  const check=cc?`<div class="mdp-bt2" style="margin-top:16px;">Sense-check your target</div>
+    <div class="mdp-revsum"><span>Last year this window ran at <b>${cc.uplift}×</b> its normal daily rate (${cc.preDaily.toLocaleString()}/day before → ${Math.round(ly.total/win.days).toLocaleString()}/day)</span><span class="mdp-dot"></span><span>You're selling <b>${cc.recentDaily.toLocaleString()}</b>/day now (last 28 days)</span><span class="mdp-dot"></span><span>Run-rate × last year's uplift ≈ <b>${cc.projected.toLocaleString()}</b> units</span></div>
+    <div class="mdp-foot">${T.demand>cc.projected?`Your Base forecast of ${T.demand.toLocaleString()} units is <b>${Math.round((T.demand/cc.projected-1)*100)}% above</b> what today's trading rate and last year's sale pattern imply — a stretch that needs extra demand (new customers, more ad spend, deeper offers) beyond current trading.`:`Your Base forecast of ${T.demand.toLocaleString()} units is within what today's trading rate and last year's sale pattern imply (${cc.projected.toLocaleString()}).`} A rough cross-check, not a prediction — it assumes this year's sale behaves like last year's relative to normal trading.</div>`:'';
+
+  // 5. category table (Base)
+  const rows=base.rows.filter(r=>r.ly||r.demand||r.avail).map(r=>`<tr><td class="l"><b>${mdpEsc(r.category)}</b></td><td>${r.ly.toLocaleString()}</td><td>${r.demand.toLocaleString()}</td><td>${r.avail.toLocaleString()}</td>
     <td>${r.short?`<span class="mdp-b-cf" title="Forecast demand is more than the stock available">${r.short.toLocaleString()} short</span>`:r.left.toLocaleString()}</td><td>${r.sold.toLocaleString()}</td><td>${r.avgPrice?'$'+r.avgPrice.toFixed(2):'—'}</td><td>${money(r.revenue)}</td><td>${r.unitCost?money(r.gp):'<span class="mdp-dim">no cost</span>'}</td></tr>`).join('');
   const unmapped=ly.total-T.ly;
-  return`<div class="mdp-sub" style="margin:0 0 10px;line-height:1.55;">Built from <b>last year's actual sales over the same dates</b> (${MN(win.start)} – ${MN(win.end)}, ${win.days} day${win.days===1?'':'s'}), grown by your target. Last year's sale-period sales already include last year's promotions, so no separate uplift is added. Set the growth in section A.</div>
-    <div class="mdp-stats">
-      <div><b>${T.ly.toLocaleString()}</b><span>units last year, same dates</span></div>
-      <div><b>${g>=0?'+':''}${g}%</b><span>growth target${SU.growthPct==null?' (not set — flat on last year)':''}</span></div>
-      <div><b>${T.demand.toLocaleString()}</b><span>forecast units</span></div>
-      <div><b>${T.avail.toLocaleString()}</b><span>units available (stock + arriving)</span></div>
-      <div class="${T.short?'mdp-warnbox':''}"><b>${T.short?T.short.toLocaleString():Math.max(0,T.left).toLocaleString()}</b><span>${T.short?'units short of forecast':'units left after the sale'}</span></div>
-      <div><b>${money(T.revenue)}</b><span>est. revenue ex GST</span></div>
-      <div><b>${T.gpPct==null?'—':money(T.gp)}</b><span>est. gross profit${T.gpPct==null?'':' ('+T.gpPct+'%)'}</span></div>
-    </div>${tgt?`<div class="mdp-revsum" style="margin-top:10px;">${tgt.replace('<span class="mdp-dot"></span>','')}</div>`:''}
-    <div class="mdp-scroll" style="margin-top:12px;"><table class="mdp-t mdp-t2"><thead><tr><th class="l">Category</th><th title="Units sold in these dates last year">Last year</th><th title="Last year × (1 + growth)">Forecast units</th><th title="Stock on hand + arriving per the sale's incoming setting">Available</th><th>Left / (short)</th><th title="Forecast units, capped at what is available">Units sold</th><th title="Average sale price across the category's stock, after the planned discounts (incl. GST)">Avg price</th><th title="Units sold × average sale price ÷ 1.1 (GST)">Revenue ex GST</th><th title="Revenue less landed cost of the units sold">Gross profit</th></tr></thead>
+  const catTbl=`<div class="mdp-bt2" style="margin-top:16px;">By category (Base)</div><div class="mdp-scroll"><table class="mdp-t mdp-t2"><thead><tr><th class="l">Category</th><th title="Units sold in these dates last year">Last year</th><th title="Last year × (1 + growth)">Forecast units</th><th title="Stock on hand + arriving per the sale's incoming setting">Available</th><th>Left / (short)</th><th title="Forecast units, capped at what is available">Units sold</th><th title="Average sale price across the category's stock, after the planned discounts (incl. GST)">Avg price</th><th title="Units sold × average sale price ÷ 1.1 (GST)">Revenue ex GST</th><th title="Revenue less landed cost of the units sold">Gross profit</th></tr></thead>
       <tbody>${rows}<tr class="mdp-tot"><td class="l"><b>Total</b></td><td><b>${T.ly.toLocaleString()}</b></td><td><b>${T.demand.toLocaleString()}</b></td><td><b>${T.avail.toLocaleString()}</b></td><td><b>${T.short?T.short.toLocaleString()+' short':T.left.toLocaleString()}</b></td><td><b>${T.sold.toLocaleString()}</b></td><td></td><td><b>${money(T.revenue)}</b></td><td><b>${T.gpPct==null?'—':money(T.gp)}</b></td></tr></tbody></table></div>
-    <div class="mdp-foot">Revenue = units sold × the average post-discount price of the category's stock, ÷ 1.1 for GST. Gross profit uses landed cost from Apparel Magic. Demand is capped at stock when estimating revenue, and any shortfall is shown separately.${unmapped>0?` Last year's total across all categories was ${ly.total.toLocaleString()} units; ${unmapped.toLocaleString()} are in categories with no stock now (not forecast above).`:''} Low / high scenarios aren't built yet.</div>`;
+    <div class="mdp-foot">Revenue = units sold × the average post-discount price of the category's stock, ÷ 1.1 for GST. Gross profit uses landed cost from Apparel Magic. Gift-with-purchase styles are left out of sales (their cost is shown as GWP cost). Incoming stock counts as available per your Incoming stock setting (it doesn't yet model each delivery's exact date).${unmapped>0?` Last year's total across all categories was ${ly.total.toLocaleString()} units; ${unmapped.toLocaleString()} are in categories with no stock now (or GWP) and aren't forecast above.`:''}</div>`;
+
+  // 6. snapshots
+  const snaps=(pl.snapshots||[]);
+  const snapHtml=`<div class="mdp-bt2" style="margin-top:16px;">Forecast snapshots <button class="mdp-btn mdp-btn-sm" onclick="mdpSaveSnapshot()">＋ Save current Base forecast</button></div>
+    ${snaps.length?`<div class="mdp-scroll"><table class="mdp-t mdp-t2"><thead><tr><th class="l">Saved</th><th>Growth</th><th>Forecast units</th><th>Units sold</th><th>Revenue ex GST</th><th>Gross profit</th><th>Effective discount</th><th>GWP cost</th><th></th></tr></thead><tbody>${snaps.map(x=>`<tr><td class="l">${new Date(x.ts).toLocaleString('en-AU',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})}</td><td>${x.growthPct==null?'—':pctTxt(x.growthPct)}</td><td>${x.demand==null?'—':x.demand.toLocaleString()}</td><td>${x.sold==null?'—':x.sold.toLocaleString()}</td><td>${x.revenue==null?'—':money(x.revenue)}</td><td>${x.gp==null?'—':money(x.gp)}${x.gpPct==null?'':' <span class="mdp-dim">'+x.gpPct+'%</span>'}</td><td>${x.effDiscount==null?'—':x.effDiscount+'%'}</td><td>${x.gwpCost==null?'—':money(x.gwpCost)}</td><td><button class="mdp-act" onclick="mdpDeleteSnapshot(${x.ts})">Remove</button></td></tr>`).join('')}</tbody></table></div>`:'<div class="mdp-foot">Save a snapshot to keep today\'s numbers and compare them as stock, sales and decisions change.</div>'}`;
+
+  return`<div class="mdp-sub" style="margin:0 0 10px;line-height:1.55;">Built from <b>last year's actual sales over the same dates</b> (${MN(win.start)} – ${MN(win.end)}, ${win.days} day${win.days===1?'':'s'}), grown by your target. Last year's sale-period sales already include last year's promotions, so no separate uplift is added. These are <b>planning estimates, not predictions</b>. Set the growth in section A.</div>`
+    +dash+flags.join('')+range+strategy+check+catTbl+snapHtml;
 }
 function mdpGroupLevel(cat,tier,val){const pl=mdpPlan();mdpCommit(MarkdownPlans.setGroupLevel(mdpState,pl.id,cat,tier,val));}
 function mdpResetGroupLevels(){const pl=mdpPlan();mdpCommit(MarkdownPlans.clearGroupLevels(mdpState,pl.id));}
@@ -6415,7 +6490,8 @@ function renderMarkdownPlanner(){
   mdpLoadState();
   const pl=mdpPlan();
   const S=MarkdownPlans.engineSettings(pl);
-  const plan=MarkdownEngine.buildPlan(mdpInputs(pl),S,pl.overrides,pl.groupLevels);   // the sale's saved decisions are applied last
+  const mdpIn=mdpInputs(pl);
+  const plan=MarkdownEngine.buildPlan(mdpIn,S,pl.overrides,pl.groupLevels);   // the sale's saved decisions are applied last
   const clr=MarkdownEngine.clearanceLevel(plan.settings);
   const T=plan.totals;
   const f=window.shopifyFeed&&window.shopifyFeed.meta&&window.shopifyFeed.meta.lastSuccessTs;
@@ -6432,8 +6508,13 @@ function renderMarkdownPlanner(){
   const clearedUnits=incl.reduce((a,i)=>a+i.forecast.units,0);
   const clearedPct=T.soh>0?Math.round(clearedUnits/T.soh*1000)/10:0;
   const{win:lyWin,ly:lyData}=mdpLyData(SU);
-  const fcast=lyWin&&lyData&&lyData.total?MarkdownPlans.buildForecast(plan.items,lyData.byCat,SU.growthPct):null;
+  const lyBy=lyData?Object.fromEntries(Object.entries(lyData.byCat).filter(([k])=>k!=='GWP')):{};   // gift-with-purchase isn't sold: its cost is in the GWP line
+  const fcItems=plan.items.filter(i=>!i.row.p.isGWP);
+  const fcast=lyWin&&lyData&&lyData.total?MarkdownPlans.buildForecast(fcItems,lyBy,SU.growthPct):null;
   const fcByCat=fcast?Object.fromEntries(fcast.rows.map(r=>[String(r.category).toUpperCase(),r])):null;
+  let fcSet=null;
+  if(fcast){const meta=Object.fromEntries(MarkdownPlans.demandScenarios(SU.growthPct).map(x=>[x.key,x]));
+    fcSet={base:fcast,low:MarkdownPlans.buildForecast(fcItems,lyBy,meta.low.growth),high:MarkdownPlans.buildForecast(fcItems,lyBy,meta.high.growth),meta,lyByCat:lyBy};}
   const targetLine=SU.targetClearPct&&fcast?`<div class="mdp-hint">Forecast (last year's sales × growth) sells ${fcast.totals.sold.toLocaleString()} units — ${fcast.totals.avail>0?Math.round(fcast.totals.sold/fcast.totals.avail*1000)/10:0}% of the stock available — against your ${SU.targetClearPct}% target.</div>`:SU.targetClearPct?`<div class="mdp-hint">Baseline forecast clears ${clearedUnits.toLocaleString()} units (${clearedPct}% of SOH) against your ${SU.targetClearPct}% target — promotional uplift isn't modelled yet.</div>`:'';
 
   // SALES strip
@@ -6473,6 +6554,7 @@ function renderMarkdownPlanner(){
         ${mdpSeg('s',[['recommended','Recommended styles'],['all','All styles']],PS.scope,"mdpSet.bind(null,'scope')")}
         <div class="mdp-hint">${PS.scope==='all'?'Every in-stock style joins — healthy sellers at the lightest level. New arrivals, gift-with-purchase and core protection still apply.':'Only the styles the planner recommends; healthy sellers stay at full price.'}</div>
         <div class="mdp-row" style="margin-top:12px;"><label title="How much more you plan to sell than the same dates last year — e.g. 90 means nearly double. The forecast is last year's sales over these dates × this.">Growth vs last year (%)<input class="mdp-in" type="number" min="-90" max="500" step="1" placeholder="e.g. 90" value="${SU.growthPct==null?'':SU.growthPct}" onchange="mdpNumSetup('growthPct',this)"></label>
+          <label title="Optional scenario assumption: extra demand per allowed level of deeper discount, used only to compare the Conservative / Aggressive discount strategies in section F. Blank = a deeper discount sells no more.">Demand lift per deeper level (%)<input class="mdp-in" type="number" min="0" max="50" step="1" placeholder="none" value="${SU.liftPct==null?'':SU.liftPct}" onchange="mdpNumSetup('liftPct',this)"></label>
           <label>Target revenue (optional, ex GST)<input class="mdp-in" type="number" min="0" step="1000" placeholder="$" value="${SU.targetRevenue==null?'':SU.targetRevenue}" onchange="mdpNumSetup('targetRevenue',this)"></label>
           <label>Target stock cleared (optional, % of SOH)<input class="mdp-in" type="number" min="1" max="100" step="1" placeholder="%" value="${SU.targetClearPct==null?'':SU.targetClearPct}" onchange="mdpNumSetup('targetClearPct',this)"></label></div>${targetLine}
       </div>
@@ -6567,7 +6649,7 @@ function renderMarkdownPlanner(){
     +mdpSec('C','C. Product / colour review','decisions are saved on this sale',mdpReviewSection(plan,oo,hasEnd,pl))
     +mdpSec('D','D. Gift with purchase (from Apparel Magic)',pl.gwp.items.length+' pick'+(pl.gwp.items.length===1?'':'s'),mdpGwpSection(plan,oo,hasEnd,pl))
     +mdpSec('E','E. Special buys (from Apparel Magic)',pl.special.length+' pick'+(pl.special.length===1?'':'s'),mdpSpecialSection(plan,oo,hasEnd,pl))
-    +mdpSec('F','F. Financial &amp; stock forecast',fcast?'last year × growth':'needs sale dates',mdpForecastSection(plan,fcast||MarkdownPlans.buildForecast([],{},SU.growthPct),lyWin,lyData&&lyData.ly,SU))
+    +mdpSec('F','F. Financial &amp; stock forecast',fcast?'last year × growth':'needs sale dates',mdpForecastSection({plan,pl,fcSet,win:lyWin,ly:lyData,SU,oo,PS,scen:fcSet?mdpScenarioPlans(pl,S,mdpIn,plan):null}))
     +later('G','G. Shopify / Hextom export','planned · phase 7','Collection mapping per discount level, pre-export validation and checklist, the Hextom import CSV, the full plan CSV and an audit summary.');
   if(scEl)scEl.scrollTop=scTop;
   const rvNew=document.querySelector('#mdp-review-body .mdp-revscroll');if(rvNew){rvNew.scrollTop=rvTop;rvNew.scrollLeft=rvLeft;}
@@ -12769,6 +12851,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.11.0 — Markdown Planner Phase 5, section F built out (from the brief). (1) COMMERCIAL DASHBOARD: total SOH units, inventory at cost and at RRP, products in/out of the sale, effective discount, forecast and projected units sold (capped at stock), projected remaining SOH, inventory cost cleared, projected revenue ex GST, gross profit and margin (after GWP cost), and the GWP campaign cost. Below-cost products are flagged (not blocked), with a count of products under 15% margin. (2) DEMAND RANGE: Low / Base / High around your growth target (Low = target less max(10pts, half of it); High = target plus max(10pts, a quarter of it)) with a data-confidence badge (High/Medium/Low from how much last-year history there is, the sale length and how big the target is) — stated as assumptions, not predictions. (3) DISCOUNT STRATEGY: Conservative / Balanced / Aggressive = every category's Group A/B one allowed level lighter / current / one level deeper (within allowed levels and the highest single discount, B deeper than A, your decisions kept), compared on effective discount, units, revenue, GP, margin, cost cleared and discount given — units are held the same unless you set the new 'Demand lift per deeper level (%)' assumption in section A (a deeper discount isn't assumed to sell more). (4) SENSE-CHECK: last year's sale-window daily rate vs the 28 days before it (the observed uplift), this year's last-28-day rate, and run-rate × uplift as a cross-check on your target. (5) FORECAST SNAPSHOTS: save the Base numbers, kept per sale (not copied by Duplicate). GWP styles are excluded from sales. Helpers in markdown-plans.js (demandScenarios, forecastConfidence, crossCheck, scenarioLevels, commercialSummary, addSnapshot) + tests.
 // v2.10.11 — Markdown Planner, from Brendan: every column header in the product review table is now click-to-sort (Product, Parent style, Month del, SOH, On order, 7/30/60/90d, Cover, Sell-thru, Sizes out, RRP, Current price, Suggested, Discount, New price, Sale collection, Why). Click once for A→Z / biggest-first (Month del: newest first), click again to reverse; the active column shows ▲/▼ and turns blue; empty values always sort last; a parent-style row sorts on its colours combined (stock and sales summed, prices averaged). The Sort dropdown still works and resets the direction. MarkdownPlans.buildReview takes f.dir.
 // v2.10.10 — Markdown Planner, from Brendan: the Collection column is gone from the product review table (the Collection dropdown filter stays), and there's a new MONTH DEL dropdown filter beside it (newest month first, with a count for each, CORE and 'No month' included).
 // v2.10.9 — Markdown Planner, from Brendan: the forecast was the recent run-rate (last ~30 days) with no uplift, which looked far too low against a November that was 25,094 units last year and a +90% goal. Now the FORECAST IS LAST YEAR'S ACTUAL SALES over the sale's same dates (shifted 52 weeks so Black Friday lines up) × a new 'Growth vs last year (%)' you set in section A. The category table's Fcst units / Fcst left use it (a shortfall shows red), and section F is now real: last-year units, forecast units, stock available (stock + arriving), left or short, estimated revenue ex GST (units sold × the category's average post-discount price ÷ 1.1) and gross profit (landed cost), with a target-revenue check. Until the sale dates are set it falls back to the old run-rate. Low/high scenarios still to come. New pure helpers MarkdownPlans.lyWindow / lyUnitsByCategory / buildForecast + tests.

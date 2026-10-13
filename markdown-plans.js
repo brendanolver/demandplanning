@@ -36,6 +36,7 @@
     objective: 'balance',
     targetRevenue: null,      // optional, $ ex GST
     targetClearPct: null,     // optional, % of SOH units to clear
+    liftPct: null,            // scenario assumption: extra demand (%) per allowed level of deeper discount in the Aggressive scenario (and less in Conservative); blank = none
     growthPct: null,          // planned growth vs the same dates last year (%), e.g. 90 = nearly double; blank = flat on last year
     incoming: 'sale',
   };
@@ -68,6 +69,7 @@
       setup: clone(DEFAULT_SETUP),
       settings: Engine.mergeSettings({}),
       overrides: {},   // phase 4: per-product manual decisions
+      snapshots: [],   // saved forecast snapshots (kept per sale; a Duplicate does not copy them)
       groupLevels: {}, // your own Group A / B level per category: { CATEGORY: { A: pct, B: pct } } (absent = the planner's suggestion)
       mappings: {},    // phase 7: discount -> Shopify collection (id + title), independent per sale
       exports: [],     // phase 7: export + confirmation history
@@ -91,6 +93,7 @@
         p.setup = { ...DEFAULT_SETUP, ...(p.setup || {}) };
         p.settings = Engine.mergeSettings(p.settings);
         p.groupLevels = p.groupLevels && typeof p.groupLevels === 'object' ? p.groupLevels : {};
+        p.snapshots = Array.isArray(p.snapshots) ? p.snapshots : [];
         p.overrides = p.overrides || {}; p.mappings = p.mappings || {}; p.exports = p.exports || [];
         p.special = Array.isArray(p.special) ? p.special : [];
         p.gwp = { items: [], threshold: null, qty: {}, ...(p.gwp || {}) };
@@ -179,6 +182,7 @@
     if (!state.plans[id]) return state;
     const s = clone(state), p = s.plans[id];
     if (patch.setup) p.setup = { ...p.setup, ...patch.setup };
+    { const l = p.setup.liftPct, n = Number(l); p.setup.liftPct = l == null || l === '' || !isFinite(n) || n <= 0 ? null : Math.min(50, Math.round(n * 10) / 10); }
     { const g = p.setup.growthPct, n = Number(g); p.setup.growthPct = g == null || g === '' || !isFinite(n) ? null : Math.max(-90, Math.min(500, Math.round(n * 10) / 10)); }
     if (patch.settings) p.settings = { ...p.settings, ...patch.settings, weights: { ...p.settings.weights, ...((patch.settings || {}).weights || {}) } };
     p.settings.allowedDiscounts = cleanLevels(p.settings.allowedDiscounts);
@@ -264,6 +268,86 @@
     const t = { ly: sum('ly'), demand: sum('demand'), avail: sum('avail'), sold: sum('sold'), revenue: sum('revenue'), gp: sum('gp'), short: sum('short') };
     t.left = t.avail - t.demand; t.gpPct = t.revenue > 0 ? Math.round(t.gp / t.revenue * 1000) / 10 : null;
     return { rows, totals: t, growthPct: g };
+  }
+
+  // ── Forecast, phase 5: ranges, discount scenarios, cross-check, commercial summary, snapshots ──
+  const addDays = (iso, n) => new Date(Date.parse(iso + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10);
+
+  // Demand range around your growth target. These are stated ASSUMPTIONS, not calibrated predictions: low = well short of the
+  // target, high = beating it. The spread is at least 10 points either side, wider when the target is large.
+  function demandScenarios(growthPct) {
+    const g = growthPct == null || !isFinite(Number(growthPct)) ? 0 : Number(growthPct);
+    return [
+      { key: 'low', label: 'Low', growth: Math.max(-90, Math.round((g - Math.max(10, Math.abs(g) * 0.5)) * 10) / 10) },
+      { key: 'base', label: 'Base', growth: g },
+      { key: 'high', label: 'High', growth: Math.round((g + Math.max(10, Math.abs(g) * 0.25)) * 10) / 10 },
+    ];
+  }
+
+  // How reliable the history behind the forecast is (the number and spread of last year's sales in the window).
+  function forecastConfidence(ly, win, growthPct) {
+    const total = ly ? ly.total : 0, days = win ? win.days : 0, g = Number(growthPct) || 0;
+    let level = total >= 2000 && days >= 3 ? 'High' : total >= 300 ? 'Medium' : 'Low';
+    const notes = [];
+    if (!total) notes.push('no sales found for last year\'s dates');
+    else if (total < 300) notes.push('little history in last year\'s window (' + total.toLocaleString() + ' units)');
+    if (days && days < 3) notes.push('a very short sale — daily noise dominates');
+    if (g >= 100) { notes.push('the growth target is more than double last year'); if (level === 'High') level = 'Medium'; }
+    return { level, notes };
+  }
+
+  // Cross-check of the growth target: this year's recent daily rate x the uplift last year's sale window showed over the weeks before it.
+  // (baseline demand x observed promotional uplift — the brief's formula, with the seasonal effect already inside last year's uplift.)
+  function crossCheck(a) {
+    // a: { win:{days}, lyUnits (window), preUnits (28 days before the window last year), preDays, recentUnits (last N days this year), recentDays, saleDays, lyByCat?, preByCat?, recentByCat? }
+    if (!(a && a.win && a.preUnits > 0 && a.recentUnits > 0 && a.lyUnits > 0 && a.preDays > 0 && a.recentDays > 0)) return null;
+    const winDaily = a.lyUnits / a.win.days, preDaily = a.preUnits / a.preDays, uplift = winDaily / preDaily;
+    const recentDaily = a.recentUnits / a.recentDays, projected = Math.round(recentDaily * uplift * (a.saleDays || a.win.days));
+    const yoyTrend = Math.round((recentDaily / preDaily - 1) * 1000) / 10;   // this year's recent daily rate vs last year's pre-sale daily rate (a rough trading trend)
+    const out = { uplift: Math.round(uplift * 100) / 100, recentDaily: Math.round(recentDaily), preDaily: Math.round(preDaily), projected, yoyTrend, byCat: {} };
+    for (const k of Object.keys(a.lyByCat || {})) {
+      const pre = (a.preByCat || {})[k], rec = (a.recentByCat || {})[k];
+      if (pre > 0 && rec > 0) out.byCat[k] = Math.round((rec / a.recentDays) * ((a.lyByCat[k] / a.win.days) / (pre / a.preDays)) * (a.saleDays || a.win.days));
+    }
+    return out;
+  }
+
+  // Group levels for a discount-strategy scenario: every category's CURRENT Group A / B level moved `shift` allowed levels (-1 lighter,
+  // +1 deeper), staying within the allowed levels and the highest single discount; the engine keeps Group B deeper than Group A.
+  function scenarioLevels(categories, allowed, maxDiscount, shift) {
+    const lv = (allowed || []).filter(d => d <= maxDiscount).sort((a, b) => a - b), out = {};
+    if (!lv.length) return out;
+    const mv = v => { if (v == null) return null; let i = lv.reduce((b, d, k) => (Math.abs(d - v) < Math.abs(lv[b] - v) ? k : b), 0); i = Math.max(0, Math.min(lv.length - 1, i + shift)); return lv[i]; };
+    for (const c of categories || []) { const e = {}; if (c.groupA != null) e.A = mv(c.groupA); if (c.groupB != null) e.B = mv(c.groupB); if (e.A != null || e.B != null) out[c.category] = e; }
+    return out;
+  }
+
+  // The commercial dashboard figures that don't depend on a demand forecast.
+  function commercialSummary(items, gwpCost) {
+    let units = 0, cost = 0, retail = 0, inc = 0, exc = 0; const belowCost = [], lowMargin = [];
+    for (const it of items || []) {
+      const p = it.row.p, u = Math.max(0, it.row.m.soh || 0), rrp = p.rrp > 0 ? p.rrp : (p.price || 0), sc = Number(p.sohCost) || 0;
+      units += u; cost += sc; retail += u * rrp;
+      if (it.final.pct == null) { exc++; continue; }
+      inc++;
+      const unitCost = u > 0 && sc > 0 ? sc / u : 0, np = it.price && it.price.newPrice != null ? it.price.newPrice : 0;
+      if (unitCost > 0 && np > 0) { const net = np / GST; if (net < unitCost) belowCost.push({ id: p.id, name: p.name, colour: p.colour, pct: it.final.pct, net: Math.round(net * 100) / 100, unitCost: Math.round(unitCost * 100) / 100 }); else if ((net - unitCost) / net < 0.15) lowMargin.push({ id: p.id, name: p.name, colour: p.colour, pct: it.final.pct }); }
+    }
+    return { units, cost: Math.round(cost), retail: Math.round(retail), included: inc, excluded: exc, belowCost, lowMargin, gwpCost: Math.round(gwpCost || 0) };
+  }
+
+  // Forecast snapshots (kept per sale, newest first, max 20). A snapshot is a small record of the headline numbers, not a recomputable plan.
+  function addSnapshot(state, planId, snap, now) {
+    if (!state.plans[planId] || !snap) return state;
+    const s = clone(state), p = s.plans[planId]; p.snapshots = Array.isArray(p.snapshots) ? p.snapshots : [];
+    p.snapshots.unshift({ ts: now || Date.now(), label: String(snap.label || '').slice(0, 60), growthPct: snap.growthPct == null ? null : Number(snap.growthPct), ...Object.fromEntries(['demand', 'sold', 'revenue', 'gp', 'gpPct', 'effDiscount', 'avail', 'gwpCost'].map(k => [k, snap[k] == null ? null : Number(snap[k])])) });
+    if (p.snapshots.length > 20) p.snapshots.length = 20;
+    p.updatedTs = now || Date.now(); p.rev += 1;
+    return s;
+  }
+  function removeSnapshot(state, planId, ts) {
+    const plan = state.plans[planId]; if (!plan || !(plan.snapshots || []).some(x => x.ts === ts)) return state;
+    const s = clone(state); s.plans[planId].snapshots = s.plans[planId].snapshots.filter(x => x.ts !== ts); s.plans[planId].rev += 1; return s;
   }
 
   // ── Category group levels ──────────────────────────────────────────────────
@@ -577,6 +661,6 @@
     parseDay, durationDays, newPlan, createState, migrate, uniqueName, addPlan, duplicatePlan,
     renamePlan, setActive, archivePlan, restorePlan, cleanLevels, updatePlan, engineSettings, validatePlan,
     EXCLUDE_REASONS, VIEWS, sanitizeOverride, setOverrides, clearOverrides, overrideStats, buildReview,
-    SPECIAL_KINDS, GWP_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setGwpQty, setGwpThreshold, lyWindow, lyUnitsByCategory, buildForecast, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
+    SPECIAL_KINDS, GWP_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setGwpQty, setGwpThreshold, lyWindow, lyUnitsByCategory, buildForecast, addDays, demandScenarios, forecastConfidence, crossCheck, scenarioLevels, commercialSummary, addSnapshot, removeSnapshot, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
   };
 });
