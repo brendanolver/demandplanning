@@ -35,8 +35,11 @@ function daysBetween(fromDay, toDay) { // inclusive list
   return out;
 }
 
-function newAggregate() { return { map: {}, dropped: {}, droppedUnits: 0, keptUnits: 0 }; }
-function addLine(agg, rawSku, qty, day) {
+function newAggregate() { return { map: {}, price: {}, dropped: {}, droppedUnits: 0, keptUnits: 0 }; }
+// gross/net are per-UNIT dollar prices: gross = the shelf price at checkout (a Hextom
+// sale changes this), net = after every discount incl. order-level codes. Stored
+// as cents x units in agg.price[sku][day] = [grossCents, netCents].
+function addLine(agg, rawSku, qty, day, grossUnit, netUnit) {
   const sku = String(rawSku || '').trim().toUpperCase();
   const n = Number(qty) || 0;
   if (!day || n <= 0) return;
@@ -49,6 +52,17 @@ function addLine(agg, rawSku, qty, day) {
   if (!agg.map[sku]) agg.map[sku] = {};
   agg.map[sku][day] = (agg.map[sku][day] || 0) + n;
   agg.keptUnits += n;
+  const g = Number(grossUnit), nt = Number(netUnit);
+  if (isFinite(g) && isFinite(nt) && grossUnit != null && netUnit != null) {
+    if (!agg.price[sku]) agg.price[sku] = {};
+    const cur = agg.price[sku][day] || [0, 0];
+    agg.price[sku][day] = [cur[0] + Math.round(g * 100) * n, cur[1] + Math.round(nt * 100) * n];
+  }
+}
+const moneyOf = set => (set && set.shopMoney ? set.shopMoney.amount : null);
+const PRICE_FIELDS = 'originalUnitPriceSet { shopMoney { amount } } discountedUnitPriceAfterAllDiscountsSet { shopMoney { amount } }';
+function addNode(agg, node, day) {
+  addLine(agg, node.sku, node.currentQuantity, day, moneyOf(node.originalUnitPriceSet), moneyOf(node.discountedUnitPriceAfterAllDiscountsSet));
 }
 function topDropped(agg, limit = 15) {
   return Object.entries(agg.dropped).sort((a, b) => b[1] - a[1]).slice(0, limit);
@@ -60,23 +74,29 @@ function topDropped(agg, limit = 15) {
 // learned the hard way (a single-pass parse returned zero from a 260k-row
 // export). Index every order's date first, then resolve line items.
 function parseBulkNdjson(text, dayOf) {
-  const rows = [];
-  for (const line of text.split('\n')) {
-    if (!line.trim()) continue;
-    try { rows.push(JSON.parse(line)); } catch (e) { /* skip malformed line */ }
-  }
+  // Two passes over the lines without keeping every parsed row: a 2-year export is
+  // twice the objects, and holding them all as parsed objects risks the Lambda's memory.
+  const lines = text.split('\n');
   const dayByOrder = {};
-  for (const r of rows) if (!r.__parentId && r.id && r.createdAt) dayByOrder[r.id] = dayOf(r.createdAt);
+  let rows = 0;
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    let r; try { r = JSON.parse(line); } catch (e) { continue; }
+    rows++;
+    if (!r.__parentId && r.id && r.createdAt) dayByOrder[r.id] = dayOf(r.createdAt);
+  }
   const agg = newAggregate();
-  let orders = 0, lines = 0, unresolved = 0;
-  for (const r of rows) {
+  let orders = 0, nodes = 0, unresolved = 0;
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    let r; try { r = JSON.parse(line); } catch (e) { continue; }
     if (!r.__parentId) { orders++; continue; }
-    lines++;
+    nodes++;
     const day = dayByOrder[r.__parentId];
     if (!day) { unresolved++; continue; }
-    addLine(agg, r.sku, r.currentQuantity, day);
+    addNode(agg, r, day);
   }
-  return { ...agg, stats: { rows: rows.length, orders, lines, unresolved } };
+  return { ...agg, stats: { rows, orders, lines: nodes, unresolved } };
 }
 
 function bulkQuerySince(sinceDay) {
@@ -84,7 +104,7 @@ function bulkQuerySince(sinceDay) {
     bulkOperationRunQuery(query: """
       { orders(query: "created_at:>='${sinceDay}'") { edges { node {
           id createdAt
-          lineItems { edges { node { sku currentQuantity } } }
+          lineItems { edges { node { sku currentQuantity ${PRICE_FIELDS} } } }
       } } } }
     """) { bulkOperation { id status } userErrors { field message } }
   }`;
@@ -116,9 +136,11 @@ async function runBulkFull({ gql, fetchText, dayOf, sinceDay, sleep = ms => new 
   const text = await fetchText(url);
   const parsed = parseBulkNdjson(text, dayOf);
   // Trim the padding days so a full rebuild covers exactly [sinceDay..today].
-  for (const sku of Object.keys(parsed.map)) {
-    for (const day of Object.keys(parsed.map[sku])) if (day < sinceDay) delete parsed.map[sku][day];
-    if (!Object.keys(parsed.map[sku]).length) delete parsed.map[sku];
+  for (const m of [parsed.map, parsed.price]) {
+    for (const sku of Object.keys(m)) {
+      for (const day of Object.keys(m[sku])) if (day < sinceDay) delete m[sku][day];
+      if (!Object.keys(m[sku]).length) delete m[sku];
+    }
   }
   return parsed;
 }
@@ -128,7 +150,7 @@ async function fetchRecent({ gql, dayOf, startDay, sleep = ms => new Promise(r =
   const q = `query($cursor:String,$q:String!){
     orders(first:50, after:$cursor, query:$q){
       pageInfo{hasNextPage endCursor}
-      edges{node{ createdAt lineItems(first:100){ pageInfo{hasNextPage} edges{node{ sku currentQuantity }} } }}
+      edges{node{ createdAt lineItems(first:100){ pageInfo{hasNextPage} edges{node{ sku currentQuantity ${PRICE_FIELDS} }} } }}
     }
   }`;
   const search = `created_at:>='${addDays(startDay, -2)}'`; // over-fetch; trimmed by store-day below
@@ -142,7 +164,7 @@ async function fetchRecent({ gql, dayOf, startDay, sleep = ms => new Promise(r =
       const day = dayOf(e.node.createdAt);
       if (e.node.lineItems.pageInfo && e.node.lineItems.pageInfo.hasNextPage) truncatedOrders++;
       if (day < startDay) continue;
-      for (const li of e.node.lineItems.edges) addLine(agg, li.node.sku, li.node.currentQuantity, day);
+      for (const li of e.node.lineItems.edges) addNode(agg, li.node, day);
     }
     cursor = conn.pageInfo.hasNextPage ? conn.pageInfo.endCursor : null;
     pages++;
@@ -174,24 +196,31 @@ function replaceDays(existing, fresh, days) {
 // Keeps a year of sales to ~1-2MB — a plain {sku:{day:units}} JSON is several
 // times larger and Lambda hard-caps a function's response at 6MB (returns an
 // opaque 502 past that, which already bit the bulk-download path once).
-function encodeCompact(map, tz) {
+// fromDay (optional) drops older days — the units feed keeps 2 years server-side but
+// the app is only ever served the trailing year, exactly as before.
+// `width` is how many numbers each day carries (1 for units, 2 for price [gross,net]).
+function encodeCompact(map, tz, fromDay, width = 1) {
+  const keep = d => !fromDay || d >= fromDay;
   const daySet = new Set();
-  for (const sku of Object.keys(map)) for (const d of Object.keys(map[sku])) daySet.add(d);
+  for (const sku of Object.keys(map)) for (const d of Object.keys(map[sku])) if (keep(d)) daySet.add(d);
   const days = [...daySet].sort();
   const idx = Object.fromEntries(days.map((d, i) => [d, i]));
   const skus = {};
   for (const sku of Object.keys(map)) {
     const arr = [];
-    for (const d of Object.keys(map[sku]).sort()) arr.push(idx[d], map[sku][d]);
-    skus[sku] = arr;
+    for (const d of Object.keys(map[sku]).sort()) {
+      if (!keep(d)) continue;
+      if (width === 1) arr.push(idx[d], map[sku][d]); else arr.push(idx[d], ...map[sku][d]);
+    }
+    if (arr.length) skus[sku] = arr;
   }
   return { v: 1, tz: tz || DEFAULT_TZ, days, skus };
 }
-function decodeCompact(c) {
+function decodeCompact(c, width = 1) {
   const map = {};
   for (const sku of Object.keys(c.skus)) {
     const arr = c.skus[sku]; map[sku] = {};
-    for (let i = 0; i < arr.length; i += 2) map[sku][c.days[arr[i]]] = arr[i + 1];
+    for (let i = 0; i < arr.length; i += 1 + width) map[sku][c.days[arr[i]]] = width === 1 ? arr[i + 1] : arr.slice(i + 1, i + 1 + width);
   }
   return map;
 }

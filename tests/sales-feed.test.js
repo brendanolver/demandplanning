@@ -26,6 +26,18 @@ assert.equal(p.droppedUnits,6); assert.equal(p.stats.unresolved,1);
 const ex={A:{'2026-09-10':68,'2026-09-15':10,'2026-09-16':5},B:{'2026-09-16':4}};
 assert.deepEqual(L.replaceDays(ex,{A:{'2026-09-15':121}},['2026-09-15','2026-09-16']),{A:{'2026-09-10':68,'2026-09-15':121}});
 const m={A:{'2026-09-10':68,'2026-09-15':121},B:{'2026-09-15':4}}; assert.deepEqual(L.decodeCompact(L.encodeCompact(m)),m);
+// price capture: gross = shelf price at checkout, net = after all discounts, cents x units
+const pn=L.parseBulkNdjson([
+ {id:'p1',createdAt:'2026-09-19T03:00:00Z'},
+ {__parentId:'p1',sku:'w26ix002assm',currentQuantity:2,originalUnitPriceSet:{shopMoney:{amount:'99.95'}},discountedUnitPriceAfterAllDiscountsSet:{shopMoney:{amount:'79.96'}}},
+ {__parentId:'p1',sku:'W26IX002ASSM',currentQuantity:1,originalUnitPriceSet:{shopMoney:{amount:'99.95'}},discountedUnitPriceAfterAllDiscountsSet:{shopMoney:{amount:'99.95'}}},
+ {__parentId:'p1',sku:'W26NOPRICE',currentQuantity:1},
+].map(o=>JSON.stringify(o)).join('\n'),dayOf);
+assert.deepEqual(pn.price,{W26IX002ASSM:{'2026-09-19':[2*9995+9995,2*7996+9995]}}); // [29985, 25987] cents
+assert.equal(pn.map.W26NOPRICE['2026-09-19'],1); assert.ok(!pn.price.W26NOPRICE); // units kept even without a price
+const pm={A:{'2026-01-01':[1000,800],'2026-06-01':[500,500]}};
+assert.deepEqual(L.decodeCompact(L.encodeCompact(pm,'Australia/Melbourne',null,2),2),pm);
+assert.deepEqual(L.decodeCompact(L.encodeCompact(pm,'Australia/Melbourne','2026-03-01',2),2),{A:{'2026-06-01':[500,500]}}); // fromDay trims
 console.log('lib unit tests: all passed');
 })();
 (() => {
@@ -61,12 +73,16 @@ const run = (store, extra = {}) => SS.runSync({ store, gql, fetchText, sleep, ..
     { __parentId: 'o1', sku: 'W26IX002ASSM', currentQuantity: 68 }, { id: 'o1', createdAt: '2026-09-15T02:00:00Z' },
     { __parentId: 'o2', sku: 'W26IX002ASSM', currentQuantity: 5 },  { id: 'o2', createdAt: '2026-09-19T01:00:00Z' },
     { __parentId: 'o2', sku: 'ORDPRO', currentQuantity: 5 },
+    { id: 'o0', createdAt: '2025-05-01T02:00:00Z' }, { __parentId: 'o0', sku: 'W26IX002ASSM', currentQuantity: 7, originalUnitPriceSet: { shopMoney: { amount: '100.00' } }, discountedUnitPriceAfterAllDiscountsSet: { shopMoney: { amount: '50.00' } } },
   ];
   let r = await run(store, { now: T0 });
-  assert.equal(r.mode, 'full'); assert.ok(!r.error, r.error); assert.equal(r.units, 73);
+  assert.equal(r.mode, 'full'); assert.ok(!r.error, r.error); assert.equal(r.units, 80); // 2 years stored (68+5 recent, 7 from May 2025)
+  assert.equal(store.m.meta.coverageStart, '2025-09-21'); assert.equal(store.m.meta.storedStart, '2024-09-21');
   assert.equal(store.m.meta.running, null); assert.equal(store.m.meta.stats.droppedUnits, 5);
   let p = await SS.getPayload({ store, now: T0 + 1000 });
-  assert.equal(p.body.ready, true); assert.deepEqual(S.decodeCompact(p.body.data), { W26IX002ASSM: { '2026-09-15': 68, '2026-09-19': 5 } });
+  assert.equal(p.body.ready, true); assert.deepEqual(S.decodeCompact(p.body.data), { W26IX002ASSM: { '2026-09-15': 68, '2026-09-19': 5 } }); // units feed: trailing year only, as before
+  const pp = await SS.getPricePayload({ store, now: T0 + 1000 });
+  assert.equal(pp.body.ready, true); assert.deepEqual(S.decodeCompact(pp.body.data, 2), { W26IX002ASSM: { '2025-05-01': [70000, 35000] } }); // price history: all stored days
   // 2. immediately again -> fresh, nothing runs
   r = await run(store, { now: T0 + 60 * 1000 }); assert.deepEqual(r, { ran: false, reason: 'fresh' });
   // 3. 10 min later -> incremental; stale partial 19th (5) must be REPLACED by 27, new 20th added, 15th (outside window? 20-4=16) untouched
@@ -76,7 +92,8 @@ const run = (store, extra = {}) => SS.runSync({ store, gql, fetchText, sleep, ..
   ];
   r = await run(store, { now: T0 + 10 * 60 * 1000 });
   assert.equal(r.mode, 'incremental'); assert.ok(!r.error, r.error);
-  assert.deepEqual(store.m.daily, { W26IX002ASSM: { '2026-09-15': 68, '2026-09-19': 27, '2026-09-20': 16 } });
+  assert.deepEqual(store.m.daily, { W26IX002ASSM: { '2025-05-01': 7, '2026-09-15': 68, '2026-09-19': 27, '2026-09-20': 16 } });
+  assert.deepEqual(store.m.price, { W26IX002ASSM: { '2025-05-01': [70000, 35000] } }); // old price history survives an incremental; no price fields in these fakes
   // 4. lock: fresh lock blocks, stale lock (>20 min) is ignored
   store.m.meta.running = { mode: 'full', startedTs: T0 + 20 * 60 * 1000 };
   r = await run(store, { now: T0 + 25 * 60 * 1000 }); assert.deepEqual(r, { ran: false, reason: 'already running' });
@@ -93,6 +110,7 @@ const run = (store, extra = {}) => SS.runSync({ store, gql, fetchText, sleep, ..
   world.replaceOp = false; world.failBulk = true; world.bulkPolls = 0;
   r = await run(store, { now: T0 + 27 * 3600 * 1000 }); assert.match(r.error, /FAILED/);
   assert.equal(JSON.stringify(store.m.daily), before); assert.equal(store.m.meta.running, null);
+  r = await run(store, { now: T0 + 27 * 3600 * 1000 + 5 * 60 * 1000 }); assert.deepEqual(r, { ran: false, reason: 'recent error' }); // no retry storm after a failure
   // 6b. a feed built under older rules (version mismatch) is rebuilt in full even though it's otherwise fresh
   world.failBulk = false; world.bulkPolls = 0;
   world.bulkLines = [
@@ -101,7 +119,7 @@ const run = (store, extra = {}) => SS.runSync({ store, gql, fetchText, sleep, ..
   ];
   store.m.meta.feedVersion = 1; store.m.meta.lastSuccessTs = T0 + 27.5 * 3600 * 1000; store.m.meta.lastFullTs = T0 + 27.5 * 3600 * 1000;
   r = await run(store, { now: T0 + 27.6 * 3600 * 1000 });
-  assert.equal(r.mode, 'full'); assert.ok(!r.error, r.error); assert.equal(store.m.meta.feedVersion, 2);
+  assert.equal(r.mode, 'full'); assert.ok(!r.error, r.error); assert.equal(store.m.meta.feedVersion, 3);
   // 7. explicit full request honoured only after 30 min since last full; meta-only + not-ready payloads
   const empty = memStore(); p = await SS.getPayload({ store: empty, metaOnly: false }); assert.equal(p.body.ready, false);
   p = await SS.getPayload({ store, metaOnly: true }); assert.equal(p.body.ready, true); assert.ok(!('data' in p.body));

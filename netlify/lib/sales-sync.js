@@ -13,11 +13,13 @@ const MIN_INTERVAL_MS = 4 * 60 * 1000;          // don't re-run incrementals mor
 const FULL_MAX_AGE_MS = 24 * 60 * 60 * 1000;    // full rebuild daily — picks up refunds on older orders
 const FULL_FORCE_MIN_AGE_MS = 30 * 60 * 1000;   // an explicit "full" request is honoured at most this often
 const RUNNING_STALE_MS = 20 * 60 * 1000;        // a lock older than this is a dead run, not a live one
-const FULL_LOOKBACK_DAYS = 365;
+const FULL_LOOKBACK_DAYS = 730;                  // stored history — 2 years, so last year's promos stay comparable
+const SERVE_DAYS = 365;                         // the units feed the app merges is still served as the trailing year only
+const ERROR_BACKOFF_MS = 10 * 60 * 1000;        // after a failed run, don't re-attempt (a full rebuild is minutes of Shopify work) for this long
 // Bump whenever what gets stored changes (filters, bucketing, shape): a stored
 // feed built under older rules is rebuilt in full on the next run instead of
 // waiting up to a day for the scheduled rebuild.
-const FEED_VERSION = 2;
+const FEED_VERSION = 3;
 const INCREMENTAL_DAYS = 5;                     // today + 4 trailing — a day is only final once it stops taking orders
 const MIN_KEEP_RATIO = 0.5;                     // a full rebuild below half the stored total is treated as broken, not adopted
 
@@ -53,6 +55,7 @@ async function runSync({ store, gql, fetchText, requested, now = Date.now(), sle
   const save = async patch => { meta = { ...meta, ...patch }; await store.setJSON('meta', meta); };
 
   if (meta.running && now - meta.running.startedTs < RUNNING_STALE_MS) return { ran: false, reason: 'already running' };
+  if (meta.lastErrorTs && now - meta.lastErrorTs < ERROR_BACKOFF_MS) return { ran: false, reason: 'recent error' };
 
   const fullDue = !meta.lastFullTs
     || meta.feedVersion !== FEED_VERSION
@@ -67,24 +70,28 @@ async function runSync({ store, gql, fetchText, requested, now = Date.now(), sle
     const tz = ((await gql('{ shop { ianaTimezone } }')).shop || {}).ianaTimezone || S.DEFAULT_TZ;
     const dayOf = S.makeDayOf(tz);
     const today = dayOf(new Date(now));
-    let map, stats, dropped, droppedUnits, patch = {};
+    let map, priceMap, stats, dropped, droppedUnits, patch = {};
     if (mode === 'full') {
       const sinceDay = S.addDays(today, -(FULL_LOOKBACK_DAYS - 1));
       const res = await S.runBulkFull({ gql, fetchText, dayOf, sinceDay, sleep, log });
-      map = res.map; stats = res.stats; dropped = S.topDropped(res); droppedUnits = res.droppedUnits;
+      map = res.map; priceMap = res.price; stats = res.stats; dropped = S.topDropped(res); droppedUnits = res.droppedUnits;
       const oldMap = (await store.get('daily', { type: 'json' })) || {};
       const oldTotal = totalUnits(oldMap), newTotal = totalUnits(map);
       if (!Object.keys(map).length) throw new Error('full rebuild returned no sales at all — keeping existing data');
       if (oldTotal > 0 && newTotal < oldTotal * MIN_KEEP_RATIO) throw new Error(`full rebuild total ${newTotal} is under ${MIN_KEEP_RATIO * 100}% of stored ${oldTotal} — keeping existing data`);
-      patch = { lastFullTs: now, coverageStart: sinceDay, feedVersion: FEED_VERSION };
+      patch = { lastFullTs: now, coverageStart: S.addDays(today, -(SERVE_DAYS - 1)), storedStart: sinceDay, feedVersion: FEED_VERSION };
     } else {
       const startDay = S.addDays(today, -(INCREMENTAL_DAYS - 1));
       const res = await S.fetchRecent({ gql, dayOf, startDay, sleep, log });
       const existing = (await store.get('daily', { type: 'json' })) || {};
-      map = S.replaceDays(existing, res.map, S.daysBetween(startDay, today));
+      const days = S.daysBetween(startDay, today);
+      map = S.replaceDays(existing, res.map, days);
+      const existingPrice = (await store.get('price', { type: 'json' })) || {};
+      priceMap = S.replaceDays(existingPrice, res.price, days);
       stats = res.stats; dropped = S.topDropped(res); droppedUnits = res.droppedUnits;
     }
     await store.setJSON('daily', map);
+    await store.setJSON('price', priceMap);
     await save({
       ...patch, tz, lastDay: today, lastSuccessTs: now, lastMode: mode, running: null,
       lastError: null, lastErrorTs: null,
@@ -101,7 +108,7 @@ const MAX_RESPONSE_BYTES = 5.5 * 1024 * 1024; // Lambda hard-caps a function's r
 async function getPayload({ store, metaOnly, now = Date.now() }) {
   const meta = (await store.get('meta', { type: 'json' })) || {};
   const publicMeta = {
-    tz: meta.tz, coverageStart: meta.coverageStart, lastDay: meta.lastDay,
+    tz: meta.tz, coverageStart: meta.coverageStart, storedStart: meta.storedStart, lastDay: meta.lastDay,
     lastSuccessTs: meta.lastSuccessTs, lastFullTs: meta.lastFullTs, lastMode: meta.lastMode,
     lastError: meta.lastError, lastErrorTs: meta.lastErrorTs, stats: meta.stats,
     syncing: !!(meta.running && now - meta.running.startedTs < RUNNING_STALE_MS),
@@ -110,10 +117,23 @@ async function getPayload({ store, metaOnly, now = Date.now() }) {
   if (metaOnly) return { status: 200, body: { ready: !!meta.lastFullTs, meta: publicMeta } };
   const daily = await store.get('daily', { type: 'json' });
   if (!daily || !meta.lastFullTs) return { status: 200, body: { ready: false, meta: publicMeta } };
-  const body = { ready: true, meta: publicMeta, data: S.encodeCompact(daily, meta.tz) };
+  const body = { ready: true, meta: publicMeta, data: S.encodeCompact(daily, meta.tz, meta.coverageStart) };
   const size = Buffer.byteLength(JSON.stringify(body));
   if (size > MAX_RESPONSE_BYTES) return { status: 500, body: { error: `sales payload is ${size} bytes — over the response limit, needs splitting`, meta: publicMeta } };
   return { status: 200, body };
 }
 
-module.exports = { makeClient, runSync, getPayload, totalUnits, MIN_INTERVAL_MS, FULL_MAX_AGE_MS, FULL_FORCE_MIN_AGE_MS };
+// Selling-price history ({SKU:[dayIdx,grossCents,netCents,...]}), all stored days. Own
+// endpoint so ordinary app loads never download it — only the markdown planner does.
+async function getPricePayload({ store, now = Date.now() }) {
+  const meta = (await store.get('meta', { type: 'json' })) || {};
+  const publicMeta = { tz: meta.tz, storedStart: meta.storedStart, lastDay: meta.lastDay, lastSuccessTs: meta.lastSuccessTs, ageSec: meta.lastSuccessTs ? Math.round((now - meta.lastSuccessTs) / 1000) : null };
+  const price = await store.get('price', { type: 'json' });
+  if (!price || !meta.lastFullTs || meta.feedVersion !== FEED_VERSION) return { status: 200, body: { ready: false, meta: publicMeta } };
+  const body = { ready: true, meta: publicMeta, data: S.encodeCompact(price, meta.tz, null, 2) };
+  const size = Buffer.byteLength(JSON.stringify(body));
+  if (size > MAX_RESPONSE_BYTES) return { status: 500, body: { error: `price payload is ${size} bytes — over the response limit, needs splitting`, meta: publicMeta } };
+  return { status: 200, body };
+}
+
+module.exports = { makeClient, runSync, getPayload, getPricePayload, totalUnits, MIN_INTERVAL_MS, FULL_MAX_AGE_MS, FULL_FORCE_MIN_AGE_MS };
