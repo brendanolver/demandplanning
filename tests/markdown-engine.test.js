@@ -164,9 +164,36 @@ assert.ok(base.totals.avgDiscount > 0); assert.equal(base.cap, null);
 const wavg = pl => { let n = 0, d = 0; for (const it of pl.items) if (it.final.pct != null) { n += it.final.pct * it.row.m.soh; d += it.row.m.soh; } return d ? Math.round(n / d * 10) / 10 : 0; };
 assert.equal(base.totals.avgDiscount, wavg(base));                              // unit-weighted average over the products in the sale
 assert.equal(base.totals.saleUnits, base.items.filter(i => i.final.pct != null).reduce((a, i) => a + i.row.m.soh, 0));
-// a cap at or above the uncapped average changes nothing
-const loose = E.buildPlan(range, capSet(base.totals.avgDiscount + 5));
-assert.deepEqual(loose.items.map(i => [i.final.action, i.final.pct]), base.items.map(i => [i.final.action, i.final.pct])); assert.equal(loose.cap.met, true); assert.equal(loose.cap.steps, 0);
+// the average is a TARGET: a target above where the plan lands raises group levels toward it, never past it
+const baseAvg = base.totals.avgDiscount;
+const tgt = E.buildPlan(range, capSet(baseAvg + 6));
+assert.ok(tgt.cap.raised > 0); assert.ok(tgt.totals.avgDiscount > baseAvg); assert.ok(wavg(tgt) <= baseAvg + 6 + 1e-9);                 // closer to the target, never over it
+assert.ok(Math.abs((baseAvg + 6) - wavg(tgt)) < Math.abs((baseAvg + 6) - baseAvg));
+assert.ok(tgt.items.every(i => i.final.pct == null || E.levels(tgt.settings).includes(i.final.pct)));                                    // only allowed levels, within the highest single discount
+for (const c of ['X', 'Y', 'Z']) for (const tier of ['A', 'B']) assert.ok(new Set(tgt.items.filter(i => i.row.p.category === c && i.final.action === tier).map(i => i.final.pct)).size <= 1);   // one offer per category group
+for (const c of ['X', 'Y', 'Z']) { const a = tgt.categories.find(k => k.category === c); if (a.groupA != null && a.groupB != null) assert.ok(a.groupA <= a.groupB); }   // Group A never deeper than B
+assert.ok(tgt.items.some(i => i.levelRaised) && tgt.items.some(i => /raised to approach/.test(i.final.reason)));
+assert.deepEqual(E.buildPlan(range, capSet(baseAvg + 6)).items.map(i => i.final.pct), tgt.items.map(i => i.final.pct));                   // deterministic
+// monotone: a higher target never lands lower
+let lastAvg = -1; for (const d of [2, 4, 6, 9, 14]) { const a = wavg(E.buildPlan(range, capSet(baseAvg + d))); assert.ok(a >= lastAvg - 1e-9); lastAvg = a; }
+// it gets as close as the levels allow: no single further step fits under the target
+const stepProbe = E.buildPlan(range, capSet(baseAvg + 6)); const groupsAt = stepProbe.categories.map(c => [c.groupA, c.groupB]);
+assert.ok(wavg(stepProbe) > baseAvg + 6 - 6);                                                                                              // it actually moved a long way toward the target
+// a target above anything reachable stops at the highest single discount (and says how far short it is)
+const unreachable = E.buildPlan(range, { maxDiscount: 40, avgDiscountCap: 90 });
+assert.ok(unreachable.items.every(i => i.final.pct == null || i.final.pct <= 40)); assert.ok(unreachable.cap.avg <= 40); assert.equal(unreachable.cap.met, true); assert.ok(unreachable.cap.gap > 40);
+assert.ok(unreachable.categories.every(c => (c.groupA == null || c.groupA >= 30) && (c.groupB == null || c.groupB === 40 || c.groupB >= 30)));
+// no target = exactly the uncapped plan (the raise only runs when a target is set)
+assert.deepEqual(E.buildPlan(range, capSet(null)).items.map(i => i.final.pct), base.items.map(i => i.final.pct));
+// raising never touches Clearance, special buys or your decisions
+const fixed = [mk('FX_CL', { soh: 30, sold: { d7: 0, d30: 1, d60: 2, d90: 3 }, ageWeeks: 90 }), mk('FX_SP', { soh: 200, specialPct: 30 }), mk('FX_OV', { soh: 200, sold: { d7: 1, d30: 4, d60: 9, d90: 14 }, ageWeeks: 60 })];
+const fxPlan = E.buildPlan(range.concat(fixed), { maxDiscount: 70, avgDiscountCap: 45 }, { FX_OV: { pct: 20, kind: 'discount' } });
+assert.equal(fxPlan.items.find(i => i.row.p.id === 'FX_CL').final.pct, 50); assert.equal(fxPlan.items.find(i => i.row.p.id === 'FX_SP').final.pct, 30); assert.equal(fxPlan.items.find(i => i.row.p.id === 'FX_OV').final.pct, 20);
+assert.ok(fxPlan.totals.avgDiscount <= 45 + 1e-9);
+// a plan above the target is lowered under it; if lowering overshoots (levels are coarse) it is raised back as close as possible
+const aboveT = Math.floor(baseAvg) - 4, above = E.buildPlan(range, capSet(aboveT));
+assert.ok(above.cap.met); assert.ok(above.totals.avgDiscount <= aboveT + 1e-9); assert.ok(above.totals.avgDiscount <= baseAvg);
+const aboveLowerOnly = (() => { const c = above.cap; return c.steps > 0; })(); assert.ok(aboveLowerOnly);
 // a binding cap is met, and tightening it only ever lowers discounts
 let prev = base;
 for (const c of [Math.floor(base.totals.avgDiscount) - 1, 25, 20]) {
@@ -181,7 +208,7 @@ const capped = E.buildPlan(range, capSet(20));
 for (const c of ['X', 'Y', 'Z']) for (const tier of ['A', 'B']) {
   const ps = new Set(capped.items.filter(i => i.row.p.category === c && i.final.action === tier).map(i => i.final.pct)); assert.ok(ps.size <= 1, c + ' ' + tier + ' has several %');
 }
-assert.ok(capped.items.some(i => i.capped)); assert.ok(capped.items.some(i => /average cap|average discount/.test(i.final.reason)));
+assert.ok(capped.items.some(i => i.capped)); assert.ok(capped.items.some(i => /average (cap|target|discount)/.test(i.final.reason)));
 // the average cap never touches Clearance, and manual overrides are left exactly as set
 const clr = [mk('CL1', { soh: 30, sold: { d7: 0, d30: 1, d60: 2, d90: 3 }, ageWeeks: 90 }), mk('CL2', { currentDiscountPct: 30, price: 70, soh: 400, sold: { d7: 0, d30: 1, d60: 2, d90: 3 }, ageWeeks: 90 })];
 const withClr = E.buildPlan(range.concat(clr), { ...capSet(20) }, { X3: { pct: 40 } });

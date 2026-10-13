@@ -818,6 +818,15 @@ th{position:relative;}
 .mdp-rvt td.mdp-dim.l,.mdp-rvt td.l.mdp-dim{max-width:105px;}
 .mdp-rvt td.mdp-nm{min-width:180px;max-width:220px;}
 .mdp-rvt td,.mdp-rvt th{padding-left:6px;padding-right:6px;}
+
+/* Suggested / Approved work areas */
+.mdp-secrow td{padding:0!important;border-top:2px solid #fff;}
+.mdp-sechead{display:flex;align-items:center;gap:10px;padding:9px 12px;font-size:13px;position:sticky;left:0;width:max-content;max-width:calc(100vw - 120px);}
+.mdp-secrow.mdp-sug td{background:#e8f0fe!important;color:#0a4bb3;}
+.mdp-secrow.mdp-app td{background:#dcfce7!important;color:#12843c;}
+.mdp-secrow.mdp-gw td{background:#f0f2f6!important;color:#4b5563;}
+.mdp-seccount{background:#fff;border-radius:99px;padding:1px 9px;font-weight:700;font-size:11.5px;}
+.mdp-secrow .mdp-dim{color:inherit;opacity:.75;}
 .mdp-warn{background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:10px;padding:8px 12px;font-size:12.5px;}
 </style>
 </head>
@@ -2303,8 +2312,8 @@ th{position:relative;}
     </div>
   </div>
 
-<script src="markdown-engine.js?v=2.10.4"></script>
-<script src="markdown-plans.js?v=2.10.4"></script>
+<script src="markdown-engine.js?v=2.10.5"></script>
+<script src="markdown-plans.js?v=2.10.5"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2338,7 +2347,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.10.4';
+const APP_VERSION='v2.10.5';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -5863,7 +5872,7 @@ function mdpOoStylesTable(oo,cat,hasEnd,plan){
     const ks=Object.keys(s.due).map(Number).sort((a,b)=>a-b);
     const next=ks.length?mdpDueLabel(ks[0])+(ks.length>1?` <span class="mdp-dim">+${ks.length-1} more</span>`:''):'—';
     const its=plan?plan.items.filter(i=>i.row.p.style===s.style):[];
-    const sug=its.length?its.map(i=>i.final.pct!=null?`<b>${i.final.pct}%</b> <span class="mdp-pill ${i.final.action==='S'?'n':i.final.action==='C'?'c':'a'}">${{A:'Group A',B:'Group B',C:'Clearance',S:'Special buy',Manual:'Manual'}[i.final.action]||''}</span>`:`<span class="mdp-pill x" title="${mdpEsc(i.final.reason)}">Not in sale</span>`).join(' '):(!s.live?'<span class="mdp-pill n" title="No Shopify product yet, so there is no sales history to score. Add it as a special buy (section D) to give it a discount.">No Shopify product yet</span>':'<span class="mdp-dim">—</span>');
+    const sug=its.length?its.map(i=>i.final.pct!=null?`<b>${i.final.pct}%</b> <span class="mdp-pill ${i.final.action==='S'?'n':i.final.action==='C'?'c':'a'}">${{A:'Group A',B:'Group B',C:'Clearance',S:'Special buy',Manual:'Manual'}[i.final.action]||''}</span>`:`<span class="mdp-pill x" title="${mdpEsc(i.final.reason)}">Not in sale</span>`).join(' '):(!s.live?'<span class="mdp-pill n" title="No Shopify product yet, so there is no sales history to score. Add it as a special buy (section E) to give it a discount.">No Shopify product yet</span>':'<span class="mdp-dim">—</span>');
     return`<tr><td class="l"><b>${mdpEsc(s.style)}</b></td><td class="l">${mdpEsc(s.title)}</td>
       <td>${s.live?'<span class="mdp-pill x">Live</span>':'<span class="mdp-pill n" title="Not in Shopify yet">New style</span>'}</td>
       <td>${s.soh?s.soh.toLocaleString():'—'}</td><td><b>${s.units.toLocaleString()}</b></td><td>${hasEnd?s.byEnd.toLocaleString():'—'}</td>
@@ -5884,14 +5893,15 @@ function mdpOoCells(oo,cat,hasEnd){
    saved DECISION on the plan (approve / set discount / move group / exclude with a reason) that
    survives regeneration; the table only renders what MarkdownPlans.buildReview returns. */
 let mdpRev={q:'',category:'',collection:'',view:'all',approval:'all',core:'all',sort:'category',flat:true,compact:true};   // flat = one row per product/colour
-const mdpSel=new Set(),mdpOpenStyles=new Set(),mdpCollapsedRv=new Set();
+const mdpSel=new Set(),mdpOpenStyles=new Set(),mdpCollapsedRv=new Set(),mdpCollapsedSec=new Set();
 let mdpCtx=null,mdpIds=[],mdpRvCats=[],_mdpQT=null,mdpLastSel=null,mdpPrevApproved=null,mdpPrevPlanId=null;
 function mdpRevSet(k,v){
   mdpRev[k]=v;
   if(k==='q'){clearTimeout(_mdpQT);_mdpQT=setTimeout(mdpRenderReview,180);}else mdpRenderReview();
 }
 function mdpToggleStyle(key){if(mdpOpenStyles.has(key))mdpOpenStyles.delete(key);else mdpOpenStyles.add(key);mdpRenderReview(true);}
-function mdpToggleRvCat(i){const c=mdpRvCats[i];if(mdpCollapsedRv.has(c))mdpCollapsedRv.delete(c);else mdpCollapsedRv.add(c);mdpRenderReview(true);}
+function mdpToggleRvCat(i){const e=mdpRvCats[i],k=e.sec+'|'+e.cat;if(mdpCollapsedRv.has(k))mdpCollapsedRv.delete(k);else mdpCollapsedRv.add(k);mdpRenderReview(true);}
+function mdpToggleSecRow(k){if(mdpCollapsedSec.has(k))mdpCollapsedSec.delete(k);else mdpCollapsedSec.add(k);mdpRenderReview(true);}
 // Tick a row; shift-click ticks (or unticks) the whole range since the last click.
 function mdpSelClick(ev,i){
   const on=ev.target.checked;
@@ -5953,9 +5963,19 @@ function mdpApproveShown(){
   mdpApply(ids,'approve');
 }
 function mdpApproveCat(i){
-  if(!mdpCtx)return;const c=mdpRvCats[i],ids=[];
-  mdpVisible().groups.forEach(g=>g.items.forEach(it=>{if((it.row.p.category||'UNCATEGORISED')===c&&mdpPending(it))ids.push(it.row.p.id);}));
-  if(ids.length)mdpApply(ids,'approve');
+  if(!mdpCtx)return;const e=mdpRvCats[i],ids=[];
+  mdpVisible().groups.forEach(g=>g.items.forEach(it=>{
+    if((it.row.p.category||'UNCATEGORISED')!==e.cat)return;
+    if(e.sec==='sug'?mdpPending(it):!!it.override)ids.push(it.row.p.id);
+  }));
+  if(!ids.length)return;
+  if(e.sec==='sug')mdpApply(ids,'approve');
+  else if(confirm('Move '+ids.length+' approved product'+(ids.length===1?'':'s')+' in '+e.cat+' back to Suggested? Your decisions on them are removed.'))mdpApply(ids,'auto');
+}
+function mdpUnapproveShown(){
+  if(!mdpCtx)return;
+  const ids=[];mdpVisible().groups.forEach(g=>g.items.forEach(it=>{if(it.override)ids.push(it.row.p.id);}));
+  if(ids.length&&confirm('Move '+ids.length+' approved product'+(ids.length===1?'':'s')+' shown back to Suggested? Your decisions on them are removed.'))mdpApply(ids,'auto');
 }
 function mdpResetAll(){
   const pl=mdpPlan(),n=Object.keys(pl.overrides).length;
@@ -6029,21 +6049,29 @@ function mdpReviewHtml(){
       <td class="l mdp-why" title="${mdpEsc(f.reason)}">${mdpEsc(f.reason)}</td></tr>`;
   };
 
-  // category headers (with progress + "approve category") when sorted by category
+  // Two work areas: SUGGESTED (still only the planner's suggestion) and APPROVED (you've decided) — approving a row
+  // moves it down; undoing moves it back. Gift with purchase has nothing to approve, so it sits in its own small area.
+  const catProg={};plan.items.forEach(it=>{const c=it.row.p.category||'UNCATEGORISED',e=catProg[c]||(catProg[c]={ap:0,el:0});if(!it.row.p.isGWP&&!it.blocked){e.el++;if(it.override)e.ap++;}});
+  const gApproved=g=>g.items.every(it=>it.override),gNA=g=>g.items.every(it=>it.row.p.isGWP||it.blocked);
+  const secs=[
+    {key:'sug',title:'Suggested',sub:'still the planner\'s suggestion — review and approve',cls:'mdp-sug',groups:rv.groups.filter(g=>!gApproved(g)&&!gNA(g))},
+    {key:'app',title:'Approved',sub:'confirmed or changed by you',cls:'mdp-app',groups:rv.groups.filter(gApproved)},
+    {key:'gwp',title:'Gift with purchase',sub:'never discounted — nothing to approve',cls:'mdp-gw',groups:rv.groups.filter(g=>gNA(g)&&!gApproved(g))}
+  ];
+  const renderGroups=(groups,sec)=>{
   const byCat={};
-  rv.groups.forEach(g=>g.items.forEach(it=>{const c=it.row.p.category||'UNCATEGORISED';const e=byCat[c]||(byCat[c]={n:0,el:0,ap:0});e.n++;if(!it.row.p.isGWP&&!it.blocked){e.el++;if(it.override)e.ap++;}}));
+  groups.forEach(g=>g.items.forEach(it=>{const c=it.row.p.category||'UNCATEGORISED';(byCat[c]=byCat[c]||{n:0}).n++;}));
   let lastCat=null,catOpen=true;
-  const rowsHtml=rv.groups.map(g=>{
+  return groups.map(g=>{
     let head='';
     if(mdpRev.sort==='category'){
       const c=g.items[0].row.p.category||'UNCATEGORISED';
       if(c!==lastCat){
-        lastCat=c;catOpen=!mdpCollapsedRv.has(c);
-        mdpRvCats.push(c);const ci=mdpRvCats.length-1,e=byCat[c],pc=e.el?Math.round(e.ap/e.el*100):100;
+        lastCat=c;catOpen=!mdpCollapsedRv.has(sec+'|'+c);
+        mdpRvCats.push({sec,cat:c});const ci=mdpRvCats.length-1,e=byCat[c],cp=catProg[c]||{ap:0,el:0};
         head=`<tr class="mdp-cathead"><td colspan="21"><div class="mdp-chrow"><button class="mdp-chv" onclick="mdpToggleRvCat(${ci})" title="${catOpen?'Collapse':'Expand'} this category">${catOpen?'▾':'▸'}</button>
           <b onclick="mdpToggleRvCat(${ci})" style="cursor:pointer;">${mdpEsc(c)}</b><span class="mdp-dim">${e.n} product${e.n===1?'':'s'}</span>
-          <span class="mdp-minibar" title="${e.ap} of ${e.el} approved"><i style="width:${pc}%"></i></span><span class="mdp-dim">${e.ap} of ${e.el} approved</span>
-          ${e.ap<e.el?`<button class="mdp-act" onclick="mdpApproveCat(${ci})">✓ Approve category</button>`:'<span class="mdp-b-ap">✓ all approved</span>'}</div></td></tr>`;
+          ${sec==='sug'?`<span class="mdp-minibar" title="${cp.ap} of ${cp.el} approved overall"><i style="width:${cp.el?Math.round(cp.ap/cp.el*100):100}%"></i></span><span class="mdp-dim">${cp.ap} of ${cp.el} approved</span><button class="mdp-act" onclick="mdpApproveCat(${ci})">✓ Approve category</button>`:sec==='app'?`<button class="mdp-act" onclick="mdpApproveCat(${ci})">Undo category</button>`:''}</div></td></tr>`;
       }
       if(!catOpen)return head;
     }
@@ -6064,8 +6092,14 @@ function mdpReviewHtml(){
       <td class="mdp-dim">${its.map(i=>i.systemPct==null?'—':i.systemPct+'%').filter((v,k,a)=>a.indexOf(v)===k).join(' / ')}</td>
       <td class="l mdp-ap">${pcts.length===1?'<b>'+pcts[0]+'</b> all colours':'<span class="mdp-dim">mixed: '+pcts.join(', ')+'</span>'} ${nOv?`<span class="mdp-b-ov">${nOv} of ${its.length} decided</span>`:''}<select class="mdp-sel mdp-xs" title="${core?'Link colours: ':''}apply to every colour of this style" onchange="mdpStyleAction('${keyAttr}',this.value);this.value=''">${mdpActionOptions(core?'Link all colours…':'Apply to all colours…')}</select></td>
       <td>—</td><td class="mdp-xc">—</td><td class="l mdp-why">${core?'Core style — link colours to give them one discount':'Parent style'}</td></tr>`+kids;
+  }).join('');};
+  const rowsHtml=secs.map(sec=>{
+    if(!sec.groups.length)return'';
+    const closed=mdpCollapsedSec.has(sec.key),n=sec.groups.reduce((a,g)=>a+g.items.length,0);
+    const act=sec.key==='sug'?`<button class="mdp-btn mdp-btn-go mdp-btn-sm" onclick="mdpApproveShown()" title="Approve the planner's suggestion for everything in this area">✓ Approve all (${n.toLocaleString()})</button>`:sec.key==='app'?`<button class="mdp-act" onclick="mdpUnapproveShown()">Undo all (${n.toLocaleString()})</button>`:'';
+    const head=`<tr class="mdp-secrow ${sec.cls}"><td colspan="21"><div class="mdp-sechead"><button class="mdp-chv" onclick="mdpToggleSecRow('${sec.key}')" title="${closed?'Expand':'Collapse'}">${closed?'▸':'▾'}</button><b>${sec.title}</b><span class="mdp-seccount">${n.toLocaleString()}</span><span class="mdp-dim">${sec.sub}</span>${act}</div></td></tr>`;
+    return closed?head:head+renderGroups(sec.groups,sec.key);
   }).join('');
-
   const st=MarkdownPlans.overrideStats(pl,plan.items.map(i=>i.row.p.id));
   const pendingShown=rv.groups.reduce((a,g)=>a+g.items.filter(mdpPending).length,0);
   const T=plan.totals,pct=elig.length?Math.round(apprN/elig.length*100):0;
@@ -6269,7 +6303,7 @@ function mdpSpecialSection(plan,oo,hasEnd,pl){
       <td>${x.cost?'$'+x.cost.toFixed(2):'—'}</td><td class="mdp-dim">${x.rrp?'$'+x.rrp.toFixed(2):'—'}</td><td>${x.pct!=null&&x.rrp?'<b>$'+(x.rrp*(1-x.pct/100)).toFixed(2)+'</b>':'—'}</td>
       <td class="l">${x.status==='matched'?'<span class="mdp-pill x">Matched</span>':x.status==='nostock'?'<span class="mdp-pill x" title="In Shopify, no stock yet">Matched · no stock</span>':'<span class="mdp-pill n" title="Not in Shopify yet — held back from the Hextom file until matched">Pending Shopify match</span>'}</td>
       <td class="l mdp-why mdp-flagcol">${x.flags.join(' ')}</td></tr>`).join('')}</tbody></table></div>`:'';
-  return note+`<div class="mdp-sub" style="margin:0 0 10px;line-height:1.55;">Styles bought specifically for this sale. Pick them straight from Apparel Magic and set the discount for each pick. They are <b>never scored against sales history</b> (they have none), are shown as <b>Special buys</b> in the review, and styles not yet in Shopify are <b>held back from the Hextom file</b> until matched. Rules still apply: nothing goes deeper than your highest single discount (${max}%), and gift-with-purchase can't also be discounted.</div>`
+  return note+`<div class="mdp-sub" style="margin:0 0 10px;line-height:1.55;">Styles bought specifically for this sale. Pick them straight from Apparel Magic and set the discount for each pick. They are <b>never scored against sales history</b> (they have none), are shown as <b>Special buys</b> in the review, and styles not yet in Shopify are <b>held back from the Hextom file</b> until matched. Rules still apply: nothing goes deeper than your highest single discount (${max}%), and gift-with-purchase (section D) can't also be discounted.</div>`
     +mdpAdder('special',['group','parent','style','po'],true,pl)+mdpSelChips('special',pl.special,mdpMatchedCounts(res.special),pl)
     +(rows.length?`<div class="mdp-revsum" style="margin-top:12px;"><span><b>${rows.length}</b> style${rows.length===1?'':'s'}</span><span class="mdp-dot"></span><span><b>${units.toLocaleString()}</b> units (stock + incoming)</span><span class="mdp-dot"></span><span><b>$${Math.round(costV).toLocaleString()}</b> at cost</span>
       ${pend?`<span class="mdp-dot"></span><span class="mdp-newtag">${pend} pending Shopify match</span>`:''}${late?`<span class="mdp-dot"></span><span class="mdp-b-ov">${late} arrive after the sale ends</span>`:''}${bad?`<span class="mdp-dot"></span><span class="mdp-b-cf">⚠ ${bad} need attention</span>`:''}</div>`:'')+tbl;
@@ -6363,7 +6397,9 @@ function renderMarkdownPlanner(){
 
   const titleBar=`<div class="mdp-top"><div class="mdp-logo">🏷️</div><div><div class="mdp-title">Sale &amp; Markdown Planner</div><div class="mdp-tsub">Decide which products go on sale, at what discount, and in which collection.</div></div><div class="mdp-fresh">${fresh}</div></div>`;
 
-  const capW=plan.cap&&!plan.cap.met&&PS.avgDiscountCap>=Math.min(...PS.allowedDiscounts)?[`The ${PS.avgDiscountCap}% average cap can't be reached — the lowest this plan can average is ${plan.cap.avg}%. Clearance, already-reduced and manually set prices hold it up, and no category can go below your lowest discount level.`]:[];
+  const capW=[];
+  if(plan.cap&&!plan.cap.met&&PS.avgDiscountCap>=Math.min(...PS.allowedDiscounts))capW.push(`The ${PS.avgDiscountCap}% average target can't be reached — the lowest this plan can average is ${plan.cap.avg}%. Clearance, already-reduced and manually set prices hold it up, and no category can go below your lowest discount level.`);
+  else if(plan.cap&&plan.cap.met&&plan.cap.gap>=1)capW.push(`The plan averages ${plan.cap.avg}% against your ${PS.avgDiscountCap}% target — the closest it can get: the next discount level up in any category would take it over, or every category is already at your highest single discount (${PS.maxDiscount}%).`);
   const warnAll=val.warnings.concat(capW);
   const msgs=(val.errors.length||warnAll.length)?`<div class="mdp-msgs">${val.errors.map(e=>`<div class="mdp-err">⚠ ${mdpEsc(e)}</div>`).join('')}${warnAll.map(e=>`<div class="mdp-warn">ⓘ ${mdpEsc(e)}</div>`).join('')}</div>`:'';
 
@@ -6383,9 +6419,9 @@ function renderMarkdownPlanner(){
           <label>Target stock cleared (optional, % of SOH)<input class="mdp-in" type="number" min="1" max="100" step="1" placeholder="%" value="${SU.targetClearPct==null?'':SU.targetClearPct}" onchange="mdpNumSetup('targetClearPct',this)"></label></div>${targetLine}
       </div>
       <div class="mdp-box"><div class="mdp-bt">Discount settings</div>
-        <div class="mdp-bt2">Effective discount (average cap)</div>
-        <div class="mdp-capwrap"><input class="mdp-in mdp-capin" type="number" min="1" max="95" step="0.5" placeholder="no cap" value="${PS.avgDiscountCap==null?'':PS.avgDiscountCap}" onchange="mdpSet('avgDiscountCap',this.value===''?null:Number(this.value))"> <span>% average off RRP</span></div>
-        <div class="mdp-hint">Averaged across the styles in the sale, weighted by units. Category discounts are lowered (healthiest first) to stay within it; Clearance, manual overrides and already-reduced prices are never lowered. This plan currently averages ${T.avgDiscount}%.</div>
+        <div class="mdp-bt2">Effective discount (average target)</div>
+        <div class="mdp-capwrap"><input class="mdp-in mdp-capin" type="number" min="1" max="95" step="0.5" placeholder="no target" value="${PS.avgDiscountCap==null?'':PS.avgDiscountCap}" onchange="mdpSet('avgDiscountCap',this.value===''?null:Number(this.value))"> <span>% average off RRP</span></div>
+        <div class="mdp-hint">The planner aims for this average across the styles in the sale (weighted by units) and lands <b>as close as it can without going over</b>: it lowers category discounts if the plan is above it, and raises them — the categories that most need it first — if it is below. Clearance, special buys, your own decisions and already-reduced prices are never changed. This plan currently averages ${T.avgDiscount}%.</div>
         <div class="mdp-bt2" style="margin-top:10px;">Highest single discount</div><select class="mdp-sel" onchange="mdpSet('maxDiscount',+this.value)">${PS.allowedDiscounts.map(n=>`<option value="${n}" ${PS.maxDiscount===n?'selected':''}>${n}% off RRP</option>`).join('')}</select>
         <div class="mdp-bt2" style="margin-top:10px;">Allowed discount levels</div><div class="mdp-chks">${std.map(cb).join('')}</div>
         <div style="margin-top:8px;">${custom} <input class="mdp-in mdp-add" type="number" min="5" max="90" placeholder="+ level %" onchange="mdpAddLevel(this)"></div>
@@ -6446,14 +6482,14 @@ function renderMarkdownPlanner(){
       <div><b>${plan.items.filter(i=>i.final.action==='C').length.toLocaleString()}</b><span>in clearance (${clr}%)</span></div>
       ${T.restockStyles?`<div><b>${T.restockStyles}</b><span>sold-out styles restocking (${T.restock.toLocaleString()} units)</span></div>`:''}
       ${oo?`<div><b>${oo.total.toLocaleString()}</b><span>units on order (${oo.newUnits.toLocaleString()} in new styles)</span></div>`:''}
-      <div class="${plan.cap&&!plan.cap.met?'mdp-warnbox':''}"><b>${T.avgDiscount}%</b><span>avg discount${PS.avgDiscountCap!=null?` (cap ${PS.avgDiscountCap}%)`:''}</span></div>
+      <div class="${plan.cap&&!plan.cap.met?'mdp-warnbox':''}"><b>${T.avgDiscount}%</b><span>avg discount${PS.avgDiscountCap!=null?` (target ${PS.avgDiscountCap}%)`:''}</span></div>
       <div><b>${T.excluded.toLocaleString()}</b><span>not in the sale</span></div>
       ${T.exceptions?`<div class="mdp-warnbox"><b>${T.exceptions}</b><span>core colours to approve</span></div>`:''}
       <div><b>${T.soh.toLocaleString()}</b><span>SOH units</span></div>
       <div><b>${mdpMoney(T.sohCost)}</b><span>SOH at cost</span></div>
     </div>
     <div class="mdp-scroll"><table class="mdp-t">
-      <thead><tr><th class="l">Category</th><th>Products</th><th>SOH</th><th>SOH cost</th><th title="Open Apparel Magic order lines (qty open). 'new' = styles not in Shopify yet">On order</th><th title="On order and due by the sale end date">Due by sale end</th><th>Sold (${S.periodDays}d)</th><th>Weeks cover</th><th title="Units sold ÷ (units sold + stock now). Real period sell-through needs opening-stock history, which isn't recorded yet.">Sell-through*</th><th>Group A</th><th>Group B</th><th title="Fixed-% tier: already-reduced stock, remnants and broken size runs">Clearance</th><th title="Special buys: bought for this sale at a chosen discount (section D)">Special</th><th title="Left out of the sale: healthy sellers, new arrivals, no stock, and products already reduced and retained at their current price">Not in sale</th><th title="Recent run-rate over the sale length, capped at stock. No promotional uplift applied.">Fcst units†</th><th>Fcst left†</th></tr></thead>
+      <thead><tr><th class="l">Category</th><th>Products</th><th>SOH</th><th>SOH cost</th><th title="Open Apparel Magic order lines (qty open). 'new' = styles not in Shopify yet">On order</th><th title="On order and due by the sale end date">Due by sale end</th><th>Sold (${S.periodDays}d)</th><th>Weeks cover</th><th title="Units sold ÷ (units sold + stock now). Real period sell-through needs opening-stock history, which isn't recorded yet.">Sell-through*</th><th>Group A</th><th>Group B</th><th title="Fixed-% tier: already-reduced stock, remnants and broken size runs">Clearance</th><th title="Special buys: bought for this sale at a chosen discount (section E)">Special</th><th title="Left out of the sale: healthy sellers, new arrivals, no stock, and products already reduced and retained at their current price">Not in sale</th><th title="Recent run-rate over the sale length, capped at stock. No promotional uplift applied.">Fcst units†</th><th>Fcst left†</th></tr></thead>
       <tbody>${rows}${ooOnlyRows}</tbody>
     </table></div>
     <div class="mdp-foot">* Sell-through is a proxy — units sold ÷ (units sold + stock now) — because stock-movement history isn't recorded yet. † Forecast is the recent sales run-rate over the sale length, capped at stock, with <b>no promotional uplift</b> (that needs calibrating against past sales). On order = open Apparel Magic order lines by style; 'new' = styles not in Shopify yet. Click a category to see each product/colour, its clearance score and why, plus every style on order. Group A/B discounts come from the category's score distribution and your allowed levels; nothing here changes prices or exports anything. ${fresh}.</div>
@@ -6461,8 +6497,8 @@ function renderMarkdownPlanner(){
   const later=(k,t,tag,txt)=>mdpSec(k,t,tag,`<div class="mdp-sub" style="margin:0 0 4px;line-height:1.55;">${txt}</div>`);
   root.innerHTML=titleBar+strip+settings+mdpSec('B','B. Category strategy','read-only preview',catsBody)
     +mdpSec('C','C. Product / colour review','decisions are saved on this sale',mdpReviewSection(plan,oo,hasEnd,pl))
-    +mdpSec('D','D. Special buys (from Apparel Magic)',pl.special.length+' pick'+(pl.special.length===1?'':'s'),mdpSpecialSection(plan,oo,hasEnd,pl))
-    +mdpSec('E','E. Gift with purchase (from Apparel Magic)',pl.gwp.items.length+' pick'+(pl.gwp.items.length===1?'':'s'),mdpGwpSection(plan,oo,hasEnd,pl))
+    +mdpSec('D','D. Gift with purchase (from Apparel Magic)',pl.gwp.items.length+' pick'+(pl.gwp.items.length===1?'':'s'),mdpGwpSection(plan,oo,hasEnd,pl))
+    +mdpSec('E','E. Special buys (from Apparel Magic)',pl.special.length+' pick'+(pl.special.length===1?'':'s'),mdpSpecialSection(plan,oo,hasEnd,pl))
     +later('F','F. Financial &amp; stock forecast','planned · phase 5','Low / base / high sale forecasts from past promotions, scenario comparison, projected revenue, gross profit, stock cleared and GWP cost.')
     +later('G','G. Shopify / Hextom export','planned · phase 7','Collection mapping per discount level, pre-export validation and checklist, the Hextom import CSV, the full plan CSV and an audit summary.');
   if(scEl)scEl.scrollTop=scTop;
@@ -12665,6 +12701,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.10.5 — Markdown Planner, from Brendan. (1) The product review is now two work areas, SUGGESTED (still only the planner's suggestion) and APPROVED (you've confirmed or changed it): approving a row moves it down into Approved, undoing moves it back, each area has its own banner, count and Approve all / Undo all, and category headers inside each (Approve category / Undo category); gift-with-purchase sits in a small third area since there's nothing to approve. The Approval dropdown still filters. (2) The 'effective discount' is now an average TARGET, not just a ceiling: the planner lowers category discounts if the plan is above it, and RAISES them — the groups that most need discounting first, one allowed level at a time, only steps that keep the average at or under the target — until nothing further fits, so it lands as close as the levels allow without going over (live-style checks: target 40 → 39.7, 45 → 43.8, 60 → 58.3; an unreachable 90 stops at the 70% highest-single-discount). Clearance, special buys, your decisions and already-reduced prices are never changed; Group A never goes deeper than B; the message says how close it got and why it couldn't get closer. (3) Gift with purchase is now section D, ahead of Special buys (section E), so GWP is settled first. Engine: raise-to-target + ~25 new assertions
 // v2.10.4 — Compact review table trimmed a further ~70px so it fits a 1,500px screen without sideways scrolling
 // v2.10.3 — Review table fits a normal screen in Compact view: RRP moves to 'All columns' (Current price and New price stay), the '+N arriving' tag is shortened (full wording on hover) and the widest columns are tightened
 // v2.10.2 — Review table width: when sorted by category the Category column is hidden in Compact view (the category header already shows it) and column widths are tightened so the discount/approval controls, New price and Why fit on a normal screen without sideways scrolling

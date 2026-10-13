@@ -93,8 +93,8 @@ assert.equal(setCap(null), null); assert.equal(setCap(''), null); assert.equal(s
 assert.equal(setCap(35), 35); assert.equal(setCap('32.46'), 32.5); assert.equal(setCap(400), 95);
 assert.equal(P.newPlan('n', 1, 'n').settings.avgDiscountCap, null); assert.equal(P.newPlan('n', 1, 'n').settings.scope, 'recommended');
 assert.equal(P.updatePlan(cp, cid, { settings: { scope: 'all' } }).plans[cid].settings.scope, 'all'); assert.equal(P.updatePlan(cp, cid, { settings: { scope: 'junk' } }).plans[cid].settings.scope, 'recommended');
-let w = P.validatePlan(P.updatePlan(cp, cid, { settings: { avgDiscountCap: 10 } }).plans[cid]).warnings; assert.ok(w.some(x => /below your lowest discount level/.test(x)));
-w = P.validatePlan(P.updatePlan(cp, cid, { settings: { avgDiscountCap: 60 } }).plans[cid]).warnings; assert.ok(w.some(x => /can never limit anything/.test(x)));
+let w = P.validatePlan(P.updatePlan(cp, cid, { settings: { avgDiscountCap: 10 } }).plans[cid]).warnings; assert.ok(w.some(x => /average target is below your lowest discount level/.test(x)));
+w = P.validatePlan(P.updatePlan(cp, cid, { settings: { avgDiscountCap: 60 } }).plans[cid]).warnings; assert.ok(w.some(x => /average target is at or above your highest single discount/.test(x)));
 w = P.validatePlan(P.updatePlan(cp, cid, { settings: { avgDiscountCap: 35 } }).plans[cid]).warnings; assert.ok(!w.some(x => /average cap/.test(x)));
 // cap and scope are rules, so a Duplicate copies them
 let capped = P.updatePlan(cp, cid, { settings: { avgDiscountCap: 35, scope: 'all' } }); const cd = P.duplicatePlan(capped, cid, 5, idGen);

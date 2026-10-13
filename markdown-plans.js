@@ -208,8 +208,8 @@
     if (targetClearPct != null && !(num(targetClearPct) > 0 && num(targetClearPct) <= 100)) errors.push('Target clearance must be between 1% and 100%.');
     const cap = plan.settings.avgDiscountCap, lv = plan.settings.allowedDiscounts;
     if (cap != null) {
-      if (cap < Math.min(...lv)) warnings.push('The ' + cap + '% average cap is below your lowest discount level (' + Math.min(...lv) + '%), so it can\'t be reached — the plan will sit at the lowest levels.');
-      else if (cap >= plan.settings.maxDiscount) warnings.push('The ' + cap + '% average cap is at or above your highest single discount (' + plan.settings.maxDiscount + '%), so it can never limit anything.');
+      if (cap < Math.min(...lv)) warnings.push('The ' + cap + '% average target is below your lowest discount level (' + Math.min(...lv) + '%), so it can\'t be reached — the plan will sit at the lowest levels.');
+      else if (cap >= plan.settings.maxDiscount) warnings.push('The ' + cap + '% average target is at or above your highest single discount (' + plan.settings.maxDiscount + '%) — the plan can approach it but no product will go deeper than ' + plan.settings.maxDiscount + '%.');
     }
     const d = durationDays(start, end);
     if (d != null && d > 60) warnings.push('That is a long sale (' + d + ' days).');

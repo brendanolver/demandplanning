@@ -22,7 +22,7 @@
     saleDays: 10,                   // sale duration, for the baseline forecast
     allowedDiscounts: [20, 30, 40, 50, 60, 70],
     maxDiscount: 50,                // highest SINGLE-product effective discount vs original RRP
-    avgDiscountCap: null,           // cap on the sale's AVERAGE effective discount (unit-weighted, styles in the sale); null = no cap
+    avgDiscountCap: null,           // TARGET for the sale's AVERAGE effective discount (unit-weighted, styles in the sale): lowered if above, raised to get as close as possible without going over; null = none
     scope: 'recommended',           // recommended = healthy sellers stay full price | all = every eligible in-stock style joins at the lightest level
     excludeBelow: 35,               // clearance score under this stays full price
     groupBAt: 65,                   // score at/above this goes to the deeper Group B
@@ -284,7 +284,8 @@
       const sys = it.action === 'A' ? groupPct(cp, 'A') : it.action === 'B' ? groupPct(cp, 'B') : it.action === 'C' ? clearPct : it.action === 'S' ? Math.min(p.specialPct, S.maxDiscount) : null;
       let pct = sys, action = it.action, reason = it.reason;
       const cur = num(p.currentDiscountPct) || 0;
-      if ((it.action === 'A' || it.action === 'B') && cp.idx[it.action] < cp.startIdx[it.action]) reason += ' · level lowered to meet the ' + S.avgDiscountCap + '% average cap';
+      if ((it.action === 'A' || it.action === 'B') && cp.idx[it.action] < cp.startIdx[it.action]) reason += ' · level lowered to meet the ' + S.avgDiscountCap + '% average target';
+      else if ((it.action === 'A' || it.action === 'B') && cp.idx[it.action] > cp.startIdx[it.action]) reason += ' · level raised to approach the ' + S.avgDiscountCap + '% average target';
       // Existing markdown: never stack on a sale price — compare against RRP.
       if (pct != null && S.existingReduced === 'retain' && cur >= S.reducedThresholdPct && cur >= pct) {
         action = 'Exclude'; pct = null; reason = 'Already reduced to ' + Math.round(cur) + '% off RRP — retained (sale ' + sys + '% would not be deeper)';
@@ -351,8 +352,39 @@
         if (!g) break;                       // every group is already at the lowest allowed level
         g.cp.idx[g.t] = g.idx - 1; steps++;
       }
+      // The average is a TARGET, not just a ceiling: if the plan now sits below it, raise whole category groups
+      // one allowed level at a time — the groups that most need discounting first — taking only steps that keep the
+      // average at or under the target, until no further step fits. Then it lands as close as the levels allow
+      // without going over. Levels never exceed the highest single discount, and Group A never goes deeper than B.
+      let raised = 0;
+      if (avgNow() < capPct - 1e-9) {
+        const sums = cp => { let n = 0, d = 0; for (const it of cp.items) { const f = resolve(it).final; if (f.pct != null) { n += f.pct * it.row.m.soh; d += it.row.m.soh; } } return { n, d }; };
+        const need = (cp, t) => {
+          const mem = cp.items.filter(it => it.action === t && !ov[it.row.p.id] && !it.defaultA);
+          const st = mem.reduce((a, it) => a + it.row.m.soh, 0);
+          return mem.length && st ? mem.reduce((a, it) => a + it.row.score * it.row.m.soh, 0) / st : -1;
+        };
+        let N = 0, D = 0;
+        for (const it of items) { const f = resolve(it).final; if (f.pct != null) { N += f.pct * it.row.m.soh; D += it.row.m.soh; } }
+        for (let guard = 0; guard < 2000; guard++) {
+          const avg = D > 0 ? N / D : 0;
+          let best = null;
+          for (const cp of catPlans) for (const t of ['A', 'B']) {
+            const i0 = cp.idx[t];
+            if (i0 == null || i0 >= lv.length - 1) continue;
+            if (t === 'A' && cp.idx.B != null && i0 + 1 > cp.idx.B) continue;
+            const before = sums(cp); cp.idx[t] = i0 + 1; const after = sums(cp); cp.idx[t] = i0;
+            const nN = N - before.n + after.n, nD = D - before.d + after.d, nAvg = nD > 0 ? nN / nD : 0;
+            if (nAvg > capPct + 1e-9 || nAvg <= avg + 1e-9) continue;
+            const m = need(cp, t);
+            if (!best || m > best.m || (m === best.m && nAvg > best.nAvg) || (m === best.m && nAvg === best.nAvg && cp.category < best.cp.category)) best = { cp, t, i0, m, nAvg, nN, nD };
+          }
+          if (!best) break;
+          best.cp.idx[best.t] = best.i0 + 1; N = best.nN; D = best.nD; raised++;
+        }
+      }
       const a = avgNow();
-      cap = { cap: capPct, avg: Math.round(a * 10) / 10, met: a <= capPct + 1e-9, steps };
+      cap = { cap: capPct, avg: Math.round(a * 10) / 10, met: a <= capPct + 1e-9, steps, raised, gap: Math.round((capPct - a) * 10) / 10 };
     }
 
     items.forEach(it => {
@@ -364,6 +396,7 @@
       it.price = pr;
       it.noPriceChange = r.final.action === 'C' && r.cur >= (pct || 0) - 0.5 && r.cur > 0;
       it.capped = (it.action === 'A' || it.action === 'B') && cp.idx[it.action] < cp.startIdx[it.action];
+      it.levelRaised = (it.action === 'A' || it.action === 'B') && cp.idx[it.action] > cp.startIdx[it.action];
       it.forecast = baseline(it.row.m, S);
     });
     catPlans.forEach(cp => { cp.groupA = groupPct(cp, 'A'); cp.groupB = groupPct(cp, 'B'); });
