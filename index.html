@@ -733,6 +733,8 @@ th{position:relative;}
 .mdp-bt2{font-size:11px;font-weight:600;color:#6b7280;margin-bottom:5px;}
 .mdp-msgs{margin-bottom:12px;display:flex;flex-direction:column;gap:6px;}
 .mdp-err{background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;border-radius:10px;padding:8px 12px;font-size:12.5px;}
+.mdp-dim{color:#9ca3af;}.mdp-now{font-size:9.5px;font-weight:700;color:#b45309;background:#fef3c7;border-radius:4px;padding:1px 5px;}
+.mdp-capwrap{display:flex;align-items:center;gap:8px;font-size:12px;color:#6b7280;}.mdp-capin{min-width:0;width:90px;}
 .mdp-warn{background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:10px;padding:8px 12px;font-size:12.5px;}
 </style>
 </head>
@@ -2218,8 +2220,8 @@ th{position:relative;}
     </div>
   </div>
 
-<script src="markdown-engine.js?v=2.8.0"></script>
-<script src="markdown-plans.js?v=2.8.0"></script>
+<script src="markdown-engine.js?v=2.8.1"></script>
+<script src="markdown-plans.js?v=2.8.1"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2253,7 +2255,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.8.0';
+const APP_VERSION='v2.8.1';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -5576,7 +5578,7 @@ const MDP_KEY='wndrr_mdplanner_v1',MDP_MODE_KEY='wndrr_mdmode_v1';
 let mdMode='classic';
 try{if(localStorage.getItem(MDP_MODE_KEY)==='planner')mdMode='planner';}catch(e){}
 let mdpState=null,mdpRenaming=false,mdpShowArchived=false;
-const mdpCollapsed=new Set(['C','D','E']);
+const mdpCollapsed=new Set(['C','D','E','F','G']);
 const mdpOpenCats=new Set();
 function mdpEsc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function mdpEngineOk(){return typeof window.MarkdownEngine==='object';}
@@ -5761,7 +5763,9 @@ function renderMarkdownPlanner(){
 
   const titleBar=`<div class="mdp-top"><div class="mdp-logo">🏷️</div><div><div class="mdp-title">Sale &amp; Markdown Planner</div><div class="mdp-tsub">Decide which products go on sale, at what discount, and in which collection.</div></div><div class="mdp-fresh">${fresh}</div></div>`;
 
-  const msgs=(val.errors.length||val.warnings.length)?`<div class="mdp-msgs">${val.errors.map(e=>`<div class="mdp-err">⚠ ${mdpEsc(e)}</div>`).join('')}${val.warnings.map(e=>`<div class="mdp-warn">ⓘ ${mdpEsc(e)}</div>`).join('')}</div>`:'';
+  const capW=plan.cap&&!plan.cap.met?[`The ${PS.avgDiscountCap}% average cap can't be reached — the lowest this plan can average is ${plan.cap.avg}%. Clearance, already-reduced and manually set prices hold it up, and no category can go below your lowest discount level.`]:[];
+  const warnAll=val.warnings.concat(capW);
+  const msgs=(val.errors.length||warnAll.length)?`<div class="mdp-msgs">${val.errors.map(e=>`<div class="mdp-err">⚠ ${mdpEsc(e)}</div>`).join('')}${warnAll.map(e=>`<div class="mdp-warn">ⓘ ${mdpEsc(e)}</div>`).join('')}</div>`:'';
 
   const setupBody=`${msgs}<div class="mdp-grid">
       <div class="mdp-box mdp-wide"><div class="mdp-bt">Sale details</div>
@@ -5772,11 +5776,17 @@ function renderMarkdownPlanner(){
         <div class="mdp-bt" style="margin-top:12px;">Primary objective</div>
         ${mdpSeg('o',[['clear','Clear stock'],['balance','Balance'],['revenue','Revenue'],['profit','Gross profit']],SU.objective,"mdpSetup.bind(null,'objective')")}
         <div class="mdp-hint">${OB[SU.objective].label}: a product enters the sale from a clearance score of ${OB[SU.objective].excludeBelow}, and the deeper Group B from ${OB[SU.objective].groupBAt}.</div>
+        <div class="mdp-bt" style="margin-top:12px;">Styles in this sale</div>
+        ${mdpSeg('s',[['recommended','Recommended styles'],['all','All styles']],PS.scope,"mdpSet.bind(null,'scope')")}
+        <div class="mdp-hint">${PS.scope==='all'?'Every in-stock style joins — healthy sellers at the lightest level. New arrivals, gift-with-purchase and core protection still apply.':'Only the styles the planner recommends; healthy sellers stay at full price.'}</div>
         <div class="mdp-row" style="margin-top:12px;"><label>Target revenue (optional, ex GST)<input class="mdp-in" type="number" min="0" step="1000" placeholder="$" value="${SU.targetRevenue==null?'':SU.targetRevenue}" onchange="mdpNumSetup('targetRevenue',this)"></label>
           <label>Target stock cleared (optional, % of SOH)<input class="mdp-in" type="number" min="1" max="100" step="1" placeholder="%" value="${SU.targetClearPct==null?'':SU.targetClearPct}" onchange="mdpNumSetup('targetClearPct',this)"></label></div>${targetLine}
       </div>
       <div class="mdp-box"><div class="mdp-bt">Discount settings</div>
-        <div class="mdp-bt2">Max effective discount</div><select class="mdp-sel" onchange="mdpSet('maxDiscount',+this.value)">${PS.allowedDiscounts.map(n=>`<option value="${n}" ${PS.maxDiscount===n?'selected':''}>${n}% off RRP</option>`).join('')}</select>
+        <div class="mdp-bt2">Effective discount (average cap)</div>
+        <div class="mdp-capwrap"><input class="mdp-in mdp-capin" type="number" min="1" max="95" step="0.5" placeholder="no cap" value="${PS.avgDiscountCap==null?'':PS.avgDiscountCap}" onchange="mdpSet('avgDiscountCap',this.value===''?null:Number(this.value))"> <span>% average off RRP</span></div>
+        <div class="mdp-hint">Averaged across the styles in the sale, weighted by units. Category discounts are lowered (healthiest first) to stay within it; Clearance, manual overrides and already-reduced prices are never lowered. This plan currently averages ${T.avgDiscount}%.</div>
+        <div class="mdp-bt2" style="margin-top:10px;">Highest single discount</div><select class="mdp-sel" onchange="mdpSet('maxDiscount',+this.value)">${PS.allowedDiscounts.map(n=>`<option value="${n}" ${PS.maxDiscount===n?'selected':''}>${n}% off RRP</option>`).join('')}</select>
         <div class="mdp-bt2" style="margin-top:10px;">Allowed discount levels</div><div class="mdp-chks">${std.map(cb).join('')}</div>
         <div style="margin-top:8px;">${custom} <input class="mdp-in mdp-add" type="number" min="5" max="90" placeholder="+ level %" onchange="mdpAddLevel(this)"></div>
         <div class="mdp-hint">Always worked out against the original RRP — never stacked on a current sale price. Every level you offer needs its own Shopify collection at export.</div></div>
@@ -5813,10 +5823,12 @@ function renderMarkdownPlanner(){
       return`<tr class="mdp-prod"><td class="l">${mdpEsc(p.name)}${p.colour?' — '+mdpEsc(p.colour):''}${p.isCore?' <span class="mdp-core">CORE</span>':''}${i.exception?' <span class="mdp-exc" title="Colour pulled into the core style group — needs approval">exception</span>':''}</td>
         <td>${m.soh.toLocaleString()}</td><td>${m.periodUnits}</td><td>${m.weeksCover==null?(m.noSales?'no sales':'—'):round1(m.weeksCover)}</td>
         <td><b>${i.row.score}</b></td><td>${i.row.confidence}</td><td>${act}</td><td>${fin.pct==null?'—':fin.pct+'%'}</td>
-        <td>${i.price.newPrice==null?'—':'$'+i.price.newPrice.toFixed(2)}${i.noPriceChange?' <span class="mdp-nochg">no change</span>':''}${i.price.rrpMissing&&fin.pct!=null?' <span title="No RRP on record — priced off the current price">*</span>':''}</td>
-        <td colspan="3" class="l mdp-why">${mdpEsc(fin.reason)}</td></tr>`;
+        <td class="mdp-dim">${p.rrp>0?'$'+p.rrp.toFixed(2):'—'}</td>
+        <td>${p.price>0?'$'+p.price.toFixed(2):'—'}${p.currentDiscountPct>=1?` <span class="mdp-now" title="Already ${Math.round(p.currentDiscountPct)}% off RRP">−${Math.round(p.currentDiscountPct)}%</span>`:''}</td>
+        <td>${i.price.newPrice==null?'—':'<b>$'+i.price.newPrice.toFixed(2)+'</b>'}${i.noPriceChange?' <span class="mdp-nochg">no change</span>':''}${i.price.rrpMissing&&fin.pct!=null?' <span title="No RRP on record — priced off the current price">*</span>':''}</td>
+        <td class="l mdp-why">${mdpEsc(fin.reason)}</td></tr>`;
     }).join('');
-    return head+`<tr class="mdp-sub"><td colspan="13"><table class="mdp-t2"><thead><tr><th class="l">Product / colour</th><th>SOH</th><th>Sold (${S.periodDays}d)</th><th>Cover (wks)</th><th>Score</th><th>Confidence</th><th>Group</th><th>Disc.</th><th>New price</th><th colspan="3" class="l">Why</th></tr></thead><tbody>${sub}</tbody></table></td></tr>`;
+    return head+`<tr class="mdp-sub"><td colspan="13"><table class="mdp-t2"><thead><tr><th class="l">Product / colour</th><th>SOH</th><th>Sold (${S.periodDays}d)</th><th>Cover (wks)</th><th>Score</th><th>Confidence</th><th>Group</th><th>Disc.</th><th>RRP</th><th>Current price</th><th>New price</th><th class="l">Why</th></tr></thead><tbody>${sub}</tbody></table></td></tr>`;
   }).join('');
 
   const catsBody=`
@@ -5824,6 +5836,7 @@ function renderMarkdownPlanner(){
       <div><b>${T.products.toLocaleString()}</b><span>product/colours in stock</span></div>
       <div><b>${T.included.toLocaleString()}</b><span>in the sale</span></div>
       <div><b>${plan.items.filter(i=>i.final.action==='C').length.toLocaleString()}</b><span>in clearance (${clr}%)</span></div>
+      <div class="${plan.cap&&!plan.cap.met?'mdp-warnbox':''}"><b>${T.avgDiscount}%</b><span>avg discount${PS.avgDiscountCap!=null?` (cap ${PS.avgDiscountCap}%)`:''}</span></div>
       <div><b>${T.excluded.toLocaleString()}</b><span>not in the sale</span></div>
       ${T.exceptions?`<div class="mdp-warnbox"><b>${T.exceptions}</b><span>core colours to approve</span></div>`:''}
       <div><b>${T.soh.toLocaleString()}</b><span>SOH units</span></div>
@@ -5835,11 +5848,13 @@ function renderMarkdownPlanner(){
     </table></div>
     <div class="mdp-foot">* Sell-through is a proxy — units sold ÷ (units sold + stock now) — because stock-movement history isn't recorded yet. † Forecast is the recent sales run-rate over the sale length, capped at stock, with <b>no promotional uplift</b> (that needs calibrating against past sales). Click a category to see each product/colour, its clearance score and why. Group A/B discounts come from the category's score distribution and your allowed levels; nothing here changes prices or exports anything. ${fresh}.</div>
 `;
-  const later=(k,t,txt)=>mdpSec(k,t,'next phase',`<div class="mdp-sub" style="margin:0 0 4px;">${txt}</div>`);
+  const later=(k,t,tag,txt)=>mdpSec(k,t,tag,`<div class="mdp-sub" style="margin:0 0 4px;line-height:1.55;">${txt}</div>`);
   root.innerHTML=titleBar+strip+settings+mdpSec('B','B. Category strategy','read-only preview',catsBody)
-    +later('C','C. Product / colour review','Searchable review of every product/colour with approved discounts, overrides, exclusions, bulk actions and linked core colours.')
-    +later('D','D. Financial &amp; stock forecast','Low / base / high sale forecasts from past promotions, scenario comparison, projected revenue, gross profit, stock cleared and GWP cost.')
-    +later('E','E. Shopify / Hextom export','Collection mapping per discount level, pre-export validation and checklist, the Hextom import CSV, the full plan CSV and an audit summary.');
+    +later('C','C. Product / colour review','planned · phase 4','Searchable review of every product/colour with approved discounts, overrides, exclusions, bulk actions and linked core colours.')
+    +later('D','D. Special buys (from Apparel Magic)','planned · phase 6','Choose styles ordered specifically for this sale straight from Apparel Magic — by collection/group (e.g. “2026 - BLACK FIRDAY”), parent style, product/colour or purchase order — and set the discount for each collection (e.g. 50%). They are never penalised for having no sales history, are clearly marked as special buys, and are held back from the Hextom file until matched to a Shopify product.')
+    +later('E','E. Gift with purchase (from Apparel Magic)','planned · phase 6','Pick gift-with-purchase products from Apparel Magic’s GWP category (8 styles today), or by collection or style. Shows stock, incoming, unit cost, estimated giveaways and total GWP cost, with an optional spend threshold. GWP is kept out of markdowns and the Hextom file, and flagged as a blocking conflict if one also gets a discount.')
+    +later('F','F. Financial &amp; stock forecast','planned · phase 5','Low / base / high sale forecasts from past promotions, scenario comparison, projected revenue, gross profit, stock cleared and GWP cost.')
+    +later('G','G. Shopify / Hextom export','planned · phase 7','Collection mapping per discount level, pre-export validation and checklist, the Hextom import CSV, the full plan CSV and an audit summary.');
   if(mdpRenaming){const el=document.getElementById('mdp-rename');if(el){el.focus();el.select();}}
 }
 function round1(v){return Math.round(v*10)/10;}
@@ -12032,6 +12047,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.8.1 — Markdown Planner, from Brendan's feedback. (1) 'Max effective discount' is now 'Effective discount': an AVERAGE cap across the styles in the sale, weighted by units. The planner lowers whole category groups (A/B — so each category keeps one consistent offer), healthiest group first, one allowed level at a time, until the average fits; Clearance, manual overrides and already-reduced prices are never lowered, nobody is dropped from the sale to hit the number, and if the cap can't be reached (e.g. below the lowest allowed level, or Clearance alone averages above it) the plan stays at its floor and says so with the lowest achievable average. The old per-product limit is kept as a separate 'Highest single discount'. A projected average-discount tile shows against the cap. (2) Product rows now show RRP and Current price (with a '-30%' tag if already reduced) beside New price. (3) 'Styles in this sale': Recommended styles, or All styles — every eligible in-stock style joins, healthy sellers at the lightest level (a healthy low-stock line is NOT cleared); new arrivals, GWP and core protection still apply. (4)/(5) Sections D (Special buys) and E (Gift with purchase) now exist as roadmap placeholders describing the Apparel Magic linkage; page is A-G. Tests: 100+ engine assertions incl. properties (cap met when reachable, tighter cap never raises a discount, category offers stay consistent, Clearance/overrides untouched)
 // v2.8.0 — Markdown Planner: stock-on-order now comes straight from the Apparel Magic orders for every incoming-stock mode (all on order, or only what's due by the sale end), instead of from the product rows — those pick up their on-order figures several seconds AFTER the orders land, so opening the Planner early read 'nothing on order' and wrongly pushed slow lines into Clearance (the 'all on order' mode showed 0 units while AM held 13,620 open for in-stock styles). The tie-out is now exact: 'arrives by sale end' = 10,440 units = AM's own due-date total. The Planner also re-renders itself when the underlying data rebuilds (sync, feed, AM), without stealing focus from a field being edited
 // v2.7.9 — Fix Markdown Planner on-order double count found testing v2.7.8 on live data: a product row carries the SAME product-level on-order total in both onOrder and productOnOrder (AM shows 50 units open for W26BA021MYS; the row has 50 and 50), and the Planner adapter, copying the old Markdowns screen, added them (100). It now takes the larger of the two. The same sum still double counts on-order in the older Re-Orders / Classic Markdowns displays, CSV exports and re-order weeks-of-cover recalculation — separate, pre-existing, flagged for its own fix
 // v2.7.8 — Markdown Planner, phase 2: Sale Setup. Named sale plans along a SALES strip (Add sale, Duplicate, inline Rename via the pencil, Archive with Restore — archived plans are hidden, never deleted, and the last live plan can't be archived); each plan saves its own setup and rules (per browser for now, behind two small load/save functions so shared storage can replace it later) and reserves slots for its own overrides, collection mappings and export history. A Duplicate is a template: it copies the rules but NOT the dates, overrides, mappings or exports, which belong to a different promotion. New Sale setup section after the Sale Creative Planner layout: name, start/end dates with an auto duration (inclusive days, DST-safe), primary objective (Clear stock / Balance / Revenue / Gross profit — each sets how readily products enter the sale and Group B; initial assumptions, shown on screen), optional target revenue and target % of stock cleared (compared against the baseline forecast), max effective discount, allowed levels 20-70% plus custom levels (e.g. 25%), incoming-stock handling (SOH only / arriving by sale end / all on order — 'by sale end' uses real AM due dates per style), and every rule from before. The page is now structured A-E (setup, category strategy, product review, forecast, export); C-E are labelled placeholders until their phases. Logic is in the new markdown-plans.js (pure, tested under Node via npm test); the one-off migration carries the previously saved settings into 'Sale 1'

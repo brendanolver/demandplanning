@@ -175,6 +175,10 @@
     const lv = p.settings.allowedDiscounts;
     const below = lv.filter(d => d <= p.settings.maxDiscount);
     p.settings.maxDiscount = below.length ? below[below.length - 1] : lv[0];
+    // average-discount cap: blank/zero/garbage means "no cap"; otherwise 0.1-95 with one decimal
+    const cap = Number(p.settings.avgDiscountCap);
+    p.settings.avgDiscountCap = p.settings.avgDiscountCap == null || p.settings.avgDiscountCap === '' || !isFinite(cap) || cap <= 0 ? null : Math.min(95, Math.round(cap * 10) / 10);
+    p.settings.scope = p.settings.scope === 'all' ? 'all' : 'recommended';
     p.updatedTs = now || Date.now(); p.rev += 1;
     return s;
   }
@@ -196,6 +200,11 @@
     if (!start || !end) warnings.push('Set the sale dates — the forecast uses the sale length (assuming ' + plan.settings.saleDays + ' days until then).');
     if (targetRevenue != null && !(num(targetRevenue) > 0)) errors.push('Target revenue must be a positive number.');
     if (targetClearPct != null && !(num(targetClearPct) > 0 && num(targetClearPct) <= 100)) errors.push('Target clearance must be between 1% and 100%.');
+    const cap = plan.settings.avgDiscountCap, lv = plan.settings.allowedDiscounts;
+    if (cap != null) {
+      if (cap < Math.min(...lv)) warnings.push('The ' + cap + '% average cap is below your lowest discount level (' + Math.min(...lv) + '%), so it can\'t be reached — the plan will sit at the lowest levels.');
+      else if (cap >= plan.settings.maxDiscount) warnings.push('The ' + cap + '% average cap is at or above your highest single discount (' + plan.settings.maxDiscount + '%), so it can never limit anything.');
+    }
     const d = durationDays(start, end);
     if (d != null && d > 60) warnings.push('That is a long sale (' + d + ' days).');
     return { errors, warnings };

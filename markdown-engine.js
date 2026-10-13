@@ -21,7 +21,9 @@
     periodDays: 30,                 // analysis window: 7 | 30 | 60 | 90
     saleDays: 10,                   // sale duration, for the baseline forecast
     allowedDiscounts: [20, 30, 40, 50, 60, 70],
-    maxDiscount: 50,                // max EFFECTIVE discount vs original RRP
+    maxDiscount: 50,                // highest SINGLE-product effective discount vs original RRP
+    avgDiscountCap: null,           // cap on the sale's AVERAGE effective discount (unit-weighted, styles in the sale); null = no cap
+    scope: 'recommended',           // recommended = healthy sellers stay full price | all = every eligible in-stock style joins at the lightest level
     excludeBelow: 35,               // clearance score under this stays full price
     groupBAt: 65,                   // score at/above this goes to the deeper Group B
     coreMode: 'protect',            // protect = Group A only | include | exclude
@@ -155,21 +157,23 @@
       if (cur > clearPct + 0.5) return exclude('Already ' + Math.round(cur) + '% off — deeper than clearance, stays as is');
       return { action: 'C', reason: cur >= clearPct - 0.5 ? 'Already ' + Math.round(cur) + '% off — stays at ' + clearPct + '% (no price change)' : 'Already reduced (' + Math.round(cur) + '% off) — moves to ' + clearPct + '% clearance', hard: false };
     }
-    if (score < S.excludeBelow) {
+    const healthy = score < S.excludeBelow;
+    if (healthy && S.scope !== 'all') {
       const why = m.noSales ? 'low score' : m.weeksCover != null && m.weeksCover <= 8 ? 'only ' + round1(m.weeksCover) + ' weeks of cover' : 'healthy sales';
       return { action: 'Exclude', reason: 'Stays full price — ' + why + ' (score ' + score + ')', hard: false };
     }
     // Not a healthy seller, but not worth a normal markdown tier either: a remnant (few units,
     // nothing coming) or a broken size run is simply cleared out at the clearance level.
+    // (A healthy seller is never cleared just for being low on stock, even when every style is on sale.)
     const remnant = m.soh < S.minStockUnits && m.onOrder <= 0;
     const broken = (num(p.soldOutSizes) || 0) >= S.brokenSizesClearance;
-    if (remnant || broken) {
+    if (!healthy && (remnant || broken)) {
       const why = broken && remnant ? 'only ' + m.soh + ' units and ' + p.soldOutSizes + ' sizes sold out' : broken ? p.soldOutSizes + ' sizes sold out' : 'only ' + m.soh + ' units and none on order';
       return { action: 'C', reason: 'Clearance — ' + why, hard: false };
     }
     if (score >= S.groupBAt && !(p.isCore && S.coreMode === 'protect')) return { action: 'B', reason: describe(row) };
     const prot = p.isCore && S.coreMode === 'protect' ? ' (core: capped at Group A)' : '';
-    return { action: 'A', reason: describe(row) + prot };
+    return { action: 'A', reason: (healthy ? 'Healthy seller — joins at the lightest level (all styles on sale)' : describe(row)) + prot };
   }
 
   function describe(row) {
@@ -218,7 +222,7 @@
         const g = byStyle[st]; if (g.length < 2) continue;
         const stock = g.reduce((a, it) => a + it.row.m.soh, 0) || 1;
         const avg = g.reduce((a, it) => a + it.row.score * it.row.m.soh, 0) / stock;
-        const target = avg >= S.excludeBelow ? (avg >= S.groupBAt && S.coreMode !== 'protect' ? 'B' : 'A') : 'Exclude';
+        const target = avg >= S.excludeBelow || S.scope === 'all' ? (avg >= S.groupBAt && S.coreMode !== 'protect' ? 'B' : 'A') : 'Exclude';
         for (const it of g) {
           if (it.action !== target) {
             it.linkedFrom = it.action;
@@ -241,36 +245,94 @@
       const pressure = stock > 0 ? elig.reduce((a, it) => a + it.row.score * it.row.m.soh, 0) / stock : 0;
       const aIdx = pressure < 50 ? 0 : Math.min(1, lv.length - 1);
       const bIdx = Math.min(lv.length - 1, aIdx + 2);
-      return { category: c, items: list, pressure: Math.round(pressure), groupA: A.length ? lv[aIdx] : null, groupB: B.length ? lv[bIdx] : null };
+      return { category: c, items: list, pressure: Math.round(pressure), idx: { A: A.length ? aIdx : null, B: B.length ? bIdx : null }, startIdx: { A: aIdx, B: bIdx },
+        groupA: A.length ? lv[aIdx] : null, groupB: B.length ? lv[bIdx] : null };
     });
-
-    // Apply category discounts (+ user overrides, never silently overwritten) to products.
-    const ov = overrides || {};
     const catByName = Object.fromEntries(catPlans.map(cp => [cp.category, cp]));
-    items.forEach(it => {
+    const ov = overrides || {};
+    const clearPct = clearanceLevel(S);
+    const groupPct = (cp, tier) => (cp.idx[tier] == null ? null : lv[cp.idx[tier]]);
+
+    // What each product ends up as, given the CURRENT group levels (user overrides are
+    // applied last and never silently overwritten).
+    function resolve(it) {
       const p = it.row.p, cp = catByName[p.category || 'UNCATEGORISED'];
-      const sys = it.action === 'A' ? cp.groupA : it.action === 'B' ? cp.groupB : it.action === 'C' ? clearanceLevel(S) : null;
-      it.systemPct = sys;
+      const sys = it.action === 'A' ? groupPct(cp, 'A') : it.action === 'B' ? groupPct(cp, 'B') : it.action === 'C' ? clearPct : null;
       let pct = sys, action = it.action, reason = it.reason;
-      // Existing markdown: never stack on a sale price — compare against RRP.
       const cur = num(p.currentDiscountPct) || 0;
+      if ((it.action === 'A' || it.action === 'B') && cp.idx[it.action] < cp.startIdx[it.action]) reason += ' · level lowered to meet the ' + S.avgDiscountCap + '% average cap';
+      // Existing markdown: never stack on a sale price — compare against RRP.
       if (pct != null && S.existingReduced === 'retain' && cur >= S.reducedThresholdPct && cur >= pct) {
         action = 'Exclude'; pct = null; reason = 'Already reduced to ' + Math.round(cur) + '% off RRP — retained (sale ' + sys + '% would not be deeper)';
       }
       const o = ov[p.id];
-      it.override = null;
+      let override = null;
       if (o) {
-        if (o.exclude) { action = 'Exclude'; pct = null; reason = 'Manually excluded'; it.override = 'exclude'; }
-        else if (o.pct != null) { action = o.pct === sys ? action : 'Manual'; pct = Math.min(Number(o.pct), S.maxDiscount); it.override = 'discount'; reason = 'Manual override (system suggested ' + (sys == null ? 'none' : sys + '%') + ')'; }
+        if (o.exclude) { action = 'Exclude'; pct = null; reason = 'Manually excluded'; override = 'exclude'; }
+        else if (o.pct != null) { action = o.pct === sys ? action : 'Manual'; pct = Math.min(Number(o.pct), S.maxDiscount); override = 'discount'; reason = 'Manual override (system suggested ' + (sys == null ? 'none' : sys + '%') + ')'; }
       }
-      it.final = { action, pct, reason };
+      return { sys, cur, override, final: { action, pct, reason } };
+    }
+    const avgNow = () => {
+      let num_ = 0, den = 0;
+      for (const it of items) { const r = resolve(it).final; if (r.pct != null) { num_ += r.pct * it.row.m.soh; den += it.row.m.soh; } }
+      return den > 0 ? num_ / den : 0;
+    };
+
+    // Average effective discount cap: lower whole category GROUPS (never single products, so each
+    // category keeps one consistent offer), healthiest group first, one allowed level at a time.
+    // Clearance, manual overrides and already-reduced prices are never touched, and nobody is
+    // dropped from the sale to hit the number (once every group is at the lowest allowed level
+    // dropping groups cannot lower the average anyway). If the cap is still out of reach it is
+    // reported with the lowest achievable average, never forced.
+    let cap = null;
+    if (S.avgDiscountCap != null) {
+      const capPct = S.avgDiscountCap;
+      const groupsLive = () => {
+        const out = [];
+        for (const cp of catPlans) for (const t of ['A', 'B']) {
+          if (cp.idx[t] == null || cp.idx[t] <= 0) continue;
+          const members = cp.items.filter(it => it.action === t && !ov[it.row.p.id]);
+          if (!members.length) continue;
+          const stock = members.reduce((a, it) => a + it.row.m.soh, 0) || 1;
+          out.push({ cp, t, mean: members.reduce((a, it) => a + it.row.score * it.row.m.soh, 0) / stock, idx: cp.idx[t] });
+        }
+        return out;
+      };
+      const order = (a, b) => a.mean - b.mean || b.idx - a.idx || a.cp.category.localeCompare(b.cp.category) || (a.t < b.t ? -1 : 1);
+      let steps = 0;
+      while (avgNow() > capPct + 1e-9 && steps < 5000) {
+        const g = groupsLive().sort(order)[0];
+        if (!g) break;                       // every group is already at the lowest allowed level
+        g.cp.idx[g.t] = g.idx - 1; steps++;
+      }
+      const a = avgNow();
+      cap = { cap: capPct, avg: Math.round(a * 10) / 10, met: a <= capPct + 1e-9, steps };
+    }
+
+    items.forEach(it => {
+      const p = it.row.p, r = resolve(it), cp = catByName[p.category || 'UNCATEGORISED'];
+      it.systemPct = r.sys; it.override = r.override; it.final = r.final;
+      const pct = r.final.pct;
       const pr = pct != null ? priceAt(p, pct) : { base: priceAt(p, 0).base, rrpMissing: priceAt(p, 0).rrpMissing, newPrice: null };
       it.price = pr;
-      it.noPriceChange = action === 'C' && cur >= (pct || 0) - 0.5 && cur > 0;
+      it.noPriceChange = r.final.action === 'C' && r.cur >= (pct || 0) - 0.5 && r.cur > 0;
+      it.capped = (it.action === 'A' || it.action === 'B') && cp.idx[it.action] < cp.startIdx[it.action];
       it.forecast = baseline(it.row.m, S);
     });
+    catPlans.forEach(cp => { cp.groupA = groupPct(cp, 'A'); cp.groupB = groupPct(cp, 'B'); });
 
-    return { settings: S, items, categories: catPlans.map(cp => summarise(cp, S)), totals: totals(items) };
+    const tot = totals(items);
+    if (cap) { tot.avgDiscount = cap.avg; }
+    else { tot.avgDiscount = avgFromItems(items); }
+    return { settings: S, items, categories: catPlans.map(cp => summarise(cp, S)), totals: tot, cap };
+  }
+
+  // Unit-weighted average effective discount over the products actually in the sale.
+  function avgFromItems(items) {
+    let n = 0, d = 0;
+    for (const it of items) if (it.final.pct != null) { n += it.final.pct * it.row.m.soh; d += it.row.m.soh; }
+    return d > 0 ? Math.round(n / d * 10) / 10 : 0;
   }
 
   // Baseline only: recent run-rate over the sale length, capped at stock. NO promotional
@@ -308,6 +370,7 @@
     return {
       products: items.length, included: inc.length, excluded: items.length - inc.length,
       exceptions: items.filter(it => it.exception).length,
+      saleUnits: inc.reduce((a, it) => a + it.row.m.soh, 0),
       soh: items.reduce((a, it) => a + it.row.m.soh, 0),
       sohCost: Math.round(items.reduce((a, it) => a + (num(it.row.p.sohCost) || 0), 0)),
     };

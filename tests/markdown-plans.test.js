@@ -86,5 +86,21 @@ const v2 = P.updatePlan({ plans: { v: vp }, order: ['v'], activeId: 'v' }, 'v', 
 const ve = P.validatePlan(v2).errors; assert.ok(ve.some(e => /before the start/.test(e))); assert.ok(ve.some(e => /Target revenue/.test(e))); assert.ok(ve.some(e => /clearance/.test(e)));
 const v3 = P.updatePlan({ plans: { v: vp }, order: ['v'], activeId: 'v' }, 'v', { setup: { start: '2026-11-01', end: '2027-02-01' } }).plans.v;
 assert.equal(P.validatePlan(v3).errors.length, 0); assert.ok(P.validatePlan(v3).warnings.some(w => /long sale/.test(w)));
+// average-discount cap + scope: normalised, validated, saved per plan
+let cp = P.createState(1, idGen), cid = cp.activeId;
+const setCap = v => P.updatePlan(cp, cid, { settings: { avgDiscountCap: v } }).plans[cid].settings.avgDiscountCap;
+assert.equal(setCap(null), null); assert.equal(setCap(''), null); assert.equal(setCap(0), null); assert.equal(setCap(-3), null); assert.equal(setCap('abc'), null);
+assert.equal(setCap(35), 35); assert.equal(setCap('32.46'), 32.5); assert.equal(setCap(400), 95);
+assert.equal(P.newPlan('n', 1, 'n').settings.avgDiscountCap, null); assert.equal(P.newPlan('n', 1, 'n').settings.scope, 'recommended');
+assert.equal(P.updatePlan(cp, cid, { settings: { scope: 'all' } }).plans[cid].settings.scope, 'all'); assert.equal(P.updatePlan(cp, cid, { settings: { scope: 'junk' } }).plans[cid].settings.scope, 'recommended');
+let w = P.validatePlan(P.updatePlan(cp, cid, { settings: { avgDiscountCap: 10 } }).plans[cid]).warnings; assert.ok(w.some(x => /below your lowest discount level/.test(x)));
+w = P.validatePlan(P.updatePlan(cp, cid, { settings: { avgDiscountCap: 60 } }).plans[cid]).warnings; assert.ok(w.some(x => /can never limit anything/.test(x)));
+w = P.validatePlan(P.updatePlan(cp, cid, { settings: { avgDiscountCap: 35 } }).plans[cid]).warnings; assert.ok(!w.some(x => /average cap/.test(x)));
+// cap and scope are rules, so a Duplicate copies them
+let capped = P.updatePlan(cp, cid, { settings: { avgDiscountCap: 35, scope: 'all' } }); const cd = P.duplicatePlan(capped, cid, 5, idGen);
+assert.equal(cd.state.plans[cd.id].settings.avgDiscountCap, 35); assert.equal(cd.state.plans[cd.id].settings.scope, 'all');
+// older saved plans (no cap/scope keys) pick up the defaults on load
+const old = JSON.parse(JSON.stringify(cp)); delete old.plans[cid].settings.avgDiscountCap; delete old.plans[cid].settings.scope;
+const mig = P.migrate(old, null, 1, idGen).plans[cid].settings; assert.equal(mig.avgDiscountCap, null); assert.equal(mig.scope, 'recommended');
 console.log('markdown plans tests: all passed');
 })();

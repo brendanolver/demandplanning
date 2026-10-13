@@ -155,6 +155,75 @@ assert.equal(cp.countC, 2); cp.groupA === null || assert.ok(cp.groupA <= 40);
 const coreC = E.buildPlan([mk('W26AA009BLK', { isCore: true, parentStyle: 'W26AA009', ...slow, soh: 20 }), mk('W26AA009WHT', { isCore: true, parentStyle: 'W26AA009', soh: 400, sold: { d7: 1, d30: 3, d60: 8, d90: 12 }, ageWeeks: 60 })], { coreConsistency: 'strict' }).items;
 assert.equal(coreC.find(i => i.row.p.id === 'W26AA009BLK').final.action, 'C');
 
+// ── Average effective discount cap + 'all styles' scope ───────────────────
+const mkCat = (cat, i, o = {}) => mk(cat + i, { category: cat, soh: 100 + i * 60, sold: { d7: Math.max(0, 9 - i), d30: Math.max(0, 40 - i * 5), d60: Math.max(0, 80 - i * 9), d90: Math.max(0, 120 - i * 13) }, ageWeeks: 20 + i * 8, soldOutSizes: i % 3, ...o });
+const range = [].concat(...['X', 'Y', 'Z'].map(c => [0, 1, 2, 3, 4, 5, 6, 7].map(i => mkCat(c, i))));
+const capSet = c => ({ maxDiscount: 70, avgDiscountCap: c });
+const base = E.buildPlan(range, capSet(null));
+assert.ok(base.totals.avgDiscount > 0); assert.equal(base.cap, null);
+const wavg = pl => { let n = 0, d = 0; for (const it of pl.items) if (it.final.pct != null) { n += it.final.pct * it.row.m.soh; d += it.row.m.soh; } return d ? Math.round(n / d * 10) / 10 : 0; };
+assert.equal(base.totals.avgDiscount, wavg(base));                              // unit-weighted average over the products in the sale
+assert.equal(base.totals.saleUnits, base.items.filter(i => i.final.pct != null).reduce((a, i) => a + i.row.m.soh, 0));
+// a cap at or above the uncapped average changes nothing
+const loose = E.buildPlan(range, capSet(base.totals.avgDiscount + 5));
+assert.deepEqual(loose.items.map(i => [i.final.action, i.final.pct]), base.items.map(i => [i.final.action, i.final.pct])); assert.equal(loose.cap.met, true); assert.equal(loose.cap.steps, 0);
+// a binding cap is met, and tightening it only ever lowers discounts
+let prev = base;
+for (const c of [Math.floor(base.totals.avgDiscount) - 1, 25, 20]) {
+  const pl = E.buildPlan(range, capSet(c));
+  assert.ok(pl.cap.met, 'cap ' + c + ' should be reachable'); assert.ok(wavg(pl) <= c + 1e-9, 'avg ' + wavg(pl) + ' > cap ' + c);
+  assert.ok(pl.totals.avgDiscount <= c + 1e-9);
+  pl.items.forEach((it, i) => assert.ok((it.final.pct || 0) <= (prev.items[i].final.pct || 0), 'a tighter cap must never raise a discount'));
+  prev = pl;
+}
+// category offers stay consistent: every Group A product in a category shares one %, same for B
+const capped = E.buildPlan(range, capSet(20));
+for (const c of ['X', 'Y', 'Z']) for (const tier of ['A', 'B']) {
+  const ps = new Set(capped.items.filter(i => i.row.p.category === c && i.final.action === tier).map(i => i.final.pct)); assert.ok(ps.size <= 1, c + ' ' + tier + ' has several %');
+}
+assert.ok(capped.items.some(i => i.capped)); assert.ok(capped.items.some(i => /average cap|average discount/.test(i.final.reason)));
+// the average cap never touches Clearance, and manual overrides are left exactly as set
+const clr = [mk('CL1', { soh: 30, sold: { d7: 0, d30: 1, d60: 2, d90: 3 }, ageWeeks: 90 }), mk('CL2', { currentDiscountPct: 30, price: 70, soh: 400, sold: { d7: 0, d30: 1, d60: 2, d90: 3 }, ageWeeks: 90 })];
+const withClr = E.buildPlan(range.concat(clr), { ...capSet(20) }, { X3: { pct: 40 } });
+assert.equal(withClr.items.find(i => i.row.p.id === 'CL1').final.pct, 50); assert.equal(withClr.items.find(i => i.row.p.id === 'CL2').final.pct, 50);
+assert.equal(withClr.items.find(i => i.row.p.id === 'X3').final.pct, 40); assert.equal(withClr.items.find(i => i.row.p.id === 'X3').override, 'discount');
+// healthiest groups are lowered first: the most-pressured category keeps the deepest offer
+const gA = pl => Object.fromEntries(pl.categories.map(c => [c.category, c.groupA]));
+const skew = range.map(p => p.category === 'Z' ? { ...p, soh: p.soh * 4, sold: { d7: 0, d30: 1, d60: 2, d90: 3 } } : p);   // Z is badly overstocked
+const sk0 = E.buildPlan(skew, capSet(null)), sk1 = E.buildPlan(skew, capSet(Math.max(10, sk0.totals.avgDiscount - 6)));
+assert.ok((gA(sk1).Z || 0) >= (gA(sk1).X || 0)); assert.ok(sk1.cap.met);
+// unreachable cap in 'all' scope: nobody is dropped, the shortfall is reported honestly
+const allP = E.buildPlan(range, { maxDiscount: 70, scope: 'all', avgDiscountCap: 5 });
+assert.equal(allP.cap.met, false); assert.ok(allP.cap.avg > 5);
+assert.equal(allP.items.filter(i => i.final.pct != null).length, E.buildPlan(range, { maxDiscount: 70, scope: 'all' }).items.filter(i => i.final.pct != null).length);
+// below the lowest allowed level the cap is unreachable: the sale is NOT emptied to chase it — it stays at the floor and is reported
+const floorP = E.buildPlan(range, capSet(15)), floorRef = E.buildPlan(range, capSet(20));
+assert.equal(floorP.cap.met, false); assert.equal(floorP.cap.avg, 20); assert.ok(floorP.totals.included > 0);
+assert.equal(floorP.totals.included, floorRef.totals.included);                           // same products in the sale, nobody dropped
+assert.ok(floorP.items.every(i => i.final.pct == null || i.final.pct >= 20));
+// clearance alone above the cap -> reported, not forced
+const onlyClr = E.buildPlan([mk('Q1', { soh: 30, ...{ sold: { d7: 0, d30: 1, d60: 2, d90: 3 }, ageWeeks: 90 } })], { avgDiscountCap: 20 });
+assert.equal(onlyClr.cap.met, false); assert.equal(onlyClr.items[0].final.pct, 50);
+// deterministic: same input, same output
+assert.deepEqual(E.buildPlan(range, capSet(18)).items.map(i => i.final.pct), E.buildPlan(range, capSet(18)).items.map(i => i.final.pct));
+// the single-product ceiling still holds under a cap
+assert.ok(E.buildPlan(range, { maxDiscount: 30, avgDiscountCap: 25 }).items.every(i => i.final.pct == null || i.final.pct <= 30));
+
+// 'all styles' scope: healthy sellers join at the lightest level; protections still hold
+const hotP = mk('HOT2', { soh: 200, sold: { d7: 40, d30: 150, d60: 300, d90: 450 }, ageWeeks: 20 });
+const protectedSet = [hotP, mk('NEWP', { ageWeeks: 2, soh: 200 }), mk('GWPP', { isGWP: true }), mk('NOSTK', { soh: 0 }), mk('HOTLOW', { soh: 20, sold: { d7: 40, d30: 150, d60: 300, d90: 450 }, ageWeeks: 20 })];
+const recS = E.buildPlan(protectedSet.concat(range), { maxDiscount: 70 }), allS = E.buildPlan(protectedSet.concat(range), { maxDiscount: 70, scope: 'all' });
+const pick = (pl, id) => pl.items.find(i => i.row.p.id === id).final;
+assert.equal(pick(recS, 'HOT2').action, 'Exclude');
+assert.equal(pick(allS, 'HOT2').action, 'A'); assert.equal(pick(allS, 'HOT2').pct, Math.min(...E.levels(E.mergeSettings({ maxDiscount: 70 })))); assert.match(pick(allS, 'HOT2').reason, /Healthy seller/);
+assert.equal(pick(allS, 'HOTLOW').action, 'A');                                           // healthy + low stock is NOT cleared
+assert.equal(pick(allS, 'NEWP').action, 'Exclude'); assert.equal(pick(allS, 'GWPP').action, 'Exclude'); assert.equal(pick(allS, 'NOSTK').action, 'Exclude');
+assert.ok(allS.totals.included > recS.totals.included);
+// core colours of a healthy core style are also in, consistently, under 'all'
+const hc = [mk('W26AA002BLK', { isCore: true, parentStyle: 'W26AA002', soh: 200, sold: { d7: 20, d30: 90, d60: 180, d90: 270 }, ageWeeks: 60 }), mk('W26AA002WHT', { isCore: true, parentStyle: 'W26AA002', soh: 180, sold: { d7: 18, d30: 80, d60: 160, d90: 240 }, ageWeeks: 60 })];
+const hcAll = E.buildPlan(hc.concat(range), { scope: 'all' }).items.filter(i => i.row.p.isCore);
+assert.ok(hcAll.every(i => i.final.action === 'A'));
+
 // edge: empty input, single product, duplicate ids don't throw
 assert.equal(E.buildPlan([], {}).items.length, 0); assert.equal(E.buildPlan([mk('ONE')], {}).items.length, 1);
 assert.doesNotThrow(() => E.buildPlan([mk('D'), mk('D')], {}));
