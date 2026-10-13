@@ -36,6 +36,7 @@
     objective: 'balance',
     targetRevenue: null,      // optional, $ ex GST
     targetClearPct: null,     // optional, % of SOH units to clear
+    growthPct: null,          // planned growth vs the same dates last year (%), e.g. 90 = nearly double; blank = flat on last year
     incoming: 'sale',
   };
 
@@ -178,6 +179,7 @@
     if (!state.plans[id]) return state;
     const s = clone(state), p = s.plans[id];
     if (patch.setup) p.setup = { ...p.setup, ...patch.setup };
+    { const g = p.setup.growthPct, n = Number(g); p.setup.growthPct = g == null || g === '' || !isFinite(n) ? null : Math.max(-90, Math.min(500, Math.round(n * 10) / 10)); }
     if (patch.settings) p.settings = { ...p.settings, ...patch.settings, weights: { ...p.settings.weights, ...((patch.settings || {}).weights || {}) } };
     p.settings.allowedDiscounts = cleanLevels(p.settings.allowedDiscounts);
     // the max must be an allowed level (snap down to the nearest allowed level at/below it)
@@ -214,6 +216,55 @@
     return { errors, warnings };
   }
 
+
+  // ── Forecast: last year's same dates, grown by your target ──────────────────
+  // The sale's dates shifted back 364 days (52 weeks, so Black Friday lands on last year's Black Friday). null until both dates are valid.
+  function lyWindow(setup) {
+    const a = parseDay(setup && setup.start), b = parseDay(setup && setup.end);
+    if (a == null || b == null || b < a) return null;
+    const iso = t => new Date(t - 364 * 86400000).toISOString().slice(0, 10);
+    return { start: iso(a), end: iso(b), days: Math.round((b - a) / 86400000) + 1 };
+  }
+  // Units sold per category inside that window. salesBySkuDay = { sku: { 'YYYY-MM-DD': { qty } } }, skuCat = { sku: category }.
+  function lyUnitsByCategory(salesBySkuDay, skuCat, win) {
+    const out = {}; let total = 0;
+    if (!win || !salesBySkuDay) return { byCat: out, total, matched: 0 };
+    let matched = 0;
+    for (const sku of Object.keys(salesBySkuDay)) {
+      const cat = skuCat && skuCat[sku]; if (!cat) continue;
+      const key = String(cat).toUpperCase(), days = salesBySkuDay[sku];
+      for (const day of Object.keys(days)) {
+        const d = String(day).slice(0, 10);
+        if (d >= win.start && d <= win.end) { const q = Number(days[day] && days[day].qty) || 0; if (q) { out[key] = (out[key] || 0) + q; total += q; matched++; } }
+      }
+    }
+    return { byCat: out, total, matched };
+  }
+  // Per category: last year's units x (1 + growth), against the stock available (stock now + arriving per the sale's incoming setting).
+  // Revenue/GP use the sale price each product ends up at, weighted by stock; prices are GST-inclusive, so revenue is shown ex GST.
+  const GST = 1.1;
+  function buildForecast(items, lyByCat, growthPct) {
+    const g = growthPct == null || !isFinite(Number(growthPct)) ? 0 : Number(growthPct), cats = {};
+    for (const it of items || []) {
+      const p = it.row.p, key = String(p.category || 'UNCATEGORISED').toUpperCase();
+      const c = cats[key] || (cats[key] = { category: p.category || 'UNCATEGORISED', avail: 0, w: 0, price: 0, cost: 0, costUnits: 0 });
+      const u = Math.max(0, it.row.m.soh || 0), inc = Math.max(0, p.onOrder || 0), units = u + inc;
+      c.avail += units;
+      const unitPrice = it.final.pct != null && it.price && it.price.newPrice != null ? it.price.newPrice : (p.price || 0);
+      if (units > 0 && unitPrice > 0) { c.w += units; c.price += units * unitPrice; }
+      const sc = Number(p.sohCost) || 0; if (u > 0 && sc > 0) { c.cost += sc; c.costUnits += u; }
+    }
+    const rows = Object.keys(cats).sort().map(k => {
+      const c = cats[k], ly = (lyByCat && lyByCat[k]) || 0, demand = Math.round(ly * (1 + g / 100)), sold = Math.min(demand, c.avail);
+      const avgPrice = c.w > 0 ? c.price / c.w : 0, unitCost = c.costUnits > 0 ? c.cost / c.costUnits : 0;
+      const revenue = sold * avgPrice / GST, gp = revenue - sold * unitCost;
+      return { category: c.category, ly, demand, avail: c.avail, left: c.avail - demand, sold, avgPrice, unitCost, revenue: Math.round(revenue), gp: Math.round(gp), short: Math.max(0, demand - c.avail) };
+    });
+    const sum = f => rows.reduce((a, r) => a + r[f], 0);
+    const t = { ly: sum('ly'), demand: sum('demand'), avail: sum('avail'), sold: sum('sold'), revenue: sum('revenue'), gp: sum('gp'), short: sum('short') };
+    t.left = t.avail - t.demand; t.gpPct = t.revenue > 0 ? Math.round(t.gp / t.revenue * 1000) / 10 : null;
+    return { rows, totals: t, growthPct: g };
+  }
 
   // ── Category group levels ──────────────────────────────────────────────────
   // tier 'A' | 'B'; pct null/'' = back to the planner's suggestion. Levels are capped at the highest single discount.
@@ -495,6 +546,6 @@
     parseDay, durationDays, newPlan, createState, migrate, uniqueName, addPlan, duplicatePlan,
     renamePlan, setActive, archivePlan, restorePlan, cleanLevels, updatePlan, engineSettings, validatePlan,
     EXCLUDE_REASONS, VIEWS, sanitizeOverride, setOverrides, clearOverrides, overrideStats, buildReview,
-    SPECIAL_KINDS, GWP_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setGwpQty, setGwpThreshold, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
+    SPECIAL_KINDS, GWP_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setGwpQty, setGwpThreshold, lyWindow, lyUnitsByCategory, buildForecast, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
   };
 });

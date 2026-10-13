@@ -275,5 +275,28 @@ gl = P.setGroupLevel(gl, gid, 'JEANS', 'A', 40, 10); const gd = P.duplicatePlan(
 gd.state.plans[gd.id].groupLevels.JEANS.A = 50; assert.equal(gl.plans[gid].groupLevels.JEANS.A, 40);                  // a copy, not shared
 assert.deepEqual(P.migrate({ v: gl.v, activeId: gid, order: [gid], plans: { [gid]: { ...gl.plans[gid], groupLevels: undefined } } }, null, 1, idGen).plans[gid].groupLevels, {});
 assert.deepEqual(P.clearGroupLevels(gl, gid, 12).plans[gid].groupLevels, {});
+// Forecast: last year's same dates (52 weeks back) grown by the target
+let fc = P.createState(1, idGen); const fid = fc.activeId;
+assert.equal(P.lyWindow(fc.plans[fid].setup), null);
+fc = P.updatePlan(fc, fid, { setup: { start: '2026-11-27', end: '2026-11-30' } });
+assert.deepEqual(P.lyWindow(fc.plans[fid].setup), { start: '2025-11-28', end: '2025-12-01', days: 4 });                   // Black Friday lands on last year's Black Friday
+assert.equal(P.lyWindow({ start: '2026-11-30', end: '2026-11-27' }), null);
+assert.equal(fc.plans[fid].setup.growthPct, null);
+for (const [inp, out] of [[90, 90], ['90', 90], ['12.34', 12.3], ['', null], ['x', null], [9999, 500], [-200, -90]]) assert.equal(P.updatePlan(fc, fid, { setup: { growthPct: inp } }).plans[fid].setup.growthPct, out);
+const sales = { S1: { '2025-11-27': { qty: 5 }, '2025-11-28': { qty: 10 }, '2025-12-01': { qty: 7 }, '2025-12-02': { qty: 99 } }, S2: { '2025-11-29': { qty: 20 } }, S3: { '2025-11-29': { qty: 1000 } } };   // S3 has no category
+const ly = P.lyUnitsByCategory(sales, { S1: 'Sweats', S2: 'SWEATS' }, P.lyWindow(fc.plans[fid].setup));
+assert.deepEqual(ly.byCat, { SWEATS: 37 }); assert.equal(ly.total, 37);                                                  // 10+7 (S1, inside) + 20 (S2); outside the window or uncategorised excluded
+assert.deepEqual(P.lyUnitsByCategory(sales, { S1: 'X' }, null).byCat, {});
+const fi = (cat, soh, onOrder, price, pct, sohCost) => ({ row: { p: { category: cat, onOrder, price, sohCost }, m: { soh } }, final: { pct }, price: { newPrice: pct == null ? null : price * (1 - pct / 100) } });
+const f1 = P.buildForecast([fi('SWEATS', 20, 10, 100, 50, 300), fi('SWEATS', 10, 0, 100, null, 150), fi('TEES', 100, 0, 50, 20, 500)], { SWEATS: 20, TEES: 40 }, 90);
+const sw = f1.rows.find(r => r.category === 'SWEATS'), te = f1.rows.find(r => r.category === 'TEES');
+assert.equal(sw.demand, 38); assert.equal(sw.avail, 40); assert.equal(sw.left, 2); assert.equal(sw.sold, 38); assert.equal(sw.short, 0);   // 20 x 1.9
+assert.equal(te.demand, 76); assert.equal(te.avail, 100); assert.equal(te.sold, 76);
+const f2 = P.buildForecast([fi('SWEATS', 10, 0, 100, 50, 300)], { SWEATS: 20 }, 90);
+assert.equal(f2.rows[0].demand, 38); assert.equal(f2.rows[0].sold, 10); assert.equal(f2.rows[0].short, 28); assert.equal(f2.totals.left, -28);   // demand beyond stock is a shortfall, revenue capped at stock
+assert.equal(f2.rows[0].revenue, Math.round(10 * 50 / 1.1)); assert.equal(f2.rows[0].gp, Math.round(10 * 50 / 1.1 - 10 * 30));
+assert.equal(P.buildForecast([fi('SWEATS', 10, 0, 100, 50, 300)], { SWEATS: 20 }, null).rows[0].demand, 20);               // no growth = flat on last year
+assert.equal(P.buildForecast([fi('SWEATS', 10, 0, 100, 50, 300)], {}, 90).rows[0].demand, 0);
+assert.deepEqual(P.buildForecast([], {}, 90).totals.demand, 0);
 console.log('markdown plans tests: all passed');
 })();
