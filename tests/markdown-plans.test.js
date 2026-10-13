@@ -448,5 +448,14 @@ assert.deepEqual(P.buildForecast([], {}, 90).totals.demand, 0);
   assert.equal(ids({ group: 'A', month: 'SEP-26' }), 'a2'); assert.equal(ids({ group: 'A', q: 'a1' }), 'a1'); assert.equal(ids({ group: 'B', month: 'SEP-26' }), '');
   assert.equal(ids({ group: '' }), 'a1a2b1c1n1x1'); assert.equal(ids({ group: null }), 'a1a2b1c1n1x1');
 }
+// review filter: several delivery months at once
+{
+  const mi = (id, dm) => ({ row: { p: { id, name: id, colour: '', style: id, parentStyle: '', category: 'X', deliveryMonth: dm, isCore: false }, m: { soh: 1 }, score: 1 }, final: { action: 'A', pct: 20 }, group: 'A' });
+  const its = [mi('a', 'OCT-26'), mi('b', 'SEP-26'), mi('c', 'NOV-26'), mi('d', ''), mi('e', 'oct-26')];
+  const ids = f => P.buildReview(its, f).groups.flatMap(g => g.items.map(i => i.row.p.id)).sort().join('');
+  assert.equal(ids({ month: ['OCT-26', 'SEP-26'] }), 'abe'); assert.equal(ids({ month: ['NOV-26'] }), 'c'); assert.equal(ids({ month: ['SEP-26', '__none__'] }), 'bd');
+  assert.equal(ids({ month: [] }), 'abcde'); assert.equal(ids({ month: 'OCT-26' }), 'ae');                          // a single month (the old form) still works
+  assert.equal(ids({ month: ['OCT-26', 'SEP-26'], q: 'a' }), 'a'); assert.equal(ids({ month: ['DEC-26'] }), '');
+}
 console.log('markdown plans tests: all passed');
 })();

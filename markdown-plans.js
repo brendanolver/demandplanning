@@ -509,6 +509,7 @@
     f = f || {}; opts = opts || {};
     const q = String(f.q || '').trim().toLowerCase();
     const view = VIEWS.includes(f.view) ? f.view : 'all';
+    const months = (Array.isArray(f.month) ? f.month : f.month ? [f.month] : []).map(m => (m === '__none__' ? m : String(m).toUpperCase()));   // one month or several
     const oo = i => (opts.onOrder ? opts.onOrder(i) : 0);
     const hit = it => {
       const p = it.row.p, fin = it.final;
@@ -516,7 +517,7 @@
       if (f.collection && norm(p.collection) !== norm(f.collection)) return false;
       if (f.group && it.group !== f.group) return false;                                       // saved group membership (A / B / C), never the percentage
       if (f.sugg) { const sp = it.systemPct; if (f.sugg === '__none__' ? sp != null : sp == null || Number(sp) !== Number(f.sugg)) return false; }
-      if (f.month) { const dm = String(p.deliveryMonth || ''); if (f.month === '__none__' ? dm !== '' : dm.toUpperCase() !== String(f.month).toUpperCase()) return false; }
+      if (months.length) { const dm = String(p.deliveryMonth || '').toUpperCase(); if (!months.some(m => (m === '__none__' ? dm === '' : dm === m))) return false; }   // any of the chosen delivery months
       if (f.core === 'core' && !p.isCore) return false;
       if (f.core === 'noncore' && p.isCore) return false;
       if (view === 'sale' && fin.pct == null) return false;
