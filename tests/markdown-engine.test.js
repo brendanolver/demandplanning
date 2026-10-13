@@ -228,8 +228,8 @@ assert.ok(hcAll.every(i => i.final.action === 'A'));
 const ovSet = [
   mk('W26AA010BLK', { parentStyle: 'W26AA010', soh: 300, ...{ sold: { d7: 0, d30: 2, d60: 5, d90: 9 }, ageWeeks: 70 } }),
   mk('W26AA010WHT', { parentStyle: 'W26AA010', soh: 250, ...{ sold: { d7: 1, d30: 4, d60: 9, d90: 14 }, ageWeeks: 60 } }),
-  mk('M1', { soh: 120, sold: { d7: 10, d30: 35, d60: 60, d90: 90 } }), mk('M2', { soh: 100, sold: { d7: 9, d30: 33, d60: 60, d90: 88 } }),
-  mk('M3', { soh: 90, sold: { d7: 8, d30: 30, d60: 55, d90: 80 } }), mk('M4', { soh: 80, sold: { d7: 7, d30: 28, d60: 50, d90: 75 } }),
+  mk('M1', { soh: 140, sold: { d7: 2, d30: 8, d60: 16, d90: 24 }, ageWeeks: 45 }), mk('M2', { soh: 130, sold: { d7: 2, d30: 9, d60: 17, d90: 26 }, ageWeeks: 45 }),   // slow-ish, share Group A with W26AA010WHT
+  mk('M3', { soh: 120, sold: { d7: 9, d30: 34, d60: 62, d90: 90 } }), mk('M4', { soh: 110, sold: { d7: 9, d30: 33, d60: 60, d90: 88 } }),
   mk('GW1', { isGWP: true, soh: 40 }),
 ];
 const ovBase = E.buildPlan(ovSet, { maxDiscount: 70 });
@@ -312,7 +312,7 @@ assert.equal(rsi('RS_SLOW').row.m.soh, 500); assert.equal(rsi('RS_SLOW').row.m.s
 assert.ok(['A', 'B'].includes(rsi('RS_SLOW').final.action)); assert.match(rsi('RS_SLOW').final.reason, /^Restock — 500 units arriving by the sale/);
 assert.equal(rsi('RS_SLOW').row.confidence, 'Low');                                                              // never better than Low
 assert.equal(rsi('RS_HOT').final.action, 'Exclude'); assert.match(rsi('RS_HOT').final.reason, /full price/);     // a fast seller restocking stays full price
-assert.equal(rsi('RS_NONE').final.action, 'Exclude'); assert.match(rsi('RS_NONE').final.reason, /no recent sales to judge it by/);   // can't be judged -> not guessed at
+assert.equal(rsi('RS_NONE').final.action, 'A'); assert.equal(rsi('RS_NONE').defaultA, true); assert.match(rsi('RS_NONE').final.reason, /defaulted to the lowest discount in its category \(Group A\)/);   // can't be scored -> the category's lightest offer
 const tinyOnly = E.buildPlan([mk('RS_TINY', { soh: 0, restockUnits: 30, sold: rs90(9), ageWeeks: 70 })], { maxDiscount: 70 }).items[0];   // a remnant-sized restock is cleared (in isolation: category-relative scores shift with the rest of the range)
 assert.equal(tinyOnly.final.action, 'C'); assert.match(tinyOnly.final.reason, /only 30 units/);
 assert.equal(rsi('RS_NEW').final.action, 'Exclude'); assert.match(rsi('RS_NEW').final.reason, /New arrival/);       // a brand-new style is still protected
@@ -327,6 +327,36 @@ assert.equal(E.buildPlan(rsAll.concat(range), { maxDiscount: 70 }, { RS_SLOW: { 
 // in-stock products are unchanged (restockUnits absent)
 assert.equal(plain.items.every(i => i.row.m.restock === 0), true);
 
+// no-history restocks default to the category's lowest discount (Group A)
+const nh = (id, o = {}) => mk(id, { soh: 0, restockUnits: 300, sold: rs90(0), ageWeeks: 70, category: 'SW', ...o });
+const swReal = [0, 1, 2, 3, 4, 5, 6, 7].map(i => mkCat('SW', i));
+const swPlain = E.buildPlan(swReal, { maxDiscount: 70 }), swWith = E.buildPlan(swReal.concat([nh('NH1'), nh('NH2')]), { maxDiscount: 70 });
+const swA = swWith.categories.find(c => c.category === 'SW').groupA;
+assert.ok(swA != null); assert.equal(swWith.items.find(i => i.row.p.id === 'NH1').final.pct, swA); assert.equal(swWith.items.find(i => i.row.p.id === 'NH2').final.action, 'A');     // they get the category's Group A level
+assert.equal(swWith.categories.find(c => c.category === 'SW').groupA, swPlain.categories.find(c => c.category === 'SW').groupA);                                       // ...without moving that level
+assert.deepEqual(swWith.items.filter(i => !i.defaultA).map(i => [i.row.p.id, i.final.action, i.final.pct]), swPlain.items.map(i => [i.row.p.id, i.final.action, i.final.pct]));   // and without changing anyone else
+assert.equal(swWith.items.filter(i => i.defaultA).length, 2);
+// a category made only of no-history restocks has no real members: lowest allowed level
+const onlyNh = E.buildPlan([nh('NHA'), nh('NHB', { category: 'SW' })], { maxDiscount: 70 }); assert.equal(onlyNh.items[0].final.pct, E.levels(E.mergeSettings({ maxDiscount: 70 }))[0]);
+// protections and decisions still win over the default
+assert.equal(E.buildPlan([nh('NHN', { ageWeeks: 2 })], {}).items[0].final.action, 'Exclude');                                                    // new arrival: still protected
+assert.equal(E.buildPlan([nh('NHN', { ageWeeks: 2 })], { excludeNew: false }).items[0].final.action, 'A');                                         // ...unless protection is switched off
+assert.equal(E.buildPlan([nh('NHG', { isGWP: true })], {}).items[0].final.action, 'Exclude');
+assert.equal(E.buildPlan([nh('NHR', { currentDiscountPct: 30, price: 70 })], {}).items[0].final.action, 'C');                                      // already reduced -> clearance rule
+assert.equal(E.buildPlan([nh('NHC', { isCore: true })], { coreMode: 'exclude' }).items[0].final.action, 'Exclude');
+assert.equal(E.buildPlan([nh('NHS', { specialPct: 50 })], {}).items[0].final.action, 'S');
+assert.equal(E.buildPlan([nh('NHD')], {}, { NHD: { exclude: true, reason: 'Commercial decision' } }).items[0].final.action, 'Exclude');
+assert.equal(E.buildPlan([nh('NHD')], {}, { NHD: { pct: 40, kind: 'discount' } }).items[0].final.pct, 40);
+assert.equal(E.buildPlan(swReal.concat([nh('NH1')]), { maxDiscount: 70, scope: 'all' }).items.find(i => i.row.p.id === 'NH1').final.action, 'A');   // same under 'all styles'
+// the average cap lowers a defaulted-only group first (it has no score to protect) and never breaks consistency
+const capNh = E.buildPlan(swReal.concat([nh('NH1')]).concat(range), { maxDiscount: 70, avgDiscountCap: 22 });
+assert.ok(capNh.cap.met || capNh.cap.avg <= 24); const swAs = new Set(capNh.items.filter(i => i.row.p.category === 'SW' && i.final.action === 'A').map(i => i.final.pct)); assert.equal(swAs.size, 1);
+// unscorable items (GWP, special buys) must never shift anyone else's result
+const swBase = E.buildPlan(swReal, { maxDiscount: 70 }).items.map(i => [i.row.p.id, i.final.action, i.final.pct, i.row.score]);
+for (const extra of [mk('SWG', { category: 'SW', isGWP: true, soh: 500, sold: { d7: 50, d30: 200, d60: 400, d90: 600 } }), mk('SWS', { category: 'SW', specialPct: 50, soh: 5, sold: { d7: 0, d30: 0, d60: 0, d90: 0 }, ageWeeks: 90 })]) {
+  const withX = E.buildPlan(swReal.concat([extra]), { maxDiscount: 70 }).items.filter(i => i.row.p.id !== extra.id).map(i => [i.row.p.id, i.final.action, i.final.pct, i.row.score]);
+  assert.deepEqual(withX, swBase);
+}
 // edge: empty input, single product, duplicate ids don't throw
 assert.equal(E.buildPlan([], {}).items.length, 0); assert.equal(E.buildPlan([mk('ONE')], {}).items.length, 1);
 assert.doesNotThrow(() => E.buildPlan([mk('D'), mk('D')], {}));

@@ -2251,8 +2251,8 @@ th{position:relative;}
     </div>
   </div>
 
-<script src="markdown-engine.js?v=2.9.7"></script>
-<script src="markdown-plans.js?v=2.9.7"></script>
+<script src="markdown-engine.js?v=2.9.8"></script>
+<script src="markdown-plans.js?v=2.9.8"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2286,7 +2286,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.9.7';
+const APP_VERSION='v2.9.8';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -5978,8 +5978,9 @@ function mdpReviewHtml(){
     ${T.conflicts?`<span class="mdp-dot"></span><span class="mdp-b-cf">⚠ ${T.conflicts} differ from the suggestion</span>`:''}
     ${st.stale?`<span class="mdp-dot"></span><span class="mdp-dim" title="Saved decisions for products no longer in stock — kept, not deleted">${st.stale} for products no longer in stock</span>`:''}
     ${st.total?`<button class="mdp-act" onclick="mdpResetAll()">Reset all decisions</button>`:''}</div>`;
-  const nh=mdpRev.view==='restock'?plan.items.filter(i=>i.row.m.restock>0&&/no recent sales to judge/.test(i.final.reason)).length:0;
-  const hint=nh?`<div class="mdp-warn" style="margin-bottom:10px;">ⓘ <b>${nh}</b> of these have no sales in the last 90 days, so there is nothing to score them on and they stay out of the sale by default. Tick the ones you want and use <b>Bulk action → Set discount</b>, or price them from the on-order table.</div>`:'';
+  const rsAll=mdpRev.view==='restock'?plan.items.filter(i=>i.row.m.restock>0):[];
+  const nDef=rsAll.filter(i=>i.defaultA).length,nProt=rsAll.filter(i=>/New arrival/.test(i.final.reason)&&!(i.row.p.sold.d90>0)).length;
+  const hint=rsAll.length&&(nDef||nProt)?`<div class="mdp-warn" style="margin-bottom:10px;">ⓘ ${nDef?`<b>${nDef}</b> restock${nDef===1?' has':'s have'} no sales in the last 90 days, so there is nothing to score ${nDef===1?'it':'them'} on — ${nDef===1?'it defaults':'they default'} to the <b>lowest discount in ${nDef===1?'its':'their'} category (Group A)</b>.`:''}${nProt?` <b>${nProt}</b> ${nProt===1?'is':'are'} protected as new arrivals instead (Apparel Magic's launch date is recent or in the future); switch off "New arrivals" protection in the sale setup to include ${nProt===1?'it':'them'}.`:''} Change or exclude any of them with the Applied discount menu or Bulk action.</div>`:'';
   const table=rv.groups.length?`<div class="mdp-scroll mdp-revscroll"><table class="mdp-t mdp-rvt"><thead><tr>
     <th class="mdp-c1"><input type="checkbox" ${allOn?'checked':''} onchange="mdpSelAll(this.checked)" title="Select everything shown"></th>
     <th class="l">Product / colour</th><th>Parent style</th><th class="l">Category</th><th class="l" title="Apparel Magic collection / group">Collection</th><th>SOH</th><th title="Open Apparel Magic order lines">On order</th>
@@ -12554,6 +12555,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.9.8 — Markdown Planner, from Brendan: a restock with NO sales history (nothing to score) now defaults to the lowest discount in its category (Group A) instead of being left out. It follows the category's Group A level (set by the category's real products, never by these), is lowered first by the average cap (it has no score to protect), and is marked 'defaulted'. New-arrival protection, GWP, core-exclude, already-reduced (→ Clearance), special buys and your own decisions still take precedence. Also fixed a scoring flaw this exposed: items that can't be scored — GWP, special buys and no-history restocks — were counted in each category's 'typical' cover/velocity/sell-through pool, silently shifting OTHER products' scores (adding two unscorable restocks flipped one Group A product to Exclude and two Group B to A). They are now scored against the pool but never part of it. The Restocking view hint says how many defaulted and how many are protected as new arrivals
 // v2.9.7 — Changelog correction only (see v2.9.6 below)
 // v2.9.6 — Markdown Planner follow-up to v2.9.5, from checking restocks on live data: 65 of the 69 restocking styles (33k units) are brand-new Black Friday / ALL CAPS indent orders with NO sales in 90 days, so there is nothing to score — they correctly stay out of the sale with that reason. To make them easy to price: the on-order by-style table gets a 'Set discount…' control per style (a live product gets a saved decision; a style with no Shopify product yet becomes a special buy), and the Restocking view says how many have no history and how to bulk-price them. Age now falls back to the design month encoded in the style code (W24I… = Sept 2024) before the delivery month — a safety net only: CORRECTION to an earlier draft of this note, the Represent Tech Trackshort restock is protected as a 'new arrival' because Apparel Magic's launch date for that 2024 core style is 11 Nov 2026 (a relaunch), which is the Planner correctly following AM, not an age bug
 // v2.9.5 — Markdown Planner, from Brendan's feedback. (1) Stock ARRIVING before/during the sale now gets suggestions: the Planner only planned products with stock on the shelf today, so 69 live styles (41,225 units — 58% of everything on order) that are sold out now but restock by the sale end had NO suggestion. They are now planned on the arriving stock ('Restock' — per the sale's incoming-stock setting). Because a stock-out understates recent sales they use their 90-day average rather than the last 7/30 days, their sold-out sizes are ignored, confidence is capped at Low, a restock with no 90-day sales isn't guessed at ('add it as a special buy to price it'), brand-new styles stay protected, and real SOH is reported separately from 'N arriving' everywhere. The by-style on-order table gains a Suggested discount column ('No Shopify product yet — add as a special buy' for the 111 new styles). (2) Product review: every product/colour is its own row by default ('Group colours by style' is now an optional switch); a Collection dropdown (Apparel Magic collection/group) plus a Collection column; and 'On order' and 'Restocking' added to the All products dropdown. The old placeholder column is renamed 'Sale collection'. Engine: restockUnits/sohNow; plans: collection filter, flat mode, onorder/restock views — ~45 new assertions

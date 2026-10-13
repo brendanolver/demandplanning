@@ -100,17 +100,22 @@
   function scoreAll(products, settings) {
     const S = mergeSettings(settings);
     const ms = products.map(p => metrics(p, S));
-    const idxByCat = {}, all = [];
+    const idxByCat = {};
+    // Items that can't be scored — gift-with-purchase, special buys (priced by choice) and restocks with no
+    // sales history — must never shape the category's "typical" cover/velocity/sell-through, or they would
+    // silently shift every OTHER product's score. They are still scored, but against pools they aren't in.
+    const scorable = i => { const p = products[i]; return !p.isGWP && p.specialPct == null && !(ms[i].restock > 0 && !(num((p.sold || {}).d90) > 0)); };
+    const poolByCat = {}, poolAll = [];
     products.forEach((p, i) => {
       const c = p.category || 'UNCATEGORISED';
       (idxByCat[c] = idxByCat[c] || []).push(i);
-      all.push(i);
+      if (scorable(i)) { (poolByCat[c] = poolByCat[c] || []).push(i); poolAll.push(i); }
     });
     // Percentile within the category, shrunk toward the whole-range percentile for small categories.
     function relPct(i, getter) {
       const c = products[i].category || 'UNCATEGORISED';
-      const pool = idxByCat[c].map(j => getter(j)).filter(x => x != null);
-      const whole = all.map(j => getter(j)).filter(x => x != null);
+      const pool = (poolByCat[c] || []).map(j => getter(j)).filter(x => x != null);
+      const whole = poolAll.map(j => getter(j)).filter(x => x != null);
       const v = getter(i);
       if (v == null) return null;
       const catP = percentileRank(pool, v), allP = percentileRank(whole, v);
@@ -135,7 +140,7 @@
         onOrder: m.soh <= 0 ? 0 : round1(clamp(m.onOrder / Math.max(m.soh, 1), 0, 1) * 100),
       };
       const score = Math.round(Object.keys(W).reduce((a, k) => a + W[k] * f[k], 0) / wsum);
-      const catN = idxByCat[p.category || 'UNCATEGORISED'].length;
+      const catN = (poolByCat[p.category || 'UNCATEGORISED'] || []).length;
       const hasRrp = num(p.rrp) > 0, ageKnown = m.ageWeeks != null || p.isCore;   // evergreen core lines have no launch date by design
       const pts = (m.periodUnits >= 8 ? 1 : 0) + (catN >= S.minCategorySample ? 1 : 0) + (hasRrp && ageKnown ? 1 : 0);
       // A sold-out product's recent sales are understated by the stock-out and there is no stock history to correct them, so restocks are never better than Low.
@@ -153,7 +158,8 @@
     if (m.soh <= 0) return exclude('No stock on hand');
     // Special buys are bought FOR this sale at a chosen discount: never scored against sales history
     // (they have none), never protected as "new arrivals", and never cleared as remnants.
-    if (m.restock > 0 && !(num((p.sold || {}).d90) > 0)) return exclude('Restock arriving (' + m.restock.toLocaleString() + ' units), but no recent sales to judge it by — add it as a special buy to price it');
+    // Stock arriving for a sold-out product with NO sales in 90 days can't be scored; see the default below.
+    const noHistory = m.restock > 0 && !(num((p.sold || {}).d90) > 0);
     if (p.specialPct != null) return { action: 'S', reason: 'Special buy — ' + (p.specialNote || 'chosen for this sale') + ' at ' + p.specialPct + '%', hard: false };
     if (S.excludeNew && ((m.ageWeeks != null && m.ageWeeks * 7 < S.newProductDays) || status === 'NEW' || status === 'PRE-RELEASE')) return exclude('New arrival — protected from markdown');
     if (p.isCore && S.coreMode === 'exclude') return exclude('Core product — excluded');
@@ -166,6 +172,9 @@
       if (cur > clearPct + 0.5) return exclude('Already ' + Math.round(cur) + '% off — deeper than clearance, stays as is');
       return { action: 'C', reason: cur >= clearPct - 0.5 ? 'Already ' + Math.round(cur) + '% off — stays at ' + clearPct + '% (no price change)' : 'Already reduced (' + Math.round(cur) + '% off) — moves to ' + clearPct + '% clearance', hard: false };
     }
+    // ...so it defaults to the category's LIGHTEST offer (Group A) rather than being left out. New-arrival
+    // protection (above) still applies, and a manual decision or special buy still wins.
+    if (noHistory) return { action: 'A', reason: 'No sales history to judge it by — defaulted to the lowest discount in its category (Group A)', hard: false, defaultA: true };
     const healthy = score < S.excludeBelow;
     if (healthy && S.scope !== 'all') {
       const why = m.noSales ? 'low score' : m.weeksCover != null && m.weeksCover <= 8 ? 'only ' + round1(m.weeksCover) + ' weeks of cover' : 'healthy sales';
@@ -253,10 +262,10 @@
     const catPlans = Object.keys(cats).sort().map(c => {
       const list = cats[c];
       const A = list.filter(it => it.action === 'A'), B = list.filter(it => it.action === 'B');
-      const elig = A.concat(B);
+      const elig = A.filter(it => !it.defaultA).concat(B);   // defaulted (no-history) items follow the group but don't set its level
       const stock = elig.reduce((a, it) => a + it.row.m.soh, 0);
       const pressure = stock > 0 ? elig.reduce((a, it) => a + it.row.score * it.row.m.soh, 0) / stock : 0;
-      const aIdx = pressure < 50 ? 0 : Math.min(1, lv.length - 1);
+      const aIdx = elig.length && pressure >= 50 ? Math.min(1, lv.length - 1) : 0;
       const bIdx = Math.min(lv.length - 1, aIdx + 2);
       return { category: c, items: list, pressure: Math.round(pressure), idx: { A: A.length ? aIdx : null, B: B.length ? bIdx : null }, startIdx: { A: aIdx, B: bIdx },
         groupA: A.length ? lv[aIdx] : null, groupB: B.length ? lv[bIdx] : null };
@@ -324,10 +333,11 @@
         const out = [];
         for (const cp of catPlans) for (const t of ['A', 'B']) {
           if (cp.idx[t] == null || cp.idx[t] <= 0) continue;
-          const members = cp.items.filter(it => it.action === t && !ov[it.row.p.id]);
-          if (!members.length) continue;
+          const all = cp.items.filter(it => it.action === t && !ov[it.row.p.id]);
+          if (!all.length) continue;
+          const members = all.filter(it => !it.defaultA);
           const stock = members.reduce((a, it) => a + it.row.m.soh, 0) || 1;
-          out.push({ cp, t, mean: members.reduce((a, it) => a + it.row.score * it.row.m.soh, 0) / stock, idx: cp.idx[t] });
+          out.push({ cp, t, mean: members.length ? members.reduce((a, it) => a + it.row.score * it.row.m.soh, 0) / stock : -1, idx: cp.idx[t] });
         }
         return out;
       };
