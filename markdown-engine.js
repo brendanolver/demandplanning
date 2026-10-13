@@ -161,7 +161,9 @@
     // Stock arriving for a sold-out product with NO sales in 90 days can't be scored; see the default below.
     const noHistory = m.restock > 0 && !(num((p.sold || {}).d90) > 0);
     if (p.specialPct != null) return { action: 'S', reason: 'Special buy — ' + (p.specialNote || 'chosen for this sale') + ' at ' + p.specialPct + '%', hard: false };
-    if (S.excludeNew && ((m.ageWeeks != null && m.ageWeeks * 7 < S.newProductDays) || status === 'NEW' || status === 'PRE-RELEASE')) return exclude('New arrival — protected from markdown');
+    // New-arrival protection is for product already on the shelf. Stock ARRIVING for the sale (a restock) is exempt —
+    // it is being bought to sell in this promotion, so a recent/future launch date doesn't hold it out.
+    if (S.excludeNew && !(m.restock > 0) && ((m.ageWeeks != null && m.ageWeeks * 7 < S.newProductDays) || status === 'NEW' || status === 'PRE-RELEASE')) return exclude('New arrival — protected from markdown');
     if (p.isCore && S.coreMode === 'exclude') return exclude('Core product — excluded');
     const cur = num(p.currentDiscountPct) || 0;
     const alreadyReduced = cur >= S.reducedThresholdPct;

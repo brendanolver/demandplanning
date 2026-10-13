@@ -315,7 +315,8 @@ assert.equal(rsi('RS_HOT').final.action, 'Exclude'); assert.match(rsi('RS_HOT').
 assert.equal(rsi('RS_NONE').final.action, 'A'); assert.equal(rsi('RS_NONE').defaultA, true); assert.match(rsi('RS_NONE').final.reason, /defaulted to the lowest discount in its category \(Group A\)/);   // can't be scored -> the category's lightest offer
 const tinyOnly = E.buildPlan([mk('RS_TINY', { soh: 0, restockUnits: 30, sold: rs90(9), ageWeeks: 70 })], { maxDiscount: 70 }).items[0];   // a remnant-sized restock is cleared (in isolation: category-relative scores shift with the rest of the range)
 assert.equal(tinyOnly.final.action, 'C'); assert.match(tinyOnly.final.reason, /only 30 units/);
-assert.equal(rsi('RS_NEW').final.action, 'Exclude'); assert.match(rsi('RS_NEW').final.reason, /New arrival/);       // a brand-new style is still protected
+assert.doesNotMatch(rsi('RS_NEW').final.reason, /New arrival/);                                                         // stock arriving for the sale is exempt from new-arrival protection
+assert.equal(E.buildPlan([mk('SHELF_NEW', { ageWeeks: 2, soh: 200 })], {}).items[0].final.action, 'Exclude');                  // ...but a new product already on the shelf is still protected
 assert.equal(rsi('RS_GWP').final.action, 'Exclude'); assert.match(rsi('RS_GWP').final.reason, /Gift with purchase/);
 // real stock is reported separately from restocks in every summary
 const rsCat = rsPlan.categories.find(c => c.category === 'TEES'), plain = E.buildPlan(range, { maxDiscount: 70 });
@@ -339,8 +340,8 @@ assert.equal(swWith.items.filter(i => i.defaultA).length, 2);
 // a category made only of no-history restocks has no real members: lowest allowed level
 const onlyNh = E.buildPlan([nh('NHA'), nh('NHB', { category: 'SW' })], { maxDiscount: 70 }); assert.equal(onlyNh.items[0].final.pct, E.levels(E.mergeSettings({ maxDiscount: 70 }))[0]);
 // protections and decisions still win over the default
-assert.equal(E.buildPlan([nh('NHN', { ageWeeks: 2 })], {}).items[0].final.action, 'Exclude');                                                    // new arrival: still protected
-assert.equal(E.buildPlan([nh('NHN', { ageWeeks: 2 })], { excludeNew: false }).items[0].final.action, 'A');                                         // ...unless protection is switched off
+const nhNew = E.buildPlan([nh('NHN', { ageWeeks: -3, status: 'NEW' })], {}).items[0];   // launching in the future, no history
+assert.equal(nhNew.final.action, 'A'); assert.equal(nhNew.defaultA, true);                                                                        // arriving for the sale: exempt from new-arrival protection
 assert.equal(E.buildPlan([nh('NHG', { isGWP: true })], {}).items[0].final.action, 'Exclude');
 assert.equal(E.buildPlan([nh('NHR', { currentDiscountPct: 30, price: 70 })], {}).items[0].final.action, 'C');                                      // already reduced -> clearance rule
 assert.equal(E.buildPlan([nh('NHC', { isCore: true })], { coreMode: 'exclude' }).items[0].final.action, 'Exclude');
