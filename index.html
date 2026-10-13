@@ -2251,8 +2251,8 @@ th{position:relative;}
     </div>
   </div>
 
-<script src="markdown-engine.js?v=2.9.6"></script>
-<script src="markdown-plans.js?v=2.9.6"></script>
+<script src="markdown-engine.js?v=2.9.7"></script>
+<script src="markdown-plans.js?v=2.9.7"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2286,7 +2286,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.9.6';
+const APP_VERSION='v2.9.7';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -12554,7 +12554,8 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
-// v2.9.6 — Markdown Planner follow-up to v2.9.5, from checking restocks on live data: 65 of the 69 restocking styles (33k units) are brand-new Black Friday / ALL CAPS indent orders with NO sales in 90 days, so there is nothing to score — they correctly stay out of the sale with that reason. To make them easy to price: the on-order by-style table gets a 'Set discount…' control per style (a live product gets a saved decision; a style with no Shopify product yet becomes a special buy), and the Restocking view says how many have no history and how to bulk-price them. Also fixed: a restock's age came from the delivery month of the INCOMING order, so a 2024 style (Represent Tech Trackshort) was wrongly protected as a 'new arrival'; age now comes from the launch date, else the design month encoded in the style code (W24I… = Sept 2024), else the delivery month
+// v2.9.7 — Changelog correction only (see v2.9.6 below)
+// v2.9.6 — Markdown Planner follow-up to v2.9.5, from checking restocks on live data: 65 of the 69 restocking styles (33k units) are brand-new Black Friday / ALL CAPS indent orders with NO sales in 90 days, so there is nothing to score — they correctly stay out of the sale with that reason. To make them easy to price: the on-order by-style table gets a 'Set discount…' control per style (a live product gets a saved decision; a style with no Shopify product yet becomes a special buy), and the Restocking view says how many have no history and how to bulk-price them. Age now falls back to the design month encoded in the style code (W24I… = Sept 2024) before the delivery month — a safety net only: CORRECTION to an earlier draft of this note, the Represent Tech Trackshort restock is protected as a 'new arrival' because Apparel Magic's launch date for that 2024 core style is 11 Nov 2026 (a relaunch), which is the Planner correctly following AM, not an age bug
 // v2.9.5 — Markdown Planner, from Brendan's feedback. (1) Stock ARRIVING before/during the sale now gets suggestions: the Planner only planned products with stock on the shelf today, so 69 live styles (41,225 units — 58% of everything on order) that are sold out now but restock by the sale end had NO suggestion. They are now planned on the arriving stock ('Restock' — per the sale's incoming-stock setting). Because a stock-out understates recent sales they use their 90-day average rather than the last 7/30 days, their sold-out sizes are ignored, confidence is capped at Low, a restock with no 90-day sales isn't guessed at ('add it as a special buy to price it'), brand-new styles stay protected, and real SOH is reported separately from 'N arriving' everywhere. The by-style on-order table gains a Suggested discount column ('No Shopify product yet — add as a special buy' for the 111 new styles). (2) Product review: every product/colour is its own row by default ('Group colours by style' is now an optional switch); a Collection dropdown (Apparel Magic collection/group) plus a Collection column; and 'On order' and 'Restocking' added to the All products dropdown. The old placeholder column is renamed 'Sale collection'. Engine: restockUnits/sohNow; plans: collection filter, flat mode, onorder/restock views — ~45 new assertions
 // v2.9.4 — Markdown Planner: widened the special-buys Flags column so 'arrives <date> — after the sale' reads on one line (layout only)
 // v2.9.3 — Markdown Planner: special buys now flag 'arrives <date> — after the sale' when they have no stock and nothing is due before the sale ends (the 16 IKIZAMA styles land 1 Feb 2027, after Black Friday, so they'd have 0 units to sell), with a count in the summary; the GWP cost estimate says it assumes everything available is given away until you edit the planned giveaways. Live-tested v2.9.2 on real data: catalogue cache 444 KB (3,978 styles), collection pick resolved 88 styles, GWP category 8 styles, GWP-vs-special-buy conflicts raise 3 blocking conflicts with one-click fixes
