@@ -298,5 +298,12 @@ assert.equal(f2.rows[0].revenue, Math.round(10 * 50 / 1.1)); assert.equal(f2.row
 assert.equal(P.buildForecast([fi('SWEATS', 10, 0, 100, 50, 300)], { SWEATS: 20 }, null).rows[0].demand, 20);               // no growth = flat on last year
 assert.equal(P.buildForecast([fi('SWEATS', 10, 0, 100, 50, 300)], {}, 90).rows[0].demand, 0);
 assert.deepEqual(P.buildForecast([], {}, 90).totals.demand, 0);
+// review filter: delivery month
+{
+  const mi = (id, dm) => ({ row: { p: { id, name: id, colour: '', style: id, parentStyle: '', category: 'X', deliveryMonth: dm, isCore: false }, m: { soh: 1 }, score: 1 }, final: { action: 'A', pct: 20 } });
+  const its = [mi('a', 'OCT-26'), mi('b', 'Oct-26'), mi('c', 'SEP-26'), mi('d', ''), mi('e', 'CORE')];
+  const ids = f => P.buildReview(its, f).groups.flatMap(g => g.items.map(i => i.row.p.id)).sort().join('');
+  assert.equal(ids({}), 'abcde'); assert.equal(ids({ month: 'OCT-26' }), 'ab'); assert.equal(ids({ month: 'SEP-26' }), 'c'); assert.equal(ids({ month: '__none__' }), 'd'); assert.equal(ids({ month: 'CORE' }), 'e'); assert.equal(ids({ month: 'NOV-26' }), '');
+}
 console.log('markdown plans tests: all passed');
 })();
