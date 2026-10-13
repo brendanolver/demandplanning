@@ -658,6 +658,50 @@ th{position:relative;}
   .screen-btn{font-size:10px;padding:4px 6px;}
   .topbar-brand span{display:none;}
 }
+
+/* ── Markdown Planner (Working > Markdowns > Planner) — styled after the Sale Creative Planner: light panels, rounded cards, blue accent ── */
+#md-mode-bar{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+.mdp-modes{display:inline-flex;background:#eef1f6;border:1px solid #e1e6ee;border-radius:999px;padding:3px;gap:2px;}
+.mdp-modes button{border:none;background:transparent;padding:6px 16px;border-radius:999px;font-family:'Inter',sans-serif;font-size:12.5px;font-weight:600;color:#4b5563;cursor:pointer;}
+.mdp-modes button.on{background:#0a66e8;color:#fff;box-shadow:0 1px 3px rgba(10,102,232,.35);}
+.mdp-card{background:#fff;border:1px solid #e4e8ef;border-radius:16px;padding:18px 20px;margin-bottom:16px;box-shadow:0 1px 2px rgba(16,24,40,.04);}
+.mdp-h{font-size:15px;font-weight:700;color:#111827;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.mdp-tag{font-size:10.5px;font-weight:600;color:#0a66e8;background:#e8f0fe;border-radius:999px;padding:3px 10px;}
+.mdp-link{margin-left:auto;border:none;background:none;color:#0a66e8;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;}
+.mdp-sub{font-size:12px;color:#6b7280;margin-top:4px;}
+.mdp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;}
+.mdp-box{background:#f7f8fb;border:1px solid #e8ebf2;border-radius:12px;padding:12px 14px;}
+.mdp-bt{font-size:11.5px;font-weight:700;color:#374151;margin-bottom:8px;}
+.mdp-hint{font-size:10.5px;color:#9ca3af;margin-top:6px;}
+.mdp-seg{display:inline-flex;background:#fff;border:1px solid #dfe3ec;border-radius:9px;padding:2px;gap:2px;flex-wrap:wrap;}
+.mdp-seg button{border:none;background:transparent;padding:5px 11px;border-radius:7px;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;color:#4b5563;cursor:pointer;}
+.mdp-seg button.on{background:#0a66e8;color:#fff;}
+.mdp-sel{padding:6px 10px;border:1px solid #dfe3ec;border-radius:9px;background:#fff;font-family:'Inter',sans-serif;font-size:12.5px;color:#111827;}
+.mdp-sel.mdp-sm{padding:4px 6px;font-size:12px;}
+.mdp-chks{display:flex;flex-wrap:wrap;gap:6px 12px;}
+.mdp-chk{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:500;color:#374151;cursor:pointer;}
+.mdp-chk input{accent-color:#0a66e8;}
+.mdp-stats{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px;}
+.mdp-stats div{background:#f7f8fb;border:1px solid #e8ebf2;border-radius:12px;padding:10px 16px;min-width:130px;}
+.mdp-stats b{display:block;font-size:18px;color:#111827;}
+.mdp-stats span{font-size:11px;color:#6b7280;}
+.mdp-scroll{overflow-x:auto;border:1px solid #e8ebf2;border-radius:12px;}
+.mdp-t,.mdp-t2{width:100%;border-collapse:collapse;font-size:12.5px;}
+.mdp-t th,.mdp-t2 th{background:#f7f8fb;color:#6b7280;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:9px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid #e8ebf2;}
+.mdp-t td,.mdp-t2 td{padding:8px 10px;text-align:right;border-bottom:1px solid #f0f2f6;white-space:nowrap;}
+.mdp-t th.l,.mdp-t td.l,.mdp-t2 th.l,.mdp-t2 td.l{text-align:left;}
+.mdp-cat{cursor:pointer;font-weight:600;}.mdp-cat:hover{background:#f5f8ff;}
+.mdp-car{display:inline-block;width:14px;color:#0a66e8;}
+.mdp-a{color:#0a66e8;font-weight:700;}.mdp-b{color:#b45309;font-weight:700;}
+.mdp-a i,.mdp-b i{font-style:normal;font-weight:500;color:#9ca3af;font-size:11px;}
+.mdp-sub>td{padding:0!important;background:#fbfcfe;}
+.mdp-t2{background:#fbfcfe;}.mdp-t2 td{font-weight:400;}
+.mdp-why{white-space:normal!important;max-width:380px;color:#4b5563;font-size:12px;}
+.mdp-pill{display:inline-block;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700;}
+.mdp-pill.a{background:#e8f0fe;color:#0a66e8;}.mdp-pill.b{background:#fef3c7;color:#b45309;}.mdp-pill.x{background:#f0f2f6;color:#6b7280;}
+.mdp-core{font-size:9.5px;font-weight:700;color:#0e7490;background:#e0f7fa;border-radius:4px;padding:1px 5px;}
+.mdp-exc{font-size:9.5px;font-weight:700;color:#b45309;background:#fef3c7;border-radius:4px;padding:1px 5px;cursor:help;}
+.mdp-foot{font-size:11.5px;color:#6b7280;line-height:1.55;margin-top:12px;}
 </style>
 </head>
 <body>
@@ -1569,6 +1613,15 @@ th{position:relative;}
 
       <!-- MARKDOWNS SUB-VIEW -->
       <div id="working-markdowns" style="display:none;">
+        <div id="md-mode-bar">
+        <div class="mdp-modes">
+          <button id="md-mode-planner" onclick="mdSetMode('planner')">Planner <span style="font-weight:500;opacity:.8;">beta</span></button>
+          <button id="md-mode-classic" onclick="mdSetMode('classic')">Classic</button>
+        </div>
+        <span style="font-size:11.5px;color:var(--text-muted);">The Planner will replace Classic once overrides and export are built.</span>
+      </div>
+      <div id="md-planner" class="mdp" style="display:none;"></div>
+      <div id="md-classic">
         <!-- Markdowns toolbar -->
         <div class="insights-header" style="margin-bottom:12px;">
           <div></div>
@@ -1692,6 +1745,7 @@ th{position:relative;}
             <div class="insights-empty-sub">Load your data first then switch to this tab.</div>
           </div>
         </div>
+      </div><!-- end md-classic -->
       </div><!-- end working-markdowns -->
 
       <!-- SIZE WORKINGS SUB-VIEW -->
@@ -2132,6 +2186,7 @@ th{position:relative;}
     </div>
   </div>
 
+<script src="markdown-engine.js?v=2.7.3"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2165,7 +2220,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.7.2';
+const APP_VERSION='v2.7.3';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -5473,10 +5528,151 @@ function setWorkingView(v){
   const subs={reorders:'Tick styles & enter re-order quantities — export to CSV',markdowns:'Tick styles & set proposed markdown % — export selected to CSV',sizeworkings:'Size-level analysis and buy planning',margins:'Margin calculator & cost price analysis'};
   document.getElementById('working-sub').textContent=subs[v]||'';
   if(v==='reorders')renderReorders();
-  if(v==='markdowns')renderMarkdowns();
+  if(v==='markdowns')mdSetMode(mdMode);
   if(v==='sizeworkings')swPopulateFilters();
   if(v==='margins'){renderMargins();renderMgCostTable();}
 }
+
+/* ── MARKDOWN PLANNER (Working > Markdowns > Planner) ──
+   Category-led sale planning. All scoring/recommendation logic lives in
+   markdown-engine.js (pure, unit-tested, window.MarkdownEngine); this block is
+   only the adapter from the app's product rows plus the screen. Phase 1 of the
+   build: settings + a READ-ONLY Category Strategy view so scores can be checked
+   against real data before overrides/export are built on top. */
+const MDP_KEY='wndrr_mdplanner_v1',MDP_MODE_KEY='wndrr_mdmode_v1';
+let mdMode='classic';
+try{if(localStorage.getItem(MDP_MODE_KEY)==='planner')mdMode='planner';}catch(e){}
+let mdpSettings=null;
+const mdpOpenCats=new Set();
+function mdpEsc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function mdpEngineOk(){return typeof window.MarkdownEngine==='object';}
+function mdpLoadSettings(){
+  if(mdpSettings||!mdpEngineOk())return;
+  let saved={};try{saved=(JSON.parse(localStorage.getItem(MDP_KEY)||'{}')||{}).settings||{};}catch(e){}
+  mdpSettings=MarkdownEngine.mergeSettings(saved);
+}
+function mdpSaveSettings(){try{localStorage.setItem(MDP_KEY,JSON.stringify({settings:mdpSettings}));}catch(e){}}
+function mdSetMode(m){
+  mdMode=m==='planner'?'planner':'classic';
+  try{localStorage.setItem(MDP_MODE_KEY,mdMode);}catch(e){}
+  const pl=document.getElementById('md-planner'),cl=document.getElementById('md-classic');
+  if(pl)pl.style.display=mdMode==='planner'?'block':'none';
+  if(cl)cl.style.display=mdMode==='classic'?'block':'none';
+  document.getElementById('md-mode-planner')?.classList.toggle('on',mdMode==='planner');
+  document.getElementById('md-mode-classic')?.classList.toggle('on',mdMode==='classic');
+  if(mdMode==='planner')renderMarkdownPlanner();else renderMarkdowns();
+}
+function mdpSet(key,val){mdpLoadSettings();mdpSettings[key]=val;mdpSaveSettings();renderMarkdownPlanner();}
+function mdpToggleDiscount(d,on){
+  mdpLoadSettings();
+  const set=new Set(mdpSettings.allowedDiscounts);
+  if(on)set.add(d);else set.delete(d);
+  if(!set.size)return renderMarkdownPlanner(); // never allow an empty list
+  mdpSettings.allowedDiscounts=[...set].sort((a,b)=>a-b);
+  mdpSaveSettings();renderMarkdownPlanner();
+}
+function mdpToggleCat(c){if(mdpOpenCats.has(c))mdpOpenCats.delete(c);else mdpOpenCats.add(c);renderMarkdownPlanner();}
+function mdpResetSettings(){mdpSettings=MarkdownEngine.mergeSettings({});mdpSaveSettings();renderMarkdownPlanner();}
+
+// Weeks since the product launched: AM launch date if present, else the delivery month in its name.
+function mdpAgeWeeks(p){
+  let t=null;
+  if(p.launchDate)t=launchDateSortKey(p.launchDate);
+  if(t==null&&p.deliveryMonth&&/^[A-Za-z]{3}-\d{2}$/.test(p.deliveryMonth)){
+    const mi=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].indexOf(p.deliveryMonth.slice(0,3).toLowerCase());
+    if(mi>=0)t=new Date(2000+parseInt(p.deliveryMonth.slice(-2)),mi,1).getTime();
+  }
+  return t==null?null:(Date.now()-t)/6048e5;
+}
+// One engine input per Shopify product/colour (toProduct already rolls sizes up).
+function mdpInputs(){
+  const prods=[...toProduct(allVariantRows.filter(r=>!r.amOnly))].filter(p=>(p.stock||0)>=1);
+  return prods.map(p=>{
+    const style=styleFromSku(p.sku||'');
+    return{
+      id:p.fullTitle,name:p.productName,colour:p.colour,category:p.category||'UNCATEGORISED',
+      parentStyle:/^W\d{2}[A-Z]{2}\d{3}[A-Z]{3}$/.test(style)?style.slice(0,8):'',
+      isCore:p.vendor==='CORE',status:p.vendor,isGWP:(p.category||'').toUpperCase()==='GWP',
+      soh:p.stock||0,sohCost:p.sohValue||0,onOrder:(p.onOrder||0)+(p.productOnOrder||0),
+      sold:{d7:p.sold7||0,d30:p.sold30||0,d60:p.sold60||0,d90:p.sold90||0},
+      rrp:p.compareAt||0,price:p.price||0,currentDiscountPct:p.discountPct||0,
+      sizeCount:(p.sizes||[]).length,soldOutSizes:p.soldOutSizes||0,ageWeeks:mdpAgeWeeks(p)
+    };
+  });
+}
+function mdpSeg(id,opts,cur,fn){
+  return`<div class="mdp-seg">${opts.map(o=>`<button class="${String(o[0])===String(cur)?'on':''}" onclick="${fn}(${typeof o[0]==='number'?o[0]:`'${o[0]}'`})">${o[1]}</button>`).join('')}</div>`;
+}
+function mdpMoney(n){return n==null?'—':'$'+Math.round(n).toLocaleString();}
+
+function renderMarkdownPlanner(){
+  const root=document.getElementById('md-planner');if(!root)return;
+  if(!mdpEngineOk()){root.innerHTML='<div class="mdp-card">The markdown engine failed to load (markdown-engine.js) — switch to Classic and refresh.</div>';return;}
+  if(!allVariantRows||!allVariantRows.length){root.innerHTML='<div class="mdp-card"><b>No data loaded</b><div class="mdp-sub">Load your data first, then come back to this tab.</div></div>';return;}
+  mdpLoadSettings();
+  const S=mdpSettings;
+  const plan=MarkdownEngine.buildPlan(mdpInputs(),S);
+  const T=plan.totals;
+  const f=window.shopifyFeed&&window.shopifyFeed.meta&&window.shopifyFeed.meta.lastSuccessTs;
+  const fresh=typeof shopifyFeedActive==='function'&&shopifyFeedActive()?`Sales: Shopify feed, ${Math.max(0,Math.round((Date.now()-f)/60000))}m ago`:'Sales: CSV + Apparel Magic (Shopify feed not active)';
+  const cb=d=>`<label class="mdp-chk"><input type="checkbox" ${S.allowedDiscounts.includes(d)?'checked':''} onchange="mdpToggleDiscount(${d},this.checked)"> ${d}%</label>`;
+  const settings=`
+  <div class="mdp-card">
+    <div class="mdp-h">A. Sale settings <span class="mdp-tag">preview — Sale Setup comes next</span><button class="mdp-link" onclick="mdpResetSettings()">Reset to defaults</button></div>
+    <div class="mdp-grid">
+      <div class="mdp-box"><div class="mdp-bt">Sales analysis period</div>${mdpSeg('p',[[7,'7d'],[30,'30d'],[60,'60d'],[90,'90d']],S.periodDays,"mdpSet.bind(null,'periodDays')")}</div>
+      <div class="mdp-box"><div class="mdp-bt">Sale length</div><select class="mdp-sel" onchange="mdpSet('saleDays',+this.value)">${[3,5,7,10,14,21].map(n=>`<option value="${n}" ${S.saleDays===n?'selected':''}>${n} days</option>`).join('')}</select></div>
+      <div class="mdp-box"><div class="mdp-bt">Max effective discount</div><select class="mdp-sel" onchange="mdpSet('maxDiscount',+this.value)">${S.allowedDiscounts.map(n=>`<option value="${n}" ${S.maxDiscount===n?'selected':''}>${n}% off RRP</option>`).join('')}</select></div>
+      <div class="mdp-box"><div class="mdp-bt">Allowed discount levels</div><div class="mdp-chks">${[20,30,40,50,60,70].map(cb).join('')}</div></div>
+      <div class="mdp-box"><div class="mdp-bt">Core products</div>${mdpSeg('c',[['protect','Protect'],['include','Include'],['exclude','Exclude']],S.coreMode,"mdpSet.bind(null,'coreMode')")}<div class="mdp-hint">Protect = Group A only</div></div>
+      <div class="mdp-box"><div class="mdp-bt">Already-reduced products</div>${mdpSeg('r',[['retain','Retain'],['reassess','Reassess'],['exclude','Exclude']],S.existingReduced,"mdpSet.bind(null,'existingReduced')")}</div>
+      <div class="mdp-box"><div class="mdp-bt">Core colour consistency</div>${mdpSeg('k',[['strict','Strict'],['preferred','Preferred'],['independent','Independent']],S.coreConsistency,"mdpSet.bind(null,'coreConsistency')")}</div>
+      <div class="mdp-box"><div class="mdp-bt">New arrivals</div><label class="mdp-chk"><input type="checkbox" ${S.excludeNew?'checked':''} onchange="mdpSet('excludeNew',this.checked)"> Protect if under</label> <select class="mdp-sel mdp-sm" onchange="mdpSet('newProductDays',+this.value)">${[14,28,42,56,84].map(n=>`<option value="${n}" ${S.newProductDays===n?'selected':''}>${n/7} wks</option>`).join('')}</select></div>
+    </div>
+  </div>`;
+
+  const levelLabel=v=>v==null?'—':v+'%';
+  const rows=plan.categories.map(c=>{
+    const open=mdpOpenCats.has(c.category);
+    const head=`<tr class="mdp-cat" onclick="mdpToggleCat(${JSON.stringify(c.category).replace(/"/g,'&quot;')})">
+      <td class="l"><span class="mdp-car">${open?'▾':'▸'}</span> ${mdpEsc(c.category)}</td>
+      <td>${c.products}</td><td>${c.soh.toLocaleString()}</td><td>${mdpMoney(c.sohCost)}</td><td>${c.periodUnits.toLocaleString()}</td>
+      <td>${c.weeksCover==null?'—':c.weeksCover}</td><td>${c.sellThroughProxy==null?'—':c.sellThroughProxy+'%'}</td>
+      <td class="mdp-a">${levelLabel(c.groupA)}${c.countA?` <i>(${c.countA})</i>`:''}</td><td class="mdp-b">${levelLabel(c.groupB)}${c.countB?` <i>(${c.countB})</i>`:''}</td>
+      <td>${c.countExcluded}</td><td>${c.forecastUnits.toLocaleString()}</td><td>${c.forecastRemaining.toLocaleString()}</td></tr>`;
+    if(!open)return head;
+    const its=plan.items.filter(i=>(i.row.p.category||'UNCATEGORISED')===c.category).sort((a,b)=>b.row.score-a.row.score);
+    const sub=its.map(i=>{
+      const p=i.row.p,m=i.row.m,fin=i.final;
+      const act=fin.action==='Exclude'?'<span class="mdp-pill x">Full price</span>':`<span class="mdp-pill ${fin.action==='B'?'b':'a'}">${fin.action==='Manual'?'Manual':'Group '+fin.action}</span>`;
+      return`<tr class="mdp-prod"><td class="l">${mdpEsc(p.name)}${p.colour?' — '+mdpEsc(p.colour):''}${p.isCore?' <span class="mdp-core">CORE</span>':''}${i.exception?' <span class="mdp-exc" title="Colour pulled into the core style group — needs approval">exception</span>':''}</td>
+        <td>${m.soh.toLocaleString()}</td><td>${m.periodUnits}</td><td>${m.weeksCover==null?(m.noSales?'no sales':'—'):round1(m.weeksCover)}</td>
+        <td><b>${i.row.score}</b></td><td>${i.row.confidence}</td><td>${act}</td><td>${fin.pct==null?'—':fin.pct+'%'}</td>
+        <td>${i.price.newPrice==null?'—':'$'+i.price.newPrice.toFixed(2)}${i.price.rrpMissing&&fin.pct!=null?' <span title="No RRP on record — priced off the current price">*</span>':''}</td>
+        <td colspan="3" class="l mdp-why">${mdpEsc(fin.reason)}</td></tr>`;
+    }).join('');
+    return head+`<tr class="mdp-sub"><td colspan="12"><table class="mdp-t2"><thead><tr><th class="l">Product / colour</th><th>SOH</th><th>Sold (${S.periodDays}d)</th><th>Cover (wks)</th><th>Score</th><th>Confidence</th><th>Group</th><th>Disc.</th><th>New price</th><th colspan="3" class="l">Why</th></tr></thead><tbody>${sub}</tbody></table></td></tr>`;
+  }).join('');
+
+  const cats=`
+  <div class="mdp-card">
+    <div class="mdp-h">B. Category strategy <span class="mdp-tag">read-only preview</span></div>
+    <div class="mdp-stats">
+      <div><b>${T.products.toLocaleString()}</b><span>product/colours in stock</span></div>
+      <div><b>${T.included.toLocaleString()}</b><span>in the sale</span></div>
+      <div><b>${T.excluded.toLocaleString()}</b><span>full price</span></div>
+      <div><b>${T.soh.toLocaleString()}</b><span>SOH units</span></div>
+      <div><b>${mdpMoney(T.sohCost)}</b><span>SOH at cost</span></div>
+    </div>
+    <div class="mdp-scroll"><table class="mdp-t">
+      <thead><tr><th class="l">Category</th><th>Products</th><th>SOH</th><th>SOH cost</th><th>Sold (${S.periodDays}d)</th><th>Weeks cover</th><th title="Units sold ÷ (units sold + stock now). Real period sell-through needs opening-stock history, which isn't recorded yet.">Sell-through*</th><th>Group A</th><th>Group B</th><th>Full price</th><th title="Recent run-rate over the sale length, capped at stock. No promotional uplift applied.">Fcst units†</th><th>Fcst left†</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+    <div class="mdp-foot">* Sell-through is a proxy — units sold ÷ (units sold + stock now) — because stock-movement history isn't recorded yet. † Forecast is the recent sales run-rate over the sale length, capped at stock, with <b>no promotional uplift</b> (that needs calibrating against past sales). Click a category to see each product/colour, its clearance score and why. Group A/B discounts come from the category's score distribution and your allowed levels; nothing here changes prices or exports anything. ${fresh}.</div>
+  </div>`;
+  root.innerHTML=settings+cats;
+}
+function round1(v){return Math.round(v*10)/10;}
 
 const MG_COST_KEY='wndrr_mg_cost_v1';
 function getMgCostData(){try{return JSON.parse(localStorage.getItem(MG_COST_KEY)||'[]');}catch(e){return[];}}
@@ -11665,6 +11861,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.7.3 — Markdown Planner, phase 1: Working > Markdowns now has a Planner | Classic switch (defaults to Classic; the Planner replaces Classic once overrides and export exist). The Planner is a read-only Category Strategy preview, styled after the Sale Creative Planner (light panels, rounded cards, blue accent): sale settings (analysis period, sale length, max effective discount, allowed levels 20-70%, core protect/include/exclude, existing-reduced retain/reassess/exclude, core colour consistency, new-arrival protection) and a category table (products, SOH, SOH cost, sales, weeks cover, sell-through proxy, suggested Group A/B discounts, full-price count, baseline forecast) that expands to every product/colour with its 0-100 clearance score, confidence and a plain-English reason. All logic is in the new markdown-engine.js — pure functions, no DOM, unit-tested under Node (npm test) and loaded here via script tag: category-relative percentile scoring (so 12 weeks of cover isn't judged the same in every category) over the brief's six weighted factors, zero-sales/negative-stock/missing-data handled explicitly (no Infinity or fake cover), prices always computed off RRP and never stacked on an existing sale price, a max-effective-discount cap, core colour linking (Preferred flags exceptions for approval), and manual overrides that survive a regenerate. Honest labels: sell-through is a proxy (units sold ÷ units sold + stock) because no stock history is recorded yet, and the forecast is baseline run-rate with NO promotional uplift. Nothing here changes prices or exports; settings save per browser
 // v2.7.2 — Markdown Planner groundwork (server only, nothing in the app UI changes): the Shopify sales feed now also records SELLING PRICE per SKU per day — shelf price at checkout x units (a Hextom sale changes this, so it reveals which days a SKU sold on sale and at what level vs RRP) and net after every discount incl. order-level codes — and stores 2 years of history instead of 1, so last year's Black Friday/EOFY stay available as comparisons (the 365-day window would have dropped BF 2025 around BF 2026 itself). The units feed the app merges is still served as the trailing 365 days exactly as before (encodeCompact fromDay filter); price history is served from its own new endpoint, sales-price-data.js, so ordinary page loads never download it. FEED_VERSION 2→3 so the server rebuilds once in full (bigger bulk export) on its next run; parseBulkNdjson now makes two passes over the lines instead of holding every parsed row in memory (2 years doubles the export), and a failed run now backs off 10 min instead of letting every open tab re-trigger a multi-minute rebuild. Verified Shopify exposes originalUnitPriceSet / discountedUnitPriceAfterAllDiscountsSet on the live store. Also confirmed against the live token: read_products is already granted and the five BF collections exist as manual collections (some still holding last year's products — reconciliation matters before export)
 // v2.7.1 — Fix Deliveries showing "—" for Product Name on some pre-release/AM-only styles (e.g. STEEZY BOX FIT TEE OYSTER, THEME PANEL BOX FIT TEE WHITE MARLE): styleFromSku()'s size-suffix fallback only skipped the fixed-11-char-prefix shortcut when the input was longer than 11 chars, so a BARE style code (already exactly 11 chars, no size suffix — which is what these AM-only rows' sku already is) fell through to suffix-guessing and had its last letter chopped off whenever the 3-letter colour code happened to end in a real size letter (OYSTER→"...OYS" read as ending in "S", WHITE MARLE/LEMON→"...WHM"/"...LEM" read as ending in "M") — corrupting the style code so Deliveries' productNameByStyle lookup (keyed by the correct, unmangled style from the raw AM order data) never matched. Changed the length check from >11 to >=11 so a bare 11-char style matches itself. Same function is used for CORE/Mystery-Box style matching elsewhere, so this was silently affecting more than just Deliveries' display for any pre-release style with this colour-code shape — not verified how many, but the fix is general
 // v2.7.0 — Units sold now come from the shared Shopify sales feed (Phase 2 of the CSV→Shopify move; the server side shipped in v2.6.2). For every SKU the app already knows, the feed replaces that SKU's days inside the range it covers ([coverageStart..lastDay]); older days keep the CSV figures, days after lastDay keep the AM bridge, and a known SKU the feed has no sales for reads as zero rather than keeping leftover CSV units. Unknown SKUs in the feed (service lines, typos) are ignored, per-day COGS (last-resort margin fallback only) carries over as the SKU's own legacy cost-per-unit × the new units, and the CSV still supplies everything that isn't units sold (sold-out sizes, core/bundle styles, status, pricing, category/name/colour/size, first-sale date). Sales Value is unchanged in method (units × current price) so it simply follows the new units. Safety: a missing feed, or one older than 3h, is skipped and the app behaves exactly as before (CSV + AM); the header pill ("Shopify Sales: Live / 4m ago / Waiting… / Stale / Unavailable / OFF") opens a panel with an OFF switch and a 30-day side-by-side of the old method vs Shopify by category and by SKU, for checking against Better Reports. Fetch: a ~1KB freshness check on load and every 10-min cycle, pulling the ~0.5MB feed only when newer, asking the server to refresh (POST sales-sync-background, safe from every tab) once its copy is >10 min old and re-checking every 15s until it lands — including the very first build (~2.5 min). Once the feed is live the AM-based Mystery Box history crawl is skipped (its ~1,000 AM requests would be thrown away) — that machinery, the AM 3-day bridge, and shopify-proxy's bulk-download path are now fallbacks/dead weight pending cleanup. Removed the per-browser research overlay (v2.4.0: syncShopifyOrderSalesBackfill/TopUp, its 365-day localStorage cache, compareShopifySalesVsApp) which this replaces; the old cache key is deleted on load to free several MB of localStorage. Tested with synthetic merges (range edges, case-insensitive keys, cogs carry-over, idempotence on rebuild, stale/disabled skip), against the live endpoints (pull 0.5MB in 2.6s; real feed merged → Mystery Boxes 753 for Aug 21–Sep 19 and the stale partial Sep 9 became the true 121), the first-ever-build trigger/poll flow, and an HTTP-500 feed (pill "Unavailable", app data untouched — which also caught and fixed a case where a 500 on the freshness check just showed "Waiting…")

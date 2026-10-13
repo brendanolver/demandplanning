@@ -1,11 +1,11 @@
 {
   "name": "demandplanning-functions",
   "private": true,
-  "description": "Dependencies for netlify/functions/* — the app itself (index.html) is plain static HTML/JS, no build step.",
+  "description": "Dependencies for netlify/functions/* \u2014 the app itself (index.html) is plain static HTML/JS, no build step.",
   "dependencies": {
     "@netlify/blobs": "11.1.0"
   },
   "scripts": {
-    "test": "node tests/sales-feed.test.js"
+    "test": "node tests/sales-feed.test.js && node tests/markdown-engine.test.js"
   }
 }
