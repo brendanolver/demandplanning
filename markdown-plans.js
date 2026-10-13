@@ -275,20 +275,24 @@
   // ── Review table: filter, group by parent style, sort ───────────────────────
   // Pure — the screen only renders what this returns. A parent-style row appears only when 2+ colours
   // of that style survive the filters; everything else is a plain single row.
-  const VIEWS = ['all', 'sale', 'notsale', 'clearance', 'special', 'groupA', 'groupB', 'overridden', 'attention'];
+  const VIEWS = ['all', 'sale', 'notsale', 'clearance', 'special', 'groupA', 'groupB', 'overridden', 'attention', 'onorder', 'restock'];
   function buildReview(items, f, opts) {
     f = f || {}; opts = opts || {};
     const q = String(f.q || '').trim().toLowerCase();
     const view = VIEWS.includes(f.view) ? f.view : 'all';
+    const oo = i => (opts.onOrder ? opts.onOrder(i) : 0);
     const hit = it => {
       const p = it.row.p, fin = it.final;
       if (f.category && String(p.category || '').toUpperCase() !== String(f.category).toUpperCase()) return false;
+      if (f.collection && norm(p.collection) !== norm(f.collection)) return false;
       if (f.core === 'core' && !p.isCore) return false;
       if (f.core === 'noncore' && p.isCore) return false;
       if (view === 'sale' && fin.pct == null) return false;
       if (view === 'notsale' && fin.action !== 'Exclude') return false;
       if (view === 'clearance' && fin.action !== 'C') return false;
       if (view === 'special' && fin.action !== 'S') return false;
+      if (view === 'onorder' && !(oo(it) > 0)) return false;
+      if (view === 'restock' && !(it.row.m.restock > 0)) return false;
       if (view === 'groupA' && fin.action !== 'A') return false;
       if (view === 'groupB' && fin.action !== 'B') return false;
       if (view === 'overridden' && !it.override) return false;
@@ -305,7 +309,7 @@
     const groups = [], seen = new Set();
     for (const it of rows) {
       const ps = it.row.p.parentStyle;
-      if (ps && byStyle[ps].length > 1) {
+      if (!f.flat && ps && byStyle[ps].length > 1) {
         if (seen.has(ps)) continue; seen.add(ps);
         groups.push({ key: 'ps:' + ps, parentStyle: ps, multi: true, items: byStyle[ps] });
       } else groups.push({ key: 'id:' + it.row.p.id, parentStyle: ps || '', multi: false, items: [it] });
@@ -313,7 +317,6 @@
     const sum = (g, fn) => g.items.reduce((a, it) => a + fn(it), 0);
     const name = g => g.items[0].row.p.name;
     const cat = g => String(g.items[0].row.p.category || '');
-    const oo = i => (opts.onOrder ? opts.onOrder(i) : 0);
     const sorters = {
       category: (a, b) => cat(a).localeCompare(cat(b)) || name(a).localeCompare(name(b)) || a.key.localeCompare(b.key),
       name: (a, b) => name(a).localeCompare(name(b)) || a.key.localeCompare(b.key),

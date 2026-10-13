@@ -301,6 +301,32 @@ assert.equal(E.buildPlan(spBase, { maxDiscount: 70 }, { SP1: { exclude: true, re
 const coreSp = E.buildPlan([mk('W26AA020BLK', { isCore: true, parentStyle: 'W26AA020', specialPct: 50, soh: 200 }), mk('W26AA020WHT', { isCore: true, parentStyle: 'W26AA020', soh: 200, sold: { d7: 20, d30: 90, d60: 180, d90: 270 } })], { coreConsistency: 'strict' }).items;
 assert.equal(coreSp.find(i => i.row.p.id === 'W26AA020BLK').final.action, 'S'); assert.ok(!coreSp.find(i => i.row.p.id === 'W26AA020BLK').exception);
 
+// ── Restocks: sold out today, stock arriving by the sale ───────────────────
+// sales are passed as a flat 90-day average (a stock-out understates recent sales); restockUnits = arriving stock
+const rs90 = d90 => ({ d7: Math.round(d90 / 12.86), d30: Math.round(d90 / 3), d60: Math.round(d90 * 2 / 3), d90 });
+const rsAll = [mk('RS_SLOW', { soh: 0, restockUnits: 500, sold: rs90(9), ageWeeks: 70, soldOutSizes: 0 }), mk('RS_HOT', { soh: 0, restockUnits: 300, sold: rs90(450), ageWeeks: 30 }),
+  mk('RS_NONE', { soh: 0, restockUnits: 400, sold: rs90(0), ageWeeks: 70 }), mk('RS_TINY', { soh: 0, restockUnits: 30, sold: rs90(9), ageWeeks: 70 }), mk('RS_NEW', { soh: 0, restockUnits: 500, sold: rs90(30), ageWeeks: 2 }),
+  mk('RS_GWP', { isGWP: true, soh: 0, restockUnits: 3000 })];
+const rsPlan = E.buildPlan(rsAll.concat(range), { maxDiscount: 70 }), rsi = id => rsPlan.items.find(i => i.row.p.id === id);
+assert.equal(rsi('RS_SLOW').row.m.soh, 500); assert.equal(rsi('RS_SLOW').row.m.sohNow, 0); assert.equal(rsi('RS_SLOW').row.m.restock, 500);   // planned on 500, but real SOH is still 0
+assert.ok(['A', 'B'].includes(rsi('RS_SLOW').final.action)); assert.match(rsi('RS_SLOW').final.reason, /^Restock — 500 units arriving by the sale/);
+assert.equal(rsi('RS_SLOW').row.confidence, 'Low');                                                              // never better than Low
+assert.equal(rsi('RS_HOT').final.action, 'Exclude'); assert.match(rsi('RS_HOT').final.reason, /full price/);     // a fast seller restocking stays full price
+assert.equal(rsi('RS_NONE').final.action, 'Exclude'); assert.match(rsi('RS_NONE').final.reason, /no recent sales to judge it by/);   // can't be judged -> not guessed at
+const tinyOnly = E.buildPlan([mk('RS_TINY', { soh: 0, restockUnits: 30, sold: rs90(9), ageWeeks: 70 })], { maxDiscount: 70 }).items[0];   // a remnant-sized restock is cleared (in isolation: category-relative scores shift with the rest of the range)
+assert.equal(tinyOnly.final.action, 'C'); assert.match(tinyOnly.final.reason, /only 30 units/);
+assert.equal(rsi('RS_NEW').final.action, 'Exclude'); assert.match(rsi('RS_NEW').final.reason, /New arrival/);       // a brand-new style is still protected
+assert.equal(rsi('RS_GWP').final.action, 'Exclude'); assert.match(rsi('RS_GWP').final.reason, /Gift with purchase/);
+// real stock is reported separately from restocks in every summary
+const rsCat = rsPlan.categories.find(c => c.category === 'TEES'), plain = E.buildPlan(range, { maxDiscount: 70 });
+assert.equal(rsCat.soh, 0); assert.equal(rsCat.restock, 500 + 300 + 400 + 30 + 500 + 3000);                     // real SOH stays 0; the arriving units are reported separately
+assert.equal(rsPlan.totals.soh, plain.totals.soh); assert.equal(rsPlan.totals.restock, rsCat.restock); assert.equal(rsPlan.totals.restockStyles, 6);
+assert.ok(rsCat.forecastUnits >= 0);
+// a restock can be decided like any product (override still wins)
+assert.equal(E.buildPlan(rsAll.concat(range), { maxDiscount: 70 }, { RS_SLOW: { exclude: true, reason: 'Low stock cover' } }).items.find(i => i.row.p.id === 'RS_SLOW').final.action, 'Exclude');
+// in-stock products are unchanged (restockUnits absent)
+assert.equal(plain.items.every(i => i.row.m.restock === 0), true);
+
 // edge: empty input, single product, duplicate ids don't throw
 assert.equal(E.buildPlan([], {}).items.length, 0); assert.equal(E.buildPlan([mk('ONE')], {}).items.length, 1);
 assert.doesNotThrow(() => E.buildPlan([mk('D'), mk('D')], {}));

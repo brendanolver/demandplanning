@@ -64,7 +64,11 @@
     const periodUnits = Math.max(0, num(sold[key]) != null ? num(sold[key]) : num(sold.d30) || 0);
     const weeks = S.periodDays / 7;
     const weeklyRate = periodUnits / weeks;
-    const soh = Math.max(0, num(p.soh) || 0);       // negative inventory is treated as zero
+    // Planning stock = what is on the shelf now PLUS stock restocking a sold-out product by the sale
+    // (restockUnits, set by the caller from the sale's incoming-stock setting). 'sohNow' is the real SOH.
+    const sohNow = Math.max(0, num(p.soh) || 0);       // negative inventory is treated as zero
+    const restock = Math.max(0, num(p.restockUnits) || 0);
+    const soh = sohNow + restock;
     // Zero sales must not produce a misleading cover number: null + noSales flag instead.
     const noSales = weeklyRate <= 0;
     const weeksCover = noSales ? null : Math.min(104, soh / weeklyRate);
@@ -77,7 +81,7 @@
     const sizeCount = num(p.sizeCount), sold_out = num(p.soldOutSizes);
     const brokenRatio = sizeCount > 0 && sold_out != null ? clamp(sold_out / sizeCount, 0, 1) : null;
     const onOrder = Math.max(0, num(p.onOrder) || 0);
-    return { periodUnits, weeklyRate, soh, noSales, weeksCover, trendRatio, sellThroughProxy, brokenRatio, onOrder, ageWeeks: num(p.ageWeeks), d7, d30 };
+    return { periodUnits, weeklyRate, soh, sohNow, restock, noSales, weeksCover, trendRatio, sellThroughProxy, brokenRatio, onOrder, ageWeeks: num(p.ageWeeks), d7, d30 };
   }
 
   // Age/season: young stock is not clearance; old stock is. Absolute, not relative.
@@ -134,7 +138,8 @@
       const catN = idxByCat[p.category || 'UNCATEGORISED'].length;
       const hasRrp = num(p.rrp) > 0, ageKnown = m.ageWeeks != null || p.isCore;   // evergreen core lines have no launch date by design
       const pts = (m.periodUnits >= 8 ? 1 : 0) + (catN >= S.minCategorySample ? 1 : 0) + (hasRrp && ageKnown ? 1 : 0);
-      return { p, m, f, score, confidence: pts >= 3 ? 'High' : pts === 2 ? 'Medium' : 'Low', catN };
+      // A sold-out product's recent sales are understated by the stock-out and there is no stock history to correct them, so restocks are never better than Low.
+      return { p, m, f, score, confidence: m.restock > 0 ? 'Low' : pts >= 3 ? 'High' : pts === 2 ? 'Medium' : 'Low', catN };
     });
   }
 
@@ -148,6 +153,7 @@
     if (m.soh <= 0) return exclude('No stock on hand');
     // Special buys are bought FOR this sale at a chosen discount: never scored against sales history
     // (they have none), never protected as "new arrivals", and never cleared as remnants.
+    if (m.restock > 0 && !(num((p.sold || {}).d90) > 0)) return exclude('Restock arriving (' + m.restock.toLocaleString() + ' units), but no recent sales to judge it by — add it as a special buy to price it');
     if (p.specialPct != null) return { action: 'S', reason: 'Special buy — ' + (p.specialNote || 'chosen for this sale') + ' at ' + p.specialPct + '%', hard: false };
     if (S.excludeNew && ((m.ageWeeks != null && m.ageWeeks * 7 < S.newProductDays) || status === 'NEW' || status === 'PRE-RELEASE')) return exclude('New arrival — protected from markdown');
     if (p.isCore && S.coreMode === 'exclude') return exclude('Core product — excluded');
@@ -215,7 +221,11 @@
     const S = mergeSettings(settings);
     const rows = scoreAll(products, S);
     const lv = levels(S);
-    const items = rows.map(r => ({ row: r, ...classify(r, S) }));
+    const items = rows.map(r => {
+      const c = classify(r, S);
+      if (r.m.restock > 0 && !c.hard) c.reason = 'Restock — ' + r.m.restock.toLocaleString() + ' units arriving by the sale · ' + c.reason;
+      return { row: r, ...c };
+    });
 
     // Core colour consistency: all colours of a core parent style follow the style's group.
     if (S.coreConsistency !== 'independent') {
@@ -367,12 +377,13 @@
 
   function summarise(cp, S) {
     const ms = cp.items.map(it => it.row);
-    const soh = ms.reduce((a, r) => a + r.m.soh, 0);
+    const soh = ms.reduce((a, r) => a + r.m.sohNow, 0);
+    const restock = ms.reduce((a, r) => a + r.m.restock, 0);
     const units = ms.reduce((a, r) => a + r.m.periodUnits, 0);
     const rate = units / (S.periodDays / 7);
     const cost = cp.items.reduce((a, it) => a + (num(it.row.p.sohCost) || 0), 0);
     return {
-      category: cp.category, products: cp.items.length, soh, sohCost: Math.round(cost), periodUnits: units,
+      category: cp.category, products: cp.items.length, soh, restock, sohCost: Math.round(cost), periodUnits: units,
       weeksCover: rate > 0 ? round1(soh / rate) : null,
       sellThroughProxy: units + soh > 0 ? round1(units / (units + soh) * 100) : null,
       groupA: cp.items.some(it => it.final.action === 'A') ? cp.groupA : null,   // a group nobody ended up in isn't offered
@@ -397,7 +408,9 @@
       saleUnits: inc.reduce((a, it) => a + it.row.m.soh, 0),
       conflicts: items.filter(it => it.conflict).length,
       overridden: items.filter(it => it.override).length,
-      soh: items.reduce((a, it) => a + it.row.m.soh, 0),
+      soh: items.reduce((a, it) => a + it.row.m.sohNow, 0),
+      restock: items.reduce((a, it) => a + it.row.m.restock, 0),
+      restockStyles: items.filter(it => it.row.m.restock > 0).length,
       sohCost: Math.round(items.reduce((a, it) => a + (num(it.row.p.sohCost) || 0), 0)),
     };
   }

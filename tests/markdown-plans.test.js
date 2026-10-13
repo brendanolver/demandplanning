@@ -146,6 +146,21 @@ assert.equal(P.buildReview(rplan.items, { sort: 'name' }).groups[0].items[0].row
 assert.deepEqual(P.buildReview(rplan.items, { sort: 'onorder' }, { onOrder: i => (i.row.p.id === 'W26CC003GRY' ? 99 : 0) }).groups[0].key, 'id:W26CC003GRY');
 assert.deepEqual(P.buildReview(rplan.items, { sort: 'category' }).groups.map(g => g.items[0].row.p.category), ['SHORTS', 'SWEATS', 'TEES', 'TEES']);
 assert.deepEqual(P.buildReview(rplan.items, { q: 'tee', sort: 'score' }).groups.map(g => g.key), P.buildReview(rplan.items, { q: 'tee', sort: 'score' }).groups.map(g => g.key));   // deterministic
+// one row per product/colour (flat), collection filter, on-order and restock views
+const flat = P.buildReview(rplan.items, { flat: true }); assert.equal(flat.groups.length, 6); assert.ok(flat.groups.every(g => !g.multi && g.items.length === 1)); assert.equal(flat.count, 6);
+assert.equal(P.buildReview(rplan.items, {}).groups.filter(g => g.multi).length, 1);                                          // grouping is still available when asked for
+assert.deepEqual(P.buildReview(rplan.items, { flat: true, q: 'accent' }).groups.map(g => g.items[0].row.p.colour), ['BLACK', 'OLIVE', 'WHITE']);   // colours listed individually, sorted
+const colr = rp.map(r => ({ ...r, collection: r.id.startsWith('W26AA') ? '2026 - BLACK FIRDAY' : r.id === 'W26CC003GRY' ? '2027 AW1 - IKIZAMA' : '' }));
+const cplan = E.buildPlan(colr, { maxDiscount: 70 });
+assert.equal(P.buildReview(cplan.items, { collection: '2026 - black firdai'.replace('firdai', 'firday') }).count, 3);           // loose, case-insensitive match
+assert.equal(P.buildReview(cplan.items, { collection: '2027 aw1 ikizama' }).count, 1); assert.equal(P.buildReview(cplan.items, { collection: 'nope' }).count, 0); assert.equal(P.buildReview(cplan.items, { collection: '' }).count, 6);
+assert.equal(P.buildReview(cplan.items, { collection: '2026 - BLACK FIRDAY', category: 'TEES' }).count, 3);                    // combines with other filters
+const oon = i => (i.row.p.id === 'W26BB002BLK' ? 120 : i.row.p.id === 'W26CC003GRY' ? 40 : 0);
+assert.deepEqual(P.buildReview(rplan.items, { view: 'onorder', flat: true }, { onOrder: oon }).groups.map(g => g.key).sort(), ['id:W26BB002BLK', 'id:W26CC003GRY']);
+assert.equal(P.buildReview(rplan.items, { view: 'onorder' }).count, 0);                                                      // no on-order information -> nothing matches
+const rsReview = E.buildPlan(rp.concat([{ ...mkr('RESTOCKED'), soh: 0, restockUnits: 300, sold: { d7: 2, d30: 8, d60: 16, d90: 24 } }]), { maxDiscount: 70 });
+assert.deepEqual(P.buildReview(rsReview.items, { view: 'restock', flat: true }).groups.map(g => g.key), ['id:RESTOCKED']);
+
 assert.deepEqual(P.buildReview([], {}).groups, []);
 // ── Special buys & GWP selections ───────────────────────────────────────────
 let sp = P.createState(1, idGen), spid = sp.activeId;
