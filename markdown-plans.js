@@ -401,16 +401,17 @@
     for (const it of items || []) {
       const p = it.row.p; if (p.isGWP) continue;
       const k = p.category || 'UNCATEGORISED';
-      const c = byCat[k] || (byCat[k] = { category: k, products: 0, sold30: 0, unitsA: 0, unitsB: 0, countA: 0, countB: 0, countC: 0, countS: 0, countX: 0, countManual: 0, blocked: 0, needAttention: 0, changed: 0 });
+      const c = byCat[k] || (byCat[k] = { category: k, products: 0, sold30: 0, needAttention: 0, changed: 0 });
       c.products++; c.sold30 += (p.sold && p.sold.d30) || 0;
-      const a = it.final.action, u = it.row.m.soh || 0;
-      if (a === 'A') { c.countA++; c.unitsA += u; } else if (a === 'B') { c.countB++; c.unitsB += u; } else if (a === 'C') c.countC++; else if (a === 'S') c.countS++; else if (a === 'Exclude') c.countX++; else if (a === 'Manual') c.countManual++;
       if (it.exception) c.needAttention++; if (it.override) c.changed++;
     }
     const ec = Object.fromEntries(((enginePlan && enginePlan.categories) || []).map(c => [c.category, c]));
     const rows = Object.keys(byCat).sort().map(k => {
       const c = byCat[k], e = ec[k] || {}, ap = (plan.catApprovals || {})[k];
-      return { ...c, blocked: blockedBy[k] || 0, soh: e.soh || 0, restock: e.restock || 0, weeksCover: e.weeksCover == null ? null : e.weeksCover, onOrder: (onOrderByCat && onOrderByCat[String(k).toUpperCase()]) || 0,
+      const z = n => e[n] || 0;
+      return { ...c, blocked: blockedBy[k] || 0, countA: z('countA'), countB: z('countB'), countC: z('countC'), countX: z('countX'), countS: z('countS'), countExcluded: z('countExcluded'), countManual: z('countManual'),
+        unitsA: z('unitsA'), unitsB: z('unitsB'), unitsC: z('unitsC'), unitsX: z('unitsX'), exProtected: z('exProtected'), exKept: z('exKept'), exManual: z('exManual'),
+        eligible: z('eligible'), eligibleUnits: z('eligibleUnits'), levelC: e.levelC == null ? null : e.levelC, cCapped: !!e.cCapped, soh: e.soh || 0, restock: e.restock || 0, weeksCover: e.weeksCover == null ? null : e.weeksCover, onOrder: (onOrderByCat && onOrderByCat[String(k).toUpperCase()]) || 0,
         groupA: e.groupA == null ? null : e.groupA, groupB: e.groupB == null ? null : e.groupB, autoA: e.autoA == null ? null : e.autoA, autoB: e.autoB == null ? null : e.autoB,
         manualA: e.manualA == null ? null : e.manualA, manualB: e.manualB == null ? null : e.manualB, groupWarn: !!e.groupWarn,
         noB: !!e.noB, recB: e.recB || 0, levelA: e.levelA == null ? null : e.levelA, levelB: e.levelB == null ? null : e.levelB,
@@ -503,7 +504,7 @@
   // ── Review table: filter, group by parent style, sort ───────────────────────
   // Pure — the screen only renders what this returns. A parent-style row appears only when 2+ colours
   // of that style survive the filters; everything else is a plain single row.
-  const VIEWS = ['all', 'sale', 'notsale', 'clearance', 'special', 'groupA', 'groupB', 'overridden', 'attention', 'onorder', 'restock'];
+  const VIEWS = ['all', 'sale', 'notsale', 'clearance', 'special', 'groupA', 'groupB', 'groupC', 'exceptions', 'overridden', 'attention', 'onorder', 'restock'];
   function buildReview(items, f, opts) {
     f = f || {}; opts = opts || {};
     const q = String(f.q || '').trim().toLowerCase();
@@ -519,12 +520,13 @@
       if (f.core === 'noncore' && p.isCore) return false;
       if (view === 'sale' && fin.pct == null) return false;
       if (view === 'notsale' && fin.action !== 'Exclude') return false;
-      if (view === 'clearance' && fin.action !== 'C') return false;
+      if ((view === 'clearance' || view === 'groupC') && it.group !== 'C') return false;
+      if (view === 'exceptions' && it.group !== 'X') return false;
       if (view === 'special' && fin.action !== 'S') return false;
       if (view === 'onorder' && !(oo(it) > 0)) return false;
       if (view === 'restock' && !(it.row.m.restock > 0)) return false;
-      if (view === 'groupA' && fin.action !== 'A') return false;
-      if (view === 'groupB' && fin.action !== 'B') return false;
+      if (view === 'groupA' && it.group !== 'A') return false;
+      if (view === 'groupB' && it.group !== 'B') return false;
       if (view === 'overridden' && !it.override) return false;
       if (view === 'attention' && !(it.exception || it.blocked || it.overCap)) return false;   // a different discount from the suggestion is a normal decision, not a problem
       if (q) {

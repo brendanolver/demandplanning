@@ -369,7 +369,7 @@ assert.deepEqual(P.buildForecast([], {}, 90).totals.demand, 0);
   assert.deepEqual(rows.map(r => r.category), ['SHORTS', 'TEES']);                                            // GWP-only category isn't a category to approve
   const tees = rows.find(r => r.category === 'TEES');
   assert.equal(tees.products, 3); assert.equal(tees.soh, 600); assert.equal(tees.onOrder, 500); assert.equal(tees.sold30, 23); assert.equal(tees.approved, false);
-  assert.equal(tees.countA + tees.countB + tees.countC + tees.countS + tees.countX + tees.countManual, 3);
+  assert.equal(tees.countA + tees.countB + tees.countC + tees.countX + tees.countS + tees.countExcluded, 3); assert.equal(tees.eligible, tees.countA + tees.countB + tees.countC + tees.countX); assert.ok(tees.levelC === 50);
   assert.deepEqual(P.approvalProgress(rows), { catsTotal: 2, catsApproved: 0, catsRemaining: 2, prodsTotal: 5, prodsApproved: 0, prodsRemaining: 5 });   // the GWP product is not counted
   // a GWP product that also carries a discount (a genuine conflict) is counted against its category so approval can be held
   { const bp = E.buildPlan(prods.concat([mkp('G2', 'SHORTS', 10, 0, { isGWP: true, specialPct: 50 })]), P.engineSettings(st.plans[id]), {}, null, null);
@@ -431,6 +431,13 @@ assert.deepEqual(P.buildForecast([], {}, 90).totals.demand, 0);
   assert.strictEqual(P.releaseAllocation(ap, id, 'TEES', 13), ap);                                                 // approved categories are never released
   ap = P.reopenCategory(ap, id, 'TEES', 14); const rel = P.releaseAllocation(ap, id, 'TEES', 15); assert.equal(rel.plans[id].catApprovals.TEES, undefined); assert.equal(rel.plans[id].groupLevels.TEES.B, 0);
   assert.strictEqual(P.releaseAllocation(rel, id, 'TEES', 16), rel);
+}
+// review views by group membership
+{
+  const gi = (id, g) => ({ row: { p: { id, name: id, colour: '', style: id, parentStyle: '', category: 'X', isCore: false }, m: { soh: 1 }, score: 1 }, final: { action: g || 'Exclude', pct: g ? 20 : null }, group: g || null, systemPct: 20 });
+  const its = [gi('a', 'A'), gi('b', 'B'), gi('c', 'C'), gi('x', 'X'), gi('n', null)];
+  const ids = f => P.buildReview(its, f).groups.flatMap(g => g.items.map(i => i.row.p.id)).sort().join('');
+  assert.equal(ids({ view: 'groupA' }), 'a'); assert.equal(ids({ view: 'groupB' }), 'b'); assert.equal(ids({ view: 'groupC' }), 'c'); assert.equal(ids({ view: 'clearance' }), 'c'); assert.equal(ids({ view: 'exceptions' }), 'x');
 }
 console.log('markdown plans tests: all passed');
 })();

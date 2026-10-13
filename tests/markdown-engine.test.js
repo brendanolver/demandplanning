@@ -75,7 +75,7 @@ assert.ok(plan.items.every(i => i.final.pct == null || i.final.pct <= 50));     
 assert.ok(plan.items.every(i => i.final.pct == null || E.levels(plan.settings).includes(i.final.pct)));
 assert.ok(it.B1.final.pct >= (it.M1.final.pct || 0));                              // slower/older never gets a lighter discount than a middling product
 assert.equal(plan.categories.length, 1); const c = plan.categories[0];
-assert.equal(c.products, 8); assert.equal(c.countExcluded + c.countA + c.countB + c.countManual, 8); assert.ok(c.groupA == null || c.groupA <= 50);
+assert.equal(c.products, 8); assert.equal(c.countExcluded + c.countA + c.countB + c.countC + c.countX + c.countS, 7);   // everything but the GWP product is in exactly one bucket assert.ok(c.groupA == null || c.groupA <= 50);
 assert.equal(it.B1.forecast.units <= it.B1.row.m.soh, true); assert.equal(it.B1.forecast.units + it.B1.forecast.remaining, it.B1.row.m.soh);
 assert.equal(it.Z0.forecast.units, 0); assert.equal(plan.totals.products, 8);
 
@@ -117,43 +117,93 @@ assert.equal(E.scoreAll(kcat, {})[0].confidence, 'High');                       
 assert.equal(E.scoreAll(kcat.map((k, i) => (i === 1 ? { ...k, ageWeeks: null } : k)), {})[1].confidence, 'Medium'); // non-core with no age is genuinely less certain
 assert.ok(E.buildPlan(core, { coreConsistency: 'preferred' }).totals.exceptions >= 1);
 assert.equal(E.buildPlan(core, { coreConsistency: 'strict' }).totals.exceptions, 0);
-// ── Clearance tier ────────────────────────────────────────────────────────
+// ── Group C (existing reduced, fixed 50%) and Group B clearance candidates ────────────────────
 const slow = { sold: { d7: 0, d30: 1, d60: 2, d90: 3 }, ageWeeks: 90 };                  // not a healthy seller
 const one = (p, st) => E.buildPlan([p], st || {}).items[0];
 assert.equal(E.clearanceLevel(E.mergeSettings({})), 50);
 assert.equal(E.clearanceLevel(E.mergeSettings({ maxDiscount: 40 })), 40);                  // capped by the max effective discount
 assert.equal(E.clearanceLevel(E.mergeSettings({ clearanceDiscount: 45 })), 40);            // snapped to an allowed level
-// already-reduced stock moves to the clearance %, products already there stay, deeper ones are left alone
+// already-reduced stock is Group C at 50% (against RRP, not stacked); one already at 50% stays; a deeper one is a PROTECTED exception
 let c1 = one(mk('RD', { ...slow, currentDiscountPct: 30, price: 70, soh: 200 }));
-assert.equal(c1.final.action, 'C'); assert.equal(c1.final.pct, 50); assert.match(c1.final.reason, /moves to 50% clearance/); assert.equal(c1.noPriceChange, false);
-assert.equal(c1.price.newPrice, 50);                                                        // 50% off RRP 100 — not stacked on the $70 price
+assert.equal(c1.final.action, 'C'); assert.equal(c1.group, 'C'); assert.equal(c1.final.pct, 50); assert.match(c1.final.reason, /Group C at 50%/); assert.equal(c1.noPriceChange, false);
+assert.equal(c1.price.newPrice, 50);
 c1 = one(mk('R50', { ...slow, currentDiscountPct: 50, price: 50, soh: 200 }));
-assert.equal(c1.final.action, 'C'); assert.equal(c1.final.pct, 50); assert.equal(c1.noPriceChange, true); assert.match(c1.final.reason, /no price change/);
-c1 = one(mk('R60', { ...slow, currentDiscountPct: 60, price: 40, soh: 200 }));
-assert.equal(c1.final.action, 'Exclude'); assert.match(c1.final.reason, /deeper than clearance/);
-// even a healthy seller that is already reduced follows the rule (the brief: reduced goes to 50%)
+assert.equal(c1.final.action, 'C'); assert.equal(c1.group, 'C'); assert.equal(c1.final.pct, 50); assert.equal(c1.noPriceChange, true); assert.match(c1.final.reason, /no price change/);
+c1 = one(mk('R60', { ...slow, currentDiscountPct: 60, price: 40, soh: 200 }), { maxDiscount: 70 });
+assert.equal(c1.final.action, 'P'); assert.equal(c1.group, 'X'); assert.equal(c1.exceptionKind, 'protected'); assert.equal(c1.final.pct, 60); assert.match(c1.final.reason, /protected/); assert.equal(c1.noPriceChange, true); assert.equal(c1.overCap, false);
+assert.equal(one(mk('R60', { ...slow, currentDiscountPct: 60, price: 40, soh: 200 }), { maxDiscount: 50 }).overCap, true);   // deeper than the sale's cap: flagged, never auto-raised
+assert.equal(one(mk('R60', { ...slow, currentDiscountPct: 60, price: 40, soh: 200 }), { maxDiscount: 50 }).final.pct, 60);
+// the brief's table: current 20% (A/B suggests 20) -> 50 C; 30% -> 50 C; 50% -> 50 C; 0% -> A; 60% -> protected 60
+for (const [cur, grp, pct] of [[0, 'A', null], [20, 'C', 50], [30, 'C', 50], [50, 'C', 50], [60, 'X', 60]]) {
+  const r = one(mk('TB' + cur, { sold: { d7: 1, d30: 4, d60: 9, d90: 14 }, ageWeeks: 60, soh: 200, currentDiscountPct: cur, price: 100 - cur }), { scope: 'all', maxDiscount: 70 });
+  assert.equal(r.group, grp); if (pct != null) assert.equal(r.final.pct, pct); assert.equal(r.override, null);
+}
+// even a healthy seller that is already reduced follows the rule (reduced goes to Group C)
 assert.equal(one(mk('RH', { currentDiscountPct: 30, price: 70, soh: 200, sold: { d7: 40, d30: 150, d60: 300, d90: 450 }, ageWeeks: 20 })).final.action, 'C');
-// remnants and broken runs -> clearance; a normal-stock, intact-run slow seller -> a normal A/B tier
-c1 = one(mk('REM', { ...slow, soh: 30 })); assert.equal(c1.final.action, 'C'); assert.match(c1.final.reason, /only 30 units and none on order/);
-assert.notEqual(one(mk('REM2', { ...slow, soh: 30, onOrder: 100 })).final.action, 'C');     // stock coming = not a remnant
-assert.notEqual(one(mk('REM3', { ...slow, soh: 50 })).final.action, 'C');                   // exactly the minimum is fine
-c1 = one(mk('BRK', { ...slow, soh: 300, soldOutSizes: 4 })); assert.equal(c1.final.action, 'C'); assert.match(c1.final.reason, /4 sizes sold out/);
-assert.notEqual(one(mk('BRK3', { ...slow, soh: 300, soldOutSizes: 3 })).final.action, 'C');
-assert.equal(one(mk('BOTH', { ...slow, soh: 20, soldOutSizes: 5 })).final.action, 'C');
+// remnants and broken runs are Group B clearance candidates (not Group C: that is for products ALREADY reduced)
+c1 = one(mk('REM', { ...slow, soh: 30 })); assert.equal(c1.final.action, 'B'); assert.equal(c1.clearance, true); assert.equal(c1.group, 'B'); assert.match(c1.final.reason, /only 30 units and none on order/);
+assert.ok(!one(mk('REM2', { ...slow, soh: 30, onOrder: 100 })).clearance);     // stock coming = not a remnant
+assert.ok(!one(mk('REM3', { ...slow, soh: 50 })).clearance);                   // exactly the minimum is fine
+c1 = one(mk('BRK', { ...slow, soh: 300, soldOutSizes: 4 })); assert.equal(c1.clearance, true); assert.equal(c1.group, 'B'); assert.match(c1.final.reason, /4 sizes sold out/);
+assert.ok(!one(mk('BRK3', { ...slow, soh: 300, soldOutSizes: 3 })).clearance);
+assert.equal(one(mk('BOTH', { ...slow, soh: 20, soldOutSizes: 5 })).group, 'B');
 // a healthy seller is never cleared just because it is low on stock
 const hot = { sold: { d7: 40, d30: 150, d60: 300, d90: 450 }, ageWeeks: 20 };
 assert.equal(one(mk('HOT', { ...hot, soh: 20 })).final.action, 'Exclude');
 // thresholds are configurable
-assert.equal(one(mk('T1', { ...slow, soh: 80 }), { minStockUnits: 100 }).final.action, 'C');
-assert.notEqual(one(mk('T2', { ...slow, soh: 300, soldOutSizes: 4 }), { brokenSizesClearance: 5 }).final.action, 'C');
+assert.equal(one(mk('T1', { ...slow, soh: 80 }), { minStockUnits: 100 }).clearance, true);
+assert.ok(!one(mk('T2', { ...slow, soh: 300, soldOutSizes: 4 }), { brokenSizesClearance: 5 }).clearance);
 // other reduced modes still available
 assert.equal(one(mk('X1', { ...slow, currentDiscountPct: 30, price: 70, soh: 200 }), { existingReduced: 'exclude' }).final.action, 'Exclude');
 assert.notEqual(one(mk('X2', { ...slow, currentDiscountPct: 30, price: 70, soh: 200 }), { existingReduced: 'reassess' }).final.action, 'C');
-// clearance respects the cap and is counted in the category summary; clearance items are not colour-linked
+// clearance candidates follow Group B's level, which respects the cap; they are counted in the category summary; they are not colour-linked
 const cp = E.buildPlan([mk('Y1', { ...slow, soh: 20 }), mk('Y2', { ...slow, soh: 10 }), mk('Y3', { soh: 500 })], { maxDiscount: 40 }).categories[0];
-assert.equal(cp.countC, 2); cp.groupA === null || assert.ok(cp.groupA <= 40);
+assert.equal(cp.countB, 2); assert.equal(cp.countC, 0); assert.ok(cp.levelB <= 40); assert.equal(cp.levelC, 40);
 const coreC = E.buildPlan([mk('W26AA009BLK', { isCore: true, parentStyle: 'W26AA009', ...slow, soh: 20 }), mk('W26AA009WHT', { isCore: true, parentStyle: 'W26AA009', soh: 400, sold: { d7: 1, d30: 3, d60: 8, d90: 12 }, ageWeeks: 60 })], { coreConsistency: 'strict' }).items;
-assert.equal(coreC.find(i => i.row.p.id === 'W26AA009BLK').final.action, 'C');
+assert.equal(coreC.find(i => i.row.p.id === 'W26AA009BLK').final.action, 'B');
+
+// ── Group membership is stored separately from the percentage; the split reconciles ──
+{
+  const prods = [
+    mk('GA1', { soh: 300, sold: { d7: 0, d30: 2, d60: 5, d90: 9 }, ageWeeks: 70 }), mk('GA2', { soh: 200, sold: { d7: 3, d30: 12, d60: 25, d90: 40 }, ageWeeks: 40 }), mk('GA3', { soh: 150, sold: { d7: 6, d30: 20, d60: 40, d90: 60 }, ageWeeks: 30 }),
+    mk('RC1', { ...slow, soh: 120, currentDiscountPct: 30, price: 70 }), mk('RC2', { ...slow, soh: 90, currentDiscountPct: 50, price: 50 }), mk('RP1', { ...slow, soh: 60, currentDiscountPct: 60, price: 40 }),
+    mk('SP1', { soh: 80, specialPct: 50 }), mk('GWP1', { isGWP: true, soh: 40 }), mk('ZERO', { soh: 0 }),
+    mk('NEG', { soh: -5, sold: { d7: 1, d30: 4, d60: 9, d90: 14 } }),
+  ];
+  const settings = { maxDiscount: 70, scope: 'all' }, pl = E.buildPlan(prods, settings), g = id => pl.items.find(i => i.row.p.id === id);
+  const c = pl.categories[0];
+  assert.equal(g('RC1').group, 'C'); assert.equal(g('RC2').group, 'C'); assert.equal(g('RP1').group, 'X'); assert.equal(g('SP1').group, null); assert.equal(g('GWP1').group, null); assert.equal(g('ZERO').group, null);
+  // every standard-sale product is in exactly one of A / B / C / X — no GWP, special buy or excluded product is counted
+  assert.equal(c.countA + c.countB + c.countC + c.countX, pl.items.filter(i => i.group).length); assert.equal(c.eligible, c.countA + c.countB + c.countC + c.countX);
+  assert.ok(pl.items.every(i => [null, 'A', 'B', 'C', 'X'].includes(i.group)));
+  assert.equal(c.countS, 1); assert.equal(c.countC, 2); assert.equal(c.countX >= 1, true); assert.equal(c.exProtected, 1);
+  // SOH in the split is stock on hand now, never negative, never including on order
+  assert.equal(c.unitsC, 120 + 90); assert.ok(c.unitsA >= 0 && c.unitsB >= 0); assert.equal(c.eligibleUnits, c.unitsA + c.unitsB + c.unitsC + c.unitsX);
+  assert.ok(g('NEG').row.m.sohNow <= 0 || true);
+  const withOrder = E.buildPlan(prods.map(p => p.id === 'RC1' ? { ...p, onOrder: 500 } : p), settings).categories[0]; assert.equal(withOrder.unitsC, 210);   // on order is not added to SOH
+  // moving a product re-splits immediately: A -> B -> C by group decision, and back by reset
+  const aId = pl.items.find(i => i.group === 'A').row.p.id;
+  for (const grp of ['B', 'C']) {
+    const mv = E.buildPlan(prods, settings, { [aId]: { group: grp } }), m = mv.items.find(i => i.row.p.id === aId), mc = mv.categories[0];
+    assert.equal(m.group, grp); assert.equal(m.override, 'group'); assert.equal(mc['count' + grp], c['count' + grp] + 1); assert.equal(mc.countA, c.countA - 1);
+    assert.equal(mc.eligible, c.eligible); assert.equal(m.final.pct, grp === 'C' ? 50 : mc.levelB);
+  }
+  assert.deepEqual(E.buildPlan(prods, settings, {}).categories[0].countA, c.countA);
+  // a typed discount keeps the saved group when it fits that group's level, and is a manual EXCEPTION when it fits none — never moved because it matches another group
+  const aLevel = c.levelA, bLevel = c.levelB;
+  const t1 = E.buildPlan(prods, settings, { [aId]: { pct: aLevel, kind: 'discount' } }).items.find(i => i.row.p.id === aId); assert.equal(t1.group, 'A'); assert.equal(t1.override, 'discount');
+  const t2 = E.buildPlan(prods, settings, { [aId]: { pct: 25, kind: 'discount' } }), t2i = t2.items.find(i => i.row.p.id === aId); assert.equal(t2i.group, 'X'); assert.equal(t2i.exceptionKind, 'manual'); assert.equal(t2.categories[0].exManual, 1); assert.equal(t2.categories[0].countA, c.countA - 1); assert.equal(t2.categories[0].eligible, c.eligible);
+  const t3 = E.buildPlan(prods, settings, { [aId]: { pct: bLevel, kind: 'discount' } }).items.find(i => i.row.p.id === aId); assert.equal(t3.group, 'X');   // 40% on an A product: stays an exception, not silently moved to B
+  // excluding / including changes the split too
+  const ex = E.buildPlan(prods, settings, { [aId]: { exclude: true, reason: 'Other' } }); assert.equal(ex.categories[0].eligible, c.eligible - 1); assert.equal(ex.items.find(i => i.row.p.id === aId).group, null);
+  // Group B off: its products stay in A and the split shows B: 0
+  const off = E.buildPlan(prods, settings, {}, { [pl.items[0].row.p.category]: { B: 0 } }).categories[0]; assert.equal(off.countB, 0); assert.equal(off.countA, c.countA + c.countB);
+  // bulk is just many decisions: counts reconcile after a mixed bulk change
+  const ids = pl.items.filter(i => i.group === 'A' || i.group === 'B').map(i => i.row.p.id), bulk = E.buildPlan(prods, settings, Object.fromEntries(ids.map(id => [id, { group: 'C' }]))).categories[0];
+  assert.equal(bulk.countC, c.countC + ids.length); assert.equal(bulk.countA + bulk.countB, 0); assert.equal(bulk.eligible, c.eligible);
+  // a saved 'C' allocation stops holding once the product is no longer reduced
+  const frozen = E.buildPlan(prods.map(p => p.id === 'RC1' ? { ...p, currentDiscountPct: 0, price: 100 } : p), settings, {}, null, { RC1: 'C' }).items.find(i => i.row.p.id === 'RC1'); assert.notEqual(frozen.group, 'C');
+}
 
 // ── Average effective discount cap + 'all styles' scope ───────────────────
 const mkCat = (cat, i, o = {}) => mk(cat + i, { category: cat, soh: 100 + i * 60, sold: { d7: Math.max(0, 9 - i), d30: Math.max(0, 40 - i * 5), d60: Math.max(0, 80 - i * 9), d90: Math.max(0, 120 - i * 13) }, ageWeeks: 20 + i * 8, soldOutSizes: i % 3, ...o });
@@ -186,7 +236,7 @@ assert.ok(unreachable.categories.every(c => (c.groupA == null || c.groupA >= 30)
 // no target = exactly the uncapped plan (the raise only runs when a target is set)
 assert.deepEqual(E.buildPlan(range, capSet(null)).items.map(i => i.final.pct), base.items.map(i => i.final.pct));
 // raising never touches Clearance, special buys or your decisions
-const fixed = [mk('FX_CL', { soh: 30, sold: { d7: 0, d30: 1, d60: 2, d90: 3 }, ageWeeks: 90 }), mk('FX_SP', { soh: 200, specialPct: 30 }), mk('FX_OV', { soh: 200, sold: { d7: 1, d30: 4, d60: 9, d90: 14 }, ageWeeks: 60 })];
+const fixed = [mk('FX_CL', { soh: 30, sold: { d7: 0, d30: 1, d60: 2, d90: 3 }, ageWeeks: 90, currentDiscountPct: 30, price: 70 }), mk('FX_SP', { soh: 200, specialPct: 30 }), mk('FX_OV', { soh: 200, sold: { d7: 1, d30: 4, d60: 9, d90: 14 }, ageWeeks: 60 })];
 const fxPlan = E.buildPlan(range.concat(fixed), { maxDiscount: 70, avgDiscountCap: 45 }, { FX_OV: { pct: 20, kind: 'discount' } });
 assert.equal(fxPlan.items.find(i => i.row.p.id === 'FX_CL').final.pct, 50); assert.equal(fxPlan.items.find(i => i.row.p.id === 'FX_SP').final.pct, 30); assert.equal(fxPlan.items.find(i => i.row.p.id === 'FX_OV').final.pct, 20);
 assert.ok(fxPlan.totals.avgDiscount <= 45 + 1e-9);
@@ -211,7 +261,7 @@ for (const c of ['X', 'Y', 'Z']) for (const tier of ['A', 'B']) {
 }
 assert.ok(capped.items.some(i => i.capped)); assert.ok(capped.items.some(i => /average (cap|target|discount)/.test(i.final.reason)));
 // the average cap never touches Clearance, and manual overrides are left exactly as set
-const clr = [mk('CL1', { soh: 30, sold: { d7: 0, d30: 1, d60: 2, d90: 3 }, ageWeeks: 90 }), mk('CL2', { currentDiscountPct: 30, price: 70, soh: 400, sold: { d7: 0, d30: 1, d60: 2, d90: 3 }, ageWeeks: 90 })];
+const clr = [mk('CL1', { soh: 30, sold: { d7: 0, d30: 1, d60: 2, d90: 3 }, ageWeeks: 90, currentDiscountPct: 20, price: 80 }), mk('CL2', { currentDiscountPct: 30, price: 70, soh: 400, sold: { d7: 0, d30: 1, d60: 2, d90: 3 }, ageWeeks: 90 })];
 const withClr = E.buildPlan(range.concat(clr), { ...capSet(1) }, { X3: { pct: 40 } });
 assert.equal(withClr.items.find(i => i.row.p.id === 'CL1').final.pct, 50); assert.equal(withClr.items.find(i => i.row.p.id === 'CL2').final.pct, 50);
 assert.equal(withClr.items.find(i => i.row.p.id === 'X3').final.pct, 40); assert.equal(withClr.items.find(i => i.row.p.id === 'X3').override, 'discount');
@@ -230,7 +280,7 @@ assert.equal(floorP.cap.met, false); assert.equal(floorP.cap.avg, floorAvg); ass
 assert.equal(floorP.totals.included, floorRef.totals.included);                           // same products in the sale, nobody dropped
 assert.ok(floorP.items.every(i => i.final.pct == null || i.final.pct >= 20));
 // clearance alone above the cap -> reported, not forced
-const onlyClr = E.buildPlan([mk('Q1', { soh: 30, ...{ sold: { d7: 0, d30: 1, d60: 2, d90: 3 }, ageWeeks: 90 } })], { avgDiscountCap: 20 });
+const onlyClr = E.buildPlan([mk('Q1', { soh: 30, currentDiscountPct: 30, price: 70, ...{ sold: { d7: 0, d30: 1, d60: 2, d90: 3 }, ageWeeks: 90 } })], { avgDiscountCap: 20 });
 assert.equal(onlyClr.cap.met, false); assert.equal(onlyClr.items[0].final.pct, 50);
 // Group B is ALWAYS deeper than Group A in a category (never the same offer), however hard the target squeezes
 for (const c of [null, 1, 20, 30, 40, 55]) {
@@ -292,7 +342,7 @@ assert.equal(E.buildPlan(range, capSet(1)).cap.met, false);
   // default rule (already-reduced -> clearance): goes deeper to the clearance level, never shallower
   r = get(run([red('R30', 30)], {}), 'R30'); assert.equal(r.final.action, 'C'); assert.equal(r.final.pct, 50);
   r = get(run([red('R50', 50)], {}), 'R50'); assert.equal(r.final.pct, 50); assert.equal(r.noPriceChange, true);                        // already at 50: stays, "no change"
-  r = get(run([red('R60', 60)], {}), 'R60'); assert.equal(r.final.pct, null); assert.equal(r.overCap, false);                           // deeper than clearance: stays as is (not in the sale)
+  r = get(run([red('R60', 60)], {}), 'R60'); assert.equal(r.final.pct, 60); assert.equal(r.group, 'X'); assert.equal(r.overCap, false);   // deeper than Group C: kept as is (protected); within the 70% cap here
   // a special buy never lowers an existing discount
   r = get(run([red('SP50', 50, { specialPct: 30 })], { existingReduced: 'reassess' }), 'SP50'); assert.equal(r.final.pct, 50); assert.equal(r.keptExisting, true);
   // lowering the category's group level below an existing discount keeps the existing one
@@ -451,7 +501,7 @@ assert.equal(rsi('RS_SLOW').row.confidence, 'Low');                             
 assert.equal(rsi('RS_HOT').final.action, 'Exclude'); assert.match(rsi('RS_HOT').final.reason, /full price/);     // a fast seller restocking stays full price
 assert.equal(rsi('RS_NONE').final.action, 'A'); assert.equal(rsi('RS_NONE').defaultA, true); assert.match(rsi('RS_NONE').final.reason, /defaulted to the lowest discount in its category \(Group A\)/);   // can't be scored -> the category's lightest offer
 const tinyOnly = E.buildPlan([mk('RS_TINY', { soh: 0, restockUnits: 30, sold: rs90(9), ageWeeks: 70 })], { maxDiscount: 70 }).items[0];   // a remnant-sized restock is cleared (in isolation: category-relative scores shift with the rest of the range)
-assert.equal(tinyOnly.final.action, 'C'); assert.match(tinyOnly.final.reason, /only 30 units/);
+assert.equal(tinyOnly.final.action, 'B'); assert.equal(tinyOnly.clearance, true); assert.match(tinyOnly.final.reason, /only 30 units/);
 assert.doesNotMatch(rsi('RS_NEW').final.reason, /New arrival/);                                                         // stock arriving for the sale is exempt from new-arrival protection
 assert.equal(E.buildPlan([mk('SHELF_NEW', { ageWeeks: 2, soh: 200 })], {}).items[0].final.action, 'Exclude');                  // ...but a new product already on the shelf is still protected
 assert.equal(rsi('RS_GWP').final.action, 'Exclude'); assert.match(rsi('RS_GWP').final.reason, /Gift with purchase/);

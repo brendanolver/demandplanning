@@ -171,8 +171,9 @@
     if (alreadyReduced && S.existingReduced === 'exclude') return exclude('Already reduced (' + Math.round(cur) + '% off) — excluded by sale rules');
     if (alreadyReduced && S.existingReduced === 'clearance') {
       // Reduced stock goes to the clearance level; anything already at/over it simply stays.
-      if (cur > clearPct + 0.5) return exclude('Already ' + Math.round(cur) + '% off — deeper than clearance, stays as is');
-      return { action: 'C', reason: cur >= clearPct - 0.5 ? 'Already ' + Math.round(cur) + '% off — stays at ' + clearPct + '% (no price change)' : 'Already reduced (' + Math.round(cur) + '% off) — moves to ' + clearPct + '% clearance', hard: false };
+      // Group C = existing reduced, fixed at the clearance level (50%). One already deeper is a PROTECTED exception: it keeps its deeper discount.
+      if (cur > clearPct + 0.5) return { action: 'P', reason: 'Already ' + Math.round(cur) + '% off — deeper than Group C (' + clearPct + '%): kept as is (protected)', hard: true };
+      return { action: 'C', reason: cur >= clearPct - 0.5 ? 'Already ' + Math.round(cur) + '% off — Group C, stays at ' + clearPct + '% (no price change)' : 'Already reduced (' + Math.round(cur) + '% off) — Group C at ' + clearPct + '%', hard: false };
     }
     // ...so it defaults to the category's LIGHTEST offer (Group A) rather than being left out. New-arrival
     // protection (above) still applies, and a manual decision or special buy still wins.
@@ -189,7 +190,7 @@
     const broken = (num(p.soldOutSizes) || 0) >= S.brokenSizesClearance;
     if (!healthy && (remnant || broken)) {
       const why = broken && remnant ? 'only ' + m.soh + ' units and ' + p.soldOutSizes + ' sizes sold out' : broken ? p.soldOutSizes + ' sizes sold out' : 'only ' + m.soh + ' units and none on order';
-      return { action: 'C', reason: 'Clearance — ' + why, hard: false };
+      return { action: 'B', reason: 'Clearance candidate — ' + why + ' (Group B)', hard: false, clearance: true };   // remnants / broken size runs are Group B (clearance markdown); Group C is for products ALREADY reduced
     }
     if (score >= S.groupBAt && !(p.isCore && S.coreMode === 'protect')) return { action: 'B', reason: describe(row) };
     const prot = p.isCore && S.coreMode === 'protect' ? ' (core: capped at Group A)' : '';
@@ -242,7 +243,8 @@
     // group it was approved in, so a data refresh can't silently move it. Rules (GWP, no stock, special buys) still win.
     if (frozen) for (const it of items) {
       const fz = frozen[it.row.p.id];
-      if (fz && !it.hard && it.action !== 'S' && !it.row.p.isGWP && ['A', 'B', 'C', 'Exclude'].includes(fz) && fz !== it.action) {
+      const stillReduced = (num(it.row.p.currentDiscountPct) || 0) >= S.reducedThresholdPct;   // Group C = already reduced: a saved C stops holding once the product isn't
+      if (fz && !it.hard && it.action !== 'S' && !it.row.p.isGWP && ['A', 'B', 'C', 'Exclude'].includes(fz) && !(fz === 'C' && !stillReduced) && fz !== it.action) {
         it.action = fz; it.frozen = true; it.reason = fz === 'Exclude' ? 'Kept out of the sale — saved when the category was approved' : 'Kept in its approved group — saved when the category was approved';
       } else if (fz && fz === it.action) it.frozen = true;
     }
@@ -250,7 +252,7 @@
     // Core colour consistency: all colours of a core parent style follow the style's group.
     if (S.coreConsistency !== 'independent') {
       const byStyle = {};
-      items.forEach(it => { const p = it.row.p; if (p.isCore && p.parentStyle && !it.hard && !it.frozen && it.action !== 'C' && it.action !== 'S') (byStyle[p.parentStyle] = byStyle[p.parentStyle] || []).push(it); });
+      items.forEach(it => { const p = it.row.p; if (p.isCore && p.parentStyle && !it.hard && !it.frozen && !it.clearance && it.action !== 'C' && it.action !== 'P' && it.action !== 'S') (byStyle[p.parentStyle] = byStyle[p.parentStyle] || []).push(it); });
       for (const st of Object.keys(byStyle)) {
         const g = byStyle[st]; if (g.length < 2) continue;
         const stock = g.reduce((a, it) => a + it.row.m.soh, 0) || 1;
@@ -323,7 +325,7 @@
     // applied last and never silently overwritten).
     function resolve(it) {
       const p = it.row.p, cp = catByName[p.category || 'UNCATEGORISED'];
-      const sys = it.action === 'A' ? groupPct(cp, 'A') : it.action === 'B' ? groupPct(cp, 'B') : it.action === 'C' ? clearPct : it.action === 'S' ? Math.min(p.specialPct, S.maxDiscount) : null;
+      const sys = it.action === 'A' ? groupPct(cp, 'A') : it.action === 'B' ? groupPct(cp, 'B') : it.action === 'C' ? clearPct : it.action === 'P' ? Math.round((num(p.currentDiscountPct) || 0) * 10) / 10 : it.action === 'S' ? Math.min(p.specialPct, S.maxDiscount) : null;
       let pct = sys, action = it.action, reason = it.reason;
       const cur = num(p.currentDiscountPct) || 0;
       if ((it.action === 'A' || it.action === 'B') && cp.manual[it.action] != null) reason += ' · category Group ' + it.action + ' level set by you';
@@ -452,6 +454,23 @@
       it.capped = (it.action === 'A' || it.action === 'B') && cp.idx[it.action] < cp.startIdx[it.action];
       it.levelRaised = (it.action === 'A' || it.action === 'B') && cp.idx[it.action] > cp.startIdx[it.action];
       it.forecast = baseline(it.row.m, S);
+      // Group membership is its own field (never inferred from the percentage): A / B / C, or X = an exception (a protected deeper discount, a kept existing
+      // discount, or a typed discount that fits none of the groups). null = not in the standard A/B/C split (GWP, excluded, special buy).
+      const lv3 = { A: levelOf(cp, 'A'), B: cp.noB ? null : levelOf(cp, 'B'), C: clearPct };
+      const fits = g => lv3[g] != null && pct != null && Math.abs(lv3[g] - pct) < 0.05;
+      let grp = null, xk = null;
+      if (p.isGWP || pct == null || r.final.action === 'Exclude') grp = null;
+      else if (it.override === 'group') grp = r.final.action;                                    // you moved it
+      else if (it.override === 'discount') {                                                    // you typed a discount: it keeps its saved group; a figure that fits no group is a manual exception
+        if (it.action === 'S') grp = null;
+        else if (['A', 'B', 'C'].includes(it.action)) { const base = it.action === 'B' && cp.noB ? 'A' : it.action; grp = fits(base) ? base : 'X'; }
+        else grp = ['A', 'B', 'C'].find(fits) || 'X';
+        if (grp === 'X') xk = 'manual';
+      } else if (r.final.action === 'S') grp = null;
+      else if (r.final.action === 'P') { grp = 'X'; xk = 'protected'; }
+      else if (r.keptExisting) { grp = 'X'; xk = 'kept'; }
+      else grp = ['A', 'B', 'C'].includes(r.final.action) ? r.final.action : null;
+      it.group = grp; it.exceptionKind = xk;
     });
     catPlans.forEach(cp => { cp.groupA = groupPct(cp, 'A'); cp.groupB = groupPct(cp, 'B'); cp.levelA = levelOf(cp, 'A'); cp.levelB = cp.noB ? 0 : levelOf(cp, 'B'); });
 
@@ -489,6 +508,19 @@
     return { units, remaining: Math.max(0, m.soh - units), kind: 'baseline (no promo uplift)' };
   }
 
+  // The A / B / C split of a category's STANDARD-sale products (GWP, excluded and special buys are left out). Every product is in exactly one of
+  // A, B, C or X (exception), so A + B + C + X = eligible. SOH is stock on hand now, never negative; on order is never added.
+  function groupSplit(list) {
+    const out = { countA: 0, countB: 0, countC: 0, countX: 0, unitsA: 0, unitsB: 0, unitsC: 0, unitsX: 0, exProtected: 0, exKept: 0, exManual: 0 };
+    for (const it of list) {
+      const g = it.group; if (!g) continue;
+      const u = Math.max(0, num(it.row.m.sohNow != null ? it.row.m.sohNow : it.row.m.soh) || 0);
+      out['count' + g]++; out['units' + g] += u;
+      if (g === 'X') { if (it.exceptionKind === 'protected') out.exProtected++; else if (it.exceptionKind === 'kept') out.exKept++; else out.exManual++; }
+    }
+    out.eligible = out.countA + out.countB + out.countC + out.countX; out.eligibleUnits = out.unitsA + out.unitsB + out.unitsC + out.unitsX;
+    return out;
+  }
   function summarise(cp, S) {
     const ms = cp.items.map(it => it.row);
     const soh = ms.reduce((a, r) => a + r.m.sohNow, 0);
@@ -500,14 +532,12 @@
       category: cp.category, products: cp.items.length, soh, restock, sohCost: Math.round(cost), periodUnits: units,
       weeksCover: rate > 0 ? round1(soh / rate) : null,
       sellThroughProxy: units + soh > 0 ? round1(units / (units + soh) * 100) : null,
-      groupA: cp.items.some(it => it.final.action === 'A') ? cp.groupA : null,   // a group nobody ended up in isn't offered
-      groupB: cp.items.some(it => it.final.action === 'B') ? cp.groupB : null,
-      countA: cp.items.filter(it => it.final.action === 'A').length,
-      countB: cp.items.filter(it => it.final.action === 'B').length,
-      countC: cp.items.filter(it => it.final.action === 'C').length,
-      countS: cp.items.filter(it => it.final.action === 'S').length,
-      countManual: cp.items.filter(it => it.final.action === 'Manual').length,
-      countExcluded: cp.items.filter(it => it.final.action === 'Exclude').length,
+      groupA: cp.items.some(it => it.group === 'A') ? cp.groupA : null,   // a group nobody ended up in isn't offered
+      groupB: cp.items.some(it => it.group === 'B') ? cp.groupB : null,
+      ...groupSplit(cp.items), levelC: clearanceLevel(S), cCapped: S.clearanceDiscount > clearanceLevel(S) + 0.01,
+      countS: cp.items.filter(it => it.final.action === 'S' && !it.row.p.isGWP).length,
+      countManual: cp.items.filter(it => it.override && it.group === 'X').length,
+      countExcluded: cp.items.filter(it => it.final.action === 'Exclude' && !it.row.p.isGWP).length,
       forecastUnits: cp.items.reduce((a, it) => a + it.forecast.units, 0),
       forecastRemaining: cp.items.reduce((a, it) => a + it.forecast.remaining, 0),
       pressure: cp.pressure,
