@@ -2189,7 +2189,7 @@ th{position:relative;}
     </div>
   </div>
 
-<script src="markdown-engine.js?v=2.7.6"></script>
+<script src="markdown-engine.js?v=2.7.7"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2223,7 +2223,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.7.6';
+const APP_VERSION='v2.7.7';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -5678,7 +5678,7 @@ function renderMarkdownPlanner(){
       <div><b>${mdpMoney(T.sohCost)}</b><span>SOH at cost</span></div>
     </div>
     <div class="mdp-scroll"><table class="mdp-t">
-      <thead><tr><th class="l">Category</th><th>Products</th><th>SOH</th><th>SOH cost</th><th>Sold (${S.periodDays}d)</th><th>Weeks cover</th><th title="Units sold ÷ (units sold + stock now). Real period sell-through needs opening-stock history, which isn't recorded yet.">Sell-through*</th><th>Group A</th><th>Group B</th><th title="Left out of the sale: healthy sellers, new arrivals, no stock, and products already reduced and retained at their current price">Not in sale</th><th title="Recent run-rate over the sale length, capped at stock. No promotional uplift applied.">Fcst units†</th><th>Fcst left†</th></tr></thead>
+      <thead><tr><th class="l">Category</th><th>Products</th><th>SOH</th><th>SOH cost</th><th>Sold (${S.periodDays}d)</th><th>Weeks cover</th><th title="Units sold ÷ (units sold + stock now). Real period sell-through needs opening-stock history, which isn't recorded yet.">Sell-through*</th><th>Group A</th><th>Group B</th><th title="Fixed-% tier: already-reduced stock, remnants and broken size runs">Clearance</th><th title="Left out of the sale: healthy sellers, new arrivals, no stock, and products already reduced and retained at their current price">Not in sale</th><th title="Recent run-rate over the sale length, capped at stock. No promotional uplift applied.">Fcst units†</th><th>Fcst left†</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
     <div class="mdp-foot">* Sell-through is a proxy — units sold ÷ (units sold + stock now) — because stock-movement history isn't recorded yet. † Forecast is the recent sales run-rate over the sale length, capped at stock, with <b>no promotional uplift</b> (that needs calibrating against past sales). Click a category to see each product/colour, its clearance score and why. Group A/B discounts come from the category's score distribution and your allowed levels; nothing here changes prices or exports anything. ${fresh}.</div>
@@ -11874,6 +11874,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.7.7 — Fix v2.7.6: the Clearance column header was missing from the category table (12 headers over 13 data columns, so every column after Group B was misaligned) — caught on live data before use
 // v2.7.6 — Markdown Planner: Clearance tier, from Brendan's rules. (1) Already-reduced products now move to the clearance level (50%) by default, and ones already at 50% stay at 50% (shown 'no change'; ones already deeper are left alone) — the old Retain/Reassess/Exclude options remain. (2) Remnant and broken-run stock is cleared at 50% rather than getting a normal tier: a product that isn't a healthy seller goes to Clearance if it has under 50 units AND nothing on order, or 4+ sizes sold out; stock on order means it isn't a remnant. Healthy sellers are never cleared just for being low on stock. Clearance is a fixed-% third tier beside Groups A and B (capped by the max effective discount and snapped to an allowed level), excluded from core colour linking, with its own settings (%, min units, sizes-out count), column, tile and pill. Engine + 40-odd new assertions in tests/markdown-engine.test.js
 // v2.7.5 — Markdown Planner wording: products left out of the sale are labelled 'Not in sale' (pill, tile, column) instead of 'Full price' — many are already reduced and retained at their current price (e.g. 50% off), so 'Full price' was wrong
 // v2.7.4 — Markdown Planner fixes found testing v2.7.3 on live data: a category no longer advertises a Group B (or A) discount when every product in it ended up retained at its existing sale price (SHORTS showed 'Group B 50%' with 0 products); core products with no launch date (121 of ~129 — evergreen by design) aren't marked lower-confidence for it; core colours pulled into a sibling's group are counted in a visible 'core colours to approve' tile; the Working subtitle reflects Planner mode. Live-data sanity check at v2.7.3: 438 product/colours in stock, 189 recommended (110 Group A 20%, 53 Group A 30%, 26 Group B 40-50%), 249 left at full price (137 healthy/low cover, 66 already reduced and retained, 37 new arrivals, 9 core-linked), SOH 40,142 units ties to the app's own total
