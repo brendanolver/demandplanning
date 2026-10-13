@@ -764,6 +764,7 @@ th{position:relative;}
 .mdp-selrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#f7f8fb;border:1px solid #e8ebf2;border-radius:10px;padding:7px 12px;font-size:12.5px;}
 .mdp-kind{background:#e8f0fe;color:#0a66e8;margin:0;}
 .mdp-qty{min-width:0;width:84px;}
+.mdp-flagcol{min-width:300px;}
 .mdp-sp{color:#6d28d9;font-weight:700;}
 .mdp-warn{background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:10px;padding:8px 12px;font-size:12.5px;}
 </style>
@@ -2250,8 +2251,8 @@ th{position:relative;}
     </div>
   </div>
 
-<script src="markdown-engine.js?v=2.9.3"></script>
-<script src="markdown-plans.js?v=2.9.3"></script>
+<script src="markdown-engine.js?v=2.9.4"></script>
+<script src="markdown-plans.js?v=2.9.4"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2285,7 +2286,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.9.3';
+const APP_VERSION='v2.9.4';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -6122,7 +6123,7 @@ function mdpSpecialSection(plan,oo,hasEnd,pl){
       <td><b>${x.pct==null?'—':x.pct+'%'}</b></td><td>${x.lv.soh?x.lv.soh.toLocaleString():'—'}</td><td>${x.o?x.o.units.toLocaleString():'—'}</td><td>${hasEnd&&x.o?x.o.byEnd.toLocaleString():'—'}</td>
       <td>${x.cost?'$'+x.cost.toFixed(2):'—'}</td><td class="mdp-dim">${x.rrp?'$'+x.rrp.toFixed(2):'—'}</td><td>${x.pct!=null&&x.rrp?'<b>$'+(x.rrp*(1-x.pct/100)).toFixed(2)+'</b>':'—'}</td>
       <td class="l">${x.status==='matched'?'<span class="mdp-pill x">Matched</span>':x.status==='nostock'?'<span class="mdp-pill x" title="In Shopify, no stock yet">Matched · no stock</span>':'<span class="mdp-pill n" title="Not in Shopify yet — held back from the Hextom file until matched">Pending Shopify match</span>'}</td>
-      <td class="l mdp-why">${x.flags.join(' ')}</td></tr>`).join('')}</tbody></table></div>`:'';
+      <td class="l mdp-why mdp-flagcol">${x.flags.join(' ')}</td></tr>`).join('')}</tbody></table></div>`:'';
   return note+`<div class="mdp-sub" style="margin:0 0 10px;line-height:1.55;">Styles bought specifically for this sale. Pick them straight from Apparel Magic and set the discount for each pick. They are <b>never scored against sales history</b> (they have none), are shown as <b>Special buys</b> in the review, and styles not yet in Shopify are <b>held back from the Hextom file</b> until matched. Rules still apply: nothing goes deeper than your highest single discount (${max}%), and gift-with-purchase can't also be discounted.</div>`
     +mdpAdder('special',['group','parent','style','po'],true,pl)+mdpSelChips('special',pl.special,mdpMatchedCounts(res.special),pl)
     +(rows.length?`<div class="mdp-revsum" style="margin-top:12px;"><span><b>${rows.length}</b> style${rows.length===1?'':'s'}</span><span class="mdp-dot"></span><span><b>${units.toLocaleString()}</b> units (stock + incoming)</span><span class="mdp-dot"></span><span><b>$${Math.round(costV).toLocaleString()}</b> at cost</span>
@@ -12516,6 +12517,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.9.4 — Markdown Planner: widened the special-buys Flags column so 'arrives <date> — after the sale' reads on one line (layout only)
 // v2.9.3 — Markdown Planner: special buys now flag 'arrives <date> — after the sale' when they have no stock and nothing is due before the sale ends (the 16 IKIZAMA styles land 1 Feb 2027, after Black Friday, so they'd have 0 units to sell), with a count in the summary; the GWP cost estimate says it assumes everything available is given away until you edit the planned giveaways. Live-tested v2.9.2 on real data: catalogue cache 444 KB (3,978 styles), collection pick resolved 88 styles, GWP category 8 styles, GWP-vs-special-buy conflicts raise 3 blocking conflicts with one-click fixes
 // v2.9.2 — Markdown Planner, phase 6: Special buys (section D) and Gift with purchase (section E), from Apparel Magic. The existing AM catalogue crawl (every 6h) now also keeps each style's collection/group, category, title and RRP (cache upgraded; an older cache is treated as stale so the picker data arrives after one fresh ~2.5 min crawl). SPECIAL BUYS: add picks by collection, parent style, style or a customer PO on the open orders (a PO also reaches new styles missing from the catalogue) and set a discount per pick from your allowed levels; picks resolve to styles and show Style/Product/Collection/Category/Discount/SOH/On order/Due by sale end/Unit cost/RRP/Sale price/Shopify match. They feed the engine as a fixed 'Special' tier — never scored against sales history, not protected as new arrivals, not cleared as remnants, not colour-linked, counted in the average discount but never lowered by the cap, capped at your highest single discount, and a manual decision still wins. Styles not in Shopify yet are flagged 'Pending Shopify match' (to be held back from the Hextom file); overlapping picks with different discounts are flagged, never silently resolved. GWP: add by Apparel Magic's GWP category (one click), collection or style; shows SOH, incoming (per the sale's incoming-stock setting), unit cost, available, editable planned giveaways (default = all available, capped), estimated cost, optional spend threshold. GWP is excluded from markdowns, and a GWP style that also has a special-buy pick or a saved markdown decision raises a BLOCKING conflict with one-click fixes. Selections are per-sale allocations (a Duplicate doesn't copy them). The category table gains a Special column and the review gains a Special buys filter and pill. Logic is in markdown-plans.js (resolver, conflicts, economics) and markdown-engine.js, with ~70 new assertions
 // v2.9.1 — Fix v2.9.0: decisions were saved on the sale but the screen never passed them to the engine, so they had no visible effect (found testing every action on live data). They are now applied last on every render
