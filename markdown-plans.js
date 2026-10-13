@@ -67,6 +67,7 @@
       setup: clone(DEFAULT_SETUP),
       settings: Engine.mergeSettings({}),
       overrides: {},   // phase 4: per-product manual decisions
+      groupLevels: {}, // your own Group A / B level per category: { CATEGORY: { A: pct, B: pct } } (absent = the planner's suggestion)
       mappings: {},    // phase 7: discount -> Shopify collection (id + title), independent per sale
       exports: [],     // phase 7: export + confirmation history
       special: [],     // special buys: Apparel Magic selections + the discount for each
@@ -88,6 +89,7 @@
         const p = s.plans[id];
         p.setup = { ...DEFAULT_SETUP, ...(p.setup || {}) };
         p.settings = Engine.mergeSettings(p.settings);
+        p.groupLevels = p.groupLevels && typeof p.groupLevels === 'object' ? p.groupLevels : {};
         p.overrides = p.overrides || {}; p.mappings = p.mappings || {}; p.exports = p.exports || [];
         p.special = Array.isArray(p.special) ? p.special : [];
         p.gwp = { items: [], threshold: null, qty: {}, ...(p.gwp || {}) };
@@ -127,6 +129,7 @@
     const p = newPlan(uniqueName(s, src.name + ' (copy)'), now, idGen && idGen());
     p.setup = { ...clone(src.setup), start: '', end: '' };
     p.settings = clone(src.settings);
+    p.groupLevels = clone(src.groupLevels || {});   // the category strategy is part of the template
     s.plans[p.id] = p;
     s.order.splice(s.order.indexOf(id) + 1, 0, p.id);
     s.activeId = p.id;
@@ -194,7 +197,7 @@
   function engineSettings(plan) {
     const obj = OBJECTIVES[plan.setup.objective] || OBJECTIVES.balance;
     const days = durationDays(plan.setup.start, plan.setup.end);
-    return Engine.mergeSettings({ ...plan.settings, excludeBelow: obj.excludeBelow, groupBAt: obj.groupBAt, saleDays: days || plan.settings.saleDays });
+    return Engine.mergeSettings({ ...plan.settings, excludeBelow: obj.excludeBelow, groupBAt: obj.groupBAt, saleDays: days || plan.settings.saleDays, avgDiscountCap: null });   // the average-discount TARGET is retired: the effective discount is now a live readout, not something the planner steers to
   }
 
   function validatePlan(plan) {
@@ -206,16 +209,30 @@
     if (!start || !end) warnings.push('Set the sale dates — the forecast uses the sale length (assuming ' + plan.settings.saleDays + ' days until then).');
     if (targetRevenue != null && !(num(targetRevenue) > 0)) errors.push('Target revenue must be a positive number.');
     if (targetClearPct != null && !(num(targetClearPct) > 0 && num(targetClearPct) <= 100)) errors.push('Target clearance must be between 1% and 100%.');
-    const cap = plan.settings.avgDiscountCap, lv = plan.settings.allowedDiscounts;
-    if (cap != null) {
-      if (cap < Math.min(...lv)) warnings.push('The ' + cap + '% average target is below your lowest discount level (' + Math.min(...lv) + '%), so it can\'t be reached — the plan will sit at the lowest levels.');
-      else if (cap >= plan.settings.maxDiscount) warnings.push('The ' + cap + '% average target is at or above your highest single discount (' + plan.settings.maxDiscount + '%) — the plan can approach it but no product will go deeper than ' + plan.settings.maxDiscount + '%.');
-    }
     const d = durationDays(start, end);
     if (d != null && d > 60) warnings.push('That is a long sale (' + d + ' days).');
     return { errors, warnings };
   }
 
+
+  // ── Category group levels ──────────────────────────────────────────────────
+  // tier 'A' | 'B'; pct null/'' = back to the planner's suggestion. Levels are capped at the highest single discount.
+  function setGroupLevel(state, planId, category, tier, pct, now) {
+    const plan = state.plans[planId]; if (!plan || (tier !== 'A' && tier !== 'B') || !category) return state;
+    const n = Number(pct), val = pct == null || pct === '' || !isFinite(n) || n <= 0 ? null : Math.round(Math.min(n, plan.settings.maxDiscount) * 10) / 10;
+    const cur = (plan.groupLevels || {})[category] || {};
+    if ((cur[tier] == null ? null : cur[tier]) === val) return state;
+    const s = clone(state), p = s.plans[planId]; p.groupLevels = p.groupLevels || {};
+    const e = { ...(p.groupLevels[category] || {}) };
+    if (val == null) delete e[tier]; else e[tier] = val;
+    if (e.A == null && e.B == null) delete p.groupLevels[category]; else p.groupLevels[category] = e;
+    p.updatedTs = now || Date.now(); p.rev += 1;
+    return s;
+  }
+  function clearGroupLevels(state, planId, now) {
+    const plan = state.plans[planId]; if (!plan || !Object.keys(plan.groupLevels || {}).length) return state;
+    const s = clone(state); s.plans[planId].groupLevels = {}; s.plans[planId].updatedTs = now || Date.now(); s.plans[planId].rev += 1; return s;
+  }
 
   // ── Decisions (overrides) ──────────────────────────────────────────────────
   // Keyed by product/colour id on the plan. They survive every regenerate and are only ever
@@ -478,6 +495,6 @@
     parseDay, durationDays, newPlan, createState, migrate, uniqueName, addPlan, duplicatePlan,
     renamePlan, setActive, archivePlan, restorePlan, cleanLevels, updatePlan, engineSettings, validatePlan,
     EXCLUDE_REASONS, VIEWS, sanitizeOverride, setOverrides, clearOverrides, overrideStats, buildReview,
-    SPECIAL_KINDS, GWP_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setGwpQty, setGwpThreshold, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
+    SPECIAL_KINDS, GWP_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setGwpQty, setGwpThreshold, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
   };
 });

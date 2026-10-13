@@ -241,6 +241,43 @@ for (const c of [null, 1, 20, 30, 40, 55]) {
 }
 // a tight target that can't be met without collapsing B onto A is reported unreachable instead
 assert.equal(E.buildPlan(range, capSet(1)).cap.met, false);
+// ── Your own Group A / B level per category, and the live RRP-weighted effective discount ──
+{
+  const base = E.buildPlan(range, { maxDiscount: 70 });
+  const cX = base.categories.find(c => c.category === 'X');
+  assert.ok(cX.groupA != null && cX.groupB != null);
+  // setting Group A for a category: every Group A product in it is suggested from it, other categories untouched
+  const gl1 = E.buildPlan(range, { maxDiscount: 70 }, {}, { X: { A: 40 } });
+  const x1 = gl1.categories.find(c => c.category === 'X');
+  assert.equal(x1.groupA, 40); assert.equal(x1.manualA, 40); assert.equal(x1.autoA, cX.autoA);
+  gl1.items.filter(i => i.row.p.category === 'X' && i.final.action === 'A').forEach(i => { assert.equal(i.final.pct, 40); assert.match(i.final.reason, /set by you/); });
+  assert.ok(x1.groupB > 40, 'Group B is pushed to stay deeper than the A you set');                                           // auto B (40?) bumped past 40
+  gl1.items.filter(i => i.row.p.category !== 'X').forEach((i, k) => assert.equal(i.final.pct, base.items.find(b => b.row.p.id === i.row.p.id).final.pct));
+  // Group B you set shallower than the auto A: A is pulled down to stay shallower than B
+  const gl2 = E.buildPlan(range, { maxDiscount: 70 }, {}, { X: { B: 30 } });
+  const x2 = gl2.categories.find(c => c.category === 'X'); assert.equal(x2.groupB, 30); assert.ok(x2.groupA < 30);
+  // both set: used exactly; B not deeper than A is flagged, never silently changed
+  const gl3 = E.buildPlan(range, { maxDiscount: 70 }, {}, { X: { A: 40, B: 30 } }); const x3 = gl3.categories.find(c => c.category === 'X');
+  assert.equal(x3.groupA, 40); assert.equal(x3.groupB, 30); assert.equal(x3.groupWarn, true);
+  assert.equal(E.buildPlan(range, { maxDiscount: 70 }, {}, { X: { A: 30, B: 50 } }).categories.find(c => c.category === 'X').groupWarn, false);
+  // capped at the highest single discount; bad values ignored
+  assert.equal(E.buildPlan(range, { maxDiscount: 40 }, {}, { X: { A: 90 } }).categories.find(c => c.category === 'X').groupA, 40);
+  assert.deepEqual(E.buildPlan(range, { maxDiscount: 70 }, {}, { X: { A: 'abc', B: -5 } }).items.map(i => i.final.pct), base.items.map(i => i.final.pct));
+  // your category level survives alongside a product decision, and decisions still win
+  const gl4 = E.buildPlan(range, { maxDiscount: 70 }, { X1: { pct: 20, kind: 'discount' } }, { X: { A: 40 } });
+  assert.equal(gl4.items.find(i => i.row.p.id === 'X1').final.pct, 20);
+  // the average-target algorithm never moves a level you set
+  const gl5 = E.buildPlan(range, { maxDiscount: 70, avgDiscountCap: 25 }, {}, { X: { A: 40 } }); assert.equal(gl5.categories.find(c => c.category === 'X').groupA, 40);
+  // effective discount: RRP value on sale less the suggested % on each unit, as a % of RRP value (a live figure, not a target)
+  const direct = (() => { let off = 0, val = 0; base.items.forEach(i => { if (i.final.pct != null) { const u = i.row.m.soh, r = i.price.base; off += u * r * i.final.pct / 100; val += u * r; } }); return Math.round(off / val * 1000) / 10; })();
+  assert.equal(base.totals.effectiveDiscount, direct); assert.ok(base.totals.effRrpValue > base.totals.effOffValue && base.totals.effOffValue > 0);
+  assert.equal(base.totals.effRrpValue - base.totals.effOffValue, base.totals.effSaleValue);
+  assert.ok(gl1.totals.effectiveDiscount > base.totals.effectiveDiscount);                                                  // raising a group raises the live figure
+  // a hand-checkable case: 100 units at $100 at 20% + 100 units at $50 at 40% -> (2000+2000)/(10000+5000) = 26.7%
+  const two = E.buildPlan([mk('E1', { soh: 100, rrp: 100, price: 100, sold: { d7: 1, d30: 4, d60: 9, d90: 14 }, ageWeeks: 60 }), mk('E2', { soh: 100, rrp: 50, price: 50, sold: { d7: 1, d30: 4, d60: 9, d90: 14 }, ageWeeks: 60 })], { maxDiscount: 70, scope: 'all' }, { E1: { pct: 20, kind: 'discount' }, E2: { pct: 40, kind: 'discount' } });
+  assert.equal(two.totals.effectiveDiscount, 26.7); assert.equal(two.totals.effRrpValue, 15000); assert.equal(two.totals.effOffValue, 4000);
+  assert.equal(E.buildPlan([], { maxDiscount: 70 }).totals.effectiveDiscount, 0);
+}
 // deterministic: same input, same output
 assert.deepEqual(E.buildPlan(range, capSet(18)).items.map(i => i.final.pct), E.buildPlan(range, capSet(18)).items.map(i => i.final.pct));
 // the single-product ceiling still holds under a cap

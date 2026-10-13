@@ -228,7 +228,7 @@
   }
 
   // ── Whole-range plan ─────────────────────────────────────────────────────────
-  function buildPlan(products, settings, overrides) {
+  function buildPlan(products, settings, overrides, groupLevels) {
     const S = mergeSettings(settings);
     const rows = scoreAll(products, S);
     const lv = levels(S);
@@ -269,13 +269,26 @@
       const pressure = stock > 0 ? elig.reduce((a, it) => a + it.row.score * it.row.m.soh, 0) / stock : 0;
       const aIdx = elig.length && pressure >= 50 ? Math.min(1, lv.length - 1) : 0;
       const bIdx = Math.min(lv.length - 1, aIdx + 2);
-      return { category: c, items: list, pressure: Math.round(pressure), idx: { A: A.length ? aIdx : null, B: B.length ? bIdx : null }, startIdx: { A: aIdx, B: bIdx },
+      // Your own level for a category's Group A / B ("set by you"): products in the group are then suggested from it.
+      const gl = (groupLevels && groupLevels[c]) || {}, mp = v => { const n = Number(v); return v != null && v !== '' && isFinite(n) && n > 0 ? Math.min(n, S.maxDiscount) : null; };
+      const manual = { A: mp(gl.A), B: mp(gl.B) };
+      return { category: c, items: list, pressure: Math.round(pressure), idx: { A: A.length ? aIdx : null, B: B.length ? bIdx : null }, startIdx: { A: aIdx, B: bIdx }, manual,
+        autoA: A.length ? lv[aIdx] : null, autoB: B.length ? lv[bIdx] : null,
         groupA: A.length ? lv[aIdx] : null, groupB: B.length ? lv[bIdx] : null };
     });
     const catByName = Object.fromEntries(catPlans.map(cp => [cp.category, cp]));
     const ov = overrides || {};
     const clearPct = clearanceLevel(S);
-    const groupPct = (cp, tier) => (cp.idx[tier] == null ? null : lv[cp.idx[tier]]);
+    // A level you set wins. The other group is then kept on the right side of it: Group B at least one allowed level
+    // deeper than A, A at least one shallower than B (only a level you set on BOTH can break that, and it is flagged).
+    const groupPct = (cp, tier) => {
+      if (cp.idx[tier] == null) return null;
+      if (cp.manual[tier] != null) return cp.manual[tier];
+      let v = lv[cp.idx[tier]];
+      if (tier === 'B' && cp.manual.A != null && cp.idx.A != null && v <= cp.manual.A) { const up = lv.find(d => d > cp.manual.A); if (up != null) v = up; }
+      if (tier === 'A' && cp.manual.B != null && cp.idx.B != null && v >= cp.manual.B) { const dn = lv.filter(d => d < cp.manual.B); if (dn.length) v = dn[dn.length - 1]; }
+      return v;
+    };
 
     // What each product ends up as, given the CURRENT group levels (user overrides are
     // applied last and never silently overwritten).
@@ -284,7 +297,8 @@
       const sys = it.action === 'A' ? groupPct(cp, 'A') : it.action === 'B' ? groupPct(cp, 'B') : it.action === 'C' ? clearPct : it.action === 'S' ? Math.min(p.specialPct, S.maxDiscount) : null;
       let pct = sys, action = it.action, reason = it.reason;
       const cur = num(p.currentDiscountPct) || 0;
-      if ((it.action === 'A' || it.action === 'B') && cp.idx[it.action] < cp.startIdx[it.action]) reason += ' · level lowered to meet the ' + S.avgDiscountCap + '% average target';
+      if ((it.action === 'A' || it.action === 'B') && cp.manual[it.action] != null) reason += ' · category Group ' + it.action + ' level set by you';
+      else if ((it.action === 'A' || it.action === 'B') && cp.idx[it.action] < cp.startIdx[it.action]) reason += ' · level lowered to meet the ' + S.avgDiscountCap + '% average target';
       else if ((it.action === 'A' || it.action === 'B') && cp.idx[it.action] > cp.startIdx[it.action]) reason += ' · level raised to approach the ' + S.avgDiscountCap + '% average target';
       // Existing markdown: never stack on a sale price — compare against RRP.
       if (pct != null && S.existingReduced === 'retain' && cur >= S.reducedThresholdPct && cur >= pct) {
@@ -336,7 +350,7 @@
       const groupsLive = () => {
         const out = [];
         for (const cp of catPlans) for (const t of ['A', 'B']) {
-          if (cp.idx[t] == null || cp.idx[t] <= 0) continue;
+          if (cp.idx[t] == null || cp.idx[t] <= 0 || cp.manual[t] != null) continue;
           if (t === 'B' && cp.idx.A != null && cp.idx.B - 1 <= cp.idx.A) continue;   // Group B always stays at least one level deeper than Group A
           const all = cp.items.filter(it => it.action === t && !ov[it.row.p.id]);
           if (!all.length) continue;
@@ -372,7 +386,7 @@
           let best = null;
           for (const cp of catPlans) for (const t of ['A', 'B']) {
             const i0 = cp.idx[t];
-            if (i0 == null || i0 >= lv.length - 1) continue;
+            if (i0 == null || i0 >= lv.length - 1 || cp.manual[t] != null) continue;
             if (t === 'A' && cp.idx.B != null && i0 + 1 >= cp.idx.B) continue;   // Group A stays at least one level shallower than B
             const before = sums(cp); cp.idx[t] = i0 + 1; const after = sums(cp); cp.idx[t] = i0;
             const nN = N - before.n + after.n, nD = D - before.d + after.d, nAvg = nD > 0 ? nN / nD : 0;
@@ -403,9 +417,23 @@
     catPlans.forEach(cp => { cp.groupA = groupPct(cp, 'A'); cp.groupB = groupPct(cp, 'B'); });
 
     const tot = totals(items);
+    Object.assign(tot, effective(items));
     if (cap) { tot.avgDiscount = cap.avg; }
     else { tot.avgDiscount = avgFromItems(items); }
     return { settings: S, items, categories: catPlans.map(cp => summarise(cp, S)), totals: tot, cap };
+  }
+
+  // The EFFECTIVE discount, as one live figure: the RRP value of every unit in the sale less the discount suggested on it,
+  // expressed as a % of that RRP value (so a deep discount on an expensive style weighs more than on a cheap one).
+  function effective(items) {
+    let units = 0, rrpValue = 0, off = 0;
+    for (const it of items) {
+      const pct = it.final.pct; if (pct == null) continue;
+      const base = it.price && it.price.base != null ? it.price.base : 0, u = it.row.m.soh;
+      if (!(u > 0) || !(base > 0)) continue;
+      units += u; rrpValue += u * base; off += u * base * pct / 100;
+    }
+    return { effectiveDiscount: rrpValue > 0 ? Math.round(off / rrpValue * 1000) / 10 : 0, effUnits: units, effRrpValue: Math.round(rrpValue), effOffValue: Math.round(off), effSaleValue: Math.round(rrpValue - off) };
   }
 
   // Unit-weighted average effective discount over the products actually in the sale.
@@ -444,6 +472,8 @@
       forecastUnits: cp.items.reduce((a, it) => a + it.forecast.units, 0),
       forecastRemaining: cp.items.reduce((a, it) => a + it.forecast.remaining, 0),
       pressure: cp.pressure,
+      manualA: cp.manual.A, manualB: cp.manual.B, autoA: cp.autoA, autoB: cp.autoB,
+      groupWarn: cp.manual.A != null && cp.manual.B != null && cp.manual.B <= cp.manual.A,
     };
   }
 

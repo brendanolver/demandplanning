@@ -93,9 +93,9 @@ assert.equal(setCap(null), null); assert.equal(setCap(''), null); assert.equal(s
 assert.equal(setCap(35), 35); assert.equal(setCap('32.46'), 32.5); assert.equal(setCap(400), 95);
 assert.equal(P.newPlan('n', 1, 'n').settings.avgDiscountCap, null); assert.equal(P.newPlan('n', 1, 'n').settings.scope, 'recommended');
 assert.equal(P.updatePlan(cp, cid, { settings: { scope: 'all' } }).plans[cid].settings.scope, 'all'); assert.equal(P.updatePlan(cp, cid, { settings: { scope: 'junk' } }).plans[cid].settings.scope, 'recommended');
-let w = P.validatePlan(P.updatePlan(cp, cid, { settings: { avgDiscountCap: 10 } }).plans[cid]).warnings; assert.ok(w.some(x => /average target is below your lowest discount level/.test(x)));
-w = P.validatePlan(P.updatePlan(cp, cid, { settings: { avgDiscountCap: 60 } }).plans[cid]).warnings; assert.ok(w.some(x => /average target is at or above your highest single discount/.test(x)));
-w = P.validatePlan(P.updatePlan(cp, cid, { settings: { avgDiscountCap: 35 } }).plans[cid]).warnings; assert.ok(!w.some(x => /average cap/.test(x)));
+// the average target is retired: whatever is saved, the engine runs without it and nothing warns about it
+let w = P.validatePlan(P.updatePlan(cp, cid, { settings: { avgDiscountCap: 10 } }).plans[cid]).warnings; assert.ok(!w.some(x => /average/.test(x)));
+assert.equal(P.engineSettings(P.updatePlan(cp, cid, { settings: { avgDiscountCap: 35 } }).plans[cid]).avgDiscountCap, null);
 // cap and scope are rules, so a Duplicate copies them
 let capped = P.updatePlan(cp, cid, { settings: { avgDiscountCap: 35, scope: 'all' } }); const cd = P.duplicatePlan(capped, cid, 5, idGen);
 assert.equal(cd.state.plans[cd.id].settings.avgDiscountCap, 35); assert.equal(cd.state.plans[cd.id].settings.scope, 'all');
@@ -262,5 +262,18 @@ assert.deepEqual(P.splitGwpOverlap([], []), { applied: [], leftOut: [], conflict
 // left-out styles feed no discount and no conflict list: only `applied` rows carry a special-buy discount, and conflicts are exactly the unresolved ones
 sx = res([sp0('s', 'group', '2026 - BLACK FIRDAY')], [{ id: 'g', kind: 'category', value: 'GWP' }]);
 assert.deepEqual(P.gwpConflicts(['W26GWP001BLK', 'W26GWP002BLK'], sx.applied.map(r => r.style), []), []);                                                           // no blocking conflicts remain for the common case
+// Category group levels: set per category/tier, capped at the highest single discount, cleared with null, copied by Duplicate, defaulted on load
+let gl = P.createState(1, idGen); const gid = gl.activeId;
+assert.deepEqual(gl.plans[gid].groupLevels, {});
+gl = P.setGroupLevel(gl, gid, 'SWEATS', 'A', 30, 5); assert.deepEqual(gl.plans[gid].groupLevels, { SWEATS: { A: 30 } }); assert.equal(gl.plans[gid].rev, 2);
+gl = P.setGroupLevel(gl, gid, 'SWEATS', 'B', '50', 6); assert.deepEqual(gl.plans[gid].groupLevels.SWEATS, { A: 30, B: 50 });
+assert.strictEqual(P.setGroupLevel(gl, gid, 'SWEATS', 'B', 50, 7), gl);                                                   // no change -> same state
+gl = P.setGroupLevel(gl, gid, 'SWEATS', 'B', 999, 7); assert.equal(gl.plans[gid].groupLevels.SWEATS.B, gl.plans[gid].settings.maxDiscount);
+assert.strictEqual(P.setGroupLevel(gl, gid, 'SWEATS', 'C', 40, 8), gl); assert.strictEqual(P.setGroupLevel(gl, gid, '', 'A', 40, 8), gl);
+gl = P.setGroupLevel(gl, gid, 'SWEATS', 'A', null, 8); gl = P.setGroupLevel(gl, gid, 'SWEATS', 'B', '', 9); assert.deepEqual(gl.plans[gid].groupLevels, {});   // both back to auto -> entry removed
+gl = P.setGroupLevel(gl, gid, 'JEANS', 'A', 40, 10); const gd = P.duplicatePlan(gl, gid, 11, idGen); assert.deepEqual(gd.state.plans[gd.id].groupLevels, { JEANS: { A: 40 } });
+gd.state.plans[gd.id].groupLevels.JEANS.A = 50; assert.equal(gl.plans[gid].groupLevels.JEANS.A, 40);                  // a copy, not shared
+assert.deepEqual(P.migrate({ v: gl.v, activeId: gid, order: [gid], plans: { [gid]: { ...gl.plans[gid], groupLevels: undefined } } }, null, 1, idGen).plans[gid].groupLevels, {});
+assert.deepEqual(P.clearGroupLevels(gl, gid, 12).plans[gid].groupLevels, {});
 console.log('markdown plans tests: all passed');
 })();
