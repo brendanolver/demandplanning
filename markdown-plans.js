@@ -386,17 +386,47 @@
         groups.push({ key: 'ps:' + ps, parentStyle: ps, multi: true, items: byStyle[ps] });
       } else groups.push({ key: 'id:' + it.row.p.id, parentStyle: ps || '', multi: false, items: [it] });
     }
-    const sum = (g, fn) => g.items.reduce((a, it) => a + fn(it), 0);
-    const name = g => g.items[0].row.p.name;
-    const cat = g => String(g.items[0].row.p.category || '');
-    const sorters = {
-      category: (a, b) => cat(a).localeCompare(cat(b)) || name(a).localeCompare(name(b)) || a.key.localeCompare(b.key),
-      name: (a, b) => name(a).localeCompare(name(b)) || a.key.localeCompare(b.key),
-      score: (a, b) => Math.max(...b.items.map(i => i.row.score)) - Math.max(...a.items.map(i => i.row.score)) || a.key.localeCompare(b.key),
-      soh: (a, b) => sum(b, i => i.row.m.soh) - sum(a, i => i.row.m.soh) || a.key.localeCompare(b.key),
-      onorder: (a, b) => sum(b, oo) - sum(a, oo) || a.key.localeCompare(b.key),
+    // Any review column can be sorted, ascending or descending (f.dir). A parent row sorts on its colours combined
+    // (stock/sales summed, prices and rates averaged); empty values always sort last whichever way you go.
+    const MO = { JAN: 1, FEB: 2, MAR: 3, APR: 4, MAY: 5, JUN: 6, JUL: 7, AUG: 8, SEP: 9, OCT: 10, NOV: 11, DEC: 12 };
+    const monthKey = dm => { const m = /^([A-Za-z]{3})-(\d{2})$/.exec(String(dm || '')); if (!m || !MO[m[1].toUpperCase()]) return null; const y = +m[2]; return (y < 50 ? 2000 + y : 1900 + y) * 100 + MO[m[1].toUpperCase()]; };
+    const nz = v => (v == null || !isFinite(v) ? null : v);
+    const SORTS = {
+      category: { t: 's', v: i => String(i.row.p.category || '') },
+      name: { t: 's', v: i => String(i.row.p.name || '') },
+      parent: { t: 's', v: i => String(i.row.p.parentStyle || i.row.p.style || '') },
+      month: { t: 'n', agg: 'first', v: i => monthKey(i.row.p.deliveryMonth) },
+      soh: { t: 'n', agg: 'sum', v: i => nz(i.row.m.sohNow != null ? i.row.m.sohNow : i.row.m.soh) },
+      onorder: { t: 'n', agg: 'sum', v: i => nz(oo(i)) },
+      d7: { t: 'n', agg: 'sum', v: i => nz((i.row.p.sold || {}).d7) }, d30: { t: 'n', agg: 'sum', v: i => nz((i.row.p.sold || {}).d30) },
+      d60: { t: 'n', agg: 'sum', v: i => nz((i.row.p.sold || {}).d60) }, d90: { t: 'n', agg: 'sum', v: i => nz((i.row.p.sold || {}).d90) },
+      cover: { t: 'n', agg: 'mean', v: i => nz(i.row.m.weeksCover) },
+      sellthru: { t: 'n', agg: 'mean', v: i => nz(i.row.m.sellThroughProxy) },
+      sizesout: { t: 'n', agg: 'sum', v: i => nz(i.row.p.soldOutSizes || 0) },
+      rrp: { t: 'n', agg: 'mean', v: i => nz(i.row.p.rrp > 0 ? i.row.p.rrp : null) },
+      price: { t: 'n', agg: 'mean', v: i => nz(i.row.p.price > 0 ? i.row.p.price : null) },
+      suggested: { t: 'n', agg: 'mean', v: i => nz(i.systemPct) },
+      discount: { t: 'n', agg: 'mean', v: i => nz(i.final.pct) },
+      newprice: { t: 'n', agg: 'mean', v: i => nz(i.price && i.price.newPrice) },
+      score: { t: 'n', agg: 'max', v: i => nz(i.row.score) },
+      why: { t: 's', v: i => String((i.final && i.final.reason) || '') },
     };
-    groups.sort(sorters[f.sort] || sorters.category);
+    const DEFAULT_DIR = k => (SORTS[k] && SORTS[k].t === 's' ? 'asc' : 'desc');
+    const skey = SORTS[f.sort] ? f.sort : 'category', sd = SORTS[skey], mult = (f.dir === 'asc' || f.dir === 'desc' ? f.dir : DEFAULT_DIR(skey)) === 'asc' ? 1 : -1;
+    const gval = g => {
+      const vals = g.items.map(sd.v).filter(v => v != null && v !== '');
+      if (!vals.length) return null;
+      if (sd.t === 's') return vals.map(String).sort((a, b) => a.localeCompare(b))[0];
+      return sd.agg === 'sum' ? vals.reduce((a, v) => a + v, 0) : sd.agg === 'max' ? Math.max(...vals) : sd.agg === 'mean' ? vals.reduce((a, v) => a + v, 0) / vals.length : vals[0];
+    };
+    const nameOf = g => String(g.items[0].row.p.name || '');
+    const cache = new Map(); groups.forEach(g => cache.set(g, gval(g)));
+    groups.sort((a, b) => {
+      const x = cache.get(a), y = cache.get(b);
+      if (x == null && y != null) return 1; if (y == null && x != null) return -1;
+      let c = 0; if (x != null) c = sd.t === 's' ? String(x).localeCompare(String(y)) : x - y;
+      return (c * mult) || nameOf(a).localeCompare(nameOf(b)) || a.key.localeCompare(b.key);
+    });
     groups.forEach(g => g.items.sort((a, b) => String(a.row.p.colour).localeCompare(String(b.row.p.colour)) || a.row.p.id.localeCompare(b.row.p.id)));
     return { groups, count: rows.length, total: items.length };
   }

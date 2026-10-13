@@ -305,5 +305,19 @@ assert.deepEqual(P.buildForecast([], {}, 90).totals.demand, 0);
   const ids = f => P.buildReview(its, f).groups.flatMap(g => g.items.map(i => i.row.p.id)).sort().join('');
   assert.equal(ids({}), 'abcde'); assert.equal(ids({ month: 'OCT-26' }), 'ab'); assert.equal(ids({ month: 'SEP-26' }), 'c'); assert.equal(ids({ month: '__none__' }), 'd'); assert.equal(ids({ month: 'CORE' }), 'e'); assert.equal(ids({ month: 'NOV-26' }), '');
 }
+// review: every column sorts both ways, empties last, parents sort on their colours combined
+{
+  const mk2 = (id, o) => ({ row: { p: { id, name: o.name || id, colour: '', style: id, parentStyle: o.ps || '', category: o.cat || 'X', deliveryMonth: o.dm || '', rrp: o.rrp || 0, price: o.price || 0, soldOutSizes: o.so || 0, sold: { d7: o.d7 || 0, d30: o.d30 || 0, d60: 0, d90: 0 }, isCore: false }, m: { soh: o.soh || 0, sohNow: o.soh || 0, weeksCover: o.cover == null ? null : o.cover, sellThroughProxy: null }, score: o.score || 0 }, final: { action: 'A', pct: o.pct == null ? null : o.pct, reason: o.why || '' }, systemPct: o.pct == null ? null : o.pct, price: { newPrice: o.np == null ? null : o.np } });
+  const its = [mk2('a', { name: 'AA', dm: 'NOV-26', soh: 10, cover: 5, pct: 30, rrp: 100, np: 70, d30: 4, why: 'zzz' }), mk2('b', { name: 'BB', dm: 'SEP-26', soh: 30, cover: null, pct: 20, rrp: 80, np: 64, d30: 9, why: 'aaa' }), mk2('c', { name: 'CC', dm: 'JAN-27', soh: 20, cover: 12, pct: null, rrp: 0, np: null, d30: 1, why: 'mmm' }), mk2('d', { name: 'DD', dm: '', soh: 5, cover: 1, pct: 40, rrp: 120, np: 72, d30: 0, why: '' })];
+  const ord = f => P.buildReview(its, { flat: true, ...f }).groups.map(g => g.items[0].row.p.id).join('');
+  assert.equal(ord({ sort: 'soh' }), 'bcad'); assert.equal(ord({ sort: 'soh', dir: 'asc' }), 'dacb');   // numbers: desc by default, asc on request
+  assert.equal(ord({ sort: 'month', dir: 'asc' }), 'bacd'); assert.equal(ord({ sort: 'month', dir: 'desc' }), 'cabd');      // chronological, not alphabetical; no month always last
+  assert.equal(ord({ sort: 'cover', dir: 'asc' }), 'dacb'); assert.equal(ord({ sort: 'cover', dir: 'desc' }), 'cadb');      // empty (b) last both ways
+  assert.equal(ord({ sort: 'discount', dir: 'asc' }), 'badc'); assert.equal(ord({ sort: 'discount', dir: 'desc' }), 'dabc');   // 20,30,40 then the empty one last
+  assert.equal(ord({ sort: 'newprice', dir: 'desc' }), 'dabc'); assert.equal(ord({ sort: 'rrp', dir: 'desc' }), 'dabc');
+  assert.equal(ord({ sort: 'name', dir: 'desc' }), 'dcba'); assert.equal(ord({ sort: 'name' }), 'abcd');                    // text: asc by default
+  assert.equal(ord({ sort: 'why', dir: 'asc' }), 'bcad');                                                                   // text a..z, blank last
+  assert.equal(ord({ sort: 'bogus' }), ord({ sort: 'category' }));                                                           // unknown column falls back to category
+}
 console.log('markdown plans tests: all passed');
 })();
