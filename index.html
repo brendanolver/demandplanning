@@ -2312,8 +2312,8 @@ th{position:relative;}
     </div>
   </div>
 
-<script src="markdown-engine.js?v=2.10.5"></script>
-<script src="markdown-plans.js?v=2.10.6"></script>
+<script src="markdown-engine.js?v=2.10.7"></script>
+<script src="markdown-plans.js?v=2.10.7"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2347,7 +2347,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.10.6';
+const APP_VERSION='v2.10.7';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -6402,7 +6402,7 @@ function renderMarkdownPlanner(){
   const titleBar=`<div class="mdp-top"><div class="mdp-logo">🏷️</div><div><div class="mdp-title">Sale &amp; Markdown Planner</div><div class="mdp-tsub">Decide which products go on sale, at what discount, and in which collection.</div></div><div class="mdp-fresh">${fresh}</div></div>`;
 
   const capW=[];
-  if(plan.cap&&!plan.cap.met&&PS.avgDiscountCap>=Math.min(...PS.allowedDiscounts))capW.push(`The ${PS.avgDiscountCap}% average target can't be reached — the lowest this plan can average is ${plan.cap.avg}%. Clearance, already-reduced and manually set prices hold it up, and no category can go below your lowest discount level.`);
+  if(plan.cap&&!plan.cap.met&&PS.avgDiscountCap>=Math.min(...PS.allowedDiscounts))capW.push(`The ${PS.avgDiscountCap}% average target can't be reached — the lowest this plan can average is ${plan.cap.avg}%. Clearance, already-reduced and manually set prices hold it up, Group B always stays at least one level deeper than Group A, and no category can go below your lowest discount level.`);
   else if(plan.cap&&plan.cap.met&&plan.cap.gap>=1)capW.push(`The plan averages ${plan.cap.avg}% against your ${PS.avgDiscountCap}% target — the closest it can get: the next discount level up in any category would take it over, or every category is already at your highest single discount (${PS.maxDiscount}%).`);
   const warnAll=val.warnings.concat(capW);
   const msgs=(val.errors.length||warnAll.length)?`<div class="mdp-msgs">${val.errors.map(e=>`<div class="mdp-err">⚠ ${mdpEsc(e)}</div>`).join('')}${warnAll.map(e=>`<div class="mdp-warn">ⓘ ${mdpEsc(e)}</div>`).join('')}</div>`:'';
@@ -12705,6 +12705,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.10.7 — Markdown Planner, from Brendan: Group A and Group B showed the SAME discount in most categories (e.g. both 20%) — pointless. Cause: lowering to hit the average target dropped Group B down onto Group A. Now Group B is always at least one allowed level deeper than Group A in a category, both when lowering and when raising to the target. If the target can't be reached without collapsing B onto A, the planner stops at the lowest average it can reach and says so (it never flattens the two groups). Engine tests extended.
 // v2.10.6 — Markdown Planner, from Brendan: a sale's gift-with-purchase often sits in the SAME collection as the products bought for it, so picking that collection as a special buy used to raise blocking GWP conflicts. Now GWP wins automatically: where a style is definitely GWP (Apparel Magic's GWP category, or a style/category you picked as GWP) and was only swept in by a broad special-buy pick (collection / parent style / PO), it's left out of the special buy with a note — no conflict, no discount. A blocking conflict remains only where intent is unclear: you picked that exact style as a special buy, it's GWP only because a whole collection was picked as GWP, or it has a saved markdown decision. New pure helper MarkdownPlans.splitGwpOverlap + tests.
 // v2.10.5 — Markdown Planner, from Brendan. (1) The product review is now two work areas, SUGGESTED (still only the planner's suggestion) and APPROVED (you've confirmed or changed it): approving a row moves it down into Approved, undoing moves it back, each area has its own banner, count and Approve all / Undo all, and category headers inside each (Approve category / Undo category); gift-with-purchase sits in a small third area since there's nothing to approve. The Approval dropdown still filters. (2) The 'effective discount' is now an average TARGET, not just a ceiling: the planner lowers category discounts if the plan is above it, and RAISES them — the groups that most need discounting first, one allowed level at a time, only steps that keep the average at or under the target — until nothing further fits, so it lands as close as the levels allow without going over (live-style checks: target 40 → 39.7, 45 → 43.8, 60 → 58.3; an unreachable 90 stops at the 70% highest-single-discount). Clearance, special buys, your decisions and already-reduced prices are never changed; Group A never goes deeper than B; the message says how close it got and why it couldn't get closer. (3) Gift with purchase is now section D, ahead of Special buys (section E), so GWP is settled first. Engine: raise-to-target + ~25 new assertions
 // v2.10.4 — Compact review table trimmed a further ~70px so it fits a 1,500px screen without sideways scrolling

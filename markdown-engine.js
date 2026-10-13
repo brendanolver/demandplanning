@@ -337,6 +337,7 @@
         const out = [];
         for (const cp of catPlans) for (const t of ['A', 'B']) {
           if (cp.idx[t] == null || cp.idx[t] <= 0) continue;
+          if (t === 'B' && cp.idx.A != null && cp.idx.B - 1 <= cp.idx.A) continue;   // Group B always stays at least one level deeper than Group A
           const all = cp.items.filter(it => it.action === t && !ov[it.row.p.id]);
           if (!all.length) continue;
           const members = all.filter(it => !it.defaultA);
@@ -372,7 +373,7 @@
           for (const cp of catPlans) for (const t of ['A', 'B']) {
             const i0 = cp.idx[t];
             if (i0 == null || i0 >= lv.length - 1) continue;
-            if (t === 'A' && cp.idx.B != null && i0 + 1 > cp.idx.B) continue;
+            if (t === 'A' && cp.idx.B != null && i0 + 1 >= cp.idx.B) continue;   // Group A stays at least one level shallower than B
             const before = sums(cp); cp.idx[t] = i0 + 1; const after = sums(cp); cp.idx[t] = i0;
             const nN = N - before.n + after.n, nD = D - before.d + after.d, nAvg = nD > 0 ? nN / nD : 0;
             if (nAvg > capPct + 1e-9 || nAvg <= avg + 1e-9) continue;

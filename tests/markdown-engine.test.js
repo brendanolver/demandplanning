@@ -196,7 +196,8 @@ assert.ok(above.cap.met); assert.ok(above.totals.avgDiscount <= aboveT + 1e-9); 
 const aboveLowerOnly = (() => { const c = above.cap; return c.steps > 0; })(); assert.ok(aboveLowerOnly);
 // a binding cap is met, and tightening it only ever lowers discounts
 let prev = base;
-for (const c of [Math.floor(base.totals.avgDiscount) - 1, 25, 20]) {
+const floorAvg = E.buildPlan(range, capSet(1)).cap.avg;                                   // lowest average reachable while Group B stays deeper than Group A
+for (const c of [Math.floor(base.totals.avgDiscount) - 1, 25, 20].filter(c => c >= floorAvg)) {
   const pl = E.buildPlan(range, capSet(c));
   assert.ok(pl.cap.met, 'cap ' + c + ' should be reachable'); assert.ok(wavg(pl) <= c + 1e-9, 'avg ' + wavg(pl) + ' > cap ' + c);
   assert.ok(pl.totals.avgDiscount <= c + 1e-9);
@@ -204,14 +205,14 @@ for (const c of [Math.floor(base.totals.avgDiscount) - 1, 25, 20]) {
   prev = pl;
 }
 // category offers stay consistent: every Group A product in a category shares one %, same for B
-const capped = E.buildPlan(range, capSet(20));
+const capped = E.buildPlan(range, capSet(Math.ceil(floorAvg)));
 for (const c of ['X', 'Y', 'Z']) for (const tier of ['A', 'B']) {
   const ps = new Set(capped.items.filter(i => i.row.p.category === c && i.final.action === tier).map(i => i.final.pct)); assert.ok(ps.size <= 1, c + ' ' + tier + ' has several %');
 }
 assert.ok(capped.items.some(i => i.capped)); assert.ok(capped.items.some(i => /average (cap|target|discount)/.test(i.final.reason)));
 // the average cap never touches Clearance, and manual overrides are left exactly as set
 const clr = [mk('CL1', { soh: 30, sold: { d7: 0, d30: 1, d60: 2, d90: 3 }, ageWeeks: 90 }), mk('CL2', { currentDiscountPct: 30, price: 70, soh: 400, sold: { d7: 0, d30: 1, d60: 2, d90: 3 }, ageWeeks: 90 })];
-const withClr = E.buildPlan(range.concat(clr), { ...capSet(20) }, { X3: { pct: 40 } });
+const withClr = E.buildPlan(range.concat(clr), { ...capSet(1) }, { X3: { pct: 40 } });
 assert.equal(withClr.items.find(i => i.row.p.id === 'CL1').final.pct, 50); assert.equal(withClr.items.find(i => i.row.p.id === 'CL2').final.pct, 50);
 assert.equal(withClr.items.find(i => i.row.p.id === 'X3').final.pct, 40); assert.equal(withClr.items.find(i => i.row.p.id === 'X3').override, 'discount');
 // healthiest groups are lowered first: the most-pressured category keeps the deepest offer
@@ -225,12 +226,21 @@ assert.equal(allP.cap.met, false); assert.ok(allP.cap.avg > 5);
 assert.equal(allP.items.filter(i => i.final.pct != null).length, E.buildPlan(range, { maxDiscount: 70, scope: 'all' }).items.filter(i => i.final.pct != null).length);
 // below the lowest allowed level the cap is unreachable: the sale is NOT emptied to chase it — it stays at the floor and is reported
 const floorP = E.buildPlan(range, capSet(15)), floorRef = E.buildPlan(range, capSet(20));
-assert.equal(floorP.cap.met, false); assert.equal(floorP.cap.avg, 20); assert.ok(floorP.totals.included > 0);
+assert.equal(floorP.cap.met, false); assert.equal(floorP.cap.avg, floorAvg); assert.ok(floorP.totals.included > 0);
 assert.equal(floorP.totals.included, floorRef.totals.included);                           // same products in the sale, nobody dropped
 assert.ok(floorP.items.every(i => i.final.pct == null || i.final.pct >= 20));
 // clearance alone above the cap -> reported, not forced
 const onlyClr = E.buildPlan([mk('Q1', { soh: 30, ...{ sold: { d7: 0, d30: 1, d60: 2, d90: 3 }, ageWeeks: 90 } })], { avgDiscountCap: 20 });
 assert.equal(onlyClr.cap.met, false); assert.equal(onlyClr.items[0].final.pct, 50);
+// Group B is ALWAYS deeper than Group A in a category (never the same offer), however hard the target squeezes
+for (const c of [null, 1, 20, 30, 40, 55]) {
+  const pl = E.buildPlan(range, capSet(c));
+  pl.categories.forEach(cp => { if (cp.groupA != null && cp.groupB != null) assert.ok(cp.groupB > cp.groupA, 'target ' + c + ': ' + cp.category + ' B ' + cp.groupB + ' must be deeper than A ' + cp.groupA); });
+  const byCat = {}; pl.items.forEach(i => { if (i.final.pct != null && (i.final.action === 'A' || i.final.action === 'B') && !i.override) { const k = i.row.p.category + i.final.action; byCat[k] = i.final.pct; } });
+  for (const cp of pl.categories) if (byCat[cp.category + 'A'] != null && byCat[cp.category + 'B'] != null) assert.ok(byCat[cp.category + 'B'] > byCat[cp.category + 'A']);
+}
+// a tight target that can't be met without collapsing B onto A is reported unreachable instead
+assert.equal(E.buildPlan(range, capSet(1)).cap.met, false);
 // deterministic: same input, same output
 assert.deepEqual(E.buildPlan(range, capSet(18)).items.map(i => i.final.pct), E.buildPlan(range, capSet(18)).items.map(i => i.final.pct));
 // the single-product ceiling still holds under a cap
@@ -270,7 +280,7 @@ const moved = E.buildPlan(ovSet, { maxDiscount: 70, avgDiscountCap: 22 }, { M1: 
 const a2 = moved.items.find(i => i.row.p.id === 'M1');
 assert.equal(sys0('M1'), 30); assert.equal(a2.final.pct, 30); assert.equal(a2.conflict, true); assert.match(a2.final.reason, /system now suggests 20%.*kept/); assert.equal(moved.totals.conflicts, 1);
 assert.equal(a2.systemPct, 20); assert.equal(a2.final.action, 'Manual');
-assert.ok(moved.cap.met);                                                                                   // the cap still holds, the locked product just isn't the one that was lowered
+assert.ok(moved.totals.avgDiscount < ovBase.totals.avgDiscount);                                                                                   // the cap still holds, the locked product just isn't the one that was lowered
 // a typed discount is a manual override (capped at the single-discount ceiling); a typed discount is never a 'conflict'
 const t1 = E.buildPlan(ovSet, { maxDiscount: 40 }, { M1: { pct: 90, kind: 'discount' } }).items.find(i => i.row.p.id === 'M1');
 assert.equal(t1.final.pct, 40); assert.equal(t1.final.action, 'Manual'); assert.equal(t1.override, 'discount'); assert.equal(t1.conflict, false);
