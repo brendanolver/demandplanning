@@ -232,5 +232,35 @@ ec = P.gwpEconomics({ style: 'W26KG916BLK', soh: 20, incoming: 0, cost: 9 }, plE
 ec = P.gwpEconomics({ style: 'W26LG011BLK', soh: 50, incoming: 0, cost: 11 }, plE); assert.equal(ec.planned, 50);                                                                    // planned is capped at what's available
 ec = P.gwpEconomics({ style: 'NOCOST', soh: 10, incoming: 5, cost: 0 }, plE); assert.equal(ec.totalCost, null); assert.equal(ec.costMissing, true);                              // missing cost is reported, not shown as $0
 ec = P.gwpEconomics({ style: 'NEG', soh: -4, incoming: 0, cost: 5 }, plE); assert.equal(ec.available, 0); assert.equal(ec.totalCost, 0);
+// GWP and special buys can share a collection: GWP wins automatically for broad picks, conflicts only where intent is unclear
+const sp0 = (id, kind, value, pct = 50) => ({ id, kind, value, pct });
+const mixCat = [
+  { style: 'W26SPEC01BLK', parentStyle: 'W26SPEC0', group: '2026 - BLACK FIRDAY', category: 'BOX FIT TEES', title: 'BF TEE', rrp: 100, cost: 20 },
+  { style: 'W26SPEC02BLK', parentStyle: 'W26SPEC0', group: '2026 - BLACK FIRDAY', category: 'SWEATS', title: 'BF SWEAT', rrp: 100, cost: 20 },
+  { style: 'W26GWP001BLK', parentStyle: 'W26GWP00', group: '2026 - BLACK FIRDAY', category: 'GWP', title: 'BF TOWEL', rrp: 80, cost: 11 },
+  { style: 'W26GWP002BLK', parentStyle: 'W26GWP00', group: '2026 - BLACK FIRDAY', category: 'GWP', title: 'BF BAG', rrp: 60, cost: 9 },
+  { style: 'W26ODD001BLK', parentStyle: 'W26ODD00', group: '2026 - BLACK FIRDAY', category: 'ACCESSORIES', title: 'ODD ONE', rrp: 50, cost: 5 },
+];
+const ctxM = { stylesByPo: { 'PO BF': ['W26SPEC01BLK', 'W26GWP001BLK'] }, fallback: {} };
+const res = (sp, gw) => { const S = P.resolveSelections(sp, mixCat, ctxM), G = P.resolveSelections(gw, mixCat, ctxM); return P.splitGwpOverlap(S, G); };
+// 1. the real case: the whole sale collection is a special buy, GWP is picked by Apparel Magic's GWP category
+let sx = res([sp0('s', 'group', '2026 - BLACK FIRDAY')], [{ id: 'g', kind: 'category', value: 'GWP' }]);
+assert.deepEqual(sx.applied.map(r => r.style).sort(), ['W26ODD001BLK', 'W26SPEC01BLK', 'W26SPEC02BLK']); assert.deepEqual(sx.leftOut.map(r => r.style).sort(), ['W26GWP001BLK', 'W26GWP002BLK']); assert.deepEqual(sx.conflicts, []);
+// the same, with GWP only known through the style's own AM category (no GWP pick on the GWP styles needed beyond the pick that names them)
+sx = res([sp0('s', 'group', '2026 - BLACK FIRDAY')], [{ id: 'g', kind: 'style', value: 'W26GWP001BLK' }]); assert.deepEqual(sx.leftOut.map(r => r.style), ['W26GWP001BLK']); assert.deepEqual(sx.conflicts, []);
+sx = res([sp0('s', 'parent', 'W26GWP00')], [{ id: 'g', kind: 'category', value: 'GWP' }]); assert.equal(sx.leftOut.length, 2); assert.equal(sx.applied.length, 0);       // a parent style that is wholly GWP is wholly left out
+sx = res([sp0('s', 'po', 'PO BF')], [{ id: 'g', kind: 'category', value: 'GWP' }]); assert.deepEqual(sx.leftOut.map(r => r.style), ['W26GWP001BLK']); assert.deepEqual(sx.applied.map(r => r.style), ['W26SPEC01BLK']);
+// 2. picked as a special buy BY NAME while being GWP -> a real, blocking conflict
+sx = res([sp0('s', 'style', 'W26GWP001BLK')], [{ id: 'g', kind: 'category', value: 'GWP' }]); assert.deepEqual(sx.conflicts, ['W26GWP001BLK']); assert.equal(sx.leftOut.length, 0); assert.equal(sx.applied.length, 1);
+sx = res([sp0('s', 'group', '2026 - BLACK FIRDAY'), sp0('s2', 'style', 'W26GWP002BLK', 40)], [{ id: 'g', kind: 'category', value: 'GWP' }]);                  // named AND via the collection -> explicit wins the conflict
+assert.deepEqual(sx.conflicts, ['W26GWP002BLK']); assert.deepEqual(sx.leftOut.map(r => r.style), ['W26GWP001BLK']);
+// 3. GWP only because a WHOLE collection was picked as GWP, overlapping a special-buy collection -> can't be guessed, so it is flagged
+sx = res([sp0('s', 'group', '2026 - BLACK FIRDAY')], [{ id: 'g', kind: 'group', value: '2026 - BLACK FIRDAY' }]); assert.deepEqual(sx.conflicts.sort(), ['W26ODD001BLK', 'W26SPEC01BLK', 'W26SPEC02BLK']); assert.deepEqual(sx.leftOut.map(r => r.style).sort(), ['W26GWP001BLK', 'W26GWP002BLK']);   // AM's own GWP category is still definite, so those two are left out; the rest are ambiguous
+// 4. no overlap, empty inputs
+sx = res([sp0('s', 'style', 'W26SPEC01BLK')], [{ id: 'g', kind: 'category', value: 'GWP' }]); assert.deepEqual(sx.applied.map(r => r.style), ['W26SPEC01BLK']); assert.deepEqual([sx.leftOut.length, sx.conflicts.length], [0, 0]);
+assert.deepEqual(P.splitGwpOverlap([], []), { applied: [], leftOut: [], conflicts: [] }); assert.deepEqual(P.splitGwpOverlap(null, null), { applied: [], leftOut: [], conflicts: [] });
+// left-out styles feed no discount and no conflict list: only `applied` rows carry a special-buy discount, and conflicts are exactly the unresolved ones
+sx = res([sp0('s', 'group', '2026 - BLACK FIRDAY')], [{ id: 'g', kind: 'category', value: 'GWP' }]);
+assert.deepEqual(P.gwpConflicts(['W26GWP001BLK', 'W26GWP002BLK'], sx.applied.map(r => r.style), []), []);                                                           // no blocking conflicts remain for the common case
 console.log('markdown plans tests: all passed');
 })();

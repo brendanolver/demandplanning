@@ -435,6 +435,26 @@
     });
   }
 
+  // A collection often holds BOTH the sale's gift-with-purchase and the products bought for it. A broad
+  // special-buy pick (collection / parent style / PO) must not turn the GWP styles inside it into a conflict:
+  // where a style is DEFINITELY GWP — Apparel Magic's own GWP category, or a style/category you picked as GWP —
+  // GWP simply wins and the style is left out of the special buy (and reported). It is a real conflict only
+  // where intent is unclear: the style was picked as a special buy BY NAME, or it is GWP only because a whole
+  // collection was picked as GWP (so a collection overlapping a special-buy collection can't be resolved by guessing).
+  function splitGwpOverlap(specialRows, gwpRows) {
+    const gw = {}; for (const r of gwpRows || []) gw[String(r.style).toUpperCase()] = r;
+    const strongGwp = r => !!(r.entry && String(r.entry.category || '').toUpperCase() === 'GWP') || r.sels.some(x => x.kind === 'style' || x.kind === 'category');
+    const broadOnly = r => r.sels.every(x => x.kind === 'group' || x.kind === 'parent' || x.kind === 'po');
+    const applied = [], leftOut = [], conflicts = [];
+    for (const r of specialRows || []) {
+      const g = gw[String(r.style).toUpperCase()];
+      if (!g) { applied.push(r); continue; }
+      if (strongGwp(g) && broadOnly(r)) leftOut.push(r);
+      else { applied.push(r); conflicts.push(r.style); }
+    }
+    return { applied, leftOut, conflicts };
+  }
+
   // Blocking conflicts between GWP and discounts. A GWP style must never carry a markdown; each is
   // reported with what to do about it (the export validation will refuse while any remain).
   function gwpConflicts(gwpStyles, specialStyles, decisionStyles) {
@@ -458,6 +478,6 @@
     parseDay, durationDays, newPlan, createState, migrate, uniqueName, addPlan, duplicatePlan,
     renamePlan, setActive, archivePlan, restorePlan, cleanLevels, updatePlan, engineSettings, validatePlan,
     EXCLUDE_REASONS, VIEWS, sanitizeOverride, setOverrides, clearOverrides, overrideStats, buildReview,
-    SPECIAL_KINDS, GWP_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setGwpQty, setGwpThreshold, resolveSelections, gwpConflicts, gwpEconomics,
+    SPECIAL_KINDS, GWP_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setGwpQty, setGwpThreshold, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
   };
 });

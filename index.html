@@ -2313,7 +2313,7 @@ th{position:relative;}
   </div>
 
 <script src="markdown-engine.js?v=2.10.5"></script>
-<script src="markdown-plans.js?v=2.10.5"></script>
+<script src="markdown-plans.js?v=2.10.6"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2347,7 +2347,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.10.5';
+const APP_VERSION='v2.10.6';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -6188,10 +6188,13 @@ function mdpResolveAll(pl){
   const cat=mdpCatalogue(),key=pl.id+':'+pl.rev+':'+(cat?cat.length:0)+':'+(amApiData?amApiData.length:0);
   if(key===_mdpResKey&&_mdpRes)return _mdpRes;
   const ctx=mdpSelCtx(),cs=cat||[];
-  const special=MarkdownPlans.resolveSelections(pl.special,cs,ctx),gwp=MarkdownPlans.resolveSelections(pl.gwp.items,cs,ctx);
+  const specialAll=MarkdownPlans.resolveSelections(pl.special,cs,ctx),gwp=MarkdownPlans.resolveSelections(pl.gwp.items,cs,ctx);
+  // A collection often holds both the sale's gift-with-purchase and its special buys: where a style is definitely GWP
+  // and was only swept in by a broad pick, GWP wins and it's left out of the special buy (not a conflict).
+  const split=MarkdownPlans.splitGwpOverlap(specialAll,gwp),special=split.applied;
   const specialMap={};
   special.forEach(r=>{if(r.pct!=null){const first=pl.special.find(x=>x.id===(r.sels.find(s=>s.pct!=null)||{}).id);specialMap[r.style]={pct:r.pct,note:first?(first.label||first.value):''};}});
-  _mdpResKey=key;_mdpRes={special,gwp,specialMap,gwpStyles:new Set(gwp.map(r=>r.style)),hasCatalogue:!!cat};
+  _mdpResKey=key;_mdpRes={special,gwpLeftOut:split.leftOut,specialAll,gwp,specialMap,gwpStyles:new Set(gwp.map(r=>r.style)),hasCatalogue:!!cat};
   return _mdpRes;
 }
 function mdpLiveMap(){
@@ -6233,7 +6236,7 @@ function mdpAddSel(section){
   const r=MarkdownPlans.addSelection(mdpState,pl.id,section,entry);
   if(!r.id){alert('That selection isn\'t valid.');return;}
   mdpCommit(r.state);
-  const res=mdpResolveAll(mdpPlan()),list=section==='gwp'?res.gwp:res.special;
+  const res=mdpResolveAll(mdpPlan()),list=section==='gwp'?res.gwp:res.specialAll;
   if(!list.some(x=>x.sels.some(s=>s.id===r.id)))setTimeout(()=>alert('No Apparel Magic styles matched "'+value+'"'+(res.hasCatalogue?'.':' yet — the Apparel Magic catalogue is still loading.')),50);
 }
 function mdpRemoveSel(section,id){mdpCommit(MarkdownPlans.removeSelection(mdpState,mdpPlan().id,section,id));}
@@ -6266,12 +6269,12 @@ function mdpAdder(section,kinds,withPct,pl){
     ${withPct?`<select id="mdp-${section}-pct" class="mdp-sel" title="Discount off RRP">${lv.map(d=>`<option value="${d}" ${d===def?'selected':''}>${d}% off</option>`).join('')}</select>`:''}
     <button class="mdp-btn" onclick="mdpAddSel('${section}')">＋ Add</button></div>`;
 }
-function mdpSelChips(section,list,matched,pl){
+function mdpSelChips(section,list,matched,pl,left){
   if(!list.length)return'';
   return`<div class="mdp-selist">${list.map(s=>{
     const n=matched[s.id]||0;
     return`<div class="mdp-selrow"><span class="mdp-chip mdp-kind">${MDP_KIND_LABEL[s.kind]}</span><b>${mdpEsc(s.label||s.value)}</b>
-      <span class="${n?'mdp-dim':'mdp-b-cf'}">${n?n+' style'+(n===1?'':'s'):'no styles matched'}</span>
+      <span class="${n?'mdp-dim':'mdp-b-cf'}">${n?n+' style'+(n===1?'':'s'):'no styles matched'}</span>${left&&left[s.id]?` <span class="mdp-dim" title="These are gift with purchase, so they're left out of this special buy">· ${left[s.id]} GWP left out</span>`:''}
       ${section==='special'?`<select class="mdp-sel mdp-xs" onchange="mdpSpecialPctSet('${s.id}',this.value)">${pl.settings.allowedDiscounts.filter(d=>d<=pl.settings.maxDiscount).map(d=>`<option value="${d}" ${d===s.pct?'selected':''}>${d}% off</option>`).join('')}${pl.settings.allowedDiscounts.includes(s.pct)&&s.pct<=pl.settings.maxDiscount?'':`<option value="${s.pct}" selected>${s.pct}% off</option>`}</select>`:''}
       <button class="mdp-act" onclick="mdpRemoveSel('${section}','${s.id}')">Remove</button></div>`;}).join('')}</div>`;
 }
@@ -6288,7 +6291,7 @@ function mdpSpecialSection(plan,oo,hasEnd,pl){
     const flags=[];
     if(r.conflict)flags.push(`<span class="mdp-b-cf" title="${mdpEsc(r.conflict)}">⚠ conflicting discounts</span>`);
     if(r.pct!=null&&r.pct>max)flags.push(`<span class="mdp-b-ov" title="Capped at your highest single discount (${max}%)">capped at ${max}%</span>`);
-    if(res.gwpStyles.has(r.style))flags.push('<span class="mdp-b-cf" title="Also selected as gift with purchase">⚠ also GWP</span>');
+    if(res.gwpStyles.has(r.style))flags.push('<span class="mdp-b-cf" title="You picked this exact style as a special buy, but it is also gift with purchase — decide which in section D">⚠ also GWP</span>');
     if(hasEnd&&o&&o.units>0&&o.byEnd===0&&lv.soh<=0){const ks=Object.keys(o.due).map(Number).sort((a,b)=>a-b);flags.push(`<span class="mdp-b-ov" title="No stock on hand and nothing due before the sale ends">⚠ arrives ${ks.length?mdpDueLabel(ks[0]):'later'} — after the sale</span>`);}
     if(!cost)flags.push('<span class="mdp-dim" title="No landed cost in Apparel Magic">no cost</span>');
     return{r,e,lv,o,inc,pct,rrp,cost,units,status,flags,title:e.title||(lv.title)||r.style};
@@ -6303,8 +6306,9 @@ function mdpSpecialSection(plan,oo,hasEnd,pl){
       <td>${x.cost?'$'+x.cost.toFixed(2):'—'}</td><td class="mdp-dim">${x.rrp?'$'+x.rrp.toFixed(2):'—'}</td><td>${x.pct!=null&&x.rrp?'<b>$'+(x.rrp*(1-x.pct/100)).toFixed(2)+'</b>':'—'}</td>
       <td class="l">${x.status==='matched'?'<span class="mdp-pill x">Matched</span>':x.status==='nostock'?'<span class="mdp-pill x" title="In Shopify, no stock yet">Matched · no stock</span>':'<span class="mdp-pill n" title="Not in Shopify yet — held back from the Hextom file until matched">Pending Shopify match</span>'}</td>
       <td class="l mdp-why mdp-flagcol">${x.flags.join(' ')}</td></tr>`).join('')}</tbody></table></div>`:'';
-  return note+`<div class="mdp-sub" style="margin:0 0 10px;line-height:1.55;">Styles bought specifically for this sale. Pick them straight from Apparel Magic and set the discount for each pick. They are <b>never scored against sales history</b> (they have none), are shown as <b>Special buys</b> in the review, and styles not yet in Shopify are <b>held back from the Hextom file</b> until matched. Rules still apply: nothing goes deeper than your highest single discount (${max}%), and gift-with-purchase (section D) can't also be discounted.</div>`
-    +mdpAdder('special',['group','parent','style','po'],true,pl)+mdpSelChips('special',pl.special,mdpMatchedCounts(res.special),pl)
+  const lo=res.gwpLeftOut,loNote=lo.length?`<div class="mdp-hint" style="margin:0 0 10px;">ⓘ <b>${lo.length}</b> gift-with-purchase style${lo.length===1?' was':'s were'} in these picks and ${lo.length===1?'has':'have'} been <b>left out of the special buy automatically</b> (GWP wins, so ${lo.length===1?'it':'they'} won't be discounted): <span class="mdp-dim">${mdpEsc(lo.slice(0,8).map(r=>r.style).join(', '))}${lo.length>8?' …':''}</span></div>`:'';
+  return note+loNote+`<div class="mdp-sub" style="margin:0 0 10px;line-height:1.55;">Styles bought specifically for this sale. Pick them straight from Apparel Magic and set the discount for each pick. They are <b>never scored against sales history</b> (they have none), are shown as <b>Special buys</b> in the review, and styles not yet in Shopify are <b>held back from the Hextom file</b> until matched. Rules still apply: nothing goes deeper than your highest single discount (${max}%), and gift-with-purchase (section D) can't also be discounted — GWP styles that share a collection with your special buys are left out automatically.</div>`
+    +mdpAdder('special',['group','parent','style','po'],true,pl)+mdpSelChips('special',pl.special,mdpMatchedCounts(res.specialAll),pl,mdpMatchedCounts(res.gwpLeftOut))
     +(rows.length?`<div class="mdp-revsum" style="margin-top:12px;"><span><b>${rows.length}</b> style${rows.length===1?'':'s'}</span><span class="mdp-dot"></span><span><b>${units.toLocaleString()}</b> units (stock + incoming)</span><span class="mdp-dot"></span><span><b>$${Math.round(costV).toLocaleString()}</b> at cost</span>
       ${pend?`<span class="mdp-dot"></span><span class="mdp-newtag">${pend} pending Shopify match</span>`:''}${late?`<span class="mdp-dot"></span><span class="mdp-b-ov">${late} arrive after the sale ends</span>`:''}${bad?`<span class="mdp-dot"></span><span class="mdp-b-cf">⚠ ${bad} need attention</span>`:''}</div>`:'')+tbl;
 }
@@ -6335,7 +6339,7 @@ function mdpGwpSection(plan,oo,hasEnd,pl){
       <td><input class="mdp-in mdp-qty" type="number" min="0" step="1" value="${x.eco.planned}" onchange="mdpGwpQtySet('${mdpEsc(x.r.style)}',this.value)">${x.eco.defaulted?'':` <button class="mdp-act" title="Back to everything available" onclick="mdpGwpQtySet('${mdpEsc(x.r.style)}','')">reset</button>`}</td>
       <td>${x.eco.totalCost==null?'<span class="mdp-dim">no cost</span>':'<b>$'+Math.round(x.eco.totalCost).toLocaleString()+'</b>'}</td>
       <td class="l mdp-why">${x.eco.available===0?'<span class="mdp-b-ov">nothing available</span>':''}${x.eco.costMissing?' <span class="mdp-dim">no landed cost in Apparel Magic</span>':''}${!x.lv.live?' <span class="mdp-dim">not in Shopify</span>':''}</td></tr>`).join('')}</tbody></table></div>`:'';
-  return note+conf+`<div class="mdp-sub" style="margin:0 0 10px;line-height:1.55;">Gift-with-purchase products, from Apparel Magic. They are <b>kept out of markdowns and the Hextom file</b>, and flagged as a blocking conflict if one also gets a discount. Planned giveaways default to everything available; the forecast will refine this later.</div>`
+  return note+conf+`<div class="mdp-sub" style="margin:0 0 10px;line-height:1.55;">Gift-with-purchase products, from Apparel Magic. They are <b>kept out of markdowns and the Hextom file</b>, and flagged as a blocking conflict only if you pick that exact style for a discount. A GWP style that sits in the same collection as your special buys is fine — GWP wins and it is left out of the special buy. Planned giveaways default to everything available; the forecast will refine this later.</div>`
     +hint+mdpAdder('gwp',['category','group','style'],false,pl)+mdpSelChips('gwp',pl.gwp.items,mdpMatchedCounts(res.gwp),pl)
     +`<div class="mdp-row" style="margin-top:10px;"><label>Spend threshold (optional, $)<input class="mdp-in" type="number" min="0" step="1" placeholder="e.g. 150" value="${pl.gwp.threshold==null?'':pl.gwp.threshold}" onchange="mdpGwpThresholdSet(this.value)"></label></div>`
     +(rows.length?`<div class="mdp-revsum" style="margin-top:12px;"><span><b>${rows.length}</b> GWP style${rows.length===1?'':'s'}</span><span class="mdp-dot"></span><span><b>${rows.reduce((a,x)=>a+x.eco.planned,0).toLocaleString()}</b> planned giveaways</span><span class="mdp-dot"></span><span>Est. GWP cost <b>$${Math.round(total).toLocaleString()}</b>${rows.every(x=>x.eco.defaulted)?' <span class="mdp-dim">(assumes everything available is given away — edit the planned giveaways)</span>':''}${noCost?` <span class="mdp-dim">(${noCost} without a cost)</span>`:''}</span>${pl.gwp.threshold?`<span class="mdp-dot"></span><span>Threshold <b>$${pl.gwp.threshold}</b></span>`:''}</div>`:'')+tbl;
@@ -12701,6 +12705,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.10.6 — Markdown Planner, from Brendan: a sale's gift-with-purchase often sits in the SAME collection as the products bought for it, so picking that collection as a special buy used to raise blocking GWP conflicts. Now GWP wins automatically: where a style is definitely GWP (Apparel Magic's GWP category, or a style/category you picked as GWP) and was only swept in by a broad special-buy pick (collection / parent style / PO), it's left out of the special buy with a note — no conflict, no discount. A blocking conflict remains only where intent is unclear: you picked that exact style as a special buy, it's GWP only because a whole collection was picked as GWP, or it has a saved markdown decision. New pure helper MarkdownPlans.splitGwpOverlap + tests.
 // v2.10.5 — Markdown Planner, from Brendan. (1) The product review is now two work areas, SUGGESTED (still only the planner's suggestion) and APPROVED (you've confirmed or changed it): approving a row moves it down into Approved, undoing moves it back, each area has its own banner, count and Approve all / Undo all, and category headers inside each (Approve category / Undo category); gift-with-purchase sits in a small third area since there's nothing to approve. The Approval dropdown still filters. (2) The 'effective discount' is now an average TARGET, not just a ceiling: the planner lowers category discounts if the plan is above it, and RAISES them — the groups that most need discounting first, one allowed level at a time, only steps that keep the average at or under the target — until nothing further fits, so it lands as close as the levels allow without going over (live-style checks: target 40 → 39.7, 45 → 43.8, 60 → 58.3; an unreachable 90 stops at the 70% highest-single-discount). Clearance, special buys, your decisions and already-reduced prices are never changed; Group A never goes deeper than B; the message says how close it got and why it couldn't get closer. (3) Gift with purchase is now section D, ahead of Special buys (section E), so GWP is settled first. Engine: raise-to-target + ~25 new assertions
 // v2.10.4 — Compact review table trimmed a further ~70px so it fits a 1,500px screen without sideways scrolling
 // v2.10.3 — Review table fits a normal screen in Compact view: RRP moves to 'All columns' (Current price and New price stay), the '+N arriving' tag is shortened (full wording on hover) and the widest columns are tightened
