@@ -813,12 +813,22 @@ th{position:relative;}
 .mdp-rvt td.mdp-dim.l,.mdp-rvt td.l.mdp-dim{max-width:125px;}
 .mdp-rvt td.mdp-nm{min-width:190px;max-width:240px;}
 .mdp-rvt td.mdp-why{min-width:130px;max-width:200px;}
-/* v2.11.1: more room for 'product — colour' so the colour isn't cut off; the other columns shift right */
+/* v3.1.3: more room for 'product — colour' so the colour isn't cut off; the other columns shift right */
 .mdp-rvt td.mdp-nm{min-width:320px;max-width:440px;}.mdp-rvt td.mdp-why{min-width:120px;max-width:180px;}
 .mdp-apcell{gap:5px;}.mdp-appbtn,.mdp-donebtn{padding:3px 8px;}
 
 .mdp-rvt td.mdp-dim.l,.mdp-rvt td.l.mdp-dim{max-width:105px;}
 .mdp-rvt td.mdp-nm{min-width:180px;max-width:220px;}
+/* v3.1.5: fixed layout with explicit column widths (the th widths in mdpReviewHtml). The auto layout let the full-width
+   section / category header rows stretch the first column; this keeps every column exactly where it's set. Long text is cut
+   with an ellipsis (hover for the full text). */
+.mdp-rvt{table-layout:fixed;}
+.mdp-rvt td,.mdp-rvt th{overflow:hidden;text-overflow:ellipsis;}
+.mdp-rvt th{white-space:normal;line-height:1.25;vertical-align:bottom;}
+.mdp-rvt th.mdp-xmd{white-space:normal;}
+.mdp-rvt td.mdp-nm{min-width:0;max-width:none;}.mdp-rvt td.mdp-why{min-width:0;max-width:none;}.mdp-rvt td.mdp-dim.l,.mdp-rvt td.l.mdp-dim{max-width:none;}
+.mdp-rvt td.mdp-ap{overflow:visible;}
+.mdp-rvt tr.mdp-cathead td,.mdp-rvt tr.mdp-secrow td{overflow:visible;}
 .mdp-rvt td,.mdp-rvt th{padding-left:6px;padding-right:6px;}
 
 /* Suggested / Approved work areas */
@@ -2314,8 +2324,8 @@ th{position:relative;}
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.1.4"></script>
-<script src="markdown-plans.js?v=3.1.4"></script>
+<script src="markdown-engine.js?v=3.1.5"></script>
+<script src="markdown-plans.js?v=3.1.5"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2349,7 +2359,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.1.4';
+const APP_VERSION='v3.1.5';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -6242,12 +6252,12 @@ function mdpReviewHtml(){
   const rsAll=mdpRev.view==='restock'?plan.items.filter(i=>i.row.m.restock>0):[];
   const nDef=rsAll.filter(i=>i.defaultA).length;
   const hint=nDef?`<div class="mdp-warn" style="margin-bottom:10px;">ⓘ <b>${nDef}</b> restock${nDef===1?' has':'s have'} no sales in the last 90 days, so there is nothing to score ${nDef===1?'it':'them'} on — ${nDef===1?'it defaults':'they default'} to the <b>lowest discount in ${nDef===1?'its':'their'} category (Group A)</b>. Stock arriving for the sale is exempt from new-arrival protection. Change or exclude any of them with the menu on each row or Bulk action.</div>`:'';
-  const sh=(key,label,cls,title)=>{const on=mdpRev.sort===key,dir=mdpEffDir();return`<th class="${cls||''} mdp-sortable${on?' mdp-sorted':''}" onclick="mdpSortBy('${key}')" title="${mdpEsc((title?title+' — ':'')+'Click to sort'+(on?' ('+(dir==='asc'?'ascending':'descending')+' now)':''))}">${label}${on?`<span class="mdp-sarr">${dir==='asc'?'▲':'▼'}</span>`:''}</th>`;};
+  const sh=(key,label,cls,title,w)=>{const on=mdpRev.sort===key,dir=mdpEffDir();return`<th style="width:${w}px" class="${cls||''} mdp-sortable${on?' mdp-sorted':''}" onclick="mdpSortBy('${key}')" title="${mdpEsc((title?title+' — ':'')+'Click to sort'+(on?' ('+(dir==='asc'?'ascending':'descending')+' now)':''))}">${label}${on?`<span class="mdp-sarr">${dir==='asc'?'▲':'▼'}</span>`:''}</th>`;};
   const table=rv.groups.length?`<div class="mdp-scroll mdp-revscroll"><table class="mdp-t mdp-rvt${mdpRev.compact?' mdp-compact':''}${mdpRev.sort==='category'?' mdp-bycat':''}"><thead><tr>
-    <th class="mdp-c1"><input type="checkbox" ${allOn?'checked':''} onclick="mdpSelAll(this.checked)" title="Select everything shown"></th>
-    ${sh('name','Product / colour','l mdp-nmh')}${sh('parent','Parent style','mdp-xc')}${sh('month','Month del','l mdp-xmd','Delivery month — when the stock landed')}${sh('soh','SOH')}${sh('onorder','On order','','Open Apparel Magic order lines')}
-    ${sh('d7','7d','mdp-xc')}${sh('d30','30d')}${sh('d60','60d','mdp-xc')}${sh('d90','90d','mdp-xc')}${sh('cover','Cover (wks)')}${sh('sellthru','Sell-thru*','mdp-xc','Units sold ÷ (units sold + stock now) — a proxy; real sell-through needs stock history')}${sh('sizesout','Sizes out','mdp-xc','Sizes sold out / sizes')}
-    ${sh('rrp','RRP','mdp-xc')}${sh('price','Current price')}${sh('suggested','Suggested')}${sh('discount','Discount &amp; approval','l')}${sh('newprice','New price')}${sh('discount','Sale collection','mdp-xc','The Shopify collection this will be assigned to — mapped to real collections at export (sorts by discount)')}${sh('why','Why','l')}</tr></thead><tbody>${rowsHtml}</tbody></table></div>`
+    <th class="mdp-c1" style="width:28px"><input type="checkbox" ${allOn?'checked':''} onclick="mdpSelAll(this.checked)" title="Select everything shown"></th>
+    ${sh('name','Product / colour','l mdp-nmh','',262)}${sh('parent','Parent style','mdp-xc','',90)}${sh('month','Month del','l mdp-xmd','Delivery month — when the stock landed',70)}${sh('soh','SOH','','',56)}${sh('onorder','On order','','Open Apparel Magic order lines',64)}
+    ${sh('d7','7d','mdp-xc','',40)}${sh('d30','30d','','',40)}${sh('d60','60d','mdp-xc','',40)}${sh('d90','90d','mdp-xc','',40)}${sh('cover','Cover (wks)','','',70)}${sh('sellthru','Sell-thru*','mdp-xc','Units sold ÷ (units sold + stock now) — a proxy; real sell-through needs stock history',66)}${sh('sizesout','Sizes out','mdp-xc','Sizes sold out / sizes',58)}
+    ${sh('rrp','RRP','mdp-xc','',66)}${sh('price','Current price','','',92)}${sh('suggested','Suggested','','',88)}${sh('discount','Discount &amp; approval','l','',244)}${sh('newprice','New price','','',82)}${sh('discount','Sale collection','mdp-xc','The Shopify collection this will be assigned to — mapped to real collections at export (sorts by discount)',100)}${sh('why','Why','l','',130)}</tr></thead><tbody>${rowsHtml}</tbody></table></div>`
     :`<div class="mdp-sub" style="padding:18px 4px;">Nothing matches these filters.</div>`;
   return progress+summary+hint+bar+table;
 }
@@ -12856,6 +12866,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
 // v3.1.4 — Version correction, from Brendan: the odometer rollover was missed — v2.9.9 should have rolled to v3.0.0, not v2.10.0 (minor and patch are single digits 0–9 and the major rolls at x.9.9). The app has been re-based: what shipped as v2.10.0 … v2.11.1 is really v3.0.0 … v3.1.3 (older changelog entries below are relabelled to match), and this correction is v3.1.4. Next change is v3.1.5.
 // v3.1.3 — Markdown Planner, from Brendan: (1) the Product / colour column is wider (320–440px, was 190–240) so the colour isn't cut off — everything else shifts right (the Why column is trimmed to compensate; hover still shows the full text). (2) New 'All suggested %' dropdown filter in the product review — pick 20%, 30%, 50%… (with counts) or 'No suggestion' to see only the products the planner suggested that discount for.
 // v3.1.2 — Markdown Planner Phase 5, section F built out (from the brief). (1) COMMERCIAL DASHBOARD: total SOH units, inventory at cost and at RRP, products in/out of the sale, effective discount, forecast and projected units sold (capped at stock), projected remaining SOH, inventory cost cleared, projected revenue ex GST, gross profit and margin (after GWP cost), and the GWP campaign cost. Below-cost products are flagged (not blocked), with a count of products under 15% margin. (2) DEMAND RANGE: Low / Base / High around your growth target (Low = target less max(10pts, half of it); High = target plus max(10pts, a quarter of it)) with a data-confidence badge (High/Medium/Low from how much last-year history there is, the sale length and how big the target is) — stated as assumptions, not predictions. (3) DISCOUNT STRATEGY: Conservative / Balanced / Aggressive = every category's Group A/B one allowed level lighter / current / one level deeper (within allowed levels and the highest single discount, B deeper than A, your decisions kept), compared on effective discount, units, revenue, GP, margin, cost cleared and discount given — units are held the same unless you set the new 'Demand lift per deeper level (%)' assumption in section A (a deeper discount isn't assumed to sell more). (4) SENSE-CHECK: last year's sale-window daily rate vs the 28 days before it (the observed uplift), this year's last-28-day rate, and run-rate × uplift as a cross-check on your target. (5) FORECAST SNAPSHOTS: save the Base numbers, kept per sale (not copied by Duplicate). GWP styles are excluded from sales. Helpers in markdown-plans.js (demandScenarios, forecastConfidence, crossCheck, scenarioLevels, commercialSummary, addSnapshot) + tests.
