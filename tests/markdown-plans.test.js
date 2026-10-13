@@ -102,5 +102,47 @@ assert.equal(cd.state.plans[cd.id].settings.avgDiscountCap, 35); assert.equal(cd
 // older saved plans (no cap/scope keys) pick up the defaults on load
 const old = JSON.parse(JSON.stringify(cp)); delete old.plans[cid].settings.avgDiscountCap; delete old.plans[cid].settings.scope;
 const mig = P.migrate(old, null, 1, idGen).plans[cid].settings; assert.equal(mig.avgDiscountCap, null); assert.equal(mig.scope, 'recommended');
+// ── Decisions on a plan ────────────────────────────────────────────────────
+assert.deepEqual(P.sanitizeOverride({ exclude: true, reason: 'Other', note: 'x'.repeat(500), junk: 1 }), { exclude: true, reason: 'Other', note: 'x'.repeat(200) });
+assert.deepEqual(P.sanitizeOverride({ group: 'B' }), { group: 'B' }); assert.equal(P.sanitizeOverride({ group: 'Z' }), null);
+assert.deepEqual(P.sanitizeOverride({ pct: '33.33' }), { pct: 33.3, kind: 'discount' }); assert.deepEqual(P.sanitizeOverride({ pct: 30, kind: 'approved' }), { pct: 30, kind: 'approved' });
+for (const bad of [null, undefined, 5, 'x', {}, { pct: 0 }, { pct: -5 }, { pct: 200 }, { pct: 'abc' }, { pct: '' }]) assert.equal(P.sanitizeOverride(bad), null);
+let od = P.createState(1, idGen), oid = od.activeId;
+let o1 = P.setOverrides(od, oid, { A: { pct: 30, kind: 'approved' }, B: { exclude: true, reason: 'Strong current sales' }, C: { group: 'A' }, D: { pct: 40 } }, 5000);
+assert.equal(Object.keys(o1.plans[oid].overrides).length, 4); assert.equal(o1.plans[oid].rev, 2); assert.equal(o1.plans[oid].overrides.A.ts, 5000); assert.deepEqual(od.plans[oid].overrides, {});   // input untouched
+assert.equal(P.setOverrides(o1, oid, { Z: null }, 6000), o1);                            // removing something that isn't there is a no-op (same state, no rev bump)
+assert.equal(P.setOverrides(o1, oid, { Z: { pct: 0 } }, 6000), o1);                      // invalid decisions are dropped, not stored
+assert.equal(P.setOverrides(o1, 'ghost', { A: { pct: 30 } }), o1);
+let o2 = P.setOverrides(o1, oid, { A: null, D: { exclude: true } }, 7000); assert.ok(!('A' in o2.plans[oid].overrides)); assert.equal(o2.plans[oid].overrides.D.exclude, true);
+assert.equal(P.clearOverrides(o1, oid, ['A', 'nope'], 8000).plans[oid].overrides.A, undefined); assert.equal(Object.keys(P.clearOverrides(o1, oid, ['A'], 8000).plans[oid].overrides).length, 3);
+assert.deepEqual(P.clearOverrides(o1, oid, null, 9000).plans[oid].overrides, {}); assert.equal(P.clearOverrides(od, oid, null), od);
+assert.deepEqual(P.overrideStats(o1.plans[oid], ['A', 'B', 'C']), { total: 4, exclude: 1, discount: 1, approved: 1, group: 1, stale: 1 });   // D is no longer in the plan: stale, but kept
+// duplicate / archive / restore never lose or leak decisions
+const dd = P.duplicatePlan(o1, oid, 10, idGen); assert.deepEqual(dd.state.plans[dd.id].overrides, {}); assert.equal(Object.keys(dd.state.plans[oid].overrides).length, 4);
+const arc = P.archivePlan(dd.state, oid, 11); assert.equal(Object.keys(arc.plans[oid].overrides).length, 4);
+assert.equal(Object.keys(P.restorePlan(arc, oid, 12).plans[oid].overrides).length, 4);
+
+// ── Review: search, filters, parent-style grouping, sorting ─────────────────
+const mkr = (id, o = {}) => ({ id, name: o.name || 'TEE', colour: o.colour || 'BLACK', category: o.category || 'TEES', style: id, parentStyle: o.parentStyle === undefined ? id.slice(0, 8) : o.parentStyle, isCore: !!o.isCore, status: 'CURRENT', isGWP: false, soh: o.soh || 100, sohCost: 1, onOrder: 0, sold: { d7: o.sold || 5, d30: (o.sold || 5) * 4, d60: (o.sold || 5) * 8, d90: (o.sold || 5) * 12 }, rrp: 100, price: 100, currentDiscountPct: 0, sizeCount: 5, soldOutSizes: 0, ageWeeks: 40 });
+const rp = [mkr('W26AA001BLK', { name: 'ACCENT TEE', colour: 'BLACK', isCore: true, soh: 300 }), mkr('W26AA001WHT', { name: 'ACCENT TEE', colour: 'WHITE', isCore: true, soh: 50 }), mkr('W26AA001OLI', { name: 'ACCENT TEE', colour: 'OLIVE', isCore: true, soh: 10 }),
+  mkr('W26BB002BLK', { name: 'BOXER SHORT', category: 'SHORTS', colour: 'BLACK', soh: 500 }), mkr('W26CC003GRY', { name: 'CAMP HOOD', category: 'SWEATS', colour: 'GREY', soh: 30 }), mkr('NOPARENT', { name: 'ODD ITEM', parentStyle: '', category: 'TEES', soh: 20 })];
+const rplan = E.buildPlan(rp, { maxDiscount: 70 }, { W26BB002BLK: { exclude: true, reason: 'Other' }, W26CC003GRY: { pct: 40, kind: 'approved' } });
+let rv = P.buildReview(rplan.items, {}); assert.equal(rv.total, 6); assert.equal(rv.count, 6);
+const multi = rv.groups.filter(g => g.multi); assert.equal(multi.length, 1); assert.equal(multi[0].parentStyle, 'W26AA001'); assert.equal(multi[0].items.length, 3);   // three colours -> one parent row
+assert.equal(rv.groups.length, 4); assert.ok(rv.groups.some(g => !g.multi && g.items[0].row.p.id === 'NOPARENT'));                                       // no parent style -> a plain row
+assert.deepEqual(multi[0].items.map(i => i.row.p.colour), ['BLACK', 'OLIVE', 'WHITE']);                                                                  // colours sorted
+assert.equal(P.buildReview(rplan.items, { q: 'accent' }).count, 3); assert.equal(P.buildReview(rplan.items, { q: 'accent white' }).count, 1);
+assert.equal(P.buildReview(rplan.items, { q: 'W26AA001' }).count, 3); assert.equal(P.buildReview(rplan.items, { q: 'zzz' }).groups.length, 0);
+assert.equal(P.buildReview(rplan.items, { q: 'accent white' }).groups[0].multi, false);                                                                  // a lone surviving colour drops the parent row
+assert.equal(P.buildReview(rplan.items, { category: 'shorts' }).count, 1); assert.equal(P.buildReview(rplan.items, { core: 'core' }).count, 3); assert.equal(P.buildReview(rplan.items, { core: 'noncore' }).count, 3);
+assert.equal(P.buildReview(rplan.items, { view: 'overridden' }).count, 2); assert.equal(P.buildReview(rplan.items, { view: 'notsale' }).groups.some(g => g.items.some(i => i.row.p.id === 'W26BB002BLK')), true);
+assert.equal(P.buildReview(rplan.items, { view: 'sale' }).count + P.buildReview(rplan.items, { view: 'notsale' }).count, 6);                              // every product is in exactly one of the two
+assert.equal(P.buildReview(rplan.items, { view: 'bogus' }).count, 6);                                                                                    // unknown view -> all
+assert.deepEqual(P.buildReview(rplan.items, { sort: 'soh' }).groups.map(g => g.key), ['id:W26BB002BLK', 'ps:W26AA001', 'id:W26CC003GRY', 'id:NOPARENT']);   // by stock, a parent counts all its colours (360)
+assert.equal(P.buildReview(rplan.items, { sort: 'name' }).groups[0].items[0].row.p.name, 'ACCENT TEE');
+assert.deepEqual(P.buildReview(rplan.items, { sort: 'onorder' }, { onOrder: i => (i.row.p.id === 'W26CC003GRY' ? 99 : 0) }).groups[0].key, 'id:W26CC003GRY');
+assert.deepEqual(P.buildReview(rplan.items, { sort: 'category' }).groups.map(g => g.items[0].row.p.category), ['SHORTS', 'SWEATS', 'TEES', 'TEES']);
+assert.deepEqual(P.buildReview(rplan.items, { q: 'tee', sort: 'score' }).groups.map(g => g.key), P.buildReview(rplan.items, { q: 'tee', sort: 'score' }).groups.map(g => g.key));   // deterministic
+assert.deepEqual(P.buildReview([], {}).groups, []);
 console.log('markdown plans tests: all passed');
 })();

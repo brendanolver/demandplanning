@@ -210,9 +210,119 @@
     return { errors, warnings };
   }
 
+
+  // ── Decisions (overrides) ──────────────────────────────────────────────────
+  // Keyed by product/colour id on the plan. They survive every regenerate and are only ever
+  // changed by an explicit action; the engine applies them last.
+  const EXCLUDE_REASONS = ['Strong current sales', 'Low stock cover', 'New arrival', 'Core protection', 'Commercial decision', 'Other'];
+
+  function sanitizeOverride(o) {
+    if (!o || typeof o !== 'object') return null;
+    if (o.exclude) {
+      const out = { exclude: true };
+      if (o.reason) out.reason = String(o.reason).slice(0, 60);
+      if (o.note) out.note = String(o.note).slice(0, 200);
+      return out;
+    }
+    if (o.group === 'A' || o.group === 'B' || o.group === 'C') return { group: o.group };
+    const pct = Number(o.pct);
+    if (o.pct != null && o.pct !== '' && isFinite(pct) && pct > 0 && pct <= 95) return { pct: Math.round(pct * 10) / 10, kind: o.kind === 'approved' ? 'approved' : 'discount' };
+    return null;
+  }
+
+  // entries: { productId: override | null } — null (or anything invalid) removes the decision.
+  function setOverrides(state, planId, entries, now) {
+    if (!state.plans[planId]) return state;
+    const s = clone(state), p = s.plans[planId];
+    let changed = false;
+    for (const id of Object.keys(entries || {})) {
+      const clean = sanitizeOverride(entries[id]);
+      if (clean) { clean.ts = now || Date.now(); p.overrides[id] = clean; changed = true; }
+      else if (id in p.overrides) { delete p.overrides[id]; changed = true; }
+    }
+    if (!changed) return state;
+    p.updatedTs = now || Date.now(); p.rev += 1;
+    return s;
+  }
+
+  // ids = null clears every decision on the plan ("reset all").
+  function clearOverrides(state, planId, ids, now) {
+    const plan = state.plans[planId]; if (!plan) return state;
+    const targets = ids == null ? Object.keys(plan.overrides) : ids.filter(id => id in plan.overrides);
+    if (!targets.length) return state;
+    return setOverrides(state, planId, Object.fromEntries(targets.map(id => [id, null])), now);
+  }
+
+  // Counts for the review header. `liveIds` = products currently in the plan; saved decisions for
+  // products no longer in stock are "stale": kept (never silently dropped) but called out.
+  function overrideStats(plan, liveIds) {
+    const live = new Set(liveIds || []);
+    const st = { total: 0, exclude: 0, discount: 0, approved: 0, group: 0, stale: 0 };
+    for (const id of Object.keys(plan.overrides || {})) {
+      const o = plan.overrides[id]; st.total++;
+      if (liveIds && !live.has(id)) st.stale++;
+      if (o.exclude) st.exclude++; else if (o.group) st.group++; else if (o.kind === 'approved') st.approved++; else st.discount++;
+    }
+    return st;
+  }
+
+  // ── Review table: filter, group by parent style, sort ───────────────────────
+  // Pure — the screen only renders what this returns. A parent-style row appears only when 2+ colours
+  // of that style survive the filters; everything else is a plain single row.
+  const VIEWS = ['all', 'sale', 'notsale', 'clearance', 'groupA', 'groupB', 'overridden', 'attention'];
+  function buildReview(items, f, opts) {
+    f = f || {}; opts = opts || {};
+    const q = String(f.q || '').trim().toLowerCase();
+    const view = VIEWS.includes(f.view) ? f.view : 'all';
+    const hit = it => {
+      const p = it.row.p, fin = it.final;
+      if (f.category && String(p.category || '').toUpperCase() !== String(f.category).toUpperCase()) return false;
+      if (f.core === 'core' && !p.isCore) return false;
+      if (f.core === 'noncore' && p.isCore) return false;
+      if (view === 'sale' && fin.pct == null) return false;
+      if (view === 'notsale' && fin.action !== 'Exclude') return false;
+      if (view === 'clearance' && fin.action !== 'C') return false;
+      if (view === 'groupA' && fin.action !== 'A') return false;
+      if (view === 'groupB' && fin.action !== 'B') return false;
+      if (view === 'overridden' && !it.override) return false;
+      if (view === 'attention' && !(it.exception || it.conflict || it.blocked)) return false;
+      if (q) {
+        const hay = [p.name, p.colour, p.style, p.parentStyle, p.category].join(' ').toLowerCase();
+        if (!q.split(/\s+/).every(w => hay.includes(w))) return false;
+      }
+      return true;
+    };
+    const rows = items.filter(hit);
+    const byStyle = {};
+    rows.forEach(it => { const ps = it.row.p.parentStyle; if (ps) (byStyle[ps] = byStyle[ps] || []).push(it); });
+    const groups = [], seen = new Set();
+    for (const it of rows) {
+      const ps = it.row.p.parentStyle;
+      if (ps && byStyle[ps].length > 1) {
+        if (seen.has(ps)) continue; seen.add(ps);
+        groups.push({ key: 'ps:' + ps, parentStyle: ps, multi: true, items: byStyle[ps] });
+      } else groups.push({ key: 'id:' + it.row.p.id, parentStyle: ps || '', multi: false, items: [it] });
+    }
+    const sum = (g, fn) => g.items.reduce((a, it) => a + fn(it), 0);
+    const name = g => g.items[0].row.p.name;
+    const cat = g => String(g.items[0].row.p.category || '');
+    const oo = i => (opts.onOrder ? opts.onOrder(i) : 0);
+    const sorters = {
+      category: (a, b) => cat(a).localeCompare(cat(b)) || name(a).localeCompare(name(b)) || a.key.localeCompare(b.key),
+      name: (a, b) => name(a).localeCompare(name(b)) || a.key.localeCompare(b.key),
+      score: (a, b) => Math.max(...b.items.map(i => i.row.score)) - Math.max(...a.items.map(i => i.row.score)) || a.key.localeCompare(b.key),
+      soh: (a, b) => sum(b, i => i.row.m.soh) - sum(a, i => i.row.m.soh) || a.key.localeCompare(b.key),
+      onorder: (a, b) => sum(b, oo) - sum(a, oo) || a.key.localeCompare(b.key),
+    };
+    groups.sort(sorters[f.sort] || sorters.category);
+    groups.forEach(g => g.items.sort((a, b) => String(a.row.p.colour).localeCompare(String(b.row.p.colour)) || a.row.p.id.localeCompare(b.row.p.id)));
+    return { groups, count: rows.length, total: items.length };
+  }
+
   return {
     STATE_VERSION, OBJECTIVES, INCOMING, DEFAULT_SETUP,
     parseDay, durationDays, newPlan, createState, migrate, uniqueName, addPlan, duplicatePlan,
     renamePlan, setActive, archivePlan, restorePlan, cleanLevels, updatePlan, engineSettings, validatePlan,
+    EXCLUDE_REASONS, VIEWS, sanitizeOverride, setOverrides, clearOverrides, overrideStats, buildReview,
   };
 });

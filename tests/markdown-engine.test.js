@@ -224,6 +224,62 @@ const hc = [mk('W26AA002BLK', { isCore: true, parentStyle: 'W26AA002', soh: 200,
 const hcAll = E.buildPlan(hc.concat(range), { scope: 'all' }).items.filter(i => i.row.p.isCore);
 assert.ok(hcAll.every(i => i.final.action === 'A'));
 
+// ── Decisions: approve, set, move group, exclude with reason; GWP block; conflicts ──
+const ovSet = [
+  mk('W26AA010BLK', { parentStyle: 'W26AA010', soh: 300, ...{ sold: { d7: 0, d30: 2, d60: 5, d90: 9 }, ageWeeks: 70 } }),
+  mk('W26AA010WHT', { parentStyle: 'W26AA010', soh: 250, ...{ sold: { d7: 1, d30: 4, d60: 9, d90: 14 }, ageWeeks: 60 } }),
+  mk('M1', { soh: 120, sold: { d7: 10, d30: 35, d60: 60, d90: 90 } }), mk('M2', { soh: 100, sold: { d7: 9, d30: 33, d60: 60, d90: 88 } }),
+  mk('M3', { soh: 90, sold: { d7: 8, d30: 30, d60: 55, d90: 80 } }), mk('M4', { soh: 80, sold: { d7: 7, d30: 28, d60: 50, d90: 75 } }),
+  mk('GW1', { isGWP: true, soh: 40 }),
+];
+const ovBase = E.buildPlan(ovSet, { maxDiscount: 70 });
+const sys0 = id => ovBase.items.find(i => i.row.p.id === id).systemPct;
+assert.ok(sys0('W26AA010BLK') != null);
+// approve at the suggested figure: keeps its tier, flagged as approved, no conflict
+let a1 = E.buildPlan(ovSet, { maxDiscount: 70 }, { W26AA010BLK: { pct: sys0('W26AA010BLK'), kind: 'approved' } }).items.find(i => i.row.p.id === 'W26AA010BLK');
+assert.equal(a1.override, 'approved'); assert.equal(a1.conflict, false); assert.equal(a1.final.pct, sys0('W26AA010BLK')); assert.notEqual(a1.final.action, 'Manual'); assert.match(a1.final.reason, /^Approved at/);
+// the system's suggestion later moves (a tighter average cap lowers the group its other members share): the approved figure is KEPT and the difference flagged
+const moved = E.buildPlan(ovSet, { maxDiscount: 70, avgDiscountCap: 22 }, { M1: { pct: sys0('M1'), kind: 'approved' } });
+const a2 = moved.items.find(i => i.row.p.id === 'M1');
+assert.equal(sys0('M1'), 30); assert.equal(a2.final.pct, 30); assert.equal(a2.conflict, true); assert.match(a2.final.reason, /system now suggests 20%.*kept/); assert.equal(moved.totals.conflicts, 1);
+assert.equal(a2.systemPct, 20); assert.equal(a2.final.action, 'Manual');
+assert.ok(moved.cap.met);                                                                                   // the cap still holds, the locked product just isn't the one that was lowered
+// a typed discount is a manual override (capped at the single-discount ceiling); a typed discount is never a 'conflict'
+const t1 = E.buildPlan(ovSet, { maxDiscount: 40 }, { M1: { pct: 90, kind: 'discount' } }).items.find(i => i.row.p.id === 'M1');
+assert.equal(t1.final.pct, 40); assert.equal(t1.final.action, 'Manual'); assert.equal(t1.override, 'discount'); assert.equal(t1.conflict, false);
+// exclusion carries its reason and note
+const x1 = E.buildPlan(ovSet, {}, { M2: { exclude: true, reason: 'Commercial decision', note: 'hero tee' } }).items.find(i => i.row.p.id === 'M2');
+assert.equal(x1.final.action, 'Exclude'); assert.equal(x1.final.pct, null); assert.equal(x1.final.reason, 'Excluded — Commercial decision (hero tee)'); assert.equal(x1.override, 'exclude');
+// moving between groups follows the target group's level; Clearance uses the clearance %
+const mvA = E.buildPlan(ovSet, { maxDiscount: 70 }, { M3: { group: 'A' } }).items.find(i => i.row.p.id === 'M3');
+const mvC = E.buildPlan(ovSet, { maxDiscount: 70 }, { M3: { group: 'C' } }).items.find(i => i.row.p.id === 'M3');
+assert.equal(mvA.final.action, 'A'); assert.equal(mvA.override, 'group'); assert.ok(mvA.final.pct > 0 && mvA.final.pct <= 70);
+assert.equal(mvC.final.action, 'C'); assert.equal(mvC.final.pct, E.clearanceLevel(E.mergeSettings({ maxDiscount: 70 })));
+const mvB = E.buildPlan(ovSet, { maxDiscount: 70 }, { M3: { group: 'B' } }).items.find(i => i.row.p.id === 'M3');
+assert.equal(mvB.final.action, 'B'); assert.ok(mvB.final.pct >= mvA.final.pct);                         // B is never lighter than A, even if the category had no B group
+// GWP can never be discounted by a decision; it is flagged instead
+const gw = E.buildPlan(ovSet, {}, { GW1: { pct: 30, kind: 'discount' } }).items.find(i => i.row.p.id === 'GW1');
+assert.equal(gw.final.action, 'Exclude'); assert.equal(gw.final.pct, null); assert.equal(gw.blocked, 'GWP');
+// decisions survive regenerating with different settings; unknown/stale ids are ignored without error
+const keep = { W26AA010WHT: { exclude: true, reason: 'Low stock cover' }, M4: { pct: 30, kind: 'discount' }, GONE: { pct: 50, kind: 'discount' } };
+for (const st of [{ periodDays: 60 }, { maxDiscount: 50, scope: 'all' }, { coreMode: 'include' }, { avgDiscountCap: 25 }]) {
+  const rp = E.buildPlan(ovSet, st, keep);
+  assert.equal(rp.items.find(i => i.row.p.id === 'W26AA010WHT').final.action, 'Exclude'); assert.equal(rp.items.find(i => i.row.p.id === 'M4').final.pct, 30);
+  assert.equal(rp.items.length, ovSet.length); assert.equal(rp.totals.overridden, 2);
+}
+// overrides count in the average discount (a high manual figure raises it; the cap loop never lowers it)
+const avgA = E.buildPlan(ovSet, { maxDiscount: 70 }).totals.avgDiscount, avgB = E.buildPlan(ovSet, { maxDiscount: 70 }, { M1: { pct: 70, kind: 'discount' } }).totals.avgDiscount;
+assert.ok(avgB > avgA);
+const capH = E.buildPlan(ovSet, { maxDiscount: 70, avgDiscountCap: 20 }, { M1: { pct: 70, kind: 'discount' } });
+assert.equal(capH.items.find(i => i.row.p.id === 'M1').final.pct, 70);
+
+// a core-colour exception stops needing approval once you decide it (approve, change or exclude)
+const exBase = E.buildPlan(core, { coreConsistency: 'preferred' }), exId = exBase.items.find(i => i.exception).row.p.id;
+assert.ok(exBase.totals.exceptions >= 1);
+for (const dec of [{ pct: exBase.items.find(i => i.row.p.id === exId).systemPct || 20, kind: 'approved' }, { exclude: true, reason: 'Core protection' }, { pct: 30, kind: 'discount' }]) {
+  const r = E.buildPlan(core, { coreConsistency: 'preferred' }, { [exId]: dec });
+  assert.equal(r.totals.exceptions, exBase.totals.exceptions - 1); assert.equal(r.items.find(i => i.row.p.id === exId).exceptionResolved, true);
+}
 // edge: empty input, single product, duplicate ids don't throw
 assert.equal(E.buildPlan([], {}).items.length, 0); assert.equal(E.buildPlan([mk('ONE')], {}).items.length, 1);
 assert.doesNotThrow(() => E.buildPlan([mk('D'), mk('D')], {}));

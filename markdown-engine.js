@@ -265,13 +265,31 @@
       if (pct != null && S.existingReduced === 'retain' && cur >= S.reducedThresholdPct && cur >= pct) {
         action = 'Exclude'; pct = null; reason = 'Already reduced to ' + Math.round(cur) + '% off RRP — retained (sale ' + sys + '% would not be deeper)';
       }
+      // Your decisions. An override is one of: exclude (with a reason), a fixed discount ('discount' =
+      // typed in, 'approved' = a suggestion you locked), or a move to another group (follows that
+      // group's level). They are applied last and never silently overwritten; if the system's
+      // suggestion later moves away from an APPROVED discount, your figure is kept and flagged.
       const o = ov[p.id];
-      let override = null;
-      if (o) {
-        if (o.exclude) { action = 'Exclude'; pct = null; reason = 'Manually excluded'; override = 'exclude'; }
-        else if (o.pct != null) { action = o.pct === sys ? action : 'Manual'; pct = Math.min(Number(o.pct), S.maxDiscount); override = 'discount'; reason = 'Manual override (system suggested ' + (sys == null ? 'none' : sys + '%') + ')'; }
+      let override = null, conflict = false, blocked = null;
+      if (o && p.isGWP) {
+        blocked = 'GWP';          // gift-with-purchase can never be discounted, whatever was saved
+      } else if (o) {
+        if (o.exclude) { action = 'Exclude'; pct = null; reason = 'Excluded — ' + (o.reason || 'your decision') + (o.note ? ' (' + o.note + ')' : ''); override = 'exclude'; }
+        else if (o.group === 'A' || o.group === 'B' || o.group === 'C') {
+          const idx = o.group === 'C' ? null : (cp.idx[o.group] != null ? cp.idx[o.group] : cp.startIdx[o.group]);
+          pct = Math.min(o.group === 'C' ? clearPct : lv[idx], S.maxDiscount); action = o.group; override = 'group';
+          reason = 'Moved to ' + (o.group === 'C' ? 'Clearance' : 'Group ' + o.group) + ' by you — follows that group\'s level';
+        } else if (o.pct != null) {
+          pct = Math.min(Number(o.pct), S.maxDiscount);
+          override = o.kind === 'approved' ? 'approved' : 'discount';
+          action = override === 'approved' && pct === sys ? action : 'Manual';   // a typed figure is always a manual override, even if it lands on the suggestion
+          conflict = override === 'approved' && pct !== sys;
+          reason = override === 'approved'
+            ? (conflict ? 'Approved at ' + pct + '% — the system now suggests ' + (sys == null ? 'no discount' : sys + '%') + '; your approved figure is kept' : 'Approved at ' + pct + '%')
+            : 'Manual override (system suggested ' + (sys == null ? 'none' : sys + '%') + ')';
+        }
       }
-      return { sys, cur, override, final: { action, pct, reason } };
+      return { sys, cur, override, conflict, blocked, final: { action, pct, reason } };
     }
     const avgNow = () => {
       let num_ = 0, den = 0;
@@ -312,7 +330,8 @@
 
     items.forEach(it => {
       const p = it.row.p, r = resolve(it), cp = catByName[p.category || 'UNCATEGORISED'];
-      it.systemPct = r.sys; it.override = r.override; it.final = r.final;
+      it.systemPct = r.sys; it.override = r.override; it.conflict = r.conflict; it.blocked = r.blocked; it.final = r.final;
+      if (it.exception && r.override) { it.exception = false; it.exceptionResolved = true; }   // your decision resolves a core-colour exception
       const pct = r.final.pct;
       const pr = pct != null ? priceAt(p, pct) : { base: priceAt(p, 0).base, rrpMissing: priceAt(p, 0).rrpMissing, newPrice: null };
       it.price = pr;
@@ -371,6 +390,8 @@
       products: items.length, included: inc.length, excluded: items.length - inc.length,
       exceptions: items.filter(it => it.exception).length,
       saleUnits: inc.reduce((a, it) => a + it.row.m.soh, 0),
+      conflicts: items.filter(it => it.conflict).length,
+      overridden: items.filter(it => it.override).length,
       soh: items.reduce((a, it) => a + it.row.m.soh, 0),
       sohCost: Math.round(items.reduce((a, it) => a + (num(it.row.p.sohCost) || 0), 0)),
     };
