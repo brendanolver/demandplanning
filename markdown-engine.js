@@ -146,6 +146,9 @@
     const exclude = r => ({ action: 'Exclude', reason: r, hard: true });   // hard = a rule, not a score: never overridden by colour linking
     if (p.isGWP) return exclude('Gift with purchase — never discounted');
     if (m.soh <= 0) return exclude('No stock on hand');
+    // Special buys are bought FOR this sale at a chosen discount: never scored against sales history
+    // (they have none), never protected as "new arrivals", and never cleared as remnants.
+    if (p.specialPct != null) return { action: 'S', reason: 'Special buy — ' + (p.specialNote || 'chosen for this sale') + ' at ' + p.specialPct + '%', hard: false };
     if (S.excludeNew && ((m.ageWeeks != null && m.ageWeeks * 7 < S.newProductDays) || status === 'NEW' || status === 'PRE-RELEASE')) return exclude('New arrival — protected from markdown');
     if (p.isCore && S.coreMode === 'exclude') return exclude('Core product — excluded');
     const cur = num(p.currentDiscountPct) || 0;
@@ -217,7 +220,7 @@
     // Core colour consistency: all colours of a core parent style follow the style's group.
     if (S.coreConsistency !== 'independent') {
       const byStyle = {};
-      items.forEach(it => { const p = it.row.p; if (p.isCore && p.parentStyle && !it.hard && it.action !== 'C') (byStyle[p.parentStyle] = byStyle[p.parentStyle] || []).push(it); });
+      items.forEach(it => { const p = it.row.p; if (p.isCore && p.parentStyle && !it.hard && it.action !== 'C' && it.action !== 'S') (byStyle[p.parentStyle] = byStyle[p.parentStyle] || []).push(it); });
       for (const st of Object.keys(byStyle)) {
         const g = byStyle[st]; if (g.length < 2) continue;
         const stock = g.reduce((a, it) => a + it.row.m.soh, 0) || 1;
@@ -257,7 +260,7 @@
     // applied last and never silently overwritten).
     function resolve(it) {
       const p = it.row.p, cp = catByName[p.category || 'UNCATEGORISED'];
-      const sys = it.action === 'A' ? groupPct(cp, 'A') : it.action === 'B' ? groupPct(cp, 'B') : it.action === 'C' ? clearPct : null;
+      const sys = it.action === 'A' ? groupPct(cp, 'A') : it.action === 'B' ? groupPct(cp, 'B') : it.action === 'C' ? clearPct : it.action === 'S' ? Math.min(p.specialPct, S.maxDiscount) : null;
       let pct = sys, action = it.action, reason = it.reason;
       const cur = num(p.currentDiscountPct) || 0;
       if ((it.action === 'A' || it.action === 'B') && cp.idx[it.action] < cp.startIdx[it.action]) reason += ' · level lowered to meet the ' + S.avgDiscountCap + '% average cap';
@@ -271,6 +274,7 @@
       // suggestion later moves away from an APPROVED discount, your figure is kept and flagged.
       const o = ov[p.id];
       let override = null, conflict = false, blocked = null;
+      if (p.isGWP && p.specialPct != null) blocked = 'GWP';   // a GWP product also set up as a discounted special buy: a blocking conflict
       if (o && p.isGWP) {
         blocked = 'GWP';          // gift-with-purchase can never be discounted, whatever was saved
       } else if (o) {
@@ -376,6 +380,7 @@
       countA: cp.items.filter(it => it.final.action === 'A').length,
       countB: cp.items.filter(it => it.final.action === 'B').length,
       countC: cp.items.filter(it => it.final.action === 'C').length,
+      countS: cp.items.filter(it => it.final.action === 'S').length,
       countManual: cp.items.filter(it => it.final.action === 'Manual').length,
       countExcluded: cp.items.filter(it => it.final.action === 'Exclude').length,
       forecastUnits: cp.items.reduce((a, it) => a + it.forecast.units, 0),

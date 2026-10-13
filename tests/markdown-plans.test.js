@@ -137,6 +137,9 @@ assert.equal(P.buildReview(rplan.items, { q: 'accent white' }).groups[0].multi, 
 assert.equal(P.buildReview(rplan.items, { category: 'shorts' }).count, 1); assert.equal(P.buildReview(rplan.items, { core: 'core' }).count, 3); assert.equal(P.buildReview(rplan.items, { core: 'noncore' }).count, 3);
 assert.equal(P.buildReview(rplan.items, { view: 'overridden' }).count, 2); assert.equal(P.buildReview(rplan.items, { view: 'notsale' }).groups.some(g => g.items.some(i => i.row.p.id === 'W26BB002BLK')), true);
 assert.equal(P.buildReview(rplan.items, { view: 'sale' }).count + P.buildReview(rplan.items, { view: 'notsale' }).count, 6);                              // every product is in exactly one of the two
+const spRev = E.buildPlan(rp.map(r => (r.id === 'W26CC003GRY' ? { ...r, specialPct: 50, specialNote: 'X' } : r)), { maxDiscount: 70 });
+assert.deepEqual(P.buildReview(spRev.items, { view: 'special' }).groups.map(g => g.key), ['id:W26CC003GRY']);                                           // special buys have their own filter
+assert.equal(P.buildReview(rplan.items, { view: 'special' }).count, 0);
 assert.equal(P.buildReview(rplan.items, { view: 'bogus' }).count, 6);                                                                                    // unknown view -> all
 assert.deepEqual(P.buildReview(rplan.items, { sort: 'soh' }).groups.map(g => g.key), ['id:W26BB002BLK', 'ps:W26AA001', 'id:W26CC003GRY', 'id:NOPARENT']);   // by stock, a parent counts all its colours (360)
 assert.equal(P.buildReview(rplan.items, { sort: 'name' }).groups[0].items[0].row.p.name, 'ACCENT TEE');
@@ -144,5 +147,62 @@ assert.deepEqual(P.buildReview(rplan.items, { sort: 'onorder' }, { onOrder: i =>
 assert.deepEqual(P.buildReview(rplan.items, { sort: 'category' }).groups.map(g => g.items[0].row.p.category), ['SHORTS', 'SWEATS', 'TEES', 'TEES']);
 assert.deepEqual(P.buildReview(rplan.items, { q: 'tee', sort: 'score' }).groups.map(g => g.key), P.buildReview(rplan.items, { q: 'tee', sort: 'score' }).groups.map(g => g.key));   // deterministic
 assert.deepEqual(P.buildReview([], {}).groups, []);
+// ── Special buys & GWP selections ───────────────────────────────────────────
+let sp = P.createState(1, idGen), spid = sp.activeId;
+assert.deepEqual(sp.plans[spid].special, []); assert.deepEqual(sp.plans[spid].gwp, { items: [], threshold: null, qty: {} });
+assert.deepEqual(P.sanitizeSelection('special', { kind: 'group', value: '  2026 - BF EXCLUSIVE ', pct: 50 }), { kind: 'group', value: '2026 - BF EXCLUSIVE', pct: 50 });
+for (const bad of [null, {}, { kind: 'group', value: '' }, { kind: 'nope', value: 'x', pct: 50 }, { kind: 'group', value: 'x' }, { kind: 'group', value: 'x', pct: 0 }, { kind: 'group', value: 'x', pct: 99 }, { kind: 'category', value: 'GWP', pct: 50 }]) assert.equal(P.sanitizeSelection('special', bad), null);
+assert.deepEqual(P.sanitizeSelection('gwp', { kind: 'category', value: 'GWP' }), { kind: 'category', value: 'GWP' }); assert.equal(P.sanitizeSelection('gwp', { kind: 'po', value: 'x' }), null);
+let a1 = P.addSelection(sp, spid, 'special', { kind: 'group', value: '2026 - BF EXCLUSIVE', pct: 50 }, 100, idGen);
+assert.ok(a1.id); assert.equal(a1.state.plans[spid].special.length, 1); assert.equal(a1.state.plans[spid].rev, 2); assert.deepEqual(sp.plans[spid].special, []);            // input untouched
+let a2 = P.addSelection(a1.state, spid, 'special', { kind: 'group', value: '2026 BF exclusive', pct: 40 }, 200, idGen);                                                  // same collection (normalised) -> updated, not duplicated
+assert.equal(a2.state.plans[spid].special.length, 1); assert.equal(a2.id, a1.id); assert.equal(a2.state.plans[spid].special[0].pct, 40);
+assert.equal(P.addSelection(a1.state, spid, 'special', { kind: 'group', value: 'x' }, 1, idGen).id, null);                                                              // invalid -> no change
+let a3 = P.addSelection(a2.state, spid, 'special', { kind: 'parent', value: 'w27ba003', pct: 50 }, 300, idGen); assert.equal(a3.state.plans[spid].special.length, 2);
+a3 = P.setSpecialPct(a3.state, spid, a1.id, 30, 400) && { state: P.setSpecialPct(a3.state, spid, a1.id, 30, 400) }; assert.equal(a3.state.plans[spid].special[0].pct, 30);
+assert.equal(P.setSpecialPct(a3.state, spid, a1.id, 3, 500), a3.state);                                                                                                   // out-of-range -> unchanged
+let g1 = P.addSelection(a3.state, spid, 'gwp', { kind: 'category', value: 'GWP' }, 600, idGen); assert.equal(g1.state.plans[spid].gwp.items.length, 1);
+let g2 = P.setGwpQty(g1.state, spid, 'w26lg011blk', 250, 700); assert.equal(g2.plans[spid].gwp.qty.W26LG011BLK, 250);
+assert.equal(P.setGwpQty(g2, spid, 'W26LG011BLK', '', 800).plans[spid].gwp.qty.W26LG011BLK, undefined); assert.equal(P.setGwpQty(g1.state, spid, 'NOPE', null), g1.state);
+assert.equal(P.setGwpQty(g1.state, spid, 'X', -3).plans[spid].gwp.qty.X, undefined); assert.equal(P.setGwpQty(g1.state, spid, 'X', 12.9).plans[spid].gwp.qty.X, 12);
+assert.equal(P.setGwpThreshold(g1.state, spid, 150, 900).plans[spid].gwp.threshold, 150); assert.equal(P.setGwpThreshold(g1.state, spid, 'abc').plans[spid].gwp.threshold, null); assert.equal(P.setGwpThreshold(g1.state, spid, 0).plans[spid].gwp.threshold, null);
+assert.equal(P.setGwpThreshold(g1.state, spid, null), g1.state);
+let rm = P.removeSelection(g1.state, spid, 'special', a1.id, 1000); assert.equal(rm.plans[spid].special.length, 1); assert.equal(P.removeSelection(rm, spid, 'special', 'ghost'), rm);
+assert.equal(P.removeSelection(g1.state, spid, 'gwp', g1.id, 1000).plans[spid].gwp.items.length, 0);
+// allocations are for ONE promotion: a duplicate does not inherit them; archive/restore keeps them; old saved plans get empty defaults
+const dp2 = P.duplicatePlan(g1.state, spid, 1100, idGen); assert.deepEqual(dp2.state.plans[dp2.id].special, []); assert.deepEqual(dp2.state.plans[dp2.id].gwp, { items: [], threshold: null, qty: {} }); assert.equal(g1.state.plans[spid].special.length, 2);
+assert.equal(P.restorePlan(P.archivePlan(dp2.state, spid, 1), spid, 2).plans[spid].special.length, 2);
+const olds = JSON.parse(JSON.stringify(sp)); delete olds.plans[spid].special; delete olds.plans[spid].gwp; const mg = P.migrate(olds, null, 1, idGen).plans[spid]; assert.deepEqual(mg.special, []); assert.deepEqual(mg.gwp, { items: [], threshold: null, qty: {} });
+
+// resolver
+const cat2 = [
+  { style: 'W27BA003OYS', parentStyle: 'W27BA003', group: '2027 AW1 - IKIZAMA', category: 'BOX FIT TEES', title: 'STEEZY BOX FIT TEE - OYSTER', rrp: 100, cost: 20 },
+  { style: 'W27BA003BLK', parentStyle: 'W27BA003', group: '2027 AW1 - IKIZAMA', category: 'BOX FIT TEES', title: 'STEEZY BOX FIT TEE - BLACK', rrp: 100, cost: 20 },
+  { style: 'W26LG011BLK', parentStyle: 'W26LG011', group: '2026 - BLACK FIRDAY', category: 'GWP', title: 'ACCENT BEACH TOWEL - BLACK', rrp: 80, cost: 11 },
+  { style: 'W26KG916BLK', parentStyle: 'W26KG916', group: '2026 - BLACK FIRDAY', category: 'GWP', title: 'ACCENT COOLER BAG - BLACK', rrp: 60, cost: 9 },
+  { style: 'W25ZZ001RED', parentStyle: 'W25ZZ001', group: 'AA CORE STYLES', category: 'SHORTS', title: 'CORE SHORT - RED', rrp: 90, cost: 15 },
+];
+const ctx2 = { stylesByPo: { 'PO 2169 - IKIZAMA INDENT ORDER': ['W27BA003OYS', 'W27XX999NEW'] }, fallback: { W27XX999NEW: { title: 'NEW ONE - GREEN', category: 'SWEATS', group: '' } } };
+let rs = P.resolveSelections([{ id: 's1', kind: 'group', value: '2027 aw1  ikizama', pct: 50 }], cat2, ctx2);                  // loose matching of the collection name
+assert.deepEqual(rs.map(r => r.style), ['W27BA003OYS', 'W27BA003BLK']); assert.equal(rs[0].pct, 50); assert.equal(rs[0].conflict, null);
+assert.deepEqual(P.resolveSelections([{ id: 's2', kind: 'parent', value: 'w27ba003', pct: 40 }], cat2, ctx2).map(r => r.style), ['W27BA003OYS', 'W27BA003BLK']);
+assert.deepEqual(P.resolveSelections([{ id: 's3', kind: 'style', value: 'w25zz001red', pct: 30 }], cat2, ctx2).map(r => r.style), ['W25ZZ001RED']);
+assert.deepEqual(P.resolveSelections([{ id: 's4', kind: 'category', value: 'GWP' }], cat2, ctx2).map(r => r.style), ['W26LG011BLK', 'W26KG916BLK']);
+rs = P.resolveSelections([{ id: 's5', kind: 'po', value: 'po 2169 ikizama indent order', pct: 50 }], cat2, ctx2); assert.deepEqual(rs.map(r => r.style), ['W27BA003OYS', 'W27XX999NEW']);   // a PO also reaches styles missing from the catalogue
+assert.equal(rs[1].entry.title, 'NEW ONE - GREEN'); assert.equal(P.resolveSelections([{ id: 's6', kind: 'group', value: 'nothing', pct: 50 }], cat2, ctx2).length, 0);
+// overlapping selections: same discount is fine, different discounts are FLAGGED (not silently picked)
+rs = P.resolveSelections([{ id: 'a', kind: 'group', value: '2027 AW1 - IKIZAMA', pct: 50 }, { id: 'b', kind: 'parent', value: 'W27BA003', pct: 50 }], cat2, ctx2); assert.equal(rs[0].sels.length, 2); assert.equal(rs[0].conflict, null);
+rs = P.resolveSelections([{ id: 'a', kind: 'group', value: '2027 AW1 - IKIZAMA', pct: 50 }, { id: 'b', kind: 'style', value: 'W27BA003OYS', pct: 40 }], cat2, ctx2);
+assert.match(rs.find(r => r.style === 'W27BA003OYS').conflict, /50% vs 40%/); assert.equal(rs.find(r => r.style === 'W27BA003BLK').conflict, null);
+assert.deepEqual(P.resolveSelections([], cat2, ctx2), []); assert.deepEqual(P.resolveSelections([{ id: 'a', kind: 'group', value: 'x' }], null, null), []);
+// conflicts + economics
+assert.deepEqual(P.gwpConflicts(['w26lg011blk'], ['W26LG011BLK', 'W25ZZ001RED'], ['W26KG916BLK']).map(c => c.type + ':' + c.style), ['special:W26LG011BLK']);
+assert.deepEqual(P.gwpConflicts(new Set(['W26KG916BLK']), [], ['w26kg916blk']).map(c => c.type), ['decision']); assert.deepEqual(P.gwpConflicts([], ['A'], ['B']), []);
+const plE = { gwp: { qty: { W26LG011BLK: 100 } } };
+let ec = P.gwpEconomics({ style: 'W26LG011BLK', soh: 60, incoming: 3000, cost: 11 }, plE); assert.deepEqual(ec, { available: 3060, planned: 100, unitCost: 11, totalCost: 1100, defaulted: false, costMissing: false });
+ec = P.gwpEconomics({ style: 'W26KG916BLK', soh: 20, incoming: 0, cost: 9 }, plE); assert.equal(ec.planned, 20); assert.equal(ec.defaulted, true); assert.equal(ec.totalCost, 180);                // default: everything available
+ec = P.gwpEconomics({ style: 'W26LG011BLK', soh: 50, incoming: 0, cost: 11 }, plE); assert.equal(ec.planned, 50);                                                                    // planned is capped at what's available
+ec = P.gwpEconomics({ style: 'NOCOST', soh: 10, incoming: 5, cost: 0 }, plE); assert.equal(ec.totalCost, null); assert.equal(ec.costMissing, true);                              // missing cost is reported, not shown as $0
+ec = P.gwpEconomics({ style: 'NEG', soh: -4, incoming: 0, cost: 5 }, plE); assert.equal(ec.available, 0); assert.equal(ec.totalCost, 0);
 console.log('markdown plans tests: all passed');
 })();

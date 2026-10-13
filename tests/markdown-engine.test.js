@@ -280,6 +280,27 @@ for (const dec of [{ pct: exBase.items.find(i => i.row.p.id === exId).systemPct 
   const r = E.buildPlan(core, { coreConsistency: 'preferred' }, { [exId]: dec });
   assert.equal(r.totals.exceptions, exBase.totals.exceptions - 1); assert.equal(r.items.find(i => i.row.p.id === exId).exceptionResolved, true);
 }
+// ── Special buys ──────────────────────────────────────────────────────────
+const spBase = [mk('SP1', { soh: 40, ageWeeks: 1, sold: { d7: 0, d30: 0, d60: 0, d90: 0 }, specialPct: 50, specialNote: '2027 AW1 - IKIZAMA' }), mk('SP2', { soh: 400, specialPct: 30 }), mk('NSP', { soh: 100 }), mk('GWSP', { isGWP: true, soh: 30, specialPct: 50 }), mk('NOSTK', { soh: 0, specialPct: 50 })];
+const spPlan = E.buildPlan(spBase.concat(range), { maxDiscount: 70 });
+const spi = id => spPlan.items.find(i => i.row.p.id === id);
+assert.equal(spi('SP1').final.action, 'S'); assert.equal(spi('SP1').final.pct, 50); assert.match(spi('SP1').final.reason, /^Special buy — 2027 AW1 - IKIZAMA at 50%/);   // brand new, 40 units, zero sales: NOT protected as new / cleared as a remnant
+assert.equal(spi('SP2').final.pct, 30); assert.equal(spi('SP2').systemPct, 30);
+assert.notEqual(spi('NSP').final.action, 'S');
+assert.equal(spi('GWSP').final.action, 'Exclude'); assert.equal(spi('GWSP').final.pct, null); assert.equal(spi('GWSP').blocked, 'GWP');                    // GWP wins, and the clash is flagged
+assert.equal(spi('NOSTK').final.action, 'Exclude'); assert.match(spi('NOSTK').final.reason, /No stock/);
+assert.ok(spPlan.categories[0].countS >= 2);
+// special buys respect the single-product ceiling, are counted in the average, and are never lowered by the average cap
+assert.equal(E.buildPlan(spBase, { maxDiscount: 40 }).items.find(i => i.row.p.id === 'SP1').final.pct, 40);
+const noSp = E.buildPlan(range, { maxDiscount: 70 }).totals.avgDiscount, withSp = E.buildPlan(spBase.concat(range), { maxDiscount: 70 }).totals.avgDiscount;
+assert.notEqual(noSp, withSp);
+const spCap = E.buildPlan(spBase.concat(range), { maxDiscount: 70, avgDiscountCap: 18 });
+assert.equal(spCap.items.find(i => i.row.p.id === 'SP1').final.pct, 50); assert.equal(spCap.items.find(i => i.row.p.id === 'SP2').final.pct, 30);
+// a manual decision still wins over a special buy; special buys are not colour-linked
+assert.equal(E.buildPlan(spBase, { maxDiscount: 70 }, { SP1: { exclude: true, reason: 'Commercial decision' } }).items.find(i => i.row.p.id === 'SP1').final.action, 'Exclude');
+const coreSp = E.buildPlan([mk('W26AA020BLK', { isCore: true, parentStyle: 'W26AA020', specialPct: 50, soh: 200 }), mk('W26AA020WHT', { isCore: true, parentStyle: 'W26AA020', soh: 200, sold: { d7: 20, d30: 90, d60: 180, d90: 270 } })], { coreConsistency: 'strict' }).items;
+assert.equal(coreSp.find(i => i.row.p.id === 'W26AA020BLK').final.action, 'S'); assert.ok(!coreSp.find(i => i.row.p.id === 'W26AA020BLK').exception);
+
 // edge: empty input, single product, duplicate ids don't throw
 assert.equal(E.buildPlan([], {}).items.length, 0); assert.equal(E.buildPlan([mk('ONE')], {}).items.length, 1);
 assert.doesNotThrow(() => E.buildPlan([mk('D'), mk('D')], {}));

@@ -69,6 +69,8 @@
       overrides: {},   // phase 4: per-product manual decisions
       mappings: {},    // phase 7: discount -> Shopify collection (id + title), independent per sale
       exports: [],     // phase 7: export + confirmation history
+      special: [],     // special buys: Apparel Magic selections + the discount for each
+      gwp: { items: [], threshold: null, qty: {} },   // gift with purchase: selections, optional spend threshold, planned giveaways per style
     };
   }
 
@@ -87,6 +89,10 @@
         p.setup = { ...DEFAULT_SETUP, ...(p.setup || {}) };
         p.settings = Engine.mergeSettings(p.settings);
         p.overrides = p.overrides || {}; p.mappings = p.mappings || {}; p.exports = p.exports || [];
+        p.special = Array.isArray(p.special) ? p.special : [];
+        p.gwp = { items: [], threshold: null, qty: {}, ...(p.gwp || {}) };
+        if (!Array.isArray(p.gwp.items)) p.gwp.items = [];
+        if (!p.gwp.qty || typeof p.gwp.qty !== 'object') p.gwp.qty = {};
       }
       if (!s.plans[s.activeId] || s.plans[s.activeId].archived) s.activeId = s.order.find(id => s.plans[id] && !s.plans[id].archived) || s.order[0];
       return s;
@@ -269,7 +275,7 @@
   // ── Review table: filter, group by parent style, sort ───────────────────────
   // Pure — the screen only renders what this returns. A parent-style row appears only when 2+ colours
   // of that style survive the filters; everything else is a plain single row.
-  const VIEWS = ['all', 'sale', 'notsale', 'clearance', 'groupA', 'groupB', 'overridden', 'attention'];
+  const VIEWS = ['all', 'sale', 'notsale', 'clearance', 'special', 'groupA', 'groupB', 'overridden', 'attention'];
   function buildReview(items, f, opts) {
     f = f || {}; opts = opts || {};
     const q = String(f.q || '').trim().toLowerCase();
@@ -282,6 +288,7 @@
       if (view === 'sale' && fin.pct == null) return false;
       if (view === 'notsale' && fin.action !== 'Exclude') return false;
       if (view === 'clearance' && fin.action !== 'C') return false;
+      if (view === 'special' && fin.action !== 'S') return false;
       if (view === 'groupA' && fin.action !== 'A') return false;
       if (view === 'groupB' && fin.action !== 'B') return false;
       if (view === 'overridden' && !it.override) return false;
@@ -319,10 +326,132 @@
     return { groups, count: rows.length, total: items.length };
   }
 
+
+  // ── Special buys & gift with purchase (Apparel Magic selections) ───────────
+  // Both are per-SALE allocations (they describe one promotion), so a Duplicate does not copy them.
+  // A selection says WHICH Apparel Magic styles — by collection/group, category, parent style, a single
+  // style, or a customer PO on the open orders — and special-buy selections also carry the discount.
+  const SPECIAL_KINDS = ['group', 'parent', 'style', 'po'];
+  const GWP_KINDS = ['category', 'group', 'style'];
+  const norm = v => String(v == null ? '' : v).toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();   // same normalisation the app uses for AM group names
+
+  function sanitizeSelection(section, sel) {
+    if (!sel || typeof sel !== 'object') return null;
+    const kinds = section === 'gwp' ? GWP_KINDS : SPECIAL_KINDS;
+    if (!kinds.includes(sel.kind)) return null;
+    const value = String(sel.value == null ? '' : sel.value).trim().slice(0, 120);
+    if (!value) return null;
+    const out = { kind: sel.kind, value };
+    if (section === 'special') {
+      const pct = Number(sel.pct);
+      if (!(isFinite(pct) && pct >= 5 && pct <= 95)) return null;
+      out.pct = Math.round(pct * 10) / 10;
+    }
+    if (sel.label) out.label = String(sel.label).slice(0, 120);
+    return out;
+  }
+  const sameSel = (a, b) => a.kind === b.kind && norm(a.value) === norm(b.value);
+
+  function planList(plan, section) { return section === 'gwp' ? plan.gwp.items : plan.special; }
+
+  // Adding the same collection/style again updates it instead of duplicating.
+  function addSelection(state, planId, section, sel, now, idGen) {
+    const clean = sanitizeSelection(section, sel);
+    if (!clean || !state.plans[planId]) return { state, id: null };
+    const s = clone(state), p = s.plans[planId], list = planList(p, section);
+    const ex = list.find(x => sameSel(x, clean));
+    let id;
+    if (ex) { Object.assign(ex, clean); id = ex.id; }
+    else { id = (idGen ? idGen() : defaultId(now)); list.push({ id, ...clean, addedTs: now || Date.now() }); }
+    p.updatedTs = now || Date.now(); p.rev += 1;
+    return { state: s, id };
+  }
+  function removeSelection(state, planId, section, selId, now) {
+    const plan = state.plans[planId]; if (!plan || !planList(plan, section).some(x => x.id === selId)) return state;
+    const s = clone(state), p = s.plans[planId];
+    if (section === 'gwp') p.gwp.items = p.gwp.items.filter(x => x.id !== selId); else p.special = p.special.filter(x => x.id !== selId);
+    p.updatedTs = now || Date.now(); p.rev += 1;
+    return s;
+  }
+  function setSpecialPct(state, planId, selId, pct, now) {
+    const plan = state.plans[planId]; const sel = plan && plan.special.find(x => x.id === selId); if (!sel) return state;
+    const clean = sanitizeSelection('special', { ...sel, pct }); if (!clean) return state;
+    const s = clone(state), t = s.plans[planId].special.find(x => x.id === selId);
+    t.pct = clean.pct; s.plans[planId].updatedTs = now || Date.now(); s.plans[planId].rev += 1;
+    return s;
+  }
+  // Planned giveaways per GWP style (null = back to the default of "everything available").
+  function setGwpQty(state, planId, style, qty, now) {
+    if (!state.plans[planId]) return state;
+    const s = clone(state), p = s.plans[planId], key = String(style || '').trim().toUpperCase(); if (!key) return state;
+    const n = Number(qty);
+    if (qty == null || qty === '' || !isFinite(n) || n < 0) { if (!(key in p.gwp.qty)) return state; delete p.gwp.qty[key]; }
+    else p.gwp.qty[key] = Math.floor(n);
+    p.updatedTs = now || Date.now(); p.rev += 1;
+    return s;
+  }
+  function setGwpThreshold(state, planId, v, now) {
+    if (!state.plans[planId]) return state;
+    const n = Number(v), val = v == null || v === '' || !isFinite(n) || n <= 0 ? null : Math.round(n * 100) / 100;
+    if (state.plans[planId].gwp.threshold === val) return state;
+    const s = clone(state); s.plans[planId].gwp.threshold = val; s.plans[planId].updatedTs = now || Date.now(); s.plans[planId].rev += 1;
+    return s;
+  }
+
+  // Resolve selections to styles. catalogue = [{style,parentStyle,group,category,title,rrp,cost}] from Apparel Magic;
+  // ctx = { stylesByPo: { 'PO TEXT': ['STYLE', ...] }, fallback: { STYLE: {title,category,group} } } (the open orders).
+  // A style hit by several special-buy selections with DIFFERENT discounts is flagged, never silently resolved.
+  function resolveSelections(selections, catalogue, ctx) {
+    ctx = ctx || {};
+    const byStyle = {}, order = [];
+    const cat = catalogue || [];
+    const add = (style, entry, sel) => {
+      const k = String(style).toUpperCase(); if (!k) return;
+      let r = byStyle[k]; if (!r) { r = byStyle[k] = { style: k, entry, sels: [] }; order.push(k); }
+      if (!r.entry && entry) r.entry = entry;
+      if (!r.sels.some(x => x.id === sel.id)) r.sels.push({ id: sel.id, kind: sel.kind, value: sel.value, pct: sel.pct });
+    };
+    for (const sel of selections || []) {
+      const v = norm(sel.value);
+      if (sel.kind === 'po') {
+        for (const po of Object.keys(ctx.stylesByPo || {})) if (norm(po) === v) for (const st of ctx.stylesByPo[po]) add(st, cat.find(e => e.style === String(st).toUpperCase()) || (ctx.fallback && ctx.fallback[String(st).toUpperCase()] ? { style: String(st).toUpperCase(), ...ctx.fallback[String(st).toUpperCase()] } : null), sel);
+        continue;
+      }
+      for (const e of cat) {
+        const hit = sel.kind === 'group' ? norm(e.group) === v : sel.kind === 'category' ? norm(e.category) === v
+          : sel.kind === 'parent' ? String(e.parentStyle || '').toUpperCase() === String(sel.value).trim().toUpperCase() : e.style === String(sel.value).trim().toUpperCase();
+        if (hit) add(e.style, e, sel);
+      }
+    }
+    return order.map(k => {
+      const r = byStyle[k], pcts = [...new Set(r.sels.map(x => x.pct).filter(x => x != null))];
+      return { ...r, pct: pcts.length ? r.sels.find(x => x.pct != null).pct : null, conflict: pcts.length > 1 ? 'Different discounts from different selections (' + pcts.map(x => x + '%').join(' vs ') + ')' : null };
+    });
+  }
+
+  // Blocking conflicts between GWP and discounts. A GWP style must never carry a markdown; each is
+  // reported with what to do about it (the export validation will refuse while any remain).
+  function gwpConflicts(gwpStyles, specialStyles, decisionStyles) {
+    const out = [], g = new Set([...gwpStyles].map(x => String(x).toUpperCase()));
+    for (const s of specialStyles || []) if (g.has(String(s).toUpperCase())) out.push({ style: String(s).toUpperCase(), type: 'special', text: 'is marked as gift with purchase but is also in a special-buy selection with a discount' });
+    for (const s of decisionStyles || []) if (g.has(String(s).toUpperCase())) out.push({ style: String(s).toUpperCase(), type: 'decision', text: 'is marked as gift with purchase but also has a saved markdown decision' });
+    return out;
+  }
+
+  // GWP economics for one style. available = SOH (+ incoming per the sale's incoming-stock setting);
+  // planned giveaways default to everything available and are capped at it.
+  function gwpEconomics(row, plan) {
+    const key = String(row.style).toUpperCase(), avail = Math.max(0, (row.soh || 0) + (row.incoming || 0));
+    const planned = plan.gwp.qty[key] != null ? Math.min(plan.gwp.qty[key], avail) : avail;
+    const cost = row.cost > 0 ? row.cost : null;
+    return { available: avail, planned, unitCost: cost, totalCost: cost == null ? null : Math.round(planned * cost * 100) / 100, defaulted: plan.gwp.qty[key] == null, costMissing: cost == null };
+  }
+
   return {
     STATE_VERSION, OBJECTIVES, INCOMING, DEFAULT_SETUP,
     parseDay, durationDays, newPlan, createState, migrate, uniqueName, addPlan, duplicatePlan,
     renamePlan, setActive, archivePlan, restorePlan, cleanLevels, updatePlan, engineSettings, validatePlan,
     EXCLUDE_REASONS, VIEWS, sanitizeOverride, setOverrides, clearOverrides, overrideStats, buildReview,
+    SPECIAL_KINDS, GWP_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setGwpQty, setGwpThreshold, resolveSelections, gwpConflicts, gwpEconomics,
   };
 });
