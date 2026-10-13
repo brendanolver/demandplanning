@@ -514,6 +514,7 @@
       const p = it.row.p, fin = it.final;
       if (f.category && String(p.category || '').toUpperCase() !== String(f.category).toUpperCase()) return false;
       if (f.collection && norm(p.collection) !== norm(f.collection)) return false;
+      if (f.group && it.group !== f.group) return false;                                       // saved group membership (A / B / C), never the percentage
       if (f.sugg) { const sp = it.systemPct; if (f.sugg === '__none__' ? sp != null : sp == null || Number(sp) !== Number(f.sugg)) return false; }
       if (f.month) { const dm = String(p.deliveryMonth || ''); if (f.month === '__none__' ? dm !== '' : dm.toUpperCase() !== String(f.month).toUpperCase()) return false; }
       if (f.core === 'core' && !p.isCore) return false;

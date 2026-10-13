@@ -888,6 +888,13 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
 .mdp-gcard.mdp-ga{border-left:3px solid #2563eb;}.mdp-gcard.mdp-gb{border-left:3px solid #7c3aed;}.mdp-gcard.mdp-gc{border-left:3px solid #f5b53d;}.mdp-gcard.mdp-gx{border-left:3px solid #9ca3af;}
 .mdp-dsel{font-weight:400;}.mdp-dsel.mdp-chg{font-weight:700;border-color:#0a66e8;background:#f2f7ff;}
 .mdp-ct td.mdp-sp{white-space:nowrap;}
+/* v3.2.3: the group cards are filters */
+.mdp-gclick{cursor:pointer;transition:background .12s,border-color .12s,box-shadow .12s;}
+.mdp-gclick:hover{box-shadow:0 1px 6px rgba(16,24,40,.12);}.mdp-gclick:focus-visible{outline:2px solid #0a66e8;outline-offset:2px;}
+.mdp-gcard.mdp-ga.on{border-color:#2563eb;border-width:2px;background:#eef4ff;}.mdp-gcard.mdp-gb.on{border-color:#7c3aed;border-width:2px;background:#f5efff;}.mdp-gcard.mdp-gc.on{border-color:#f5b53d;border-width:2px;background:#fff8e6;}
+.mdp-gcard.mdp-gx{cursor:default;}
+.mdp-xshow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}.mdp-actoff{opacity:.45;cursor:default;}
+.mdp-emptysm{background:#fff;border:1px dashed #cfd9ee;border-radius:10px;padding:22px 14px;}
 /* v3.1.5: fixed layout with explicit column widths (the th widths in mdpReviewHtml). The auto layout let the full-width
    section / category header rows stretch the first column; this keeps every column exactly where it's set. Long text is cut
    with an ellipsis (hover for the full text). */
@@ -2393,8 +2400,8 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.2.2"></script>
-<script src="markdown-plans.js?v=3.2.2"></script>
+<script src="markdown-engine.js?v=3.2.3"></script>
+<script src="markdown-plans.js?v=3.2.3"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2428,7 +2435,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.2.2';
+const APP_VERSION='v3.2.3';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -5937,7 +5944,7 @@ function mdpRefreshIfOpen(){
     renderMarkdownPlanner();
   },300);
 }
-function mdpToggleCat(c){if(mdpOpenCats.has(c))mdpOpenCats.delete(c);else mdpOpenCats.add(c);mdpRenderReview(true);}
+function mdpToggleCat(c){if(mdpOpenCats.has(c))mdpOpenCats.delete(c);else mdpOpenCats.add(c);delete mdpGF[c];mdpRenderReview(true);}   // opening (or closing) a category starts at Show all
 function mdpResetSettings(){const pl=mdpPlan();mdpCommit(MarkdownPlans.updatePlan(mdpState,pl.id,{settings:MarkdownEngine.mergeSettings({})}));}
 
 // Weeks since the product launched: AM launch date if present, else the delivery month in its name.
@@ -6086,7 +6093,8 @@ function mdpOoCells(oo,cat,hasEnd){
 let mdpRev={q:'',category:'',collection:'',month:'',sugg:'',view:'all',core:'all',sort:'soh',dir:'',flat:true,compact:true};   // flat = one row per product/colour
 const mdpSel=new Set(),mdpOpenStyles=new Set();
 let mdpCtx=null,mdpIds=[],_mdpQT=null,mdpLastSel=null,mdpNoteMsg=null,mdpStep=2,mdpHelpOpen=false;
-const mdpPanels={sug:true,app:false};   // Suggested open, Approved collapsed by default
+const mdpPanels={sug:true,app:false};
+const mdpGF={};   // active group filter per expanded category: { CATEGORY: 'A'|'B'|'C' } (absent = Show all)   // Suggested open, Approved collapsed by default
 // Text columns sort A→Z first, numeric/date columns biggest (or newest) first; clicking the same header again reverses it.
 const MDP_TEXT_SORTS=['category','name','parent','why'];
 const MDP_SORT_OPTS=[['soh','Sort: SOH high to low'],['name','Sort: name A–Z'],['onorder','Sort: on order'],['d30','Sort: 30d sales'],['cover','Sort: weeks cover'],['month','Sort: month del'],['discount','Sort: discount'],['score','Sort: clearance score']];
@@ -6117,7 +6125,7 @@ function mdpSelClick(ev,i){
 // The products one table shows: this category's (or everything, for section C) after the filters. GWP is never listed — it lives in section D.
 function mdpVisible(cat){
   const items=mdpCtx.plan.items.filter(i=>!i.row.p.isGWP);
-  return MarkdownPlans.buildReview(items,{...mdpRev,category:cat||mdpRev.category},mdpCtx.opts);
+  return MarkdownPlans.buildReview(items,{...mdpRev,category:cat||mdpRev.category,group:cat?mdpGF[cat]||'':''},mdpCtx.opts);
 }
 function mdpSelGroup(key,on,cat){
   if(!mdpCtx)return;
@@ -6150,7 +6158,7 @@ function mdpApply(ids,value){
   if(skipped)setTimeout(()=>alert(skipped+' product'+(skipped===1?'':'s')+' skipped — gift-with-purchase items can\'t be discounted.'),50);
 }
 function mdpRowAction(i,v){mdpApply([mdpIds[i]],v);}
-function mdpBulkAction(v){mdpApply([...mdpSel],v);}
+function mdpBulkAction(v){mdpPruneSelection();mdpApply([...mdpSel],v);}
 function mdpStyleAction(psKey,v){
   if(!mdpCtx)return;
   const ps=psKey.replace(/^ps:/,'');
@@ -6335,11 +6343,12 @@ function mdpProdTable(groups,o){
 function mdpGroupPills(a,b,c){return`${a!=null?`<span class="mdp-gp a">${a}%</span>`:''}${b!=null?`<span class="mdp-gp b">${b}%</span>`:''}${c!=null?`<span class="mdp-gp c" title="Group C — existing reduced, fixed">${c}%</span>`:''}`;}
 function mdpCatPanel(r,ro){
   const{plan,pl}=mdpCtx,cat=r.category;
-  const groups=mdpVisible(cat),filt=mdpFiltersActive(),shown=groups.count;
+  const groups=mdpVisible(cat),filt=mdpFiltersActive(),shown=groups.count,gf0=mdpGF[cat];
   const bOn=!r.noB&&(r.countB>0||r.manualB!=null)&&r.levelB>0;
   // Three group summary blocks, from the live allocation: name, discount, product/colours, SOH units, and the share of eligible products / SOH.
   const pc=(v,t)=>t>0?Math.round(v/t*100):0;
-  const gblock=(cls,name,sub,pct,cnt,units)=>`<div class="mdp-gcard mdp-g${cls}"><span class="mdp-gdot ${cls}"></span><div><b>${name} — ${pct==null?'None':pct+'% Off'}</b><span>${sub}</span><span>${cnt.toLocaleString()} product/colours · ${units.toLocaleString()} SOH units</span><span>${pc(cnt,r.eligible)}% of eligible products · ${pc(units,r.eligibleUnits)}% of eligible SOH</span></div></div>`;
+  const gf=mdpGF[cat],catJ=mdpEsc(JSON.stringify(cat));
+  const gblock=(cls,name,sub,pct,cnt,units)=>`<div class="mdp-gcard mdp-g${cls} mdp-gclick${gf===cls.toUpperCase()?' on':''}" role="button" tabindex="0" title="${gf===cls.toUpperCase()?'Click again to show all products':'Show only '+name+' products'}" onclick="mdpGroupFilterSet(${catJ},'${cls.toUpperCase()}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();mdpGroupFilterSet(${catJ},'${cls.toUpperCase()}')}"><span class="mdp-gdot ${cls}"></span><div><b>${name} — ${pct==null?'None':pct+'% Off'}</b><span>${sub}</span><span>${cnt.toLocaleString()} product/colours · ${units.toLocaleString()} SOH units</span><span>${pc(cnt,r.eligible)}% of eligible products · ${pc(units,r.eligibleUnits)}% of eligible SOH</span></div></div>`;
   const bShown=!r.noB&&r.levelB>0&&(r.countB>0||r.manualB!=null);
   const exBlock=r.countX?`<div class="mdp-gcard mdp-gx"><span class="mdp-gdot x"></span><div><b>Exceptions</b><span>shown separately from A / B / C</span><span>${r.countX.toLocaleString()} product/colours · ${r.unitsX.toLocaleString()} SOH units</span><span>${[r.exProtected?r.exProtected+' protected (deeper than C)':'',r.exKept?r.exKept+' existing kept':'',r.exManual?r.exManual+' manual discount':''].filter(Boolean).join(' · ')}</span></div></div>`:'';
   const other=[r.countC?`${r.countC} clearance`:'',r.countS?`${r.countS} special buy${r.countS===1?'':'s'}`:'',r.countX?`${r.countX} not in the sale`:'',r.countManual?`${r.countManual} set individually`:''].filter(Boolean).join(' · ');
@@ -6354,8 +6363,8 @@ function mdpCatPanel(r,ro){
     <div class="mdp-xhead"><div><div class="mdp-xt">${mdpEsc(cat)}</div><div class="mdp-dim">${r.products.toLocaleString()} product/colours · ${r.soh.toLocaleString()} SOH · ${r.onOrder.toLocaleString()} on order · ${r.weeksCover==null?'no':r.weeksCover} weeks cover${other?' · '+other:''}</div></div>
     </div>
     <div class="mdp-gcards">${gblock('a','Group A','Standard',r.levelA,r.countA,r.unitsA)}${gblock('b','Group B','Clearance',bShown?r.levelB:null,r.countB,r.unitsB)}${gblock('c','Group C','Existing reduced'+(r.cCapped?' (capped by the sale\'s highest single discount)':''),r.levelC,r.countC,r.unitsC)}${exBlock}</div>
-    ${filt?`<div class="mdp-xnote">Showing ${shown.toLocaleString()} of ${r.products.toLocaleString()} (filters on — approving a category always covers all ${r.products.toLocaleString()})</div>`:''}
-    ${groups.groups.length?mdpProdTable(groups.groups,{cat,readonly:ro}):'<div class="mdp-sub" style="padding:14px 4px;">No products in this category match the filters.</div>'}
+    <div class="mdp-xnote mdp-xshow">Showing <b>${shown.toLocaleString()}</b> of ${r.products.toLocaleString()} product/colours${gf?` · <b>Group ${gf}</b> only`:''}<button class="mdp-act${gf?'':' mdp-actoff'}" onclick="mdpGroupFilterSet(${catJ},null)"${gf?'':' disabled'}>Show all</button>${filt||gf?`<span class="mdp-dim"> — the cards above and approving a category always cover all ${r.products.toLocaleString()}</span>`:''}</div>
+    ${groups.groups.length?mdpProdTable(groups.groups,{cat,readonly:ro}):`<div class="mdp-empty mdp-emptysm">${gf?`No products are in Group ${gf} ${filt?'with these filters':'right now'}${gf==='B'&&r.noB?' — Group B is switched off for this category':''}.<br><button class="mdp-act" onclick="mdpGroupFilterSet(${catJ},null)">Show all products</button>`:'No products in this category match the filters.'}</div>`}
     ${bulk}</div></td></tr>`;
 }
 // Group A / Group B level for a category. Group B can always be set, including "None".
@@ -6380,8 +6389,23 @@ function mdpGroupPickB(cat,val){
   if(!active&&!r.recB)mdpNoteMsg=`${cat}: Group B is on at ${n}%, but the planner doesn't recommend any products for it. Move products into it with the bulk action (select products → "Set to ${n}%").`;
   mdpCommit(next,!active&&!r.recB);
 }
+// Click a group card to show only that group's products; click it again (or Show all) to go back. One filter at a time, per expanded category.
+function mdpGroupFilterSet(cat,g){
+  if(g&&mdpGF[cat]===g)g=null;
+  if(g)mdpGF[cat]=g;else delete mdpGF[cat];
+  mdpRenderReview(true);
+}
+// Selections only ever cover products you can see: anything hidden by a group (or any other) filter, or that moved out of view, is dropped before it can be bulk-edited.
+function mdpPruneSelection(){
+  if(!mdpCtx||!mdpSel.size)return;
+  const vis=new Set();
+  mdpCtx.rows.filter(r=>!r.approved&&mdpOpenCats.has(r.category)).forEach(r=>mdpVisible(r.category).groups.forEach(g=>g.items.forEach(it=>vis.add(it.row.p.id))));
+  if(!mdpCollapsed.has('C'))mdpVisible('').groups.forEach(g=>g.items.forEach(it=>vis.add(it.row.p.id)));
+  for(const id of [...mdpSel])if(!vis.has(id))mdpSel.delete(id);
+}
 function mdpTogglePanel(k){mdpPanels[k]=!mdpPanels[k];mdpRenderReview(true);}
 function mdpCategoryBody(){
+  mdpPruneSelection();
   const{rows,pl}=mdpCtx,lvls=pl.settings.allowedDiscounts.filter(d=>d<=pl.settings.maxDiscount);
   mdpIds=[];
   let list=rows;if(mdpRev.category)list=list.filter(r=>r.category.toUpperCase()===mdpRev.category.toUpperCase());
@@ -12998,6 +13022,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.2.3 — Markdown Planner: the Group A / B / C cards are now FILTERS for the expanded product table, from Brendan. Click a card to show only that group's products (by saved group membership, never by %), click it again or press 'Show all' to go back; one at a time, separate for each category, and a category always opens on Show all. The cards, the Split column and the category totals always cover the WHOLE category; a 'Showing 12 of 99 product/colours' line shows the filtered count; an empty group shows a clean empty state. It combines with search, sort, Month del and the other filters, updates live as products move between groups, and selections are pruned to what's visible so a bulk action can never touch hidden products. MarkdownPlans.buildReview takes f.group.
 // v3.2.2 — Markdown Planner: three discount groups, live split, simpler product editing, from Brendan's brief. (1) EVERY category has Group A (standard, editable), Group B (clearance, editable or None) and Group C (EXISTING REDUCED, fixed at 50% of RRP — shown even when empty, not editable at category level). Group C holds products already reduced in Shopify (≤50% off → C at 50%); one already DEEPER than 50% keeps its discount as a protected exception, never raised in price, flagged 'over cap' if it exceeds the sale's highest single discount. Remnants / broken size runs (previously the fixed 50% clearance tier) are now Group B clearance candidates, following B's level. (2) The Split column shows A / B / C counts as a three-colour bar (blue / purple / amber) with 'A: 12 / B: 5 / C: 7'; exceptions are listed separately (+N exc.) so A+B+C+exceptions = eligible products; GWP, excluded products and special buys are never in the split. An expanded category shows three summary blocks (name, %, product/colours, SOH units, % of eligible products and SOH). Everything recalculates from the live plan on every change. SOH uses stock on hand now (never negative, never including on order). (3) Group MEMBERSHIP is its own field (it.group A/B/C/X), never inferred from a %: a product given 50% via B stays in B; a typed discount keeps its saved group if it fits that group's level, otherwise it's a manual exception. (4) The ⋯ Actions column is gone: the Proposed disc. dropdown does it all (move to group A/B/C, custom %, Not in sale, Reset). (5) Bold = a SAVED manual decision (stays bold even if the recommendation later matches); normal = planner allocation. Engine: groupSplit, group/exceptionKind fields, 'P' protected action; plans: review views groupC / exceptions.
 // v3.2.1 — Markdown Planner refinements, from Brendan. (1) Suggested and Approved categories are now stacked, each full width; Approved is collapsible and starts collapsed (Suggested collapses too); the expanded product tables use the full width. (2) Your Groups always shows TWO dropdowns — Group A (standard) and Group B (clearance, which can be set to None); both offer the sale's allowed discounts. Switching Group B off keeps its products in A; switching it on offers to redistribute using the planner's recommendation when the category has a saved allocation; the Split column shows the actual allocation. (3) Existing reduced products: the proposed discount is never below what a product already has in Shopify (measured against RRP, not stacked) — a 50%-off item can't drop to 40%; it's kept (a small 'kept' tag, no warning), a current discount deeper than the sale's highest single discount is flagged 'over cap' for review and never auto-raised, and only an explicit decision of yours can lower it (it asks first and shows 'price ↑'). Product table now shows Current disc. and Proposed disc. separately. (4) Compact is the default and shows: Product/colour, Month del, SOH, On order, 30d sales, Weeks cover, Current disc., Proposed disc. (+ checkbox and ⋯); Core, Parent style, 7/60/90d, Sell-through, Sizes out, RRP, Current price, Sale price, Suggested and Why are under All columns. Also: view chips (All products / Manually changed / Needs attention), bulk buttons Set to A% / B%, Exclude selected, Reset to recommendations. Engine: groupLevels[cat].B === 0 = Group B off; effective levelA/levelB exposed; keptExisting / overCap / priceUp flags.
 // v3.2.0 — Markdown Planner UI/UX refactor, from Brendan's mockup + brief: a CATEGORY-FIRST workflow replaces the per-product approvals. New header + 7-step bar; Sale Setup collapses to a one-line summary (Edit setup); 4 progress cards (categories / products remaining & approved); a filter bar (search, category, collection, month del, suggested %, product view incl. Manually changed / Needs attention, core, sort, Compact/All columns, Group colours by style, Reset filters); SUGGESTED categories (left) and APPROVED categories (right). Each category row shows products, SOH, on order, 30d sales, weeks cover, the two suggested discounts, YOUR GROUPS dropdowns (edit either group; products stay in their group and the price follows), a split bar and one-click Approve (saves the category's levels and every product's allocation; Reopen moves it back and keeps everything). Categories expand in place to a product table (Month del, Core, SOH, On order, 30d, weeks cover, RRP, Discount dropdown, Sale price, ⋯) with bulk actions; a core colour change asks 'this colour or all colours'. Section C is the same data as one flat table. REMOVED: per-product Approve buttons/badges, 'differs from suggestion' warnings, the approval progress bar, Approve-all-shown and the Approvals filter (old per-product approvals stay in the saved data but no longer pin anything). Engine: saved allocations (frozen) hold approved products in their group; plans: approveCategory / reopenCategory / refreshSuggestions / categoryRows / approvalProgress. Special buys and GWP are untouched.

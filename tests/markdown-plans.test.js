@@ -439,5 +439,14 @@ assert.deepEqual(P.buildForecast([], {}, 90).totals.demand, 0);
   const ids = f => P.buildReview(its, f).groups.flatMap(g => g.items.map(i => i.row.p.id)).sort().join('');
   assert.equal(ids({ view: 'groupA' }), 'a'); assert.equal(ids({ view: 'groupB' }), 'b'); assert.equal(ids({ view: 'groupC' }), 'c'); assert.equal(ids({ view: 'clearance' }), 'c'); assert.equal(ids({ view: 'exceptions' }), 'x');
 }
+// review filter: group membership (not the percentage), combined with the other filters
+{
+  const gi = (id, g, pct, dm) => ({ row: { p: { id, name: id, colour: '', style: id, parentStyle: '', category: 'X', isCore: false, deliveryMonth: dm || 'OCT-26' }, m: { soh: 1 }, score: 1 }, final: { action: g || 'Exclude', pct }, group: g || null, systemPct: pct });
+  const its = [gi('a1', 'A', 20), gi('a2', 'A', 20, 'SEP-26'), gi('b1', 'B', 50), gi('c1', 'C', 50), gi('x1', 'X', 25), gi('n1', null, null)];
+  const ids = f => P.buildReview(its, f).groups.flatMap(g => g.items.map(i => i.row.p.id)).sort().join('');
+  assert.equal(ids({ group: 'A' }), 'a1a2'); assert.equal(ids({ group: 'B' }), 'b1'); assert.equal(ids({ group: 'C' }), 'c1');   // b1 and c1 are both 50%: membership decides, not the number
+  assert.equal(ids({ group: 'A', month: 'SEP-26' }), 'a2'); assert.equal(ids({ group: 'A', q: 'a1' }), 'a1'); assert.equal(ids({ group: 'B', month: 'SEP-26' }), '');
+  assert.equal(ids({ group: '' }), 'a1a2b1c1n1x1'); assert.equal(ids({ group: null }), 'a1a2b1c1n1x1');
+}
 console.log('markdown plans tests: all passed');
 })();
