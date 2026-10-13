@@ -564,5 +564,12 @@ assert.deepEqual(P.buildForecast([], {}, 90).totals.demand, 0);
   let ex = P.addNosException(st, id, 'W26AA001BLK', 9); assert.deepEqual(ex.plans[id].notOnSale.exceptions, ['W26AA001BLK']); ex = P.removeSelection(ex, id, 'nos', ex.plans[id].notOnSale.items[0].id, 10); ex = P.addNosStyles(ex, id, [{ style: 'W26AA001BLK', label: 'A', reason: 'r' }], 11, gen); assert.deepEqual(ex.plans[id].notOnSale.exceptions, []);
   assert.equal(P.sanitizeSelection('nos', { kind: 'style', value: 'X', auto: true, reason: 'r' }).auto, true); assert.equal(P.sanitizeSelection('gwp', { kind: 'style', value: 'X', auto: true }).auto, undefined);
 }
+// last year's actual revenue from the price feed (cents -> dollars, inside the window only, categorised by SKU)
+{
+  const pd = { days: ['2025-11-10', '2025-11-12', '2025-11-28', '2025-12-02'], skus: { A1: [1, 10000, 7000, 2, 20000, 12000, 3, 9900, 9900], B1: [2, 5000, 3000], Z9: [2, 100, 100] } };
+  const r = P.lyRevenueByCategory(pd, { A1: 'Tees', B1: 'SWEATS' }, { start: '2025-11-12', end: '2025-12-01' });
+  assert.equal(r.ok, true); assert.equal(r.byCat.TEES.net, 190); assert.equal(r.byCat.TEES.gross, 300); assert.equal(r.byCat.SWEATS.net, 30); assert.equal(r.net, 220); assert.equal(r.gross, 350);   // 2025-11-10 and 2025-12-02 are outside; Z9 has no category
+  assert.equal(P.lyRevenueByCategory(null, {}, { start: 'a', end: 'b' }).ok, false); assert.equal(P.lyRevenueByCategory(pd, {}, null).ok, false);
+}
 console.log('markdown plans tests: all passed');
 })();

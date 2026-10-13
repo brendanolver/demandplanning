@@ -258,6 +258,22 @@
     }
     return { byCat: out, total, matched };
   }
+  // What last year's sales over the window actually brought in, from the Shopify price feed: priceData = { days:[...], skus:{ SKU:[dayIdx, grossCents, netCents, ...] } }
+  // (gross = shelf price x units, net = after every discount). Returns dollars as Shopify recorded them (GST treatment follows the store's tax setting).
+  function lyRevenueByCategory(priceData, skuCat, win) {
+    const out = { byCat: {}, gross: 0, net: 0, ok: false };
+    if (!priceData || !priceData.skus || !priceData.days || !win) return out;
+    out.ok = true;
+    for (const sku of Object.keys(priceData.skus)) {
+      const cat = skuCat && skuCat[sku]; if (!cat) continue;
+      const key = String(cat).toUpperCase(), a = priceData.skus[sku];
+      for (let i = 0; i + 2 < a.length; i += 3) {
+        const d = String(priceData.days[a[i]] || '').slice(0, 10);
+        if (d >= win.start && d <= win.end) { const c = out.byCat[key] || (out.byCat[key] = { gross: 0, net: 0 }); c.gross += a[i + 1] / 100; c.net += a[i + 2] / 100; out.gross += a[i + 1] / 100; out.net += a[i + 2] / 100; }
+      }
+    }
+    return out;
+  }
   // Per category: last year's units x (1 + growth), against the stock available (stock now + arriving per the sale's incoming setting).
   // Revenue/GP use the sale price each product ends up at, weighted by stock; prices are GST-inclusive, so revenue is shown ex GST.
   const GST = 1.1;
@@ -1025,6 +1041,6 @@
     parseDay, durationDays, newPlan, createState, migrate, uniqueName, addPlan, duplicatePlan,
     renamePlan, setActive, archivePlan, restorePlan, cleanLevels, updatePlan, engineSettings, validatePlan,
     EXCLUDE_REASONS, VIEWS, sanitizeOverride, setOverrides, clearOverrides, overrideStats, buildReview,
-    SPECIAL_KINDS, GWP_KINDS, NOS_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setGwpQty, setGwpThreshold, lyWindow, lyUnitsByCategory, buildForecast, addDays, demandScenarios, forecastConfidence, crossCheck, scenarioLevels, commercialSummary, addSnapshot, removeSnapshot, setReviewed, addNosStyles, addNosException, removeNosException, resolveNotOnSale, nosConflicts, categorySignature, OFFER_TYPES, BUNDLE_MODES, newOffer, sanitizeOffer, addOffer, updateOffer, duplicateOffer, deleteOffer, moveOffer, addOfferSelection, removeOfferSelection, setOfferException, resolveOfferConflict, resolveOffer, offerPricing, bundleText, offerConflicts, validateOffer, offerStatus, EXPORT_COLUMNS, toCsv, buildInitialExport, buildOfferExport, CHECKLIST, newExportRecord, addExportRecord, setMapping, defaultMappings, approveCategory, reopenCategory, releaseAllocation, refreshSuggestions, isApproved, frozenAllocs, categoryRows, approvalProgress, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
+    SPECIAL_KINDS, GWP_KINDS, NOS_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setGwpQty, setGwpThreshold, lyWindow, lyUnitsByCategory, lyRevenueByCategory, buildForecast, addDays, demandScenarios, forecastConfidence, crossCheck, scenarioLevels, commercialSummary, addSnapshot, removeSnapshot, setReviewed, addNosStyles, addNosException, removeNosException, resolveNotOnSale, nosConflicts, categorySignature, OFFER_TYPES, BUNDLE_MODES, newOffer, sanitizeOffer, addOffer, updateOffer, duplicateOffer, deleteOffer, moveOffer, addOfferSelection, removeOfferSelection, setOfferException, resolveOfferConflict, resolveOffer, offerPricing, bundleText, offerConflicts, validateOffer, offerStatus, EXPORT_COLUMNS, toCsv, buildInitialExport, buildOfferExport, CHECKLIST, newExportRecord, addExportRecord, setMapping, defaultMappings, approveCategory, reopenCategory, releaseAllocation, refreshSuggestions, isApproved, frozenAllocs, categoryRows, approvalProgress, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
   };
 });
