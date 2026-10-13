@@ -841,12 +841,11 @@ th{position:relative;}
 .mdp-fbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;}.mdp-fbar .mdp-search{flex:1.5;min-width:220px;}.mdp-fbar .mdp-sel{flex:1;min-width:120px;}
 .mdp-fbar2{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:16px;}
 .mdp-fchips{margin-left:auto;display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;}
+button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cursor:pointer;background:#fff;border-color:#e1e5ee;}button.mdp-fchip.on{background:#eef5ff;border-color:#0a66e8;}button.mdp-fchip b{font-weight:600;}
 .mdp-fchip{display:inline-flex;align-items:center;gap:6px;background:#f1f3f8;border-radius:8px;padding:5px 11px;font-size:12px;color:#374151;}.mdp-fchip.p{background:#f1e9ff;color:#6d28d9;}.mdp-fchip.b{background:#e3efff;color:#1d4ed8;}
-.mdp-fchip i{width:8px;height:8px;border-radius:50%;background:#6b7280;display:inline-block;}.mdp-fchip i.p{background:#7c3aed;}.mdp-fchip i.b{background:#2563eb;}
-#mdp-cat-body{container-type:inline-size;}
-.mdp-cs{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start;}
-/* side by side (Suggested left, Approved right) once there's room for both tables; stacked below that */
-@container (min-width:1400px){.mdp-cs{grid-template-columns:minmax(0,1.62fr) minmax(0,1fr);}}
+.mdp-fchip i.g,.mdp-fchip i{width:8px;height:8px;border-radius:50%;background:#2563eb;display:inline-block;}.mdp-fchip i.r{background:#ef4444;}.mdp-fchip i.p{background:#7c3aed;}.mdp-fchip i.b{background:#2563eb;}
+/* Suggested on top, Approved underneath — both full width */
+.mdp-cs{display:flex;flex-direction:column;gap:16px;}
 @media (max-width:1180px){.mdp-pcards{grid-template-columns:repeat(2,minmax(0,1fr));}}
 .mdp-panel{border:1px solid #e8ebf2;border-radius:14px;background:#fff;overflow:hidden;}
 .mdp-phead{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid #eef0f5;}
@@ -875,7 +874,7 @@ th{position:relative;}
 .mdp-xpanel .mdp-revscroll{max-height:460px;min-height:0;}
 .mdp-bulkbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px;background:#fff;border:1px solid #e3e9f5;border-radius:10px;padding:8px 12px;font-size:12.5px;}
 .mdp-corep{display:inline-block;background:#d9f2f2;color:#0f766e;font-size:10.5px;font-weight:700;border-radius:6px;padding:2px 8px;}.mdp-ncore{display:inline-block;background:#eef0f4;color:#6b7280;font-size:10.5px;font-weight:700;border-radius:6px;padding:2px 8px;}
-.mdp-dsel{padding:4px 8px;font-size:12.5px;min-width:78px;}.mdp-dsel.mdp-chg{border-color:#0a66e8;background:#f2f7ff;font-weight:700;}
+.mdp-dsel{padding:4px 8px;font-size:12.5px;min-width:84px;}.mdp-curp{display:inline-block;background:#fdeec8;color:#92400e;font-weight:700;border-radius:6px;padding:2px 9px;}.mdp-kept{display:inline-block;margin-left:6px;font-size:10.5px;font-weight:700;color:#6b7280;background:#eef0f4;border-radius:6px;padding:2px 7px;vertical-align:middle;}.mdp-yglab{font-size:10.5px;font-weight:700;color:#6b7280;margin:0 4px 0 6px;}.mdp-ygh small{text-transform:none;font-weight:500;letter-spacing:0;display:block;color:#9ca3af;}.mdp-gnone{opacity:.75;}.mdp-dsel.mdp-chg{border-color:#0a66e8;background:#f2f7ff;font-weight:700;}
 .mdp-rvt tr.mdp-chgrow>td:first-child{box-shadow:inset 3px 0 0 #93c5fd;}
 .mdp-rvt td.mdp-nm{min-width:0;}
 /* v3.1.5: fixed layout with explicit column widths (the th widths in mdpReviewHtml). The auto layout let the full-width
@@ -2383,8 +2382,8 @@ th{position:relative;}
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.2.0"></script>
-<script src="markdown-plans.js?v=3.2.0"></script>
+<script src="markdown-engine.js?v=3.2.1"></script>
+<script src="markdown-plans.js?v=3.2.1"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2418,7 +2417,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.2.0';
+const APP_VERSION='v3.2.1';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -6076,6 +6075,7 @@ function mdpOoCells(oo,cat,hasEnd){
 let mdpRev={q:'',category:'',collection:'',month:'',sugg:'',view:'all',core:'all',sort:'soh',dir:'',flat:true,compact:true};   // flat = one row per product/colour
 const mdpSel=new Set(),mdpOpenStyles=new Set();
 let mdpCtx=null,mdpIds=[],_mdpQT=null,mdpLastSel=null,mdpNoteMsg=null,mdpStep=2,mdpHelpOpen=false;
+const mdpPanels={sug:true,app:false};   // Suggested open, Approved collapsed by default
 // Text columns sort A→Z first, numeric/date columns biggest (or newest) first; clicking the same header again reverses it.
 const MDP_TEXT_SORTS=['category','name','parent','why'];
 const MDP_SORT_OPTS=[['soh','Sort: SOH high to low'],['name','Sort: name A–Z'],['onorder','Sort: on order'],['d30','Sort: 30d sales'],['cover','Sort: weeks cover'],['month','Sort: month del'],['discount','Sort: discount'],['score','Sort: clearance score']];
@@ -6126,6 +6126,7 @@ function mdpApply(ids,value){
   if(!value||!mdpCtx)return;
   const pl=mdpPlan(),byId=Object.fromEntries(mdpCtx.plan.items.map(i=>[i.row.p.id,i]));
   const entries={};let skipped=0;
+  if(value.startsWith('pct:')&&!mdpPriceUpOk(ids.filter(id=>byId[id]&&!byId[id].row.p.isGWP),+value.slice(4)))return;   // one prompt for the whole selection
   for(const id of ids){
     const it=byId[id];if(!it)continue;
     if((it.row.p.isGWP||it.blocked)&&value!=='auto'){skipped++;continue;}
@@ -6158,7 +6159,15 @@ function mdpProdDiscount(i,v){
   }
   mdpSetPct(ids,n);
 }
+// A decision shallower than a product's EXISTING discount puts its price up — only on your explicit say-so.
+function mdpPriceUpOk(ids,n){
+  if(!mdpCtx)return true;
+  const by=Object.fromEntries(mdpCtx.plan.items.map(x=>[x.row.p.id,x])),ups=ids.filter(id=>by[id]&&(by[id].currentPct||0)>n+0.5);
+  if(!ups.length)return true;
+  return confirm(`${n}% is shallower than the discount ${ups.length===1?'this product already has':ups.length+' of these products already have'} in Shopify, so the price${ups.length===1?'':'s'} would go UP.\n\nRaise ${ups.length===1?'it':'them'} anyway?`);
+}
 function mdpSetPct(ids,n){
+  if(!mdpPriceUpOk(ids,n))return;
   const byId=Object.fromEntries(mdpCtx.plan.items.map(x=>[x.row.p.id,x])),entries={};
   ids.forEach(id=>{const x=byId[id];if(!x||x.row.p.isGWP)return;entries[id]=x.systemPct===n&&x.final.action!=='S'?null:{pct:n,kind:'discount'};});
   mdpCommit(MarkdownPlans.setOverrides(mdpState,mdpPlan().id,entries));
@@ -6202,12 +6211,6 @@ function mdpRefreshSuggestions(){
   mdpNoteMsg='Suggestions refreshed from the latest stock and sales. Approved categories, your category levels and your product decisions were kept.';
   if(next===mdpState)renderMarkdownPlanner();else mdpCommit(next,true);
 }
-// Your own Group A / B level for a category. Picking the planner's own level is just "no change".
-function mdpGroupPick(cat,tier,val){
-  const r=mdpCtx&&mdpCtx.rows.find(x=>x.category===cat);if(!r)return;
-  const auto=tier==='A'?r.autoA:r.autoB;
-  mdpGroupLevel(cat,tier,+val===auto?null:val);
-}
 function mdpGoStep(n){
   mdpStep=n;const key={1:'A',2:'B',3:'C',4:'D',5:'E',6:'F',7:'G'}[n];
   mdpCollapsed.delete(key);renderMarkdownPlanner();
@@ -6216,27 +6219,29 @@ function mdpGoStep(n){
 function mdpToggleHelp(){mdpHelpOpen=!mdpHelpOpen;renderMarkdownPlanner();}
 
 // ── Product table (used under each category in B, and in section C) ──
+// Compact (the default) shows the working columns; "All columns" adds the secondary metrics (x = extra). The data model has all of them either way.
 const MDP_COLS=[
   {k:'c1',w:28},
-  {k:'name',label:'Product / colour',w:186,sort:'name',cls:'l mdp-nmh'},
-  {k:'parent',label:'Parent style',w:84,sort:'parent',x:1},
-  {k:'month',label:'Month del',w:62,sort:'month',cls:'l'},
-  {k:'core',label:'Core',w:84,cls:'l'},
-  {k:'soh',label:'SOH',w:52,sort:'soh'},
-  {k:'onorder',label:'On order',w:58,sort:'onorder'},
-  {k:'d7',label:'7d',w:40,sort:'d7',x:1},
-  {k:'d30',label:'30d sales',w:54,sort:'d30'},
-  {k:'d60',label:'60d',w:40,sort:'d60',x:1},{k:'d90',label:'90d',w:40,sort:'d90',x:1},
-  {k:'cover',label:'Weeks cover',w:60,sort:'cover'},
-  {k:'sellthru',label:'Sell-thru*',w:64,sort:'sellthru',x:1,title:'Units sold ÷ (units sold + stock now) — a proxy; real sell-through needs stock history'},
-  {k:'sizes',label:'Sizes out',w:56,sort:'sizesout',x:1},
-  {k:'rrp',label:'RRP',w:58,sort:'rrp'},
-  {k:'price',label:'Current price',w:78,sort:'price',x:1},
-  {k:'sugg',label:'Suggested',w:76,sort:'suggested',x:1},
-  {k:'disc',label:'Discount',w:96,sort:'discount',cls:'l'},
-  {k:'new',label:'Sale price',w:72,sort:'newprice'},
-  {k:'why',label:'Why',w:150,sort:'why',cls:'l',x:1},
-  {k:'more',label:'',w:42},
+  {k:'name',label:'Product / colour',w:270,sort:'name',cls:'l mdp-nmh'},
+  {k:'parent',label:'Parent style',w:86,sort:'parent',x:1},
+  {k:'month',label:'Month del',w:76,sort:'month',cls:'l'},
+  {k:'core',label:'Core',w:86,cls:'l',x:1},
+  {k:'soh',label:'SOH',w:62,sort:'soh'},
+  {k:'onorder',label:'On order',w:72,sort:'onorder'},
+  {k:'d7',label:'7d',w:44,sort:'d7',x:1},
+  {k:'d30',label:'30d sales',w:70,sort:'d30'},
+  {k:'d60',label:'60d',w:44,sort:'d60',x:1},{k:'d90',label:'90d',w:44,sort:'d90',x:1},
+  {k:'cover',label:'Weeks cover',w:78,sort:'cover'},
+  {k:'sellthru',label:'Sell-thru*',w:68,sort:'sellthru',x:1,title:'Units sold ÷ (units sold + stock now) — a proxy; real sell-through needs stock history'},
+  {k:'sizes',label:'Sizes out',w:60,sort:'sizesout',x:1},
+  {k:'rrp',label:'RRP',w:68,sort:'rrp',x:1},
+  {k:'price',label:'Current price',w:84,sort:'price',x:1},
+  {k:'cur',label:'Current disc.',w:88,sort:'current',title:'The discount the product already has in Shopify, measured against RRP'},
+  {k:'disc',label:'Proposed disc.',w:156,sort:'discount',cls:'l',title:'The discount proposed for this sale (never below what it already has, unless you decide otherwise)'},
+  {k:'new',label:'Sale price',w:84,sort:'newprice',x:1},
+  {k:'sugg',label:'Suggested',w:78,sort:'suggested',x:1},
+  {k:'why',label:'Why',w:190,sort:'why',cls:'l',x:1},
+  {k:'more',label:'',w:46},
 ];
 function mdpProdTable(groups,o){
   o=o||{};const{plan,oo,hasEnd}=mdpCtx,PS=mdpPlan().settings,lv=PS.allowedDiscounts.filter(d=>d<=PS.maxDiscount),ro=!!o.readonly,cat=o.cat||'';
@@ -6253,21 +6258,23 @@ function mdpProdTable(groups,o){
       case'name':return`<td class="l mdp-nm" title="${mdpEsc(p.name+(p.colour?' — '+p.colour:''))}">${child?'<span class="mdp-ind"></span>':''}${mdpEsc(p.name)}${p.colour?' — '+mdpEsc(p.colour):''}</td>`;
       case'parent':return`<td class="mdp-dim mdp-xc">${mdpEsc(p.parentStyle||p.style)}</td>`;
       case'month':return`<td class="l mdp-dim mdp-xmd">${mdpEsc(p.deliveryMonth||'—')}</td>`;
-      case'core':return`<td class="l">${p.isCore?'<span class="mdp-corep">CORE</span>':'<span class="mdp-ncore">NON-CORE</span>'}</td>`;
+      case'core':return`<td class="l mdp-xc">${p.isCore?'<span class="mdp-corep">CORE</span>':'<span class="mdp-ncore">NON-CORE</span>'}</td>`;
       case'soh':return`<td>${m.sohNow.toLocaleString()}${m.restock?` <span class="mdp-newtag" title="${m.restock.toLocaleString()} units arriving by the sale (sold out now)">+${m.restock.toLocaleString()}</span>`:''}</td>`;
       case'onorder':{const q=oo&&oo.by[p.style];return`<td>${q?`<span title="${hasEnd&&q.byEnd?q.byEnd.toLocaleString()+' due by the sale end':'Open Apparel Magic order'}">${q.units.toLocaleString()}</span>`:'<span class="mdp-dim">—</span>'}</td>`;}
       case'd7':return`<td class="mdp-xc">${p.sold.d7}</td>`;case'd30':return`<td>${p.sold.d30}</td>`;case'd60':return`<td class="mdp-xc">${p.sold.d60}</td>`;case'd90':return`<td class="mdp-xc">${p.sold.d90}</td>`;
       case'cover':return`<td>${cover(m)}</td>`;
       case'sellthru':return`<td class="mdp-xc">${sellT(m)}</td>`;
       case'sizes':return`<td class="mdp-xc">${p.soldOutSizes||0}${p.sizeCount?`<span class="mdp-dim">/${p.sizeCount}</span>`:''}</td>`;
-      case'rrp':return`<td class="mdp-dim">${p.rrp>0?'$'+p.rrp.toFixed(2):'—'}</td>`;
-      case'price':return`<td class="mdp-xc">${p.price>0?'$'+p.price.toFixed(2):'—'}${p.currentDiscountPct>=1?` <span class="mdp-now" title="Already ${Math.round(p.currentDiscountPct)}% off RRP">−${Math.round(p.currentDiscountPct)}%</span>`:''}</td>`;
+      case'rrp':return`<td class="mdp-dim mdp-xc">${p.rrp>0?'$'+p.rrp.toFixed(2):'—'}</td>`;
+      case'price':return`<td class="mdp-xc">${p.price>0?'$'+p.price.toFixed(2):'—'}</td>`;
+      case'cur':{const c=p.currentDiscountPct||0;return`<td>${c>=1?`<span class="mdp-curp" title="Already ${Math.round(c)}% off RRP in Shopify">${Math.round(c)}%</span>`:'<span class="mdp-dim">0%</span>'}</td>`;}
       case'sugg':return`<td class="mdp-xc">${it.systemPct==null?'<span class="mdp-dim">—</span>':it.systemPct+'% <span class="mdp-dim">'+it.action+'</span>'}</td>`;
       case'disc':{
         if(it.blocked==='GWP'||p.isGWP)return'<td class="l mdp-ap"><span class="mdp-pill x">GWP</span></td>';
         if(f.action==='S'&&!it.override)return`<td class="l mdp-ap"><span class="mdp-pill n" title="Set in Special buys (section E)">Special buy</span> <b>${f.pct}%</b></td>`;
-        return`<td class="l mdp-ap">${dsel(f.pct,f.pct!=null,`mdpProdDiscount(${i},this.value)`,it.override?' mdp-chg':'')}</td>`;}
-      case'new':return`<td>${f.pct==null||it.price.newPrice==null?'—':'<b>$'+it.price.newPrice.toFixed(2)+'</b>'}${it.noPriceChange?' <span class="mdp-nochg">no change</span>':''}</td>`;
+        const tags=(it.keptExisting?`<span class="mdp-kept" title="Already ${Math.round(it.currentPct)}% off — the planner never reduces an existing discount">kept</span>`:'')+(it.overCap?`<span class="mdp-b-ov" title="Its existing ${Math.round(it.currentPct)}% is deeper than this sale's highest single discount (${PS.maxDiscount}%) — review it; the price isn't raised automatically">over cap</span>`:'')+(it.priceUp?`<span class="mdp-b-ov" title="Your decision puts the price up from ${Math.round(it.currentPct)}% off">price ↑</span>`:'');
+        return`<td class="l mdp-ap">${dsel(f.pct,f.pct!=null,`mdpProdDiscount(${i},this.value)`,it.override?' mdp-chg':'')}${tags}</td>`;}
+      case'new':return`<td class="mdp-xc">${f.pct==null||it.price.newPrice==null?'—':'<b>$'+it.price.newPrice.toFixed(2)+'</b>'}${it.noPriceChange?' <span class="mdp-nochg">no change</span>':''}</td>`;
       case'why':return`<td class="l mdp-why mdp-xc" title="${mdpEsc(f.reason)}">${mdpEsc(f.reason)}</td>`;
       case'more':return ro?'<td></td>':`<td class="mdp-ap"><select class="mdp-more" title="More actions" onchange="mdpRowAction(${i},this.value);this.value=''">${opts}</select></td>`;
     }
@@ -6294,10 +6301,10 @@ function mdpProdTable(groups,o){
       c1:ro?'<td class="mdp-c1"></td>':`<td class="mdp-c1"><input type="checkbox" ${allSel?'checked':''} onclick="mdpSelGroup('${keyAttr}',this.checked,${catAttr})"></td>`,
       name:`<td class="l mdp-nm" onclick="mdpToggleStyle('${keyAttr}')" style="cursor:pointer;"><span class="mdp-car">${open?'▾':'▸'}</span> <b>${mdpEsc(p0.name)}</b> <span class="mdp-dim">${its.length} colours</span></td>`,
       parent:`<td class="mdp-dim mdp-xc">${mdpEsc(g.parentStyle)}</td>`,month:`<td class="l mdp-dim mdp-xmd">${mdpEsc([...new Set(its.map(i=>i.row.p.deliveryMonth).filter(Boolean))].join(', ')||'—')}</td>`,
-      core:`<td class="l">${core?'<span class="mdp-corep">CORE</span>':'<span class="mdp-ncore">NON-CORE</span>'}</td>`,soh:`<td>${soh.toLocaleString()}</td>`,onorder:`<td>${ons?ons.toLocaleString():'<span class="mdp-dim">—</span>'}</td>`,
+      core:`<td class="l mdp-xc">${core?'<span class="mdp-corep">CORE</span>':'<span class="mdp-ncore">NON-CORE</span>'}</td>`,soh:`<td>${soh.toLocaleString()}</td>`,onorder:`<td>${ons?ons.toLocaleString():'<span class="mdp-dim">—</span>'}</td>`,
       d7:`<td class="mdp-xc">${sum(i=>i.row.p.sold.d7)}</td>`,d30:`<td>${sum(i=>i.row.p.sold.d30)}</td>`,d60:`<td class="mdp-xc">${sum(i=>i.row.p.sold.d60)}</td>`,d90:`<td class="mdp-xc">${sum(i=>i.row.p.sold.d90)}</td>`,
-      cover:`<td>${rate>0?round1(soh/rate):'<span class="mdp-dim">no sales</span>'}</td>`,sellthru:'<td class="mdp-xc">—</td>',sizes:'<td class="mdp-xc">—</td>',rrp:'<td>—</td>',price:'<td class="mdp-xc">—</td>',sugg:'<td class="mdp-xc">—</td>',
-      disc:`<td class="l mdp-ap">${pcts.length===1?'<b>'+pcts[0]+'</b>':'<span class="mdp-dim">mixed</span>'} ${sel}</td>`,new:'<td>—</td>',why:`<td class="l mdp-why mdp-xc">${core?'Core style':'Parent style'}${nOv?` · ${nOv} changed`:''}</td>`,more:'<td></td>'};
+      cover:`<td>${rate>0?round1(soh/rate):'<span class="mdp-dim">no sales</span>'}</td>`,sellthru:'<td class="mdp-xc">—</td>',sizes:'<td class="mdp-xc">—</td>',rrp:'<td class="mdp-xc">—</td>',price:'<td class="mdp-xc">—</td>',cur:`<td>${(()=>{const v=[...new Set(its.map(i=>Math.round(i.row.p.currentDiscountPct||0)))];return v.length===1?(v[0]>=1?`<span class="mdp-curp">${v[0]}%</span>`:'<span class="mdp-dim">0%</span>'):'<span class="mdp-dim">mixed</span>';})()}</td>`,sugg:'<td class="mdp-xc">—</td>',
+      disc:`<td class="l mdp-ap">${pcts.length===1?'<b>'+pcts[0]+'</b>':'<span class="mdp-dim">mixed</span>'} ${sel}</td>`,new:'<td class="mdp-xc">—</td>',why:`<td class="l mdp-why mdp-xc">${core?'Core style':'Parent style'}${nOv?` · ${nOv} changed`:''}</td>`,more:'<td></td>'};
     return`<tr class="mdp-rv mdp-par${nOv===its.length?' mdp-chgrow':''}">${MDP_COLS.map(c=>tds[c.k]).join('')}</tr>`+(open?its.map(i=>rowOf(i,true)).join(''):'');
   }).join('');
   const total=MDP_COLS.filter(c=>mdpRev.compact?!c.x:true).reduce((a,c)=>a+c.w,0);
@@ -6308,24 +6315,47 @@ function mdpProdTable(groups,o){
 function mdpGroupPills(a,b){return`${a!=null?`<span class="mdp-gp a">${a}%</span>`:''}${b!=null?`<span class="mdp-gp b">${b}%</span>`:''}${a==null&&b==null?'<span class="mdp-dim">—</span>':''}`;}
 function mdpCatPanel(r,ro){
   const{plan,pl}=mdpCtx,cat=r.category;
-  const groups=mdpVisible(cat);
-  mdpIds=mdpIds||[];
-  const filt=mdpFiltersActive(),shown=groups.count;
+  const groups=mdpVisible(cat),filt=mdpFiltersActive(),shown=groups.count;
+  const bOn=!r.noB&&(r.countB>0||r.manualB!=null)&&r.levelB>0;
   const gcard=(cls,pct,cnt,units)=>pct==null?'':`<div class="mdp-gcard"><span class="mdp-gdot ${cls}"></span><div><b>${pct}% Off</b><span>${cnt.toLocaleString()} product${cnt===1?'':'s'} · ${units.toLocaleString()} units</span></div></div>`;
   const other=[r.countC?`${r.countC} clearance`:'',r.countS?`${r.countS} special buy${r.countS===1?'':'s'}`:'',r.countX?`${r.countX} not in the sale`:'',r.countManual?`${r.countManual} set individually`:''].filter(Boolean).join(' · ');
-  const lvls=pl.settings.allowedDiscounts.filter(d=>d<=pl.settings.maxDiscount);
-  const bulk=ro?'':`<div class="mdp-bulkbar"><label class="mdp-chk"><input type="checkbox" ${mdpSel.size?'checked':''} onclick="mdpClearSel()" ${mdpSel.size?'':'disabled'}> <b>${mdpSel.size}</b> selected</label>
-      <select class="mdp-sel mdp-sm" onchange="mdpBulkAction(this.value);this.value=''" ${mdpSel.size?'':'disabled'}>${mdpActionOptions('Bulk discount')}</select>
-      ${r.groupA!=null?`<button class="mdp-btn mdp-btn-sm mdp-btn-ghost" ${mdpSel.size?'':'disabled'} onclick="mdpBulkAction('grp:A')">Move to ${r.groupA}%</button>`:''}${r.groupB!=null?`<button class="mdp-btn mdp-btn-sm mdp-btn-ghost" ${mdpSel.size?'':'disabled'} onclick="mdpBulkAction('grp:B')">Move to ${r.groupB}%</button>`:''}
-      <button class="mdp-btn mdp-btn-sm mdp-btn-ghost" ${mdpSel.size?'':'disabled'} onclick="mdpBulkCore()">Apply to all core colours</button>
-      ${mdpSel.size?`<button class="mdp-act" onclick="mdpClearSel()">Clear</button>`:''}</div>`;
-  return`<tr class="mdp-xrow"><td colspan="${ro?8:10}"><div class="mdp-xpanel">
-    <div class="mdp-xhead"><div><div class="mdp-xt">${mdpEsc(cat)}</div><div class="mdp-dim">${r.products.toLocaleString()} product/colours · ${r.soh.toLocaleString()} SOH · ${r.onOrder.toLocaleString()} on order · ${r.weeksCover==null?'no':r.weeksCover} weeks cover</div></div>
-      <div class="mdp-gcards">${gcard('a',r.groupA,r.countA,r.unitsA)}${gcard('b',r.groupB,r.countB,r.unitsB)}</div></div>
-    ${other||filt?`<div class="mdp-xnote">${other}${other&&filt?' · ':''}${filt?`showing ${shown.toLocaleString()} of ${r.products.toLocaleString()} (filters on — approving a category always covers all ${r.products.toLocaleString()})`:''}</div>`:''}
+  const n=mdpSel.size,dis=n?'':' disabled';
+  const bulk=ro?'':`<div class="mdp-bulkbar"><label class="mdp-chk"><input type="checkbox" ${n?'checked':''} onclick="mdpClearSel()"${dis}> <b>${n}</b> selected</label>
+      <select class="mdp-sel mdp-sm" onchange="mdpBulkAction(this.value);this.value=''"${dis}>${mdpActionOptions('Bulk discount')}</select>
+      <button class="mdp-btn mdp-btn-sm mdp-btn-ghost"${dis} onclick="mdpBulkAction('grp:A')" title="Move the selected products into Group A (they follow its discount)">Set to ${r.levelA}%</button>${bOn?`<button class="mdp-btn mdp-btn-sm mdp-btn-ghost"${dis} onclick="mdpBulkAction('grp:B')" title="Move the selected products into Group B (they follow its discount)">Set to ${r.levelB}%</button>`:''}
+      <button class="mdp-btn mdp-btn-sm mdp-btn-ghost"${dis} onclick="mdpBulkCore()">Apply to all core colours</button>
+      <button class="mdp-btn mdp-btn-sm mdp-btn-ghost"${dis} onclick="mdpBulkAction('excl:Commercial decision')">Exclude selected</button>
+      <button class="mdp-btn mdp-btn-sm mdp-btn-ghost"${dis} onclick="mdpBulkAction('auto')">Reset to recommendations</button></div>`;
+  return`<tr class="mdp-xrow"><td colspan="${ro?9:10}"><div class="mdp-xpanel">
+    <div class="mdp-xhead"><div><div class="mdp-xt">${mdpEsc(cat)}</div><div class="mdp-dim">${r.products.toLocaleString()} product/colours · ${r.soh.toLocaleString()} SOH · ${r.onOrder.toLocaleString()} on order · ${r.weeksCover==null?'no':r.weeksCover} weeks cover${other?' · '+other:''}</div></div>
+      <div class="mdp-gcards">${gcard('a',r.levelA,r.countA,r.unitsA)}${bOn?gcard('b',r.levelB,r.countB,r.unitsB):`<div class="mdp-gcard mdp-gnone"><span class="mdp-gdot b"></span><div><b>Group B: none</b><span>one discount group</span></div></div>`}</div></div>
+    ${filt?`<div class="mdp-xnote">Showing ${shown.toLocaleString()} of ${r.products.toLocaleString()} (filters on — approving a category always covers all ${r.products.toLocaleString()})</div>`:''}
     ${groups.groups.length?mdpProdTable(groups.groups,{cat,readonly:ro}):'<div class="mdp-sub" style="padding:14px 4px;">No products in this category match the filters.</div>'}
     ${bulk}</div></td></tr>`;
 }
+// Group A / Group B level for a category. Group B can always be set, including "None".
+function mdpGroupPickA(cat,val){
+  const r=mdpCtx&&mdpCtx.rows.find(x=>x.category===cat);if(!r)return;
+  mdpGroupLevel(cat,'A',+val===r.autoA?null:val);
+}
+function mdpGroupPickB(cat,val){
+  if(!mdpCtx)return;
+  const{pl,rows}=mdpCtx,r=rows.find(x=>x.category===cat);if(!r)return;
+  const active=!r.noB&&(r.countB>0||r.manualB!=null);
+  if(val==='none'){
+    if(!active){renderMarkdownPlanner();return;}
+    mdpCommit(MarkdownPlans.setGroupLevel(mdpState,pl.id,cat,'B',0));return;
+  }
+  const n=+val,backToAuto=r.autoB!=null&&n===r.autoB&&r.recB>0;
+  let next=MarkdownPlans.setGroupLevel(mdpState,pl.id,cat,'B',backToAuto?null:n);
+  const saved=pl.catApprovals&&pl.catApprovals[cat];
+  // Turning Group B on: offer to redistribute with the planner's own recommendation (only matters when the category's products have a saved allocation).
+  if(!active&&r.recB>0&&saved&&!saved.approved&&confirm(`Group B is now on at ${n}%.\n\nThe planner recommends ${r.recB} product${r.recB===1?'':'s'} for it. Move them into Group B using the recommendation?\n\nOK = redistribute · Cancel = leave products where they are`))
+    next=MarkdownPlans.releaseAllocation(next,pl.id,cat);
+  if(!active&&!r.recB)mdpNoteMsg=`${cat}: Group B is on at ${n}%, but the planner doesn't recommend any products for it. Move products into it with the bulk action (select products → "Set to ${n}%").`;
+  mdpCommit(next,!active&&!r.recB);
+}
+function mdpTogglePanel(k){mdpPanels[k]=!mdpPanels[k];mdpRenderReview(true);}
 function mdpCategoryBody(){
   const{rows,pl}=mdpCtx,lvls=pl.settings.allowedDiscounts.filter(d=>d<=pl.settings.maxDiscount);
   mdpIds=[];
@@ -6335,35 +6365,36 @@ function mdpCategoryBody(){
   const sug=list.filter(r=>!r.approved).sort((a,b)=>b.soh-a.soh||a.category.localeCompare(b.category)),app=list.filter(r=>r.approved).sort((a,b)=>b.soh-a.soh||a.category.localeCompare(b.category));
   const cat=r=>mdpEsc(JSON.stringify(r.category));
   const num=v=>v.toLocaleString();
-  const gsel=(r,t)=>{
-    const v=t==='A'?r.groupA:r.groupB,man=t==='A'?r.manualA:r.manualB;
-    if(v==null)return'<span class="mdp-dim">—</span>';
-    return`<select class="mdp-sel mdp-gsel${man!=null?' mdp-gset':''}" onclick="event.stopPropagation()" onchange="mdpGroupPick(${cat(r)},'${t}',this.value)" title="${man!=null?'Set by you':'The planner\'s level'} — Group ${t}">${lvls.map(d=>`<option value="${d}" ${d===v?'selected':''}>${d}%</option>`).join('')}${lvls.includes(v)?'':`<option value="${v}" selected>${v}%</option>`}</select>`;
-  };
-  const split=r=>{const a=r.countA,b=r.countB,t=a+b;return`<span class="mdp-splt">${r.groupB==null?num(a):num(a)+' / '+num(b)}</span><span class="mdp-sbar" title="Standard vs deeper group"><i class="a" style="width:${t?Math.round(a/t*100):100}%"></i><i class="b" style="width:${t?Math.round(b/t*100):0}%"></i></span>`;};
+  const opts=(v)=>lvls.map(d=>`<option value="${d}" ${d===v?'selected':''}>${d}%</option>`).join('')+(v!=null&&v>0&&!lvls.includes(v)?`<option value="${v}" selected>${v}%</option>`:'');
+  const selA=r=>`<select class="mdp-sel mdp-gsel${r.manualA!=null?' mdp-gset':''}" onclick="event.stopPropagation()" onchange="mdpGroupPickA(${cat(r)},this.value)" title="Group A — standard discount${r.manualA!=null?' (set by you)':''}">${opts(r.levelA)}</select>`;
+  const bActive=r=>!r.noB&&(r.countB>0||r.manualB!=null);
+  const selB=r=>`<select class="mdp-sel mdp-gsel${r.manualB!=null||r.noB?' mdp-gset':''}" onclick="event.stopPropagation()" onchange="mdpGroupPickB(${cat(r)},this.value)" title="Group B — clearance discount (None = one group only)${r.manualB!=null?' — set by you':''}"><option value="none" ${bActive(r)?'':'selected'}>None</option>${opts(bActive(r)?r.levelB:null)}</select>`;
+  const split=r=>{const a=r.countA,b=r.countB,t=a+b;return`<span class="mdp-splt">${num(a)} / ${num(b)}</span><span class="mdp-sbar" title="Group A vs Group B (actual allocation)"><i class="a" style="width:${t?Math.round(a/t*100):100}%"></i><i class="b" style="width:${t?Math.round(b/t*100):0}%"></i></span>`;};
   const matchTxt=r=>filt?` <span class="mdp-dim" title="Products matching the filters">(${mdpVisible(r.category).count} match)</span>`:'';
   const sugRows=sug.map(r=>{
     const open=mdpOpenCats.has(r.category);
     return`<tr class="mdp-crow${open?' open':''}" onclick="mdpToggleCat(${cat(r)})"><td class="l"><span class="mdp-car">${open?'▾':'▸'}</span> <b>${mdpEsc(r.category)}</b>${r.reopened?' <span class="mdp-newtag" title="Reopened — your decisions are kept">reopened</span>':''}</td>
       <td>${num(r.products)}${matchTxt(r)}</td><td>${num(r.soh)}</td><td>${num(r.onOrder)}</td><td>${num(r.sold30)}</td><td>${r.weeksCover==null?'—':r.weeksCover}</td>
-      <td class="mdp-sug">${mdpGroupPills(r.autoA!=null&&r.groupA!=null?r.autoA:null,r.autoB!=null&&r.groupB!=null?r.autoB:null)}</td>
-      <td class="mdp-yg">${gsel(r,'A')}${gsel(r,'B')}${r.groupWarn?'<div class="mdp-b-ov" title="Group B should be deeper than Group A">B ≤ A</div>':''}</td>
+      <td class="mdp-sug">${mdpGroupPills(r.autoA!=null?r.autoA:r.levelA,r.autoB)}</td>
+      <td class="mdp-yg"><span class="mdp-yglab">A</span>${selA(r)}<span class="mdp-yglab">B</span>${selB(r)}${r.groupWarn?'<span class="mdp-b-ov" title="Group B should be deeper than Group A">B ≤ A</span>':''}</td>
       <td class="mdp-sp">${split(r)}</td><td><button class="mdp-btn mdp-btn-sm" onclick="event.stopPropagation();mdpApproveCategory(${cat(r)})">Approve</button></td></tr>`+(open?mdpCatPanel(r,false):'');
   }).join('');
   const appRows=app.map(r=>{
-    const open=mdpOpenCats.has(r.category);
+    const open=mdpOpenCats.has(r.category),bOn=!r.noB&&r.levelB>0&&(r.countB>0||r.manualB!=null);
     return`<tr class="mdp-crow${open?' open':''}" onclick="mdpToggleCat(${cat(r)})"><td class="l"><span class="mdp-car">${open?'▾':'▸'}</span> <b>${mdpEsc(r.category)}</b></td>
       <td>${num(r.products)}${matchTxt(r)}</td><td>${num(r.soh)}</td><td>${num(r.onOrder)}</td><td>${num(r.sold30)}</td><td>${r.weeksCover==null?'—':r.weeksCover}</td>
-      <td>${mdpGroupPills(r.groupA,r.groupB)}</td><td><button class="mdp-btn mdp-btn-sm mdp-btn-ghost" onclick="event.stopPropagation();mdpReopenCategory(${cat(r)})">Reopen</button></td></tr>`+(open?mdpCatPanel(r,true):'');
+      <td class="mdp-sug">${mdpGroupPills(r.levelA,bOn?r.levelB:null)}</td><td class="mdp-sp">${split(r)}</td>
+      <td><button class="mdp-btn mdp-btn-sm mdp-btn-ghost" onclick="event.stopPropagation();mdpReopenCategory(${cat(r)})">Reopen</button></td></tr>`+(open?mdpCatPanel(r,true):'');
   }).join('');
-  const sugTbl=sug.length?`<div class="mdp-cscroll"><table class="mdp-ct"><thead><tr><th class="l">Category</th><th>Products</th><th>SOH <small>(units)</small></th><th>On order</th><th>30d sales</th><th>Weeks cover</th><th class="mdp-sugh">Suggested</th><th>Your groups</th><th>Split <small>(products)</small></th><th>Actions</th></tr></thead><tbody>${sugRows}</tbody></table></div>`
+  const sugTbl=sug.length?`<div class="mdp-cscroll"><table class="mdp-ct"><thead><tr><th class="l">Category</th><th>Products</th><th>SOH <small>(units)</small></th><th>On order</th><th>30d sales</th><th>Weeks cover</th><th class="mdp-sugh">Suggested</th><th class="mdp-ygh">Your groups <small>A = standard · B = clearance</small></th><th>Split <small>(products)</small></th><th>Actions</th></tr></thead><tbody>${sugRows}</tbody></table></div>`
     :`<div class="mdp-empty">${rows.length&&!list.length?'No categories match the filters.':rows.length?'<b>Every category is approved.</b><br>Check the totals in Financials, then move on to Export.':'Nothing to plan — no products in stock.'}</div>`;
-  const appTbl=app.length?`<div class="mdp-cscroll"><table class="mdp-ct"><thead><tr><th class="l">Category</th><th>Products</th><th>SOH <small>(units)</small></th><th>On order</th><th>30d sales</th><th>Weeks cover</th><th>Discount groups</th><th>Actions</th></tr></thead><tbody>${appRows}</tbody></table></div>`
-    :`<div class="mdp-empty">No categories approved yet.<br>Approve a category on the left and it moves here.</div>`;
+  const appTbl=app.length?`<div class="mdp-cscroll"><table class="mdp-ct"><thead><tr><th class="l">Category</th><th>Products</th><th>SOH <small>(units)</small></th><th>On order</th><th>30d sales</th><th>Weeks cover</th><th>Final groups</th><th>Split <small>(products)</small></th><th>Actions</th></tr></thead><tbody>${appRows}</tbody></table></div>`
+    :`<div class="mdp-empty">No categories approved yet.<br>Approve a category above and it moves here.</div>`;
   const nSug=rows.filter(r=>!r.approved).length,nApp=rows.filter(r=>r.approved).length;
+  const chev=k=>`<button class="mdp-chv2" onclick="event.stopPropagation();mdpTogglePanel('${k}')" title="${mdpPanels[k]?'Collapse':'Expand'}">${mdpPanels[k]?'⌃':'⌄'}</button>`;
   return`<div class="mdp-cs">
-    <div class="mdp-panel"><div class="mdp-phead"><span class="mdp-pico2 amb">▦</span><div><div class="mdp-ptitle">Suggested categories <span class="mdp-pcount b">${nSug} remaining</span></div><div class="mdp-dim">Review each category, adjust discounts if needed, then approve it — it moves to the right.</div></div></div>${sugTbl}</div>
-    <div class="mdp-panel"><div class="mdp-phead"><span class="mdp-pico2 grn">✓</span><div><div class="mdp-ptitle">Approved categories <span class="mdp-pcount g">${nApp} approved</span></div><div class="mdp-dim">Locked for export. Reopen a category to edit it — your decisions are kept.</div></div></div>${appTbl}</div></div>`;
+    <div class="mdp-panel"><div class="mdp-phead" onclick="mdpTogglePanel('sug')" style="cursor:pointer"><span class="mdp-pico2 amb">▦</span><div style="flex:1"><div class="mdp-ptitle">Suggested categories <span class="mdp-pcount b">${nSug} remaining</span></div><div class="mdp-dim">Review each category, adjust discounts if needed, then approve — it moves to the Approved section below.</div></div>${chev('sug')}</div>${mdpPanels.sug?sugTbl:''}</div>
+    <div class="mdp-panel"><div class="mdp-phead" onclick="mdpTogglePanel('app')" style="cursor:pointer"><span class="mdp-pico2 grn">✓</span><div style="flex:1"><div class="mdp-ptitle">Approved categories <span class="mdp-pcount g">${nApp} approved</span></div><div class="mdp-dim">Locked for export, but can be reopened if needed.</div></div>${chev('app')}</div>${mdpPanels.app?appTbl:''}</div></div>`;
 }
 // Section C: every product in one flat table (the same data and the same filters as the category tables above).
 function mdpFlatBody(){
@@ -6395,6 +6426,7 @@ function mdpCategoryStrategy(plan,oo,hasEnd,pl,rows){
   const sortOpts=MDP_SORT_OPTS.concat(MDP_SORT_OPTS.some(o=>o[0]===mdpRev.sort)?[]:[['__col__','Sort: column header']]);
   const views=[['all','All products'],['overridden','Manually changed'],['attention','Needs attention'],['onorder','On order'],['restock','Restocking (sold out, stock arriving)'],['special','Special buys'],['sale','In the sale'],['notsale','Not in the sale'],['groupA','Lighter group (A)'],['groupB','Deeper group (B)'],['clearance','Clearance']];
   const card=(ico,cls,label,n,of)=>`<div class="mdp-pcard"><span class="mdp-pico ${cls}">${ico}</span><div><div class="mdp-plabel">${label}</div><div class="mdp-pnum"><b>${n.toLocaleString()}</b><span>of ${of.toLocaleString()}</span></div></div></div>`;
+  const vchip=(v,l,n,c)=>`<button class="mdp-fchip ${c}${mdpRev.view===v?' on':''}" onclick="mdpRevSet('view','${mdpRev.view===v&&v!=='all'?'all':v}')"><i class="${c}"></i>${l} <b>(${n.toLocaleString()})</b></button>`;
   const fbar=`<div class="mdp-fbar">
       <input id="mdp-q" class="mdp-in mdp-search" type="search" placeholder="Search product, colour, style or category…" value="${mdpEsc(mdpRev.q)}" oninput="mdpRevSet('q',this.value)">
       <select class="mdp-sel" onchange="mdpRevSet('category',this.value)">${opt('','All categories',mdpRev.category)}${cats.map(c=>opt(c,c,mdpRev.category)).join('')}</select>
@@ -6406,8 +6438,8 @@ function mdpCategoryStrategy(plan,oo,hasEnd,pl,rows){
       <select id="mdp-sortsel" class="mdp-sel" onchange="mdpRevSet('sort',this.value)">${sortOpts.map(([v,l])=>opt(v,l,MDP_SORT_OPTS.some(o=>o[0]===mdpRev.sort)?mdpRev.sort:'__col__')).join('')}</select></div>
     <div class="mdp-fbar2"><div class="mdp-seg" title="Columns shown"><button class="${mdpRev.compact?'on':''}" onclick="mdpRevSet('compact',true)">Compact</button><button class="${mdpRev.compact?'':'on'}" onclick="mdpRevSet('compact',false)">All columns</button></div>
       <label class="mdp-chk"><input type="checkbox" ${mdpRev.flat?'':'checked'} onchange="mdpRevSet('flat',!this.checked)"> Group colours by style</label>
-      <span class="mdp-fchips"><span class="mdp-fchip"><i class="g"></i>${nonGwp.length.toLocaleString()} products</span>${nGwp?`<span class="mdp-fchip p"><i class="p"></i>${nGwp} GWP item${nGwp===1?'':'s'}</span>`:''}${nSpecial?`<span class="mdp-fchip b"><i class="b"></i>${nSpecial} special buy${nSpecial===1?'':'s'}</span>`:''}
-      ${plan.totals.overridden?`<span class="mdp-fchip" title="Discounts and exclusions you set on individual products">${plan.totals.overridden} changed by you <button class="mdp-act" onclick="mdpResetAll()">Reset all</button></span>`:''}<button class="mdp-btn mdp-btn-sm mdp-btn-ghost" onclick="mdpResetFilters()">Reset filters</button></span></div>`;
+      <span class="mdp-fchips">${vchip('all','All products',nonGwp.length,'g')}${vchip('overridden','Manually changed',nonGwp.filter(i=>i.override).length,'p')}${vchip('attention','Needs attention',plan.items.filter(i=>i.exception||i.blocked||i.overCap).length,'r')}
+      <button class="mdp-btn mdp-btn-sm mdp-btn-ghost" onclick="mdpResetAll()"${plan.totals.overridden?'':' disabled'} title="Remove every discount and exclusion you set on individual products">Reset all</button><button class="mdp-btn mdp-btn-sm mdp-btn-ghost" onclick="mdpResetFilters()">Reset filters</button></span></div>`;
   const note=mdpNoteMsg?`<div class="mdp-warn" style="margin-bottom:12px;">ⓘ ${mdpEsc(mdpNoteMsg)}</div>`:'';
   return note+`<div class="mdp-pcards">${card('◷','blu','Categories remaining',prog.catsRemaining,prog.catsTotal)}${card('✓','grn','Categories approved',prog.catsApproved,prog.catsTotal)}${card('◈','blu','Products/colours remaining',prog.prodsRemaining,prog.prodsTotal)}${card('◈','grn','Products/colours approved',prog.prodsApproved,prog.prodsTotal)}</div>
     ${fbar}<div id="mdp-cat-body">${mdpCategoryBody()}</div>`;
@@ -12938,6 +12970,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.2.1 — Markdown Planner refinements, from Brendan. (1) Suggested and Approved categories are now stacked, each full width; Approved is collapsible and starts collapsed (Suggested collapses too); the expanded product tables use the full width. (2) Your Groups always shows TWO dropdowns — Group A (standard) and Group B (clearance, which can be set to None); both offer the sale's allowed discounts. Switching Group B off keeps its products in A; switching it on offers to redistribute using the planner's recommendation when the category has a saved allocation; the Split column shows the actual allocation. (3) Existing reduced products: the proposed discount is never below what a product already has in Shopify (measured against RRP, not stacked) — a 50%-off item can't drop to 40%; it's kept (a small 'kept' tag, no warning), a current discount deeper than the sale's highest single discount is flagged 'over cap' for review and never auto-raised, and only an explicit decision of yours can lower it (it asks first and shows 'price ↑'). Product table now shows Current disc. and Proposed disc. separately. (4) Compact is the default and shows: Product/colour, Month del, SOH, On order, 30d sales, Weeks cover, Current disc., Proposed disc. (+ checkbox and ⋯); Core, Parent style, 7/60/90d, Sell-through, Sizes out, RRP, Current price, Sale price, Suggested and Why are under All columns. Also: view chips (All products / Manually changed / Needs attention), bulk buttons Set to A% / B%, Exclude selected, Reset to recommendations. Engine: groupLevels[cat].B === 0 = Group B off; effective levelA/levelB exposed; keptExisting / overCap / priceUp flags.
 // v3.2.0 — Markdown Planner UI/UX refactor, from Brendan's mockup + brief: a CATEGORY-FIRST workflow replaces the per-product approvals. New header + 7-step bar; Sale Setup collapses to a one-line summary (Edit setup); 4 progress cards (categories / products remaining & approved); a filter bar (search, category, collection, month del, suggested %, product view incl. Manually changed / Needs attention, core, sort, Compact/All columns, Group colours by style, Reset filters); SUGGESTED categories (left) and APPROVED categories (right). Each category row shows products, SOH, on order, 30d sales, weeks cover, the two suggested discounts, YOUR GROUPS dropdowns (edit either group; products stay in their group and the price follows), a split bar and one-click Approve (saves the category's levels and every product's allocation; Reopen moves it back and keeps everything). Categories expand in place to a product table (Month del, Core, SOH, On order, 30d, weeks cover, RRP, Discount dropdown, Sale price, ⋯) with bulk actions; a core colour change asks 'this colour or all colours'. Section C is the same data as one flat table. REMOVED: per-product Approve buttons/badges, 'differs from suggestion' warnings, the approval progress bar, Approve-all-shown and the Approvals filter (old per-product approvals stay in the saved data but no longer pin anything). Engine: saved allocations (frozen) hold approved products in their group; plans: approveCategory / reopenCategory / refreshSuggestions / categoryRows / approvalProgress. Special buys and GWP are untouched.
 // v3.1.4 — Version correction, from Brendan: the odometer rollover was missed — v2.9.9 should have rolled to v3.0.0, not v2.10.0 (minor and patch are single digits 0–9 and the major rolls at x.9.9). The app has been re-based: what shipped as v2.10.0 … v2.11.1 is really v3.0.0 … v3.1.3 (older changelog entries below are relabelled to match), and this correction is v3.1.4. Next change is v3.1.5.
 // v3.1.3 — Markdown Planner, from Brendan: (1) the Product / colour column is wider (320–440px, was 190–240) so the colour isn't cut off — everything else shifts right (the Why column is trimmed to compensate; hover still shows the full text). (2) New 'All suggested %' dropdown filter in the product review — pick 20%, 30%, 50%… (with counts) or 'No suggestion' to see only the products the planner suggested that discount for.

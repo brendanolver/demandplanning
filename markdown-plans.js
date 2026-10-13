@@ -360,7 +360,7 @@
   function approveCategory(state, planId, category, snap, now) {
     const plan = state.plans[planId]; if (!plan || !category) return state;
     const s = clone(state), p = s.plans[planId], lvl = v => { const n = Number(v); return v != null && isFinite(n) && n > 0 ? Math.min(n, p.settings.maxDiscount) : null; };
-    const A = lvl(snap && snap.A), B = lvl(snap && snap.B), alloc = {};
+    const A = lvl(snap && snap.A), B = snap && snap.B === 0 ? 0 : lvl(snap && snap.B), alloc = {};   // B === 0 = Group B switched off
     for (const id of Object.keys((snap && snap.alloc) || {})) if (ALLOC_OK.includes(snap.alloc[id])) alloc[id] = snap.alloc[id];
     p.catApprovals = p.catApprovals || {}; p.catApprovals[category] = { approved: true, ts: now || Date.now(), A, B, alloc };
     p.groupLevels = p.groupLevels || {};
@@ -368,6 +368,12 @@
     if (e.A != null || e.B != null) p.groupLevels[category] = e;
     p.updatedTs = now || Date.now(); p.rev += 1;
     return s;
+  }
+  // Drop one category's saved allocation (when it isn't approved) so the planner re-allocates it.
+  function releaseAllocation(state, planId, category, now) {
+    const plan = state.plans[planId]; const ap = plan && plan.catApprovals && plan.catApprovals[category];
+    if (!ap || ap.approved) return state;
+    const s = clone(state); delete s.plans[planId].catApprovals[category]; s.plans[planId].updatedTs = now || Date.now(); s.plans[planId].rev += 1; return s;
   }
   function reopenCategory(state, planId, category, now) {
     const plan = state.plans[planId]; if (!plan || !plan.catApprovals || !plan.catApprovals[category] || !plan.catApprovals[category].approved) return state;
@@ -407,6 +413,7 @@
       return { ...c, blocked: blockedBy[k] || 0, soh: e.soh || 0, restock: e.restock || 0, weeksCover: e.weeksCover == null ? null : e.weeksCover, onOrder: (onOrderByCat && onOrderByCat[String(k).toUpperCase()]) || 0,
         groupA: e.groupA == null ? null : e.groupA, groupB: e.groupB == null ? null : e.groupB, autoA: e.autoA == null ? null : e.autoA, autoB: e.autoB == null ? null : e.autoB,
         manualA: e.manualA == null ? null : e.manualA, manualB: e.manualB == null ? null : e.manualB, groupWarn: !!e.groupWarn,
+        noB: !!e.noB, recB: e.recB || 0, levelA: e.levelA == null ? null : e.levelA, levelB: e.levelB == null ? null : e.levelB,
         approved: !!(ap && ap.approved), reopened: !!(ap && !ap.approved), approvedTs: ap ? ap.ts : null };
     });
     return rows;
@@ -420,7 +427,9 @@
   // tier 'A' | 'B'; pct null/'' = back to the planner's suggestion. Levels are capped at the highest single discount.
   function setGroupLevel(state, planId, category, tier, pct, now) {
     const plan = state.plans[planId]; if (!plan || (tier !== 'A' && tier !== 'B') || !category) return state;
-    const n = Number(pct), val = pct == null || pct === '' || !isFinite(n) || n <= 0 ? null : Math.round(Math.min(n, plan.settings.maxDiscount) * 10) / 10;
+    // Group B only: 0 / 'none' switches it off for the category (its products stay in Group A).
+    const none = tier === 'B' && (pct === 0 || pct === '0' || pct === 'none');
+    const n = Number(pct), val = none ? 0 : pct == null || pct === '' || !isFinite(n) || n <= 0 ? null : Math.round(Math.min(n, plan.settings.maxDiscount) * 10) / 10;
     const cur = (plan.groupLevels || {})[category] || {};
     if ((cur[tier] == null ? null : cur[tier]) === val) return state;
     const s = clone(state), p = s.plans[planId]; p.groupLevels = p.groupLevels || {};
@@ -517,7 +526,7 @@
       if (view === 'groupA' && fin.action !== 'A') return false;
       if (view === 'groupB' && fin.action !== 'B') return false;
       if (view === 'overridden' && !it.override) return false;
-      if (view === 'attention' && !(it.exception || it.blocked)) return false;   // a different discount from the suggestion is a normal decision, not a problem
+      if (view === 'attention' && !(it.exception || it.blocked || it.overCap)) return false;   // a different discount from the suggestion is a normal decision, not a problem
       if (q) {
         const hay = [p.name, p.colour, p.style, p.parentStyle, p.category].join(' ').toLowerCase();
         if (!q.split(/\s+/).every(w => hay.includes(w))) return false;
@@ -549,6 +558,7 @@
       onorder: { t: 'n', agg: 'sum', v: i => nz(oo(i)) },
       d7: { t: 'n', agg: 'sum', v: i => nz((i.row.p.sold || {}).d7) }, d30: { t: 'n', agg: 'sum', v: i => nz((i.row.p.sold || {}).d30) },
       d60: { t: 'n', agg: 'sum', v: i => nz((i.row.p.sold || {}).d60) }, d90: { t: 'n', agg: 'sum', v: i => nz((i.row.p.sold || {}).d90) },
+      current: { t: 'n', agg: 'mean', v: i => nz(i.row.p.currentDiscountPct || 0) },
       cover: { t: 'n', agg: 'mean', v: i => nz(i.row.m.weeksCover) },
       sellthru: { t: 'n', agg: 'mean', v: i => nz(i.row.m.sellThroughProxy) },
       sizesout: { t: 'n', agg: 'sum', v: i => nz(i.row.p.soldOutSizes || 0) },
@@ -726,6 +736,6 @@
     parseDay, durationDays, newPlan, createState, migrate, uniqueName, addPlan, duplicatePlan,
     renamePlan, setActive, archivePlan, restorePlan, cleanLevels, updatePlan, engineSettings, validatePlan,
     EXCLUDE_REASONS, VIEWS, sanitizeOverride, setOverrides, clearOverrides, overrideStats, buildReview,
-    SPECIAL_KINDS, GWP_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setGwpQty, setGwpThreshold, lyWindow, lyUnitsByCategory, buildForecast, addDays, demandScenarios, forecastConfidence, crossCheck, scenarioLevels, commercialSummary, addSnapshot, removeSnapshot, approveCategory, reopenCategory, refreshSuggestions, isApproved, frozenAllocs, categoryRows, approvalProgress, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
+    SPECIAL_KINDS, GWP_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setGwpQty, setGwpThreshold, lyWindow, lyUnitsByCategory, buildForecast, addDays, demandScenarios, forecastConfidence, crossCheck, scenarioLevels, commercialSummary, addSnapshot, removeSnapshot, approveCategory, reopenCategory, releaseAllocation, refreshSuggestions, isApproved, frozenAllocs, categoryRows, approvalProgress, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
   };
 });

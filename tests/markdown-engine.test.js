@@ -278,6 +278,58 @@ assert.equal(E.buildPlan(range, capSet(1)).cap.met, false);
   assert.equal(two.totals.effectiveDiscount, 26.7); assert.equal(two.totals.effRrpValue, 15000); assert.equal(two.totals.effOffValue, 4000);
   assert.equal(E.buildPlan([], { maxDiscount: 70 }).totals.effectiveDiscount, 0);
 }
+// ── Existing reduced products: never reduced automatically; kept as an exception; cap conflicts flagged, never auto-raised ──
+{
+  const base = { sold: { d7: 1, d30: 4, d60: 9, d90: 14 }, ageWeeks: 60, soh: 200 };
+  const red = (id, cur, extra) => mk(id, { ...base, currentDiscountPct: cur, price: 100 * (1 - cur / 100), ...extra });
+  const run = (prods, S, ov, gl) => E.buildPlan(prods.concat(range), { maxDiscount: 70, scope: 'all', ...S }, ov || {}, gl || null);
+  const get = (pl, id) => pl.items.find(i => i.row.p.id === id);
+  // reassess: the group would put it at 20%, but it's already 30% off -> kept at 30%, flagged as kept, no price change
+  let r = get(run([red('R40', 40)], { existingReduced: 'reassess' }), 'R40');
+  assert.equal(r.final.pct, 40); assert.equal(r.keptExisting, true); assert.equal(r.noPriceChange, true); assert.match(r.final.reason, /never reduced/); assert.equal(r.priceUp, false);
+  // a current discount that already matches or sits below the group's level is simply proposed as the group's level (not "kept")
+  r = get(run([red('R10', 10)], { existingReduced: 'reassess' }), 'R10'); assert.equal(r.keptExisting, false); assert.ok(r.final.pct >= 20);
+  // default rule (already-reduced -> clearance): goes deeper to the clearance level, never shallower
+  r = get(run([red('R30', 30)], {}), 'R30'); assert.equal(r.final.action, 'C'); assert.equal(r.final.pct, 50);
+  r = get(run([red('R50', 50)], {}), 'R50'); assert.equal(r.final.pct, 50); assert.equal(r.noPriceChange, true);                        // already at 50: stays, "no change"
+  r = get(run([red('R60', 60)], {}), 'R60'); assert.equal(r.final.pct, null); assert.equal(r.overCap, false);                           // deeper than clearance: stays as is (not in the sale)
+  // a special buy never lowers an existing discount
+  r = get(run([red('SP50', 50, { specialPct: 30 })], { existingReduced: 'reassess' }), 'SP50'); assert.equal(r.final.pct, 50); assert.equal(r.keptExisting, true);
+  // lowering the category's group level below an existing discount keeps the existing one
+  const plRed = run([red('R40', 40)], { existingReduced: 'reassess' }, {}, { [red('R40', 40).category]: { A: 20 } }); r = get(plRed, 'R40'); assert.equal(r.final.pct >= 40, true);
+  // only an explicit decision lowers it (that raises the price, and says so)
+  r = get(run([red('R30', 30)], { existingReduced: 'reassess' }, { R30: { pct: 20, kind: 'discount' } }), 'R30'); assert.equal(r.final.pct, 20); assert.equal(r.priceUp, true); assert.equal(r.keptExisting, false); assert.equal(r.override, 'discount');
+  // an existing discount deeper than the sale's highest single discount is flagged for review and NOT raised in price
+  r = get(run([red('R60', 60)], { existingReduced: 'reassess', maxDiscount: 50 }), 'R60'); assert.equal(r.overCap, true); assert.equal(r.final.pct, 60); assert.equal(r.noPriceChange, true);
+  r = get(run([red('R40', 40)], { existingReduced: 'reassess', maxDiscount: 50 }), 'R40'); assert.equal(r.overCap, false);
+  // effective discount is measured against RRP, not stacked: price 70 on RRP 100 is 30%, whatever sale % is proposed
+  assert.equal(get(run([red('R30', 30)], { existingReduced: 'reassess' }), 'R30').currentPct, 30);
+}
+// ── Group B switched off: its products stay in Group A; you can still always configure two groups ──
+{
+  const base = E.buildPlan(range, { maxDiscount: 70 }), cat = base.categories.find(c => c.groupB != null);
+  assert.ok(cat && cat.recB > 0); assert.equal(cat.noB, false); assert.ok(cat.levelA != null && cat.levelB > cat.levelA);
+  const off = E.buildPlan(range, { maxDiscount: 70 }, {}, { [cat.category]: { B: 0 } }), co = off.categories.find(c => c.category === cat.category);
+  assert.equal(co.noB, true); assert.equal(co.levelB, 0); assert.equal(co.groupB, null); assert.equal(co.countB, 0); assert.equal(co.recB, cat.recB);   // the planner still says what it would recommend
+  assert.equal(co.countA, cat.countA + cat.countB);                                                                                              // B's products joined A
+  off.items.filter(i => i.row.p.category === cat.category && base.items.find(b => b.row.p.id === i.row.p.id).final.action === 'B').forEach(i => { assert.equal(i.final.action, 'A'); assert.equal(i.final.pct, co.groupA); assert.match(i.final.reason, /Group B is switched off/); });
+  off.items.filter(i => i.row.p.category !== cat.category).forEach(i => assert.equal(i.final.pct, base.items.find(b => b.row.p.id === i.row.p.id).final.pct));   // other categories untouched
+  // switching it back on restores the recommendation
+  assert.deepEqual(E.buildPlan(range, { maxDiscount: 70 }, {}, { [cat.category]: { B: null } }).items.map(i => i.final.pct), base.items.map(i => i.final.pct));
+  // manual product decisions survive switching B off; a 'move to B' decision falls back to A
+  const bId = base.items.find(i => i.row.p.category === cat.category && i.final.action === 'B').row.p.id;
+  assert.equal(E.buildPlan(range, { maxDiscount: 70 }, { [bId]: { pct: 30, kind: 'discount' } }, { [cat.category]: { B: 0 } }).items.find(i => i.row.p.id === bId).final.pct, 30);
+  const aId = base.items.find(i => i.row.p.category === cat.category && i.final.action === 'A').row.p.id;
+  assert.equal(E.buildPlan(range, { maxDiscount: 70 }, { [aId]: { group: 'B' } }, { [cat.category]: { B: 0 } }).items.find(i => i.row.p.id === aId).final.action, 'A');
+  // a category the planner puts nobody in Group B for can still be given a Group B level, and products can be moved into it
+  const oneG = E.buildPlan(range, { maxDiscount: 70, scope: 'all' }, {}, null), cA = oneG.categories.find(c => c.groupB == null && c.groupA != null);
+  if (cA) {
+    assert.ok(cA.levelB != null && cA.levelB > cA.levelA && cA.autoB == null);
+    const pid = oneG.items.find(i => i.row.p.category === cA.category && i.final.action === 'A').row.p.id;
+    const mv = E.buildPlan(range, { maxDiscount: 70, scope: 'all' }, { [pid]: { group: 'B' } }, { [cA.category]: { B: 60 } }), m = mv.items.find(i => i.row.p.id === pid);
+    assert.equal(m.final.action, 'B'); assert.equal(m.final.pct, 60);                                                                           // follows the level you set for B
+  }
+}
 // deterministic: same input, same output
 assert.deepEqual(E.buildPlan(range, capSet(18)).items.map(i => i.final.pct), E.buildPlan(range, capSet(18)).items.map(i => i.final.pct));
 // the single-product ceiling still holds under a cap

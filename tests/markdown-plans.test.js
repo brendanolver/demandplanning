@@ -307,6 +307,7 @@ assert.deepEqual(P.buildForecast([], {}, 90).totals.demand, 0);
   assert.equal(ord({ sort: 'newprice', dir: 'desc' }), 'dabc'); assert.equal(ord({ sort: 'rrp', dir: 'desc' }), 'dabc');
   assert.equal(ord({ sort: 'name', dir: 'desc' }), 'dcba'); assert.equal(ord({ sort: 'name' }), 'abcd');                    // text: asc by default
   assert.equal(ord({ sort: 'why', dir: 'asc' }), 'bcad');                                                                   // text a..z, blank last
+  assert.equal(ord({ sort: 'current', dir: 'asc' }).length, 4);
   assert.equal(ord({ sort: 'bogus' }), ord({ sort: 'category' }));                                                           // unknown column falls back to category
 }
 // ── Phase 5: demand range, confidence, cross-check, scenario levels, commercial summary, snapshots ──
@@ -408,6 +409,28 @@ assert.deepEqual(P.buildForecast([], {}, 90).totals.demand, 0);
   const held = E.buildPlan(flipped, P.engineSettings(st.plans[id]), {}, null, { T2: 'B' }).items.find(i => i.row.p.id === 'T2');
   assert.equal(held.final.action, 'B'); assert.equal(held.frozen, true);
   assert.notEqual(live.final.action, 'B');
+}
+// Group B none: stored as 0, only for tier B, kept through approval, shown in the category rows
+{
+  let st = P.createState(1, idGen); const id = st.activeId;
+  st = P.setGroupLevel(st, id, 'TEES', 'B', 0, 5); assert.deepEqual(st.plans[id].groupLevels.TEES, { B: 0 });
+  assert.strictEqual(P.setGroupLevel(st, id, 'TEES', 'B', 'none', 6), st);                                          // already none -> unchanged
+  assert.strictEqual(P.setGroupLevel(st, id, 'TEES', 'A', 0, 6), st);                                               // 0 means "none" only for Group B (A can't be switched off)
+  st = P.setGroupLevel(st, id, 'TEES', 'A', 30, 7); assert.deepEqual(st.plans[id].groupLevels.TEES, { A: 30, B: 0 });
+  st = P.setGroupLevel(st, id, 'TEES', 'B', 50, 8); assert.deepEqual(st.plans[id].groupLevels.TEES, { A: 30, B: 50 });   // switching B on again
+  st = P.setGroupLevel(st, id, 'TEES', 'B', 'none', 9); st = P.setGroupLevel(st, id, 'TEES', 'B', null, 10); assert.deepEqual(st.plans[id].groupLevels.TEES, { A: 30 });   // back to auto
+  const mkp = (pid, soh, d30) => ({ id: pid, style: pid, name: pid, colour: 'B', category: 'TEES', collection: '', parentStyle: '', isCore: false, isGWP: false, soh, sohCost: soh * 10, onOrder: 0, sold: { d7: 1, d30, d60: d30 * 2, d90: d30 * 3 }, rrp: 100, price: 100, currentDiscountPct: 0, sizeCount: 4, soldOutSizes: 0, ageWeeks: 40 });
+  const prods = [mkp('A1', 300, 1), mkp('A2', 200, 2), mkp('A3', 100, 20), mkp('A4', 150, 15)];
+  const plan0 = E.buildPlan(prods, P.engineSettings(st.plans[id]), {}, null, null), r0 = P.categoryRows(plan0.items, plan0, st.plans[id], {})[0];
+  assert.ok(r0.levelA != null && r0.levelB != null && r0.levelB > r0.levelA); assert.equal(r0.noB, false);
+  const stOff = P.setGroupLevel(st, id, 'TEES', 'B', 0, 11), planOff = E.buildPlan(prods, P.engineSettings(stOff.plans[id]), {}, stOff.plans[id].groupLevels, null), rOff = P.categoryRows(planOff.items, planOff, stOff.plans[id], {})[0];
+  assert.equal(rOff.noB, true); assert.equal(rOff.levelB, 0); assert.equal(rOff.countB, 0); assert.equal(rOff.recB, r0.recB);
+  // approving a category with B off keeps it off; releasing a reopened category drops its saved allocation only
+  const alloc = Object.fromEntries(planOff.items.map(i => [i.row.p.id, i.action]));
+  let ap = P.approveCategory(stOff, id, 'TEES', { A: rOff.levelA, B: 0, alloc }, 12); assert.equal(ap.plans[id].groupLevels.TEES.B, 0); assert.equal(ap.plans[id].catApprovals.TEES.B, 0);
+  assert.strictEqual(P.releaseAllocation(ap, id, 'TEES', 13), ap);                                                 // approved categories are never released
+  ap = P.reopenCategory(ap, id, 'TEES', 14); const rel = P.releaseAllocation(ap, id, 'TEES', 15); assert.equal(rel.plans[id].catApprovals.TEES, undefined); assert.equal(rel.plans[id].groupLevels.TEES.B, 0);
+  assert.strictEqual(P.releaseAllocation(rel, id, 'TEES', 16), rel);
 }
 console.log('markdown plans tests: all passed');
 })();

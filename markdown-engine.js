@@ -267,6 +267,19 @@
       }
     }
 
+    // Group B can be switched off for a category (groupLevels[cat].B === 0): the products the planner would put in B stay in Group A.
+    // Count them first so the UI can still say what the planner recommends.
+    const recB = {}, noB = {};
+    for (const it of items) {
+      const c = it.row.p.category || 'UNCATEGORISED', gB = groupLevels && groupLevels[c] ? groupLevels[c].B : null;
+      if (it.action === 'B') recB[c] = (recB[c] || 0) + 1;
+      if (gB != null && gB !== '' && Number(gB) === 0) noB[c] = true;
+    }
+    for (const it of items) {
+      const c = it.row.p.category || 'UNCATEGORISED';
+      if (noB[c] && it.action === 'B' && !it.hard) { it.action = 'A'; it.reason = it.reason + ' · Group B is switched off for this category'; }
+    }
+
     // Per-category discount groups from the distribution of scores.
     const cats = {};
     items.forEach(it => { const c = it.row.p.category || 'UNCATEGORISED'; (cats[c] = cats[c] || []).push(it); });
@@ -281,8 +294,8 @@
       // Your own level for a category's Group A / B ("set by you"): products in the group are then suggested from it.
       const gl = (groupLevels && groupLevels[c]) || {}, mp = v => { const n = Number(v); return v != null && v !== '' && isFinite(n) && n > 0 ? Math.min(n, S.maxDiscount) : null; };
       const manual = { A: mp(gl.A), B: mp(gl.B) };
-      return { category: c, items: list, pressure: Math.round(pressure), idx: { A: A.length ? aIdx : null, B: B.length ? bIdx : null }, startIdx: { A: aIdx, B: bIdx }, manual,
-        autoA: A.length ? lv[aIdx] : null, autoB: B.length ? lv[bIdx] : null,
+      return { category: c, noB: !!noB[c], recB: recB[c] || 0, items: list, pressure: Math.round(pressure), idx: { A: A.length ? aIdx : null, B: B.length ? bIdx : null }, startIdx: { A: aIdx, B: bIdx }, manual,
+        autoA: A.length ? lv[aIdx] : null, autoB: (B.length || recB[c]) ? lv[bIdx] : null,
         groupA: A.length ? lv[aIdx] : null, groupB: B.length ? lv[bIdx] : null };
     });
     const catByName = Object.fromEntries(catPlans.map(cp => [cp.category, cp]));
@@ -290,6 +303,13 @@
     const clearPct = clearanceLevel(S);
     // A level you set wins. The other group is then kept on the right side of it: Group B at least one allowed level
     // deeper than A, A at least one shallower than B (only a level you set on BOTH can break that, and it is flagged).
+    const levelOf = (cp, tier) => {
+      if (cp.manual[tier] != null) return cp.manual[tier];
+      let v = lv[cp.idx[tier] != null ? cp.idx[tier] : cp.startIdx[tier]];
+      if (tier === 'B' && cp.manual.A != null && v <= cp.manual.A) { const up = lv.find(d => d > cp.manual.A); if (up != null) v = up; }
+      if (tier === 'A' && cp.manual.B != null && v >= cp.manual.B) { const dn = lv.filter(d => d < cp.manual.B); if (dn.length) v = dn[dn.length - 1]; }
+      return v;
+    };
     const groupPct = (cp, tier) => {
       if (cp.idx[tier] == null) return null;
       if (cp.manual[tier] != null) return cp.manual[tier];
@@ -317,6 +337,11 @@
       // typed in, 'approved' = a suggestion you locked), or a move to another group (follows that
       // group's level). They are applied last and never silently overwritten; if the system's
       // suggestion later moves away from an APPROVED discount, your figure is kept and flagged.
+      // Never automatically reduce a discount the product already has in Shopify (measured against RRP, never stacked): the proposed discount is at
+      // least the current one. It is kept as an exception (not a warning); a current discount deeper than the sale's highest single discount is flagged for review
+      // rather than raised in price. Only an explicit decision of yours can lower it (that raises the price).
+      let keptExisting = false;
+      if (pct != null && action !== 'Exclude' && cur > pct + 0.5) { pct = Math.round(cur * 10) / 10; keptExisting = true; reason += ' · already ' + Math.round(cur) + '% off — never reduced'; }
       // 'Approved at the suggested figure' (and 'confirmed stays out') were per-product approvals from the old workflow. Approval is now per category, so
       // they no longer pin anything — they're kept in the saved data but ignored. Only real decisions (a typed discount, a group move, an exclusion) apply.
       const o0 = ov[p.id], o = o0 && (o0.kind === 'approved' || (o0.exclude && o0.confirm)) ? null : o0;
@@ -328,9 +353,9 @@
         if (o.exclude && o.confirm) { action = 'Exclude'; pct = null; reason = 'Confirmed: stays out of the sale — ' + reason; override = 'confirmed'; }   // you confirmed the planner's "not in the sale"
         else if (o.exclude) { action = 'Exclude'; pct = null; reason = 'Excluded — ' + (o.reason || 'your decision') + (o.note ? ' (' + o.note + ')' : ''); override = 'exclude'; }
         else if (o.group === 'A' || o.group === 'B' || o.group === 'C') {
-          const idx = o.group === 'C' ? null : (cp.idx[o.group] != null ? cp.idx[o.group] : cp.startIdx[o.group]);
-          pct = Math.min(o.group === 'C' ? clearPct : lv[idx], S.maxDiscount); action = o.group; override = 'group';
-          reason = 'Moved to ' + (o.group === 'C' ? 'Clearance' : 'Group ' + o.group) + ' by you — follows that group\'s level';
+          const grp = o.group === 'B' && cp.noB ? 'A' : o.group;   // Group B is switched off for this category
+          pct = Math.min(grp === 'C' ? clearPct : levelOf(cp, grp), S.maxDiscount); action = grp; override = 'group';
+          reason = 'Moved to ' + (grp === 'C' ? 'Clearance' : 'Group ' + grp) + ' by you — follows that group\'s level';
         } else if (o.pct != null) {
           pct = Math.min(Number(o.pct), S.maxDiscount);
           override = o.kind === 'approved' ? 'approved' : 'discount';
@@ -341,7 +366,7 @@
             : 'Manual override (system suggested ' + (sys == null ? 'none' : sys + '%') + ')';
         }
       }
-      return { sys, cur, override, conflict, blocked, final: { action, pct, reason } };
+      return { sys, cur, override, conflict, blocked, keptExisting: keptExisting && !override, final: { action, pct, reason } };
     }
     const avgNow = () => {
       let num_ = 0, den = 0;
@@ -416,16 +441,19 @@
     items.forEach(it => {
       const p = it.row.p, r = resolve(it), cp = catByName[p.category || 'UNCATEGORISED'];
       it.systemPct = r.sys; it.override = r.override; it.conflict = r.conflict; it.blocked = r.blocked; it.final = r.final;
+      it.keptExisting = r.keptExisting; it.currentPct = r.cur;
+      it.overCap = r.cur > S.maxDiscount + 0.5 && r.cur > 0;                  // an existing price deeper than the sale's cap: flagged for review, never auto-raised
+      it.priceUp = r.final.pct != null && r.cur > 0 && r.final.pct < r.cur - 0.5;               // an explicit decision that puts the price up
       if (it.exception && r.override) { it.exception = false; it.exceptionResolved = true; }   // your decision resolves a core-colour exception
       const pct = r.final.pct;
       const pr = pct != null ? priceAt(p, pct) : { base: priceAt(p, 0).base, rrpMissing: priceAt(p, 0).rrpMissing, newPrice: null };
       it.price = pr;
-      it.noPriceChange = r.final.action === 'C' && r.cur >= (pct || 0) - 0.5 && r.cur > 0;
+      it.noPriceChange = pct != null && r.cur >= pct - 0.5 && r.cur > 0;
       it.capped = (it.action === 'A' || it.action === 'B') && cp.idx[it.action] < cp.startIdx[it.action];
       it.levelRaised = (it.action === 'A' || it.action === 'B') && cp.idx[it.action] > cp.startIdx[it.action];
       it.forecast = baseline(it.row.m, S);
     });
-    catPlans.forEach(cp => { cp.groupA = groupPct(cp, 'A'); cp.groupB = groupPct(cp, 'B'); });
+    catPlans.forEach(cp => { cp.groupA = groupPct(cp, 'A'); cp.groupB = groupPct(cp, 'B'); cp.levelA = levelOf(cp, 'A'); cp.levelB = cp.noB ? 0 : levelOf(cp, 'B'); });
 
     const tot = totals(items);
     Object.assign(tot, effective(items));
@@ -483,7 +511,7 @@
       forecastUnits: cp.items.reduce((a, it) => a + it.forecast.units, 0),
       forecastRemaining: cp.items.reduce((a, it) => a + it.forecast.remaining, 0),
       pressure: cp.pressure,
-      manualA: cp.manual.A, manualB: cp.manual.B, autoA: cp.autoA, autoB: cp.autoB,
+      manualA: cp.manual.A, manualB: cp.manual.B, autoA: cp.autoA, autoB: cp.autoB, noB: cp.noB, recB: cp.recB, levelA: cp.levelA, levelB: cp.levelB,
       groupWarn: cp.manual.A != null && cp.manual.B != null && cp.manual.B <= cp.manual.A,
     };
   }
