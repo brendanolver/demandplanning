@@ -224,6 +224,7 @@
 
   function sanitizeOverride(o) {
     if (!o || typeof o !== 'object') return null;
+    if (o.exclude && o.confirm) return { exclude: true, confirm: true };
     if (o.exclude) {
       const out = { exclude: true };
       if (o.reason) out.reason = String(o.reason).slice(0, 60);
@@ -267,7 +268,7 @@
     for (const id of Object.keys(plan.overrides || {})) {
       const o = plan.overrides[id]; st.total++;
       if (liveIds && !live.has(id)) st.stale++;
-      if (o.exclude) st.exclude++; else if (o.group) st.group++; else if (o.kind === 'approved') st.approved++; else st.discount++;
+      if (o.exclude && o.confirm) st.approved++; else if (o.exclude) st.exclude++; else if (o.group) st.group++; else if (o.kind === 'approved') st.approved++; else st.discount++;
     }
     return st;
   }
@@ -285,6 +286,8 @@
       const p = it.row.p, fin = it.final;
       if (f.category && String(p.category || '').toUpperCase() !== String(f.category).toUpperCase()) return false;
       if (f.collection && norm(p.collection) !== norm(f.collection)) return false;
+      if (f.approval === 'approved' && !it.override) return false;                                     // you've confirmed or changed it
+      if (f.approval === 'pending' && (it.override || p.isGWP || it.blocked)) return false;            // still just the planner's suggestion (GWP can't be approved)
       if (f.core === 'core' && !p.isCore) return false;
       if (f.core === 'noncore' && p.isCore) return false;
       if (view === 'sale' && fin.pct == null) return false;

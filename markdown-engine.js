@@ -299,7 +299,8 @@
       if (o && p.isGWP) {
         blocked = 'GWP';          // gift-with-purchase can never be discounted, whatever was saved
       } else if (o) {
-        if (o.exclude) { action = 'Exclude'; pct = null; reason = 'Excluded — ' + (o.reason || 'your decision') + (o.note ? ' (' + o.note + ')' : ''); override = 'exclude'; }
+        if (o.exclude && o.confirm) { action = 'Exclude'; pct = null; reason = 'Confirmed: stays out of the sale — ' + reason; override = 'confirmed'; }   // you confirmed the planner's "not in the sale"
+        else if (o.exclude) { action = 'Exclude'; pct = null; reason = 'Excluded — ' + (o.reason || 'your decision') + (o.note ? ' (' + o.note + ')' : ''); override = 'exclude'; }
         else if (o.group === 'A' || o.group === 'B' || o.group === 'C') {
           const idx = o.group === 'C' ? null : (cp.idx[o.group] != null ? cp.idx[o.group] : cp.startIdx[o.group]);
           pct = Math.min(o.group === 'C' ? clearPct : lv[idx], S.maxDiscount); action = o.group; override = 'group';

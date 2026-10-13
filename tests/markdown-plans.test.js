@@ -161,6 +161,19 @@ assert.equal(P.buildReview(rplan.items, { view: 'onorder' }).count, 0);         
 const rsReview = E.buildPlan(rp.concat([{ ...mkr('RESTOCKED'), soh: 0, restockUnits: 300, sold: { d7: 2, d30: 8, d60: 16, d90: 24 } }]), { maxDiscount: 70 });
 assert.deepEqual(P.buildReview(rsReview.items, { view: 'restock', flat: true }).groups.map(g => g.key), ['id:RESTOCKED']);
 
+// approval status: approved = any saved decision; not approved = the planner's suggestion only (GWP can't be approved)
+assert.deepEqual(P.sanitizeOverride({ exclude: true, confirm: true, reason: 'x' }), { exclude: true, confirm: true });
+const apOv = { W26AA001BLK: { pct: 30, kind: 'approved' }, W26BB002BLK: { exclude: true, confirm: true }, W26CC003GRY: { pct: 40, kind: 'discount' } };
+const apPlan = E.buildPlan(rp, { maxDiscount: 70 }, apOv);
+assert.deepEqual(P.buildReview(apPlan.items, { approval: 'approved', flat: true }).groups.map(g => g.key).sort(), ['id:W26AA001BLK', 'id:W26BB002BLK', 'id:W26CC003GRY']);
+assert.equal(P.buildReview(apPlan.items, { approval: 'pending', flat: true }).count, 3);
+assert.equal(P.buildReview(apPlan.items, { approval: 'approved' }).count + P.buildReview(apPlan.items, { approval: 'pending' }).count, 6);          // every product is approved or not, never both
+assert.equal(P.buildReview(apPlan.items, { approval: 'all' }).count, 6); assert.equal(P.buildReview(apPlan.items, {}).count, 6);
+assert.equal(P.buildReview(apPlan.items, { approval: 'pending', category: 'TEES', flat: true }).count, 3);                                           // combines with the other filters
+const gwApprove = E.buildPlan(rp.map(r => (r.id === 'NOPARENT' ? { ...r, isGWP: true } : r)), { maxDiscount: 70 });
+assert.equal(P.buildReview(gwApprove.items, { approval: 'pending' }).groups.some(g => g.items.some(i => i.row.p.id === 'NOPARENT')), false);       // GWP never appears as "waiting for approval"
+assert.deepEqual(P.overrideStats({ overrides: { A: { exclude: true, confirm: true }, B: { pct: 20, kind: 'approved' }, C: { exclude: true, reason: 'Other' } } }), { total: 3, exclude: 1, discount: 0, approved: 2, group: 0, stale: 0 });
+
 assert.deepEqual(P.buildReview([], {}).groups, []);
 // ── Special buys & GWP selections ───────────────────────────────────────────
 let sp = P.createState(1, idGen), spid = sp.activeId;

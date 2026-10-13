@@ -358,6 +358,10 @@ for (const extra of [mk('SWG', { category: 'SW', isGWP: true, soh: 500, sold: { 
   const withX = E.buildPlan(swReal.concat([extra]), { maxDiscount: 70 }).items.filter(i => i.row.p.id !== extra.id).map(i => [i.row.p.id, i.final.action, i.final.pct, i.row.score]);
   assert.deepEqual(withX, swBase);
 }
+// confirming a "stays out of the sale" suggestion
+const cf = E.buildPlan(ovSet, { maxDiscount: 70 }, { M3: { exclude: true, confirm: true } }).items.find(i => i.row.p.id === 'M3');
+assert.equal(cf.override, 'confirmed'); assert.equal(cf.final.action, 'Exclude'); assert.equal(cf.final.pct, null); assert.match(cf.final.reason, /^Confirmed: stays out of the sale — /);
+assert.equal(E.buildPlan(ovSet, { maxDiscount: 70 }, { M3: { exclude: true, confirm: true } }).totals.overridden, 1);
 // edge: empty input, single product, duplicate ids don't throw
 assert.equal(E.buildPlan([], {}).items.length, 0); assert.equal(E.buildPlan([mk('ONE')], {}).items.length, 1);
 assert.doesNotThrow(() => E.buildPlan([mk('D'), mk('D')], {}));
