@@ -440,6 +440,7 @@
       if (f.collection && norm(p.collection) !== norm(f.collection)) return false;
       if (f.approval === 'approved' && !it.override) return false;                                     // you've confirmed or changed it
       if (f.approval === 'pending' && (it.override || p.isGWP || it.blocked)) return false;            // still just the planner's suggestion (GWP can't be approved)
+      if (f.sugg) { const sp = it.systemPct; if (f.sugg === '__none__' ? sp != null : sp == null || Number(sp) !== Number(f.sugg)) return false; }
       if (f.month) { const dm = String(p.deliveryMonth || ''); if (f.month === '__none__' ? dm !== '' : dm.toUpperCase() !== String(f.month).toUpperCase()) return false; }
       if (f.core === 'core' && !p.isCore) return false;
       if (f.core === 'noncore' && p.isCore) return false;

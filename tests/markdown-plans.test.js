@@ -361,5 +361,13 @@ assert.deepEqual(P.buildForecast([], {}, 90).totals.demand, 0);
   const dd = P.duplicatePlan(sn, sid, 999, idGen); assert.deepEqual(dd.state.plans[dd.id].snapshots, []);   // snapshots describe one sale's past numbers: not copied
   assert.deepEqual(P.migrate({ v: sn.v, activeId: sid, order: [sid], plans: { [sid]: { ...sn.plans[sid], snapshots: undefined } } }, null, 1, idGen).plans[sid].snapshots, []);
 }
+// review filter: suggested discount %
+{
+  const si = (id, sp) => ({ row: { p: { id, name: id, colour: '', style: id, parentStyle: '', category: 'X', isCore: false }, m: { soh: 1 }, score: 1 }, final: { action: 'A', pct: sp }, systemPct: sp });
+  const its = [si('a', 20), si('b', 20), si('c', 50), si('d', null), si('e', 30)];
+  const ids = f => P.buildReview(its, f).groups.flatMap(g => g.items.map(i => i.row.p.id)).sort().join('');
+  assert.equal(ids({}), 'abcde'); assert.equal(ids({ sugg: '20' }), 'ab'); assert.equal(ids({ sugg: 50 }), 'c'); assert.equal(ids({ sugg: '__none__' }), 'd'); assert.equal(ids({ sugg: '70' }), '');
+  assert.equal(ids({ sugg: '20', category: 'X' }), 'ab');
+}
 console.log('markdown plans tests: all passed');
 })();
