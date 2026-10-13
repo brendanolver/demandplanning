@@ -25,7 +25,10 @@
     excludeBelow: 35,               // clearance score under this stays full price
     groupBAt: 65,                   // score at/above this goes to the deeper Group B
     coreMode: 'protect',            // protect = Group A only | include | exclude
-    existingReduced: 'retain',      // retain | reassess | exclude
+    existingReduced: 'clearance',   // clearance (move to the clearance %) | retain | reassess | exclude
+    clearanceDiscount: 50,          // fixed % for the Clearance tier (capped by maxDiscount)
+    minStockUnits: 50,              // under this with nothing on order = a remnant -> Clearance
+    brokenSizesClearance: 4,        // this many sizes sold out (or more) = broken run -> Clearance
     excludeNew: true,
     newProductDays: 42,             // arrivals younger than this are excluded
     coreConsistency: 'preferred',   // strict | preferred | independent
@@ -145,10 +148,24 @@
     if (p.isCore && S.coreMode === 'exclude') return exclude('Core product — excluded');
     const cur = num(p.currentDiscountPct) || 0;
     const alreadyReduced = cur >= S.reducedThresholdPct;
+    const clearPct = clearanceLevel(S);
     if (alreadyReduced && S.existingReduced === 'exclude') return exclude('Already reduced (' + Math.round(cur) + '% off) — excluded by sale rules');
+    if (alreadyReduced && S.existingReduced === 'clearance') {
+      // Reduced stock goes to the clearance level; anything already at/over it simply stays.
+      if (cur > clearPct + 0.5) return exclude('Already ' + Math.round(cur) + '% off — deeper than clearance, stays as is');
+      return { action: 'C', reason: cur >= clearPct - 0.5 ? 'Already ' + Math.round(cur) + '% off — stays at ' + clearPct + '% (no price change)' : 'Already reduced (' + Math.round(cur) + '% off) — moves to ' + clearPct + '% clearance', hard: false };
+    }
     if (score < S.excludeBelow) {
       const why = m.noSales ? 'low score' : m.weeksCover != null && m.weeksCover <= 8 ? 'only ' + round1(m.weeksCover) + ' weeks of cover' : 'healthy sales';
       return { action: 'Exclude', reason: 'Stays full price — ' + why + ' (score ' + score + ')', hard: false };
+    }
+    // Not a healthy seller, but not worth a normal markdown tier either: a remnant (few units,
+    // nothing coming) or a broken size run is simply cleared out at the clearance level.
+    const remnant = m.soh < S.minStockUnits && m.onOrder <= 0;
+    const broken = (num(p.soldOutSizes) || 0) >= S.brokenSizesClearance;
+    if (remnant || broken) {
+      const why = broken && remnant ? 'only ' + m.soh + ' units and ' + p.soldOutSizes + ' sizes sold out' : broken ? p.soldOutSizes + ' sizes sold out' : 'only ' + m.soh + ' units and none on order';
+      return { action: 'C', reason: 'Clearance — ' + why, hard: false };
     }
     if (score >= S.groupBAt && !(p.isCore && S.coreMode === 'protect')) return { action: 'B', reason: describe(row) };
     const prot = p.isCore && S.coreMode === 'protect' ? ' (core: capped at Group A)' : '';
@@ -173,6 +190,13 @@
     return l.length ? l : [Math.min(...S.allowedDiscounts)];
   }
 
+  // The clearance % actually used: the largest allowed level not above the clearance target or the max.
+  function clearanceLevel(S) {
+    const cap = Math.min(S.clearanceDiscount, S.maxDiscount);
+    const l = S.allowedDiscounts.filter(d => d <= cap);
+    return l.length ? l[l.length - 1] : Math.min(...S.allowedDiscounts);
+  }
+
   function priceAt(p, pct) {
     const rrp = num(p.rrp) > 0 ? num(p.rrp) : null;
     const base = rrp != null ? rrp : (num(p.price) > 0 ? num(p.price) : null);
@@ -189,7 +213,7 @@
     // Core colour consistency: all colours of a core parent style follow the style's group.
     if (S.coreConsistency !== 'independent') {
       const byStyle = {};
-      items.forEach(it => { const p = it.row.p; if (p.isCore && p.parentStyle && !it.hard) (byStyle[p.parentStyle] = byStyle[p.parentStyle] || []).push(it); });
+      items.forEach(it => { const p = it.row.p; if (p.isCore && p.parentStyle && !it.hard && it.action !== 'C') (byStyle[p.parentStyle] = byStyle[p.parentStyle] || []).push(it); });
       for (const st of Object.keys(byStyle)) {
         const g = byStyle[st]; if (g.length < 2) continue;
         const stock = g.reduce((a, it) => a + it.row.m.soh, 0) || 1;
@@ -225,7 +249,7 @@
     const catByName = Object.fromEntries(catPlans.map(cp => [cp.category, cp]));
     items.forEach(it => {
       const p = it.row.p, cp = catByName[p.category || 'UNCATEGORISED'];
-      const sys = it.action === 'A' ? cp.groupA : it.action === 'B' ? cp.groupB : null;
+      const sys = it.action === 'A' ? cp.groupA : it.action === 'B' ? cp.groupB : it.action === 'C' ? clearanceLevel(S) : null;
       it.systemPct = sys;
       let pct = sys, action = it.action, reason = it.reason;
       // Existing markdown: never stack on a sale price — compare against RRP.
@@ -242,6 +266,7 @@
       it.final = { action, pct, reason };
       const pr = pct != null ? priceAt(p, pct) : { base: priceAt(p, 0).base, rrpMissing: priceAt(p, 0).rrpMissing, newPrice: null };
       it.price = pr;
+      it.noPriceChange = action === 'C' && cur >= (pct || 0) - 0.5 && cur > 0;
       it.forecast = baseline(it.row.m, S);
     });
 
@@ -269,6 +294,7 @@
       groupB: cp.items.some(it => it.final.action === 'B') ? cp.groupB : null,
       countA: cp.items.filter(it => it.final.action === 'A').length,
       countB: cp.items.filter(it => it.final.action === 'B').length,
+      countC: cp.items.filter(it => it.final.action === 'C').length,
       countManual: cp.items.filter(it => it.final.action === 'Manual').length,
       countExcluded: cp.items.filter(it => it.final.action === 'Exclude').length,
       forecastUnits: cp.items.reduce((a, it) => a + it.forecast.units, 0),
@@ -287,5 +313,5 @@
     };
   }
 
-  return { DEFAULTS, mergeSettings, percentileRank, metrics, ageScore, scoreAll, classify, levels, priceAt, baseline, buildPlan };
+  return { DEFAULTS, mergeSettings, clearanceLevel, percentileRank, metrics, ageScore, scoreAll, classify, levels, priceAt, baseline, buildPlan };
 });

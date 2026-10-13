@@ -80,7 +80,7 @@ assert.equal(it.B1.forecast.units <= it.B1.row.m.soh, true); assert.equal(it.B1.
 assert.equal(it.Z0.forecast.units, 0); assert.equal(plan.totals.products, 8);
 
 // existing sale price is never stacked: already 40% off, sale wants 30% -> retained, excluded from sale collections
-const red = E.buildPlan([mk('R1', { currentDiscountPct: 40, price: 60, soh: 500, sold: { d7: 0, d30: 1, d60: 2, d90: 3 }, ageWeeks: 80 })], { maxDiscount: 30 });
+const red = E.buildPlan([mk('R1', { currentDiscountPct: 40, price: 60, soh: 500, sold: { d7: 0, d30: 1, d60: 2, d90: 3 }, ageWeeks: 80 })], { maxDiscount: 30, existingReduced: 'retain' });
 assert.equal(red.items[0].final.action, 'Exclude'); assert.match(red.items[0].final.reason, /retained/);
 const re2 = E.buildPlan([mk('R1', { currentDiscountPct: 40, price: 60, soh: 500, sold: { d7: 0, d30: 1, d60: 2, d90: 3 }, ageWeeks: 80 })], { maxDiscount: 30, existingReduced: 'reassess' });
 assert.notEqual(re2.items[0].final.action, 'Exclude'); assert.equal(re2.items[0].price.base, 100);  // priced from RRP, not the current sale price
@@ -109,7 +109,7 @@ for (const pl of [p1, p2]) {
   assert.ok('systemPct' in m1);                                                                                     // the system recommendation is still visible
 }
 // a category whose Group B members were all retained at their existing price must not still advertise a Group B discount
-const allRet = E.buildPlan([mk('Q1', { currentDiscountPct: 50, price: 50, soh: 400, sold: { d7: 0, d30: 1, d60: 2, d90: 3 }, ageWeeks: 90 })], { maxDiscount: 50 });
+const allRet = E.buildPlan([mk('Q1', { currentDiscountPct: 50, price: 50, soh: 400, sold: { d7: 0, d30: 1, d60: 2, d90: 3 }, ageWeeks: 90 })], { maxDiscount: 50, existingReduced: 'retain' });
 assert.equal(allRet.categories[0].groupB, null); assert.equal(allRet.categories[0].groupA, null); assert.equal(allRet.categories[0].countExcluded, 1);
 // core products with no launch date aren't penalised on confidence; exceptions are counted
 const kcat = [1, 2, 3, 4, 5, 6, 7].map(i => mk('K' + i, { isCore: i === 1, ageWeeks: i === 1 ? null : 30 }));
@@ -117,6 +117,44 @@ assert.equal(E.scoreAll(kcat, {})[0].confidence, 'High');                       
 assert.equal(E.scoreAll(kcat.map((k, i) => (i === 1 ? { ...k, ageWeeks: null } : k)), {})[1].confidence, 'Medium'); // non-core with no age is genuinely less certain
 assert.ok(E.buildPlan(core, { coreConsistency: 'preferred' }).totals.exceptions >= 1);
 assert.equal(E.buildPlan(core, { coreConsistency: 'strict' }).totals.exceptions, 0);
+// ── Clearance tier ────────────────────────────────────────────────────────
+const slow = { sold: { d7: 0, d30: 1, d60: 2, d90: 3 }, ageWeeks: 90 };                  // not a healthy seller
+const one = (p, st) => E.buildPlan([p], st || {}).items[0];
+assert.equal(E.clearanceLevel(E.mergeSettings({})), 50);
+assert.equal(E.clearanceLevel(E.mergeSettings({ maxDiscount: 40 })), 40);                  // capped by the max effective discount
+assert.equal(E.clearanceLevel(E.mergeSettings({ clearanceDiscount: 45 })), 40);            // snapped to an allowed level
+// already-reduced stock moves to the clearance %, products already there stay, deeper ones are left alone
+let c1 = one(mk('RD', { ...slow, currentDiscountPct: 30, price: 70, soh: 200 }));
+assert.equal(c1.final.action, 'C'); assert.equal(c1.final.pct, 50); assert.match(c1.final.reason, /moves to 50% clearance/); assert.equal(c1.noPriceChange, false);
+assert.equal(c1.price.newPrice, 50);                                                        // 50% off RRP 100 — not stacked on the $70 price
+c1 = one(mk('R50', { ...slow, currentDiscountPct: 50, price: 50, soh: 200 }));
+assert.equal(c1.final.action, 'C'); assert.equal(c1.final.pct, 50); assert.equal(c1.noPriceChange, true); assert.match(c1.final.reason, /no price change/);
+c1 = one(mk('R60', { ...slow, currentDiscountPct: 60, price: 40, soh: 200 }));
+assert.equal(c1.final.action, 'Exclude'); assert.match(c1.final.reason, /deeper than clearance/);
+// even a healthy seller that is already reduced follows the rule (the brief: reduced goes to 50%)
+assert.equal(one(mk('RH', { currentDiscountPct: 30, price: 70, soh: 200, sold: { d7: 40, d30: 150, d60: 300, d90: 450 }, ageWeeks: 20 })).final.action, 'C');
+// remnants and broken runs -> clearance; a normal-stock, intact-run slow seller -> a normal A/B tier
+c1 = one(mk('REM', { ...slow, soh: 30 })); assert.equal(c1.final.action, 'C'); assert.match(c1.final.reason, /only 30 units and none on order/);
+assert.notEqual(one(mk('REM2', { ...slow, soh: 30, onOrder: 100 })).final.action, 'C');     // stock coming = not a remnant
+assert.notEqual(one(mk('REM3', { ...slow, soh: 50 })).final.action, 'C');                   // exactly the minimum is fine
+c1 = one(mk('BRK', { ...slow, soh: 300, soldOutSizes: 4 })); assert.equal(c1.final.action, 'C'); assert.match(c1.final.reason, /4 sizes sold out/);
+assert.notEqual(one(mk('BRK3', { ...slow, soh: 300, soldOutSizes: 3 })).final.action, 'C');
+assert.equal(one(mk('BOTH', { ...slow, soh: 20, soldOutSizes: 5 })).final.action, 'C');
+// a healthy seller is never cleared just because it is low on stock
+const hot = { sold: { d7: 40, d30: 150, d60: 300, d90: 450 }, ageWeeks: 20 };
+assert.equal(one(mk('HOT', { ...hot, soh: 20 })).final.action, 'Exclude');
+// thresholds are configurable
+assert.equal(one(mk('T1', { ...slow, soh: 80 }), { minStockUnits: 100 }).final.action, 'C');
+assert.notEqual(one(mk('T2', { ...slow, soh: 300, soldOutSizes: 4 }), { brokenSizesClearance: 5 }).final.action, 'C');
+// other reduced modes still available
+assert.equal(one(mk('X1', { ...slow, currentDiscountPct: 30, price: 70, soh: 200 }), { existingReduced: 'exclude' }).final.action, 'Exclude');
+assert.notEqual(one(mk('X2', { ...slow, currentDiscountPct: 30, price: 70, soh: 200 }), { existingReduced: 'reassess' }).final.action, 'C');
+// clearance respects the cap and is counted in the category summary; clearance items are not colour-linked
+const cp = E.buildPlan([mk('Y1', { ...slow, soh: 20 }), mk('Y2', { ...slow, soh: 10 }), mk('Y3', { soh: 500 })], { maxDiscount: 40 }).categories[0];
+assert.equal(cp.countC, 2); cp.groupA === null || assert.ok(cp.groupA <= 40);
+const coreC = E.buildPlan([mk('W26AA009BLK', { isCore: true, parentStyle: 'W26AA009', ...slow, soh: 20 }), mk('W26AA009WHT', { isCore: true, parentStyle: 'W26AA009', soh: 400, sold: { d7: 1, d30: 3, d60: 8, d90: 12 }, ageWeeks: 60 })], { coreConsistency: 'strict' }).items;
+assert.equal(coreC.find(i => i.row.p.id === 'W26AA009BLK').final.action, 'C');
+
 // edge: empty input, single product, duplicate ids don't throw
 assert.equal(E.buildPlan([], {}).items.length, 0); assert.equal(E.buildPlan([mk('ONE')], {}).items.length, 1);
 assert.doesNotThrow(() => E.buildPlan([mk('D'), mk('D')], {}));
