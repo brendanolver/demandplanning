@@ -2401,8 +2401,8 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.2.5"></script>
-<script src="markdown-plans.js?v=3.2.5"></script>
+<script src="markdown-engine.js?v=3.2.6"></script>
+<script src="markdown-plans.js?v=3.2.6"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2436,7 +2436,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.2.5';
+const APP_VERSION='v3.2.6';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -6358,7 +6358,7 @@ function mdpProdTable(groups,o){
     return`<tr class="mdp-rv mdp-par${nOv===its.length?' mdp-chgrow':''}">${MDP_COLS.map(c=>tds[c.k]).join('')}</tr>`+(open?its.map(i=>rowOf(i,true)).join(''):'');
   }).join('');
   const total=MDP_COLS.filter(c=>mdpRev.compact?!c.x:true).reduce((a,c)=>a+c.w,0);
-  return`<div class="mdp-scroll mdp-revscroll"><table class="mdp-t mdp-rvt${mdpRev.compact?' mdp-compact':''}" style="min-width:${total}px"><thead><tr>${MDP_COLS.map(sh).join('')}</tr></thead><tbody>${body}</tbody></table></div>`;
+  return`<div class="mdp-scroll mdp-revscroll" data-sk="prod|${mdpEsc(cat||'flat')}"><table class="mdp-t mdp-rvt${mdpRev.compact?' mdp-compact':''}" style="min-width:${total}px"><thead><tr>${MDP_COLS.map(sh).join('')}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 // ── Category tables (Suggested left, Approved right) ──
@@ -6459,9 +6459,9 @@ function mdpCategoryBody(){
       <td class="mdp-sug">${mdpGroupPills(r.levelA,bOn?r.levelB:null,r.levelC)}</td><td class="mdp-sp">${split(r)}</td>
       <td><button class="mdp-btn mdp-btn-sm mdp-btn-ghost" onclick="event.stopPropagation();mdpReopenCategory(${cat(r)})">Reopen</button></td></tr>`+(open?mdpCatPanel(r,true):'');
   }).join('');
-  const sugTbl=sug.length?`<div class="mdp-cscroll"><table class="mdp-ct"><thead><tr>${mdpCatTh('sug','name','Category','l')}${mdpCatTh('sug','products','Products')}${mdpCatTh('sug','soh','SOH','','<small>(units)</small>')}${mdpCatTh('sug','onorder','On order')}${mdpCatTh('sug','sold30','30d sales')}${mdpCatTh('sug','cover','Weeks cover')}${mdpCatTh('sug','sugg','Suggested','mdp-sugh')}${mdpCatTh('sug','groups','Your groups','mdp-ygh','<small>A standard · B clearance · C existing reduced</small>')}${mdpCatTh('sug','split','Split','','<small>(products)</small>')}<th>Actions</th></tr></thead><tbody>${sugRows}</tbody></table></div>`
+  const sugTbl=sug.length?`<div class="mdp-cscroll" data-sk="cat|sug"><table class="mdp-ct"><thead><tr>${mdpCatTh('sug','name','Category','l')}${mdpCatTh('sug','products','Products')}${mdpCatTh('sug','soh','SOH','','<small>(units)</small>')}${mdpCatTh('sug','onorder','On order')}${mdpCatTh('sug','sold30','30d sales')}${mdpCatTh('sug','cover','Weeks cover')}${mdpCatTh('sug','sugg','Suggested','mdp-sugh')}${mdpCatTh('sug','groups','Your groups','mdp-ygh','<small>A standard · B clearance · C existing reduced</small>')}${mdpCatTh('sug','split','Split','','<small>(products)</small>')}<th>Actions</th></tr></thead><tbody>${sugRows}</tbody></table></div>`
     :`<div class="mdp-empty">${rows.length&&!list.length?'No categories match the filters.':rows.length?'<b>Every category is approved.</b><br>Check the totals in Financials, then move on to Export.':'Nothing to plan — no products in stock.'}</div>`;
-  const appTbl=app.length?`<div class="mdp-cscroll"><table class="mdp-ct"><thead><tr>${mdpCatTh('app','name','Category','l')}${mdpCatTh('app','products','Products')}${mdpCatTh('app','soh','SOH','','<small>(units)</small>')}${mdpCatTh('app','onorder','On order')}${mdpCatTh('app','sold30','30d sales')}${mdpCatTh('app','cover','Weeks cover')}${mdpCatTh('app','groups','Final groups')}${mdpCatTh('app','split','Split','','<small>(products)</small>')}<th>Actions</th></tr></thead><tbody>${appRows}</tbody></table></div>`
+  const appTbl=app.length?`<div class="mdp-cscroll" data-sk="cat|app"><table class="mdp-ct"><thead><tr>${mdpCatTh('app','name','Category','l')}${mdpCatTh('app','products','Products')}${mdpCatTh('app','soh','SOH','','<small>(units)</small>')}${mdpCatTh('app','onorder','On order')}${mdpCatTh('app','sold30','30d sales')}${mdpCatTh('app','cover','Weeks cover')}${mdpCatTh('app','groups','Final groups')}${mdpCatTh('app','split','Split','','<small>(products)</small>')}<th>Actions</th></tr></thead><tbody>${appRows}</tbody></table></div>`
     :`<div class="mdp-empty">No categories approved yet.<br>Approve a category above and it moves here.</div>`;
   const nSug=rows.filter(r=>!r.approved).length,nApp=rows.filter(r=>r.approved).length;
   const chev=k=>`<button class="mdp-chv2" onclick="event.stopPropagation();mdpTogglePanel('${k}')" title="${mdpPanels[k]?'Collapse':'Expand'}">${mdpPanels[k]?'⌃':'⌄'}</button>`;
@@ -6474,14 +6474,33 @@ function mdpFlatBody(){
   const rv=mdpVisible('');mdpIds=mdpIds||[];
   return`<div class="mdp-revsum"><span>Showing <b>${rv.count.toLocaleString()}</b> product/colours</span><span class="mdp-dim">· filters and sort from the bar in section B</span></div>`+(rv.groups.length?mdpProdTable(rv.groups,{cat:''}):'<div class="mdp-sub" style="padding:18px 4px;">Nothing matches these filters.</div>');
 }
+// Keep everything where it was across a re-render: the page, every scrolled ancestor, and each table's own scroll box (a category's product table, the
+// category tables, section C) — so changing a discount never jumps you back to the top of the table you're working in.
+function mdpScrollSnap(){
+  const root=document.getElementById('md-planner'),snap={tables:{},anc:[],win:window.pageYOffset||0};
+  if(!root)return snap;
+  root.querySelectorAll('[data-sk]').forEach(el=>{snap.tables[el.getAttribute('data-sk')]=[el.scrollTop,el.scrollLeft];});
+  for(let el=root.parentElement;el;el=el.parentElement)if(el.scrollTop>0)snap.anc.push([el,el.scrollTop]);
+  return snap;
+}
+function mdpScrollRestore(snap){
+  const root=document.getElementById('md-planner');if(!root||!snap)return;
+  const apply=()=>{
+    snap.anc.forEach(([el,t])=>{el.scrollTop=t;});
+    if(snap.win&&(window.pageYOffset||0)!==snap.win)window.scrollTo(window.pageXOffset||0,snap.win);
+    root.querySelectorAll('[data-sk]').forEach(el=>{const v=snap.tables[el.getAttribute('data-sk')];if(v){el.scrollTop=v[0];el.scrollLeft=v[1];}});
+  };
+  apply();
+  if(typeof requestAnimationFrame==='function')requestAnimationFrame(apply);   // once more after layout settles
+}
 function mdpRenderReview(keepScroll){
   if(!mdpCtx)return;
-  const sc=document.getElementById('markdowns-screen'),top=sc?sc.scrollTop:0;
+  const snap=mdpScrollSnap();
   const cb=document.getElementById('mdp-cat-body'),fb=document.getElementById('mdp-review-body');
   mdpIds=[];
   if(cb)cb.innerHTML=mdpCategoryBody();
   if(fb&&!mdpCollapsed.has('C'))fb.innerHTML=mdpFlatBody();
-  if(sc&&keepScroll)sc.scrollTop=top;
+  if(keepScroll)mdpScrollRestore(snap);
 }
 // The filter bar + progress cards + the two category tables (section B body).
 function mdpCategoryStrategy(plan,oo,hasEnd,pl,rows){
@@ -6722,8 +6741,7 @@ function renderMarkdownPlanner(){
   const root=document.getElementById('md-planner');if(!root)return;
   if(!mdpEngineOk()){root.innerHTML='<div class="mdp-card">The markdown engine failed to load (markdown-engine.js) — switch to Classic and refresh.</div>';return;}
   if(!allVariantRows||!allVariantRows.length){root.innerHTML='<div class="mdp-card"><b>No data loaded</b><div class="mdp-sub">Load your data first, then come back to this tab.</div></div>';return;}
-  const scEl=document.getElementById('markdowns-screen'),scTop=scEl?scEl.scrollTop:0;
-  const rvOld=document.querySelector('#mdp-review-body .mdp-revscroll'),rvTop=rvOld?rvOld.scrollTop:0,rvLeft=rvOld?rvOld.scrollLeft:0;
+  const scrollSnap=mdpScrollSnap();
   mdpLoadState();
   const pl=mdpPlan();
   const S=MarkdownPlans.engineSettings(pl);
@@ -6843,8 +6861,7 @@ function renderMarkdownPlanner(){
     +mdpSec('E','E. Special buys (from Apparel Magic)',pl.special.length+' pick'+(pl.special.length===1?'':'s'),mdpSpecialSection(plan,oo,hasEnd,pl))
     +mdpSec('F','F. Financial &amp; stock forecast',fcast?'last year × growth':'needs sale dates',mdpForecastSection({plan,pl,fcSet,win:lyWin,ly:lyData,SU,oo,PS,scen:fcSet?mdpScenarioPlans(pl,S,mdpIn,plan):null}))
     +later('G','G. Shopify / Hextom export','planned · phase 7','Collection mapping per discount level, pre-export validation and checklist, the Hextom import CSV, the full plan CSV and an audit summary.');
-  if(scEl)scEl.scrollTop=scTop;
-  const rvNew=document.querySelector('#mdp-review-body .mdp-revscroll');if(rvNew){rvNew.scrollTop=rvTop;rvNew.scrollLeft=rvLeft;}
+  mdpScrollRestore(scrollSnap);
   if(mdpRenaming){const el=document.getElementById('mdp-rename');if(el){el.focus();el.select();}}
 }
 function round1(v){return Math.round(v*10)/10;}
@@ -13044,6 +13061,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.2.6 — Fix: the planner jumped around after changing a Proposed disc. (or any decision) in Suggested categories, from Brendan. Cause: a change re-renders the planner and only the page and section C's table kept their scroll position — the product table inside an expanded category (and the category tables) snapped back to the top. Now every scroll box is remembered and restored by name across any re-render (page, ancestors, each category's product table, the category tables, section C). Rows still re-sort if you're sorted by the column you just changed.
 // v3.2.5 — Suggested and Approved category tables: every column header is click-to-sort, like the product table (Category, Products, SOH, On order, 30d sales, Weeks cover, Suggested, Your groups, Split). Text A→Z first, numbers biggest first, click again to reverse, ▲/▼ on the active column, empty values always last; each table remembers its own sort (default SOH high to low). From Brendan.
 // v3.2.4 — Section C is now simply titled 'C. Product review' (no '/ colour', no tag), from Brendan.
 // v3.2.3 — Markdown Planner: the Group A / B / C cards are now FILTERS for the expanded product table, from Brendan. Click a card to show only that group's products (by saved group membership, never by %), click it again or press 'Show all' to go back; one at a time, separate for each category, and a category always opens on Show all. The cards, the Split column and the category totals always cover the WHOLE category; a 'Showing 12 of 99 product/colours' line shows the filtered count; an empty group shows a clean empty state. It combines with search, sort, Month del and the other filters, updates live as products move between groups, and selections are pruned to what's visible so a bulk action can never touch hidden products. MarkdownPlans.buildReview takes f.group.
