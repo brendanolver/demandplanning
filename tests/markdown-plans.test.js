@@ -126,7 +126,7 @@ assert.equal(Object.keys(P.restorePlan(arc, oid, 12).plans[oid].overrides).lengt
 const mkr = (id, o = {}) => ({ id, name: o.name || 'TEE', colour: o.colour || 'BLACK', category: o.category || 'TEES', style: id, parentStyle: o.parentStyle === undefined ? id.slice(0, 8) : o.parentStyle, isCore: !!o.isCore, status: 'CURRENT', isGWP: false, soh: o.soh || 100, sohCost: 1, onOrder: 0, sold: { d7: o.sold || 5, d30: (o.sold || 5) * 4, d60: (o.sold || 5) * 8, d90: (o.sold || 5) * 12 }, rrp: 100, price: 100, currentDiscountPct: 0, sizeCount: 5, soldOutSizes: 0, ageWeeks: 40 });
 const rp = [mkr('W26AA001BLK', { name: 'ACCENT TEE', colour: 'BLACK', isCore: true, soh: 300 }), mkr('W26AA001WHT', { name: 'ACCENT TEE', colour: 'WHITE', isCore: true, soh: 50 }), mkr('W26AA001OLI', { name: 'ACCENT TEE', colour: 'OLIVE', isCore: true, soh: 10 }),
   mkr('W26BB002BLK', { name: 'BOXER SHORT', category: 'SHORTS', colour: 'BLACK', soh: 500 }), mkr('W26CC003GRY', { name: 'CAMP HOOD', category: 'SWEATS', colour: 'GREY', soh: 30 }), mkr('NOPARENT', { name: 'ODD ITEM', parentStyle: '', category: 'TEES', soh: 20 })];
-const rplan = E.buildPlan(rp, { maxDiscount: 70 }, { W26BB002BLK: { exclude: true, reason: 'Other' }, W26CC003GRY: { pct: 40, kind: 'approved' } });
+const rplan = E.buildPlan(rp, { maxDiscount: 70 }, { W26BB002BLK: { exclude: true, reason: 'Other' }, W26CC003GRY: { pct: 40, kind: 'discount' } });
 let rv = P.buildReview(rplan.items, {}); assert.equal(rv.total, 6); assert.equal(rv.count, 6);
 const multi = rv.groups.filter(g => g.multi); assert.equal(multi.length, 1); assert.equal(multi[0].parentStyle, 'W26AA001'); assert.equal(multi[0].items.length, 3);   // three colours -> one parent row
 assert.equal(rv.groups.length, 4); assert.ok(rv.groups.some(g => !g.multi && g.items[0].row.p.id === 'NOPARENT'));                                       // no parent style -> a plain row
@@ -161,18 +161,7 @@ assert.equal(P.buildReview(rplan.items, { view: 'onorder' }).count, 0);         
 const rsReview = E.buildPlan(rp.concat([{ ...mkr('RESTOCKED'), soh: 0, restockUnits: 300, sold: { d7: 2, d30: 8, d60: 16, d90: 24 } }]), { maxDiscount: 70 });
 assert.deepEqual(P.buildReview(rsReview.items, { view: 'restock', flat: true }).groups.map(g => g.key), ['id:RESTOCKED']);
 
-// approval status: approved = any saved decision; not approved = the planner's suggestion only (GWP can't be approved)
-assert.deepEqual(P.sanitizeOverride({ exclude: true, confirm: true, reason: 'x' }), { exclude: true, confirm: true });
-const apOv = { W26AA001BLK: { pct: 30, kind: 'approved' }, W26BB002BLK: { exclude: true, confirm: true }, W26CC003GRY: { pct: 40, kind: 'discount' } };
-const apPlan = E.buildPlan(rp, { maxDiscount: 70 }, apOv);
-assert.deepEqual(P.buildReview(apPlan.items, { approval: 'approved', flat: true }).groups.map(g => g.key).sort(), ['id:W26AA001BLK', 'id:W26BB002BLK', 'id:W26CC003GRY']);
-assert.equal(P.buildReview(apPlan.items, { approval: 'pending', flat: true }).count, 3);
-assert.equal(P.buildReview(apPlan.items, { approval: 'approved' }).count + P.buildReview(apPlan.items, { approval: 'pending' }).count, 6);          // every product is approved or not, never both
-assert.equal(P.buildReview(apPlan.items, { approval: 'all' }).count, 6); assert.equal(P.buildReview(apPlan.items, {}).count, 6);
-assert.equal(P.buildReview(apPlan.items, { approval: 'pending', category: 'TEES', flat: true }).count, 3);                                           // combines with the other filters
-const gwApprove = E.buildPlan(rp.map(r => (r.id === 'NOPARENT' ? { ...r, isGWP: true } : r)), { maxDiscount: 70 });
-assert.equal(P.buildReview(gwApprove.items, { approval: 'pending' }).groups.some(g => g.items.some(i => i.row.p.id === 'NOPARENT')), false);       // GWP never appears as "waiting for approval"
-assert.deepEqual(P.overrideStats({ overrides: { A: { exclude: true, confirm: true }, B: { pct: 20, kind: 'approved' }, C: { exclude: true, reason: 'Other' } } }), { total: 3, exclude: 1, discount: 0, approved: 2, group: 0, stale: 0 });
+assert.deepEqual(P.sanitizeOverride({ exclude: true, confirm: true, reason: 'x' }), { exclude: true, confirm: true });   // legacy per-product approvals are still sanitised and kept (inert in the engine)
 
 assert.deepEqual(P.buildReview([], {}).groups, []);
 // ── Special buys & GWP selections ───────────────────────────────────────────
@@ -368,6 +357,57 @@ assert.deepEqual(P.buildForecast([], {}, 90).totals.demand, 0);
   const ids = f => P.buildReview(its, f).groups.flatMap(g => g.items.map(i => i.row.p.id)).sort().join('');
   assert.equal(ids({}), 'abcde'); assert.equal(ids({ sugg: '20' }), 'ab'); assert.equal(ids({ sugg: 50 }), 'c'); assert.equal(ids({ sugg: '__none__' }), 'd'); assert.equal(ids({ sugg: '70' }), '');
   assert.equal(ids({ sugg: '20', category: 'X' }), 'ab');
+}
+// ── Category approval: the main workflow ──
+{
+  let st = P.createState(1, idGen); const id = st.activeId;
+  const mkp = (pid, cat, soh, d30, extra) => Object.assign({ id: pid, style: pid, name: pid, colour: 'BLK', category: cat, collection: '', parentStyle: '', isCore: false, isGWP: false, soh, sohCost: soh * 10, onOrder: 0, sold: { d7: 1, d30, d60: d30 * 2, d90: d30 * 3 }, rrp: 100, price: 100, currentDiscountPct: 0, sizeCount: 4, soldOutSizes: 0, ageWeeks: 40 }, extra || {});
+  const prods = [mkp('T1', 'TEES', 200, 2), mkp('T2', 'TEES', 100, 20), mkp('T3', 'TEES', 300, 1), mkp('S1', 'SHORTS', 80, 8), mkp('S2', 'SHORTS', 90, 9), mkp('G1', 'GWP', 40, 0, { isGWP: true })];
+  const build = (stx, extra) => E.buildPlan(prods, P.engineSettings(stx.plans[id]), stx.plans[id].overrides, stx.plans[id].groupLevels, P.frozenAllocs(stx.plans[id]));
+  let plan = build(st), rows = P.categoryRows(plan.items, plan, st.plans[id], { TEES: 500, SHORTS: 0 });
+  assert.deepEqual(rows.map(r => r.category), ['SHORTS', 'TEES']);                                            // GWP-only category isn't a category to approve
+  const tees = rows.find(r => r.category === 'TEES');
+  assert.equal(tees.products, 3); assert.equal(tees.soh, 600); assert.equal(tees.onOrder, 500); assert.equal(tees.sold30, 23); assert.equal(tees.approved, false);
+  assert.equal(tees.countA + tees.countB + tees.countC + tees.countS + tees.countX + tees.countManual, 3);
+  assert.deepEqual(P.approvalProgress(rows), { catsTotal: 2, catsApproved: 0, catsRemaining: 2, prodsTotal: 5, prodsApproved: 0, prodsRemaining: 5 });   // the GWP product is not counted
+  // a GWP product that also carries a discount (a genuine conflict) is counted against its category so approval can be held
+  { const bp = E.buildPlan(prods.concat([mkp('G2', 'SHORTS', 10, 0, { isGWP: true, specialPct: 50 })]), P.engineSettings(st.plans[id]), {}, null, null);
+    assert.equal(P.categoryRows(bp.items, bp, st.plans[id], {}).find(r => r.category === 'SHORTS').blocked, 1); assert.equal(P.categoryRows(bp.items, bp, st.plans[id], {}).find(r => r.category === 'TEES').blocked, 0); }
+  // approve TEES: levels + every allocation saved, moves to approved, progress updates
+  const alloc = Object.fromEntries(plan.items.filter(i => i.row.p.category === 'TEES').map(i => [i.row.p.id, i.final.action]));
+  st = P.approveCategory(st, id, 'TEES', { A: tees.groupA, B: tees.groupB, alloc }, 10);
+  assert.equal(P.isApproved(st.plans[id], 'TEES'), true); assert.equal(P.isApproved(st.plans[id], 'SHORTS'), false);
+  assert.deepEqual(Object.keys(st.plans[id].catApprovals.TEES.alloc).sort(), ['T1', 'T2', 'T3']);
+  if (tees.groupA != null) assert.equal(st.plans[id].groupLevels.TEES.A, tees.groupA);                         // the levels are locked in as your levels
+  plan = build(st); rows = P.categoryRows(plan.items, plan, st.plans[id], {});
+  assert.equal(rows.find(r => r.category === 'TEES').approved, true);
+  assert.deepEqual(P.approvalProgress(rows), { catsTotal: 2, catsApproved: 1, catsRemaining: 1, prodsTotal: 5, prodsApproved: 3, prodsRemaining: 2 });
+  // an approved category holds: the planner's own suggestion for the same products is the same here, but a saved allocation is honoured by the engine
+  const fz = P.frozenAllocs(st.plans[id]); assert.equal(fz.T1, alloc.T1);
+  // reopen: back to suggested, everything saved is kept
+  const gl0 = JSON.stringify(st.plans[id].groupLevels);
+  st = P.reopenCategory(st, id, 'TEES', 11);
+  assert.equal(P.isApproved(st.plans[id], 'TEES'), false); assert.equal(JSON.stringify(st.plans[id].groupLevels), gl0); assert.deepEqual(Object.keys(st.plans[id].catApprovals.TEES.alloc).sort(), ['T1', 'T2', 'T3']);
+  assert.strictEqual(P.reopenCategory(st, id, 'TEES', 12), st); assert.strictEqual(P.reopenCategory(st, id, 'NOPE', 12), st);   // nothing to reopen -> unchanged
+  assert.equal(P.categoryRows(build(st).items, build(st), st.plans[id], {}).find(r => r.category === 'TEES').reopened, true);
+  // approve again after changes
+  st = P.setGroupLevel(st, id, 'TEES', 'A', 30, 13); st = P.approveCategory(st, id, 'TEES', { A: 30, B: 50, alloc }, 14);
+  assert.equal(st.plans[id].groupLevels.TEES.A, 30); assert.equal(st.plans[id].groupLevels.TEES.B, 50); assert.equal(P.isApproved(st.plans[id], 'TEES'), true);
+  // refresh suggestions only drops saved allocations of categories that are not approved
+  st = P.approveCategory(st, id, 'SHORTS', { A: 20, alloc: { S1: 'A' } }, 15); st = P.reopenCategory(st, id, 'SHORTS', 16);
+  st = P.refreshSuggestions(st, id, 17); assert.equal(st.plans[id].catApprovals.SHORTS, undefined); assert.equal(P.isApproved(st.plans[id], 'TEES'), true);
+  assert.strictEqual(P.refreshSuggestions(st, id, 18), st);
+  // junk is ignored; levels capped at the highest single discount
+  st = P.approveCategory(st, id, 'X', { A: 999, B: -1, alloc: { a: 'Z', b: 'A' } }, 20); assert.equal(st.plans[id].catApprovals.X.A, st.plans[id].settings.maxDiscount); assert.equal(st.plans[id].catApprovals.X.B, null); assert.deepEqual(st.plans[id].catApprovals.X.alloc, { b: 'A' });
+  // duplicates don't copy approvals; old plans load with none
+  const dup = P.duplicatePlan(st, id, 30, idGen); assert.deepEqual(dup.state.plans[dup.id].catApprovals, {});
+  assert.deepEqual(P.migrate({ v: st.v, activeId: id, order: [id], plans: { [id]: { ...st.plans[id], catApprovals: undefined } } }, null, 1, idGen).plans[id].catApprovals, {});
+  // the engine really holds an approved allocation when the data later says otherwise
+  const flipped = prods.map(p => p.id === 'T2' ? { ...p, sold: { d7: 40, d30: 150, d60: 300, d90: 450 } } : p);   // T2 is suddenly a runaway seller
+  const live = E.buildPlan(flipped, P.engineSettings(st.plans[id]), {}, null, null).items.find(i => i.row.p.id === 'T2');
+  const held = E.buildPlan(flipped, P.engineSettings(st.plans[id]), {}, null, { T2: 'B' }).items.find(i => i.row.p.id === 'T2');
+  assert.equal(held.final.action, 'B'); assert.equal(held.frozen, true);
+  assert.notEqual(live.final.action, 'B');
 }
 console.log('markdown plans tests: all passed');
 })();

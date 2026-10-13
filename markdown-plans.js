@@ -69,6 +69,7 @@
       setup: clone(DEFAULT_SETUP),
       settings: Engine.mergeSettings({}),
       overrides: {},   // phase 4: per-product manual decisions
+      catApprovals: {}, // category approval: { CATEGORY: { approved, ts, A, B, alloc: { productId: 'A'|'B'|'C'|'Exclude' } } } — kept when a category is reopened
       snapshots: [],   // saved forecast snapshots (kept per sale; a Duplicate does not copy them)
       groupLevels: {}, // your own Group A / B level per category: { CATEGORY: { A: pct, B: pct } } (absent = the planner's suggestion)
       mappings: {},    // phase 7: discount -> Shopify collection (id + title), independent per sale
@@ -94,6 +95,7 @@
         p.settings = Engine.mergeSettings(p.settings);
         p.groupLevels = p.groupLevels && typeof p.groupLevels === 'object' ? p.groupLevels : {};
         p.snapshots = Array.isArray(p.snapshots) ? p.snapshots : [];
+        p.catApprovals = p.catApprovals && typeof p.catApprovals === 'object' && !Array.isArray(p.catApprovals) ? p.catApprovals : {};
         p.overrides = p.overrides || {}; p.mappings = p.mappings || {}; p.exports = p.exports || [];
         p.special = Array.isArray(p.special) ? p.special : [];
         p.gwp = { items: [], threshold: null, qty: {}, ...(p.gwp || {}) };
@@ -350,6 +352,70 @@
     const s = clone(state); s.plans[planId].snapshots = s.plans[planId].snapshots.filter(x => x.ts !== ts); s.plans[planId].rev += 1; return s;
   }
 
+  // ── Category approval (the main workflow) ───────────────────────────────────
+  // Approving a category saves its final Group A / B levels and every product's allocation in it, and moves it to Approved. Reopening
+  // moves it back but keeps everything saved (levels, allocations, your product decisions). 'Regenerate' drops the saved allocations of
+  // categories that are NOT approved so the planner re-suggests them.
+  const ALLOC_OK = ['A', 'B', 'C', 'Exclude'];
+  function approveCategory(state, planId, category, snap, now) {
+    const plan = state.plans[planId]; if (!plan || !category) return state;
+    const s = clone(state), p = s.plans[planId], lvl = v => { const n = Number(v); return v != null && isFinite(n) && n > 0 ? Math.min(n, p.settings.maxDiscount) : null; };
+    const A = lvl(snap && snap.A), B = lvl(snap && snap.B), alloc = {};
+    for (const id of Object.keys((snap && snap.alloc) || {})) if (ALLOC_OK.includes(snap.alloc[id])) alloc[id] = snap.alloc[id];
+    p.catApprovals = p.catApprovals || {}; p.catApprovals[category] = { approved: true, ts: now || Date.now(), A, B, alloc };
+    p.groupLevels = p.groupLevels || {};
+    const e = { ...(p.groupLevels[category] || {}) }; if (A != null) e.A = A; if (B != null) e.B = B;
+    if (e.A != null || e.B != null) p.groupLevels[category] = e;
+    p.updatedTs = now || Date.now(); p.rev += 1;
+    return s;
+  }
+  function reopenCategory(state, planId, category, now) {
+    const plan = state.plans[planId]; if (!plan || !plan.catApprovals || !plan.catApprovals[category] || !plan.catApprovals[category].approved) return state;
+    const s = clone(state); s.plans[planId].catApprovals[category].approved = false; s.plans[planId].updatedTs = now || Date.now(); s.plans[planId].rev += 1; return s;
+  }
+  function refreshSuggestions(state, planId, now) {
+    const plan = state.plans[planId]; if (!plan) return state;
+    const open = Object.keys(plan.catApprovals || {}).filter(c => !plan.catApprovals[c].approved);
+    if (!open.length) return state;
+    const s = clone(state); for (const c of open) delete s.plans[planId].catApprovals[c];
+    s.plans[planId].updatedTs = now || Date.now(); s.plans[planId].rev += 1; return s;
+  }
+  const isApproved = (plan, category) => !!(plan.catApprovals && plan.catApprovals[category] && plan.catApprovals[category].approved);
+  // Saved allocations for the engine: every category with a record (approved or reopened) holds its products where they were put.
+  function frozenAllocs(plan) {
+    const out = {};
+    for (const c of Object.keys(plan.catApprovals || {})) Object.assign(out, plan.catApprovals[c].alloc || {});
+    return out;
+  }
+  // One row per category for the Suggested / Approved tables. GWP products never count (they are never discounted); a special buy counts once,
+  // in its own category. onOrderByCat: { 'CATEGORY': units } (uppercase keys).
+  function categoryRows(items, enginePlan, plan, onOrderByCat) {
+    const byCat = {}, blockedBy = {};
+    for (const it of items || []) { if (it.blocked) { const k = it.row.p.category || 'UNCATEGORISED'; blockedBy[k] = (blockedBy[k] || 0) + 1; } }   // a GWP product that also has a discount (a genuine conflict) blocks its category
+    for (const it of items || []) {
+      const p = it.row.p; if (p.isGWP) continue;
+      const k = p.category || 'UNCATEGORISED';
+      const c = byCat[k] || (byCat[k] = { category: k, products: 0, sold30: 0, unitsA: 0, unitsB: 0, countA: 0, countB: 0, countC: 0, countS: 0, countX: 0, countManual: 0, blocked: 0, needAttention: 0, changed: 0 });
+      c.products++; c.sold30 += (p.sold && p.sold.d30) || 0;
+      const a = it.final.action, u = it.row.m.soh || 0;
+      if (a === 'A') { c.countA++; c.unitsA += u; } else if (a === 'B') { c.countB++; c.unitsB += u; } else if (a === 'C') c.countC++; else if (a === 'S') c.countS++; else if (a === 'Exclude') c.countX++; else if (a === 'Manual') c.countManual++;
+      if (it.exception) c.needAttention++; if (it.override) c.changed++;
+    }
+    const ec = Object.fromEntries(((enginePlan && enginePlan.categories) || []).map(c => [c.category, c]));
+    const rows = Object.keys(byCat).sort().map(k => {
+      const c = byCat[k], e = ec[k] || {}, ap = (plan.catApprovals || {})[k];
+      return { ...c, blocked: blockedBy[k] || 0, soh: e.soh || 0, restock: e.restock || 0, weeksCover: e.weeksCover == null ? null : e.weeksCover, onOrder: (onOrderByCat && onOrderByCat[String(k).toUpperCase()]) || 0,
+        groupA: e.groupA == null ? null : e.groupA, groupB: e.groupB == null ? null : e.groupB, autoA: e.autoA == null ? null : e.autoA, autoB: e.autoB == null ? null : e.autoB,
+        manualA: e.manualA == null ? null : e.manualA, manualB: e.manualB == null ? null : e.manualB, groupWarn: !!e.groupWarn,
+        approved: !!(ap && ap.approved), reopened: !!(ap && !ap.approved), approvedTs: ap ? ap.ts : null };
+    });
+    return rows;
+  }
+  function approvalProgress(rows) {
+    const ap = rows.filter(r => r.approved);
+    return { catsTotal: rows.length, catsApproved: ap.length, catsRemaining: rows.length - ap.length, prodsTotal: rows.reduce((a, r) => a + r.products, 0), prodsApproved: ap.reduce((a, r) => a + r.products, 0), prodsRemaining: rows.filter(r => !r.approved).reduce((a, r) => a + r.products, 0) };
+  }
+
   // ── Category group levels ──────────────────────────────────────────────────
   // tier 'A' | 'B'; pct null/'' = back to the planner's suggestion. Levels are capped at the highest single discount.
   function setGroupLevel(state, planId, category, tier, pct, now) {
@@ -438,8 +504,6 @@
       const p = it.row.p, fin = it.final;
       if (f.category && String(p.category || '').toUpperCase() !== String(f.category).toUpperCase()) return false;
       if (f.collection && norm(p.collection) !== norm(f.collection)) return false;
-      if (f.approval === 'approved' && !it.override) return false;                                     // you've confirmed or changed it
-      if (f.approval === 'pending' && (it.override || p.isGWP || it.blocked)) return false;            // still just the planner's suggestion (GWP can't be approved)
       if (f.sugg) { const sp = it.systemPct; if (f.sugg === '__none__' ? sp != null : sp == null || Number(sp) !== Number(f.sugg)) return false; }
       if (f.month) { const dm = String(p.deliveryMonth || ''); if (f.month === '__none__' ? dm !== '' : dm.toUpperCase() !== String(f.month).toUpperCase()) return false; }
       if (f.core === 'core' && !p.isCore) return false;
@@ -453,7 +517,7 @@
       if (view === 'groupA' && fin.action !== 'A') return false;
       if (view === 'groupB' && fin.action !== 'B') return false;
       if (view === 'overridden' && !it.override) return false;
-      if (view === 'attention' && !(it.exception || it.conflict || it.blocked)) return false;
+      if (view === 'attention' && !(it.exception || it.blocked)) return false;   // a different discount from the suggestion is a normal decision, not a problem
       if (q) {
         const hay = [p.name, p.colour, p.style, p.parentStyle, p.category].join(' ').toLowerCase();
         if (!q.split(/\s+/).every(w => hay.includes(w))) return false;
@@ -662,6 +726,6 @@
     parseDay, durationDays, newPlan, createState, migrate, uniqueName, addPlan, duplicatePlan,
     renamePlan, setActive, archivePlan, restorePlan, cleanLevels, updatePlan, engineSettings, validatePlan,
     EXCLUDE_REASONS, VIEWS, sanitizeOverride, setOverrides, clearOverrides, overrideStats, buildReview,
-    SPECIAL_KINDS, GWP_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setGwpQty, setGwpThreshold, lyWindow, lyUnitsByCategory, buildForecast, addDays, demandScenarios, forecastConfidence, crossCheck, scenarioLevels, commercialSummary, addSnapshot, removeSnapshot, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
+    SPECIAL_KINDS, GWP_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setGwpQty, setGwpThreshold, lyWindow, lyUnitsByCategory, buildForecast, addDays, demandScenarios, forecastConfidence, crossCheck, scenarioLevels, commercialSummary, addSnapshot, removeSnapshot, approveCategory, reopenCategory, refreshSuggestions, isApproved, frozenAllocs, categoryRows, approvalProgress, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
   };
 });

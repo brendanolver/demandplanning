@@ -228,7 +228,7 @@
   }
 
   // ── Whole-range plan ─────────────────────────────────────────────────────────
-  function buildPlan(products, settings, overrides, groupLevels) {
+  function buildPlan(products, settings, overrides, groupLevels, frozen) {
     const S = mergeSettings(settings);
     const rows = scoreAll(products, S);
     const lv = levels(S);
@@ -238,10 +238,19 @@
       return { row: r, ...c };
     });
 
+    // Allocations saved when a category was approved (or reopened): { productId: 'A'|'B'|'C'|'Exclude' }. They hold a product in the
+    // group it was approved in, so a data refresh can't silently move it. Rules (GWP, no stock, special buys) still win.
+    if (frozen) for (const it of items) {
+      const fz = frozen[it.row.p.id];
+      if (fz && !it.hard && it.action !== 'S' && !it.row.p.isGWP && ['A', 'B', 'C', 'Exclude'].includes(fz) && fz !== it.action) {
+        it.action = fz; it.frozen = true; it.reason = fz === 'Exclude' ? 'Kept out of the sale — saved when the category was approved' : 'Kept in its approved group — saved when the category was approved';
+      } else if (fz && fz === it.action) it.frozen = true;
+    }
+
     // Core colour consistency: all colours of a core parent style follow the style's group.
     if (S.coreConsistency !== 'independent') {
       const byStyle = {};
-      items.forEach(it => { const p = it.row.p; if (p.isCore && p.parentStyle && !it.hard && it.action !== 'C' && it.action !== 'S') (byStyle[p.parentStyle] = byStyle[p.parentStyle] || []).push(it); });
+      items.forEach(it => { const p = it.row.p; if (p.isCore && p.parentStyle && !it.hard && !it.frozen && it.action !== 'C' && it.action !== 'S') (byStyle[p.parentStyle] = byStyle[p.parentStyle] || []).push(it); });
       for (const st of Object.keys(byStyle)) {
         const g = byStyle[st]; if (g.length < 2) continue;
         const stock = g.reduce((a, it) => a + it.row.m.soh, 0) || 1;
@@ -308,7 +317,9 @@
       // typed in, 'approved' = a suggestion you locked), or a move to another group (follows that
       // group's level). They are applied last and never silently overwritten; if the system's
       // suggestion later moves away from an APPROVED discount, your figure is kept and flagged.
-      const o = ov[p.id];
+      // 'Approved at the suggested figure' (and 'confirmed stays out') were per-product approvals from the old workflow. Approval is now per category, so
+      // they no longer pin anything — they're kept in the saved data but ignored. Only real decisions (a typed discount, a group move, an exclusion) apply.
+      const o0 = ov[p.id], o = o0 && (o0.kind === 'approved' || (o0.exclude && o0.confirm)) ? null : o0;
       let override = null, conflict = false, blocked = null;
       if (p.isGWP && p.specialPct != null) blocked = 'GWP';   // a GWP product also set up as a discounted special buy: a blocking conflict
       if (o && p.isGWP) {

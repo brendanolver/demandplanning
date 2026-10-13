@@ -309,15 +309,26 @@ const ovSet = [
 const ovBase = E.buildPlan(ovSet, { maxDiscount: 70 });
 const sys0 = id => ovBase.items.find(i => i.row.p.id === id).systemPct;
 assert.ok(sys0('W26AA010BLK') != null);
-// approve at the suggested figure: keeps its tier, flagged as approved, no conflict
+// the old per-product 'approved' / 'confirmed' decisions are inert now (approval is per category): kept in the saved data, never pin a discount, never flagged
 let a1 = E.buildPlan(ovSet, { maxDiscount: 70 }, { W26AA010BLK: { pct: sys0('W26AA010BLK'), kind: 'approved' } }).items.find(i => i.row.p.id === 'W26AA010BLK');
-assert.equal(a1.override, 'approved'); assert.equal(a1.conflict, false); assert.equal(a1.final.pct, sys0('W26AA010BLK')); assert.notEqual(a1.final.action, 'Manual'); assert.match(a1.final.reason, /^Approved at/);
-// the system's suggestion later moves (a tighter average cap lowers the group its other members share): the approved figure is KEPT and the difference flagged
-const moved = E.buildPlan(ovSet, { maxDiscount: 70, avgDiscountCap: 22 }, { M1: { pct: sys0('M1'), kind: 'approved' } });
-const a2 = moved.items.find(i => i.row.p.id === 'M1');
-assert.equal(sys0('M1'), 30); assert.equal(a2.final.pct, 30); assert.equal(a2.conflict, true); assert.match(a2.final.reason, /system now suggests 20%.*kept/); assert.equal(moved.totals.conflicts, 1);
-assert.equal(a2.systemPct, 20); assert.equal(a2.final.action, 'Manual');
-assert.ok(moved.totals.avgDiscount < ovBase.totals.avgDiscount);                                                                                   // the cap still holds, the locked product just isn't the one that was lowered
+assert.equal(a1.override, null); assert.equal(a1.conflict, false); assert.equal(a1.final.pct, sys0('W26AA010BLK')); assert.notEqual(a1.final.action, 'Manual');
+const legacy = E.buildPlan(ovSet, { maxDiscount: 70 }, { M1: { pct: 60, kind: 'approved' }, M3: { exclude: true, confirm: true } });
+assert.equal(legacy.items.find(i => i.row.p.id === 'M1').final.pct, ovBase.items.find(i => i.row.p.id === 'M1').final.pct);   // a stale approved figure no longer pins anything
+assert.equal(legacy.items.find(i => i.row.p.id === 'M3').override, null); assert.equal(legacy.totals.overridden, 0); assert.equal(legacy.totals.conflicts, 0);
+// a category group change moves every product in the group, including ones that were 'approved' under the old workflow
+const moved = E.buildPlan(ovSet, { maxDiscount: 70 }, { M1: { pct: sys0('M1'), kind: 'approved' } }, { [ovSet.find(p => p.id === 'M1').category]: { A: 40 } });
+assert.equal(moved.items.find(i => i.row.p.id === 'M1').final.pct >= 40, true); assert.equal(moved.items.find(i => i.row.p.id === 'M1').conflict, false);
+// allocations saved at category approval: a product stays in the group it was approved in
+{
+  const fzBase = E.buildPlan(ovSet, { maxDiscount: 70 }), m1 = fzBase.items.find(i => i.row.p.id === 'M1').final.action;
+  const other = m1 === 'A' ? 'B' : 'A';
+  const fz = E.buildPlan(ovSet, { maxDiscount: 70 }, {}, null, { M1: other });
+  assert.equal(fz.items.find(i => i.row.p.id === 'M1').final.action, other); assert.equal(fz.items.find(i => i.row.p.id === 'M1').frozen, true);
+  assert.equal(E.buildPlan(ovSet, { maxDiscount: 70 }, {}, null, { M1: 'Exclude' }).items.find(i => i.row.p.id === 'M1').final.pct, null);
+  assert.equal(E.buildPlan(ovSet, { maxDiscount: 70 }, {}, null, { GW1: 'A' }).items.find(i => i.row.p.id === 'GW1').final.pct, null);          // GWP is never pulled in by a saved allocation
+  assert.equal(E.buildPlan(ovSet, { maxDiscount: 70 }, {}, null, { M1: 'Z' }).items.find(i => i.row.p.id === 'M1').final.action, m1);             // junk values ignored
+  assert.equal(E.buildPlan(ovSet, { maxDiscount: 70 }, { M1: { pct: 50, kind: 'discount' } }, null, { M1: other }).items.find(i => i.row.p.id === 'M1').final.pct, 50);   // your product decision still wins
+}
 // a typed discount is a manual override (capped at the single-discount ceiling); a typed discount is never a 'conflict'
 const t1 = E.buildPlan(ovSet, { maxDiscount: 40 }, { M1: { pct: 90, kind: 'discount' } }).items.find(i => i.row.p.id === 'M1');
 assert.equal(t1.final.pct, 40); assert.equal(t1.final.action, 'Manual'); assert.equal(t1.override, 'discount'); assert.equal(t1.conflict, false);
@@ -350,7 +361,7 @@ assert.equal(capH.items.find(i => i.row.p.id === 'M1').final.pct, 70);
 // a core-colour exception stops needing approval once you decide it (approve, change or exclude)
 const exBase = E.buildPlan(core, { coreConsistency: 'preferred' }), exId = exBase.items.find(i => i.exception).row.p.id;
 assert.ok(exBase.totals.exceptions >= 1);
-for (const dec of [{ pct: exBase.items.find(i => i.row.p.id === exId).systemPct || 20, kind: 'approved' }, { exclude: true, reason: 'Core protection' }, { pct: 30, kind: 'discount' }]) {
+for (const dec of [{ exclude: true, reason: 'Core protection' }, { pct: 30, kind: 'discount' }]) {
   const r = E.buildPlan(core, { coreConsistency: 'preferred' }, { [exId]: dec });
   assert.equal(r.totals.exceptions, exBase.totals.exceptions - 1); assert.equal(r.items.find(i => i.row.p.id === exId).exceptionResolved, true);
 }
@@ -432,10 +443,7 @@ for (const extra of [mk('SWG', { category: 'SW', isGWP: true, soh: 500, sold: { 
   const withX = E.buildPlan(swReal.concat([extra]), { maxDiscount: 70 }).items.filter(i => i.row.p.id !== extra.id).map(i => [i.row.p.id, i.final.action, i.final.pct, i.row.score]);
   assert.deepEqual(withX, swBase);
 }
-// confirming a "stays out of the sale" suggestion
-const cf = E.buildPlan(ovSet, { maxDiscount: 70 }, { M3: { exclude: true, confirm: true } }).items.find(i => i.row.p.id === 'M3');
-assert.equal(cf.override, 'confirmed'); assert.equal(cf.final.action, 'Exclude'); assert.equal(cf.final.pct, null); assert.match(cf.final.reason, /^Confirmed: stays out of the sale — /);
-assert.equal(E.buildPlan(ovSet, { maxDiscount: 70 }, { M3: { exclude: true, confirm: true } }).totals.overridden, 1);
+// (confirming a "stays out of the sale" suggestion was a per-product approval — covered above: inert)
 // edge: empty input, single product, duplicate ids don't throw
 assert.equal(E.buildPlan([], {}).items.length, 0); assert.equal(E.buildPlan([mk('ONE')], {}).items.length, 1);
 assert.doesNotThrow(() => E.buildPlan([mk('D'), mk('D')], {}));
