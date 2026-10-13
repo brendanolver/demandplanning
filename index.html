@@ -2222,8 +2222,8 @@ th{position:relative;}
     </div>
   </div>
 
-<script src="markdown-engine.js?v=2.8.3"></script>
-<script src="markdown-plans.js?v=2.8.3"></script>
+<script src="markdown-engine.js?v=2.8.4"></script>
+<script src="markdown-plans.js?v=2.8.4"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2257,7 +2257,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.8.3';
+const APP_VERSION='v2.8.4';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -12121,7 +12121,8 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
-// v2.8.3 — Markdown Planner: units on order from Apparel Magic, by category and by style. The category table gains On order (all open AM order lines, with a purple 'N new' tag for units sitting in styles not in Shopify yet) and Due by sale end (needs the sale's end date); categories that have stock on order but nothing in stock get their own 'on order only' row; expanding a category adds an 'On order — by style' table (style, product, Live/New style, SOH, on order, due by sale end, next arrival, customer PO — including brand-new styles); product rows show their on-order units; a tile shows the total (71,565 units across 230 styles today, ~58k of it in new styles). Read straight from the AM orders — categories from the product rows, else the app's own AM product lookup (finishes a few seconds after the orders land; until then a style sits under '(category loading…)' and the Planner re-renders itself)
+// v2.8.4 — Correction to the v2.8.3 note below (text only): new styles are 16,720 of the 71,565 units on order, not ~58k
+// v2.8.3 — Markdown Planner: units on order from Apparel Magic, by category and by style. The category table gains On order (all open AM order lines, with a purple 'N new' tag for units sitting in styles not in Shopify yet) and Due by sale end (needs the sale's end date); categories that have stock on order but nothing in stock get their own 'on order only' row; expanding a category adds an 'On order — by style' table (style, product, Live/New style, SOH, on order, due by sale end, next arrival, customer PO — including brand-new styles); product rows show their on-order units; a tile shows the total (71,565 units across 230 styles today — only 16,720 of it, 23%, in new styles not yet in Shopify; the rest is for styles already live, many currently sold out). Tie-out: AM total = category sum = style sum, 0 uncategorised. Read straight from the AM orders — categories from the product rows, else the app's own AM product lookup (finishes a few seconds after the orders land; until then a style sits under '(category loading…)' and the Planner re-renders itself)
 // v2.8.2 — Markdown Planner: an average cap below the lowest discount level no longer shows two overlapping warnings (the plan-level one already explains it)
 // v2.8.1 — Markdown Planner, from Brendan's feedback. (1) 'Max effective discount' is now 'Effective discount': an AVERAGE cap across the styles in the sale, weighted by units. The planner lowers whole category groups (A/B — so each category keeps one consistent offer), healthiest group first, one allowed level at a time, until the average fits; Clearance, manual overrides and already-reduced prices are never lowered, nobody is dropped from the sale to hit the number, and if the cap can't be reached (e.g. below the lowest allowed level, or Clearance alone averages above it) the plan stays at its floor and says so with the lowest achievable average. The old per-product limit is kept as a separate 'Highest single discount'. A projected average-discount tile shows against the cap. (2) Product rows now show RRP and Current price (with a '-30%' tag if already reduced) beside New price. (3) 'Styles in this sale': Recommended styles, or All styles — every eligible in-stock style joins, healthy sellers at the lightest level (a healthy low-stock line is NOT cleared); new arrivals, GWP and core protection still apply. (4)/(5) Sections D (Special buys) and E (Gift with purchase) now exist as roadmap placeholders describing the Apparel Magic linkage; page is A-G. Tests: 100+ engine assertions incl. properties (cap met when reachable, tighter cap never raises a discount, category offers stay consistent, Clearance/overrides untouched)
 // v2.8.0 — Markdown Planner: stock-on-order now comes straight from the Apparel Magic orders for every incoming-stock mode (all on order, or only what's due by the sale end), instead of from the product rows — those pick up their on-order figures several seconds AFTER the orders land, so opening the Planner early read 'nothing on order' and wrongly pushed slow lines into Clearance (the 'all on order' mode showed 0 units while AM held 13,620 open for in-stock styles). The tie-out is now exact: 'arrives by sale end' = 10,440 units = AM's own due-date total. The Planner also re-renders itself when the underlying data rebuilds (sync, feed, AM), without stealing focus from a field being edited
