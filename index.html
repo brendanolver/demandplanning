@@ -2251,8 +2251,8 @@ th{position:relative;}
     </div>
   </div>
 
-<script src="markdown-engine.js?v=2.9.5"></script>
-<script src="markdown-plans.js?v=2.9.5"></script>
+<script src="markdown-engine.js?v=2.9.6"></script>
+<script src="markdown-plans.js?v=2.9.6"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2286,7 +2286,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.9.5';
+const APP_VERSION='v2.9.6';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -5693,6 +5693,13 @@ function mdpResetSettings(){const pl=mdpPlan();mdpCommit(MarkdownPlans.updatePla
 function mdpAgeWeeks(p){
   let t=null;
   if(p.launchDate)t=launchDateSortKey(p.launchDate);
+  if(t==null){
+    // the design month is encoded in the style code itself (W24I… = Sept 2024) and — unlike
+    // deliveryMonth, which follows the incoming order — doesn't make an old style look new when it restocks
+    const dm=decodeSkuDelivery(styleFromSku(p.sku||'')),m=/^(\d{4}) - (\w+)$/.exec(dm||'');
+    const mi=m?['january','february','march','april','may','june','july','august','september','october','november','december'].indexOf(m[2].toLowerCase()):-1;
+    if(mi>=0)t=new Date(+m[1],mi,1).getTime();
+  }
   if(t==null&&p.deliveryMonth&&/^[A-Za-z]{3}-\d{2}$/.test(p.deliveryMonth)){
     const mi=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].indexOf(p.deliveryMonth.slice(0,3).toLowerCase());
     if(mi>=0)t=new Date(2000+parseInt(p.deliveryMonth.slice(-2)),mi,1).getTime();
@@ -5799,6 +5806,7 @@ function mdpOnOrderModel(endIso){
 function mdpOoStylesTable(oo,cat,hasEnd,plan){
   const list=Object.values(oo.by).filter(s=>s.cat===String(cat).toUpperCase()).sort((a,b)=>b.units-a.units||a.style.localeCompare(b.style));
   if(!list.length)return'';
+  const PS0=mdpPlan().settings,ooOpts='<option value="">Set discount…</option>'+PS0.allowedDiscounts.filter(d=>d<=PS0.maxDiscount).map(d=>`<option value="pct:${d}">${d}% off</option>`).join('')+'<option value="auto">↺ Reset</option>';
   const rows=list.map(s=>{
     const ks=Object.keys(s.due).map(Number).sort((a,b)=>a-b);
     const next=ks.length?mdpDueLabel(ks[0])+(ks.length>1?` <span class="mdp-dim">+${ks.length-1} more</span>`:''):'—';
@@ -5807,7 +5815,7 @@ function mdpOoStylesTable(oo,cat,hasEnd,plan){
     return`<tr><td class="l"><b>${mdpEsc(s.style)}</b></td><td class="l">${mdpEsc(s.title)}</td>
       <td>${s.live?'<span class="mdp-pill x">Live</span>':'<span class="mdp-pill n" title="Not in Shopify yet">New style</span>'}</td>
       <td>${s.soh?s.soh.toLocaleString():'—'}</td><td><b>${s.units.toLocaleString()}</b></td><td>${hasEnd?s.byEnd.toLocaleString():'—'}</td>
-      <td>${next}</td><td class="l">${sug}</td><td class="l mdp-why">${mdpEsc([...s.pos].join(', ')||'—')}</td></tr>`;
+      <td>${next}</td><td class="l">${sug}<select class="mdp-sel mdp-xs" title="${s.live?'Set a discount on this product':'No Shopify product yet — this adds it as a special buy'}" onchange="mdpOoSet('${mdpEsc(s.style)}',this.value);this.value=''">${ooOpts}</select></td><td class="l mdp-why">${mdpEsc([...s.pos].join(', ')||'—')}</td></tr>`;
   }).join('');
   const c=oo.cats[String(cat).toUpperCase()];
   return`<div class="mdp-oo"><div class="mdp-oo-h">On order from Apparel Magic — by style <span class="mdp-dim">${c.styles} style${c.styles===1?'':'s'}, ${c.units.toLocaleString()} units${c.newUnits?` (${c.newUnits.toLocaleString()} in ${c.newStyles} new style${c.newStyles===1?'':'s'} not yet in Shopify)`:''}</span></div>
@@ -5970,13 +5978,15 @@ function mdpReviewHtml(){
     ${T.conflicts?`<span class="mdp-dot"></span><span class="mdp-b-cf">⚠ ${T.conflicts} differ from the suggestion</span>`:''}
     ${st.stale?`<span class="mdp-dot"></span><span class="mdp-dim" title="Saved decisions for products no longer in stock — kept, not deleted">${st.stale} for products no longer in stock</span>`:''}
     ${st.total?`<button class="mdp-act" onclick="mdpResetAll()">Reset all decisions</button>`:''}</div>`;
+  const nh=mdpRev.view==='restock'?plan.items.filter(i=>i.row.m.restock>0&&/no recent sales to judge/.test(i.final.reason)).length:0;
+  const hint=nh?`<div class="mdp-warn" style="margin-bottom:10px;">ⓘ <b>${nh}</b> of these have no sales in the last 90 days, so there is nothing to score them on and they stay out of the sale by default. Tick the ones you want and use <b>Bulk action → Set discount</b>, or price them from the on-order table.</div>`:'';
   const table=rv.groups.length?`<div class="mdp-scroll mdp-revscroll"><table class="mdp-t mdp-rvt"><thead><tr>
     <th class="mdp-c1"><input type="checkbox" ${allOn?'checked':''} onchange="mdpSelAll(this.checked)" title="Select everything shown"></th>
     <th class="l">Product / colour</th><th>Parent style</th><th class="l">Category</th><th class="l" title="Apparel Magic collection / group">Collection</th><th>SOH</th><th title="Open Apparel Magic order lines">On order</th>
     <th>7d</th><th>30d</th><th>60d</th><th>90d</th><th>Cover (wks)</th><th title="Units sold ÷ (units sold + stock now) — a proxy; real sell-through needs stock history">Sell-thru*</th><th title="Sizes sold out / sizes">Sizes out</th>
     <th>RRP</th><th>Current price</th><th>Suggested</th><th class="l">Applied discount</th><th>New price</th><th title="The Shopify collection this will be assigned to — mapped to real collections at export">Sale collection</th><th class="l">Why</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>`
     :`<div class="mdp-sub" style="padding:18px 4px;">Nothing matches these filters.</div>`;
-  return summary+bar+table;
+  return summary+hint+bar+table;
 }
 function mdpRenderReview(keepScroll){
   const el=document.getElementById('mdp-review-body');if(!el||!mdpCtx)return;
@@ -6087,6 +6097,16 @@ function mdpRemoveSel(section,id){mdpCommit(MarkdownPlans.removeSelection(mdpSta
 function mdpSpecialPctSet(id,v){mdpCommit(MarkdownPlans.setSpecialPct(mdpState,mdpPlan().id,id,Number(v)));}
 function mdpGwpQtySet(style,v){mdpCommit(MarkdownPlans.setGwpQty(mdpState,mdpPlan().id,style,v));}
 function mdpGwpThresholdSet(v){mdpCommit(MarkdownPlans.setGwpThreshold(mdpState,mdpPlan().id,v));}
+// Price a style straight from the on-order table: a live product gets a saved decision; a style with
+// no Shopify product yet becomes a special buy (so it is held back from the Hextom file until matched).
+function mdpOoSet(style,v){
+  if(!v||!mdpCtx)return;
+  const pl=mdpPlan(),its=mdpCtx.plan.items.filter(i=>i.row.p.style===style);
+  if(its.length)return mdpApply(its.map(i=>i.row.p.id),v);
+  if(v==='auto'){const sel=pl.special.find(x=>x.kind==='style'&&MarkdownPlans.norm(x.value)===MarkdownPlans.norm(style));if(sel)mdpRemoveSel('special',sel.id);return;}
+  const o=(mdpCtx.oo&&mdpCtx.oo.by[style])||{};
+  mdpCommit(MarkdownPlans.addSelection(mdpState,pl.id,'special',{kind:'style',value:style,pct:+v.slice(4),label:o.title||style}).state);
+}
 function mdpClearDecisionFor(style){
   if(!mdpCtx)return;
   const ids=mdpCtx.plan.items.filter(i=>i.row.p.style===style).map(i=>i.row.p.id);
@@ -12534,6 +12554,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.9.6 — Markdown Planner follow-up to v2.9.5, from checking restocks on live data: 65 of the 69 restocking styles (33k units) are brand-new Black Friday / ALL CAPS indent orders with NO sales in 90 days, so there is nothing to score — they correctly stay out of the sale with that reason. To make them easy to price: the on-order by-style table gets a 'Set discount…' control per style (a live product gets a saved decision; a style with no Shopify product yet becomes a special buy), and the Restocking view says how many have no history and how to bulk-price them. Also fixed: a restock's age came from the delivery month of the INCOMING order, so a 2024 style (Represent Tech Trackshort) was wrongly protected as a 'new arrival'; age now comes from the launch date, else the design month encoded in the style code (W24I… = Sept 2024), else the delivery month
 // v2.9.5 — Markdown Planner, from Brendan's feedback. (1) Stock ARRIVING before/during the sale now gets suggestions: the Planner only planned products with stock on the shelf today, so 69 live styles (41,225 units — 58% of everything on order) that are sold out now but restock by the sale end had NO suggestion. They are now planned on the arriving stock ('Restock' — per the sale's incoming-stock setting). Because a stock-out understates recent sales they use their 90-day average rather than the last 7/30 days, their sold-out sizes are ignored, confidence is capped at Low, a restock with no 90-day sales isn't guessed at ('add it as a special buy to price it'), brand-new styles stay protected, and real SOH is reported separately from 'N arriving' everywhere. The by-style on-order table gains a Suggested discount column ('No Shopify product yet — add as a special buy' for the 111 new styles). (2) Product review: every product/colour is its own row by default ('Group colours by style' is now an optional switch); a Collection dropdown (Apparel Magic collection/group) plus a Collection column; and 'On order' and 'Restocking' added to the All products dropdown. The old placeholder column is renamed 'Sale collection'. Engine: restockUnits/sohNow; plans: collection filter, flat mode, onorder/restock views — ~45 new assertions
 // v2.9.4 — Markdown Planner: widened the special-buys Flags column so 'arrives <date> — after the sale' reads on one line (layout only)
 // v2.9.3 — Markdown Planner: special buys now flag 'arrives <date> — after the sale' when they have no stock and nothing is due before the sale ends (the 16 IKIZAMA styles land 1 Feb 2027, after Black Friday, so they'd have 0 units to sell), with a count in the summary; the GWP cost estimate says it assumes everything available is given away until you edit the planned giveaways. Live-tested v2.9.2 on real data: catalogue cache 444 KB (3,978 styles), collection pick resolved 88 styles, GWP category 8 styles, GWP-vs-special-buy conflicts raise 3 blocking conflicts with one-click fixes
