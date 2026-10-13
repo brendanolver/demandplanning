@@ -803,6 +803,12 @@ th{position:relative;}
 .mdp-rvt td.mdp-why{white-space:nowrap!important;min-width:220px;max-width:300px;overflow:hidden;text-overflow:ellipsis;}
 .mdp-rvt td.mdp-dim.l,.mdp-rvt td.l.mdp-dim{max-width:190px;overflow:hidden;text-overflow:ellipsis;}
 .mdp-rvt td.mdp-ap{white-space:nowrap!important;}
+
+.mdp-rvt.mdp-compact.mdp-bycat .mdp-xcat{display:none;}
+.mdp-rvt td.mdp-dim.l,.mdp-rvt td.l.mdp-dim{max-width:150px;}
+.mdp-rvt td.mdp-nm{min-width:210px;max-width:260px;}
+.mdp-rvt td.mdp-why{min-width:180px;max-width:240px;}
+.mdp-rvt td{padding:5px 7px;}
 .mdp-warn{background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:10px;padding:8px 12px;font-size:12.5px;}
 </style>
 </head>
@@ -2288,8 +2294,8 @@ th{position:relative;}
     </div>
   </div>
 
-<script src="markdown-engine.js?v=2.10.1"></script>
-<script src="markdown-plans.js?v=2.10.1"></script>
+<script src="markdown-engine.js?v=2.10.2"></script>
+<script src="markdown-plans.js?v=2.10.2"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2323,7 +2329,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v2.10.1';
+const APP_VERSION='v2.10.2';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -5999,7 +6005,7 @@ function mdpReviewHtml(){
     const cls=(it.override?' mdp-appr':'')+(it.conflict?' mdp-conf':'')+(child?' mdp-child':'')+(flash.has(p.id)?' mdp-flash':'');
     return`<tr class="mdp-rv${cls}"><td class="mdp-c1"><input type="checkbox" ${mdpSel.has(p.id)?'checked':''} onclick="mdpSelClick(event,${i})"></td>
       <td class="l mdp-nm" title="${mdpEsc(p.name+(p.colour?' — '+p.colour:''))}">${child?'<span class="mdp-ind"></span>':''}${mdpEsc(p.name)}${p.colour?' — '+mdpEsc(p.colour):''}${p.isCore?' <span class="mdp-core">CORE</span>':''}${m.restock?' <span class="mdp-newtag" title="Sold out now — planned on the stock arriving by the sale">RESTOCK</span>':''}</td>
-      <td class="mdp-dim mdp-xc">${mdpEsc(p.parentStyle||p.style)}</td><td class="l mdp-dim">${mdpEsc(p.category)}</td><td class="l mdp-dim">${mdpEsc(p.collection||'—')}</td>
+      <td class="mdp-dim mdp-xc">${mdpEsc(p.parentStyle||p.style)}</td><td class="l mdp-dim mdp-xcat">${mdpEsc(p.category)}</td><td class="l mdp-dim">${mdpEsc(p.collection||'—')}</td>
       <td>${m.sohNow.toLocaleString()}${m.restock?` <span class="mdp-newtag" title="Stock arriving by the sale">+${m.restock.toLocaleString()} arriving</span>`:''}</td>
       <td>${o?`<span title="${hasEnd&&o.byEnd?o.byEnd.toLocaleString()+' due by the sale end':'Open Apparel Magic order'}">${o.units.toLocaleString()}</span>`:'<span class="mdp-dim">—</span>'}</td>
       <td class="mdp-xc">${p.sold.d7}</td><td>${p.sold.d30}</td><td class="mdp-xc">${p.sold.d60}</td><td class="mdp-xc">${p.sold.d90}</td>
@@ -6043,7 +6049,7 @@ function mdpReviewHtml(){
     const kids=open?its.map(i=>itemRow(i,true)).join(''):'';
     return head+`<tr class="mdp-rv mdp-par${nOv===its.length?' mdp-appr':''}"><td class="mdp-c1"><input type="checkbox" ${allSel?'checked':''} onclick="mdpSelGroup('${keyAttr}',this.checked)"></td>
       <td class="l mdp-nm" onclick="mdpToggleStyle('${keyAttr}')" style="cursor:pointer;"><span class="mdp-car">${open?'▾':'▸'}</span> <b>${mdpEsc(p0.name)}</b> <span class="mdp-dim">${its.length} colours</span>${core?' <span class="mdp-core">CORE</span>':''}${nExc?` <span class="mdp-exc">${nExc} to approve</span>`:''}</td>
-      <td class="mdp-dim mdp-xc">${mdpEsc(g.parentStyle)}</td><td class="l mdp-dim">${mdpEsc(p0.category)}</td><td class="l mdp-dim">${mdpEsc([...new Set(its.map(i=>i.row.p.collection).filter(Boolean))].join(', ')||'—')}</td>
+      <td class="mdp-dim mdp-xc">${mdpEsc(g.parentStyle)}</td><td class="l mdp-dim mdp-xcat">${mdpEsc(p0.category)}</td><td class="l mdp-dim">${mdpEsc([...new Set(its.map(i=>i.row.p.collection).filter(Boolean))].join(', ')||'—')}</td>
       <td>${soh.toLocaleString()}</td><td>${oo?(ons?ons.toLocaleString():'<span class="mdp-dim">—</span>'):'—'}</td>
       <td class="mdp-xc">${sum('d7')}</td><td>${sum('d30')}</td><td class="mdp-xc">${sum('d60')}</td><td class="mdp-xc">${sum('d90')}</td><td>${cover(soh,rate)}</td><td class="mdp-xc">—</td><td class="mdp-xc">—</td><td>—</td><td>—</td>
       <td class="mdp-dim">${its.map(i=>i.systemPct==null?'—':i.systemPct+'%').filter((v,k,a)=>a.indexOf(v)===k).join(' / ')}</td>
@@ -6071,9 +6077,9 @@ function mdpReviewHtml(){
   const rsAll=mdpRev.view==='restock'?plan.items.filter(i=>i.row.m.restock>0):[];
   const nDef=rsAll.filter(i=>i.defaultA).length;
   const hint=nDef?`<div class="mdp-warn" style="margin-bottom:10px;">ⓘ <b>${nDef}</b> restock${nDef===1?' has':'s have'} no sales in the last 90 days, so there is nothing to score ${nDef===1?'it':'them'} on — ${nDef===1?'it defaults':'they default'} to the <b>lowest discount in ${nDef===1?'its':'their'} category (Group A)</b>. Stock arriving for the sale is exempt from new-arrival protection. Change or exclude any of them with the menu on each row or Bulk action.</div>`:'';
-  const table=rv.groups.length?`<div class="mdp-scroll mdp-revscroll"><table class="mdp-t mdp-rvt${mdpRev.compact?' mdp-compact':''}"><thead><tr>
+  const table=rv.groups.length?`<div class="mdp-scroll mdp-revscroll"><table class="mdp-t mdp-rvt${mdpRev.compact?' mdp-compact':''}${mdpRev.sort==='category'?' mdp-bycat':''}"><thead><tr>
     <th class="mdp-c1"><input type="checkbox" ${allOn?'checked':''} onclick="mdpSelAll(this.checked)" title="Select everything shown"></th>
-    <th class="l mdp-nmh">Product / colour</th><th class="mdp-xc">Parent style</th><th class="l">Category</th><th class="l" title="Apparel Magic collection / group">Collection</th><th>SOH</th><th title="Open Apparel Magic order lines">On order</th>
+    <th class="l mdp-nmh">Product / colour</th><th class="mdp-xc">Parent style</th><th class="l mdp-xcat">Category</th><th class="l" title="Apparel Magic collection / group">Collection</th><th>SOH</th><th title="Open Apparel Magic order lines">On order</th>
     <th class="mdp-xc">7d</th><th>30d</th><th class="mdp-xc">60d</th><th class="mdp-xc">90d</th><th>Cover (wks)</th><th class="mdp-xc" title="Units sold ÷ (units sold + stock now) — a proxy; real sell-through needs stock history">Sell-thru*</th><th class="mdp-xc" title="Sizes sold out / sizes">Sizes out</th>
     <th>RRP</th><th>Current price</th><th>Suggested</th><th class="l">Discount &amp; approval</th><th>New price</th><th class="mdp-xc" title="The Shopify collection this will be assigned to — mapped to real collections at export">Sale collection</th><th class="l">Why</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>`
     :`<div class="mdp-sub" style="padding:18px 4px;">Nothing matches these filters.</div>`;
@@ -12650,6 +12656,7 @@ function exportCSV(){
 // v2.2.21 — Fix On Order undercounting on Dashboard KPI tile and Category view: both summed per-size onOrder directly (0 whenever a Shopify SKU's size string didn't exact-match the AM item's size), instead of falling back to the more reliable product-level productOnOrder like Product view already did. Now dedupes per product using productOnOrder first, matching Product view/CSV export totals.
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
+// v2.10.2 — Review table width: when sorted by category the Category column is hidden in Compact view (the category header already shows it) and column widths are tightened so the discount/approval controls, New price and Why fit on a normal screen without sideways scrolling
 // v2.10.1 — Fix v2.10.0 layout found testing on live data: the Why column was squeezed to ~80px so every reason wrapped into a tall block — rows averaged 100px (max 255px), making the 498-row review a 50,000px scroll. Each product is now ONE line (long text is cut with an ellipsis and shown in full on hover): the review is ~40px a row
 // v2.10.0 — Markdown Planner, product review UX for 500+ products, from Brendan's feedback. APPROVAL: a product is Approved once you've confirmed or changed its discount (approve the suggestion, set a figure, move it, exclude it, or confirm that it stays out of the sale); otherwise it's Not approved (GWP can't be approved so isn't counted). Approved rows get a green tint + bar and a brief flash when you approve one; a separate Approval dropdown (All / Not approved / Approved, with live counts) combines with every other filter. SPEED: a progress bar (x of y approved), a one-click ✓ Approve per row (click the green chip to undo), 'Approve all shown', category header rows with their own progress and 'Approve category' (collapsible), bulk ✓ Approve, shift-click to select a range. READABILITY: Compact (default, 14 columns) vs All columns (21), sticky checkbox + product columns and header, sticky toolbar, a taller table, and the table keeps its scroll position when you approve a row far down. 'Approve' never overwrites a decision you already made, and confirming a 'not in sale' suggestion is saved as a decision too (engine: confirm). ~15 new assertions
 // v2.9.9 — Markdown Planner, Brendan's call: stock ARRIVING for the sale (restocks) is exempt from new-arrival protection; products already on the shelf stay protected. Live check at v2.9.8 showed why it matters: all 65 no-history restocks (35,025 units) were being held out as 'new arrivals' because Apparel Magic's launch dates for them are late Oct / Nov (e.g. Alloy Box Fit Tee 29-10-26, Ambassador 1/4 Zip Sweat 11-11-26), so the Group A default never took effect. They now default to their category's Group A
