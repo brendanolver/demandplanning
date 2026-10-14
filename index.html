@@ -2424,8 +2424,8 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.3.3"></script>
-<script src="markdown-plans.js?v=3.3.3"></script>
+<script src="markdown-engine.js?v=3.3.4"></script>
+<script src="markdown-plans.js?v=3.3.4"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2459,7 +2459,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.3.3';
+const APP_VERSION='v3.3.4';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -6582,6 +6582,25 @@ function mdpExportPdf(){
   setTimeout(()=>{try{f.contentWindow.focus();f.contentWindow.print();}catch(e){alert('Could not open the print dialog: '+e.message);}setTimeout(()=>{document.title=old;f.remove();},2000);},350);
 }
 
+// Keep everything where it was across a re-render: the page, every scrolled ancestor, and each table's own scroll box (a category's product table, the
+// category tables, section C) — so changing a discount never jumps you back to the top of the table you're working in.
+function mdpScrollSnap(){
+  const root=document.getElementById('md-planner'),snap={tables:{},anc:[],win:window.pageYOffset||0};
+  if(!root)return snap;
+  root.querySelectorAll('[data-sk]').forEach(el=>{snap.tables[el.getAttribute('data-sk')]=[el.scrollTop,el.scrollLeft];});
+  for(let el=root.parentElement;el;el=el.parentElement)if(el.scrollTop>0)snap.anc.push([el,el.scrollTop]);
+  return snap;
+}
+function mdpScrollRestore(snap){
+  const root=document.getElementById('md-planner');if(!root||!snap)return;
+  const apply=()=>{
+    snap.anc.forEach(([el,t])=>{el.scrollTop=t;});
+    if(snap.win&&(window.pageYOffset||0)!==snap.win)window.scrollTo(window.pageXOffset||0,snap.win);
+    root.querySelectorAll('[data-sk]').forEach(el=>{const v=snap.tables[el.getAttribute('data-sk')];if(v){el.scrollTop=v[0];el.scrollLeft=v[1];}});
+  };
+  apply();
+  if(typeof requestAnimationFrame==='function')requestAnimationFrame(apply);   // once more after layout settles
+}
 function mdpRenderReview(keepScroll){
   if(!mdpCtx)return;
   const snap=mdpScrollSnap();
@@ -13437,6 +13456,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.3.4 — FIX: the Markdown Planner showed a blank page after v3.3.2. Cause: when the flat product table was replaced by the Summary, the scroll-position helpers (mdpScrollSnap / mdpScrollRestore, from v3.2.6) that sat between the old code and the replaced block were deleted too, so every render threw 'mdpScrollSnap is not defined'. Restored. Test harness now uses the real helpers (it used to stub them, which hid this).
 // v3.3.3 — Hextom export now matches your real Bulk Product Edit file (Black Friday 2026 Shopify Collections Export.csv): two columns, Product (the exact Shopify title, NAME - COLOUR) and New Collection, ONE ROW PER PRODUCT/COLOUR (no SKUs or sizes), grouped by collection, no BOM. Files are named '<Sale> Shopify Collections Export.csv' and '<Sale> - <Offer> Shopify Collections Export.csv'. Products with no live Shopify product yet are held back and reported; a product appears once. Collection ID boxes removed (only the collection name is needed); the section explains the Hextom steps (search Col 1 as Product Title, New Collection for editing). Still add-only — it doesn't remove last sale's members or change prices. From Brendan's sample + screenshot.
 // v3.3.2 — Section G 'Product review' becomes a SUMMARY of every decision made, from Brendan. Lists, for each approved category (or all, with a tick), the products by discount (lowest first, full price last) with month del, group, SOH, on order, RRP, current discount, sale price and a note (set by you in bold / existing discount kept / protected); overview cards and a discount overview table up top; special buys, Not on sale (with reasons) and GWP in their own lists (nothing is listed twice); and every mid-sale offer at the bottom with its dates, rule, collection, status and products with sale and offer prices. EXPORT PDF: opens a print-formatted version (A4 landscape, everything expanded, repeating table headers, titled with the sale name) in the print dialog — choose Save as PDF. The old flat product table is gone (all editing lives in the category tables). MarkdownPlans.buildSummary + tests.
 // v3.3.1 — Financial forecast re-checked, from Brendan (expected revenue ~$2.3–2.5M; the page showed ~$1.15M ex GST). Findings: (1) 'Growth vs last year' was blank, so the whole forecast was flat on last year (+0%; Low/High ±10%) — at your +90% target the units almost double. Section H now has the growth box at the top and a clear warning while it's blank. (2) Revenue was shown ex GST only (units × planned price ÷ 1.1); added 'projected revenue incl GST' so it can be compared with takings. (3) Added a REALITY CHECK against what last year's same dates actually brought in, from the Shopify price feed (net of discounts, per category): last year's units, revenue, price per unit and average discount, this year's planned price per unit, and the forecast units at last year's realised prices — plus 'LY revenue' and 'At LY price' columns in the category table — so a gap between planned-price revenue and last year's pace is visible and explained (product mix / discount depth). MarkdownPlans.lyRevenueByCategory + test.
