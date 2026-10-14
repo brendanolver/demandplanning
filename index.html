@@ -2433,8 +2433,8 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.4.0"></script>
-<script src="markdown-plans.js?v=3.4.0"></script>
+<script src="markdown-engine.js?v=3.4.1"></script>
+<script src="markdown-plans.js?v=3.4.1"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2468,7 +2468,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.4.0';
+const APP_VERSION='v3.4.1';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -6415,8 +6415,13 @@ function mdpGoStep(n){
 }
 // Collapse / expand everything at once (sections, categories, offers, summary blocks) — for a calmer page.
 const MDP_SECTION_KEYS=['A','B','C','D','E','F','G','H','I'];
-function mdpCollapseSections(on){if(on)MDP_SECTION_KEYS.forEach(k=>mdpCollapsed.add(k));else mdpCollapsed.clear();renderMarkdownPlanner();}
-function mdpCollapseCats(){mdpOpenCats.clear();Object.keys(mdpGF).forEach(k=>delete mdpGF[k]);mdpRenderReview(true);}
+// Top-level Collapse all closes every section AND everything open inside them (categories, expanded sizes, offers, summary blocks), so opening a section again shows a calm page; Expand all opens every section and both category panels.
+function mdpCollapseSections(on){
+  if(on){MDP_SECTION_KEYS.forEach(k=>mdpCollapsed.add(k));mdpOpenCats.clear();mdpOpenStyles.clear();Object.keys(mdpGF).forEach(k=>delete mdpGF[k]);mdpOpenOffers.clear();mdpSumOpen.clear();}
+  else{mdpCollapsed.clear();mdpPanels.sug=true;mdpPanels.app=true;}
+  renderMarkdownPlanner();
+}
+function mdpCollapseCats(){mdpOpenCats.clear();mdpOpenStyles.clear();Object.keys(mdpGF).forEach(k=>delete mdpGF[k]);mdpRenderReview(true);}
 function mdpOffersSetAll(open){if(open)mdpPlan().offers.forEach(o=>mdpOpenOffers.add(o.id));else mdpOpenOffers.clear();renderMarkdownPlanner();}
 function mdpSumSetAll(open){
   mdpSumOpen.clear();
@@ -13571,6 +13576,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.4.1 — COLLAPSE ALL now collapses everything: the top-level button closes every section and also resets what was open inside them (categories, expanded size rows, group filters, offers, summary blocks), and Expand all also reopens the Suggested/Approved category panels; 'Collapse all categories' also closes expanded size rows.
 // v3.4.0 — the Note column is removed from the Summary PDF export (it stays on the on-screen Summary and in the Tuesday CSV).
 // v3.3.9 — TUESDAY CSV on the Summary: a new '⬇ Tuesday CSV' button next to Export PDF downloads the whole plan as one flat file (one row per product, tagged Row Type = Sale product / Special buy / Not on sale / GWP / Mid-sale offer, with category, month del, group, discount %, current %, RRP, sale price, SOH, on order, period sales, set-manually flag, note, and for offers the name, dates, rule, collection, status, offer price and total % off). It follows the same approved-categories toggle as the screen. MarkdownPlans.buildTuesdayCsv + test.
 // v3.3.8 — Sale setup tidy-up, from Brendan's screenshot: the blanket-discount dropdown and the segmented controls overflowed their boxes. Controls now fill the box width (dropdowns and Strict/Preferred-style buttons stay inside it and wrap neatly), option labels are shorter ('Yes — 30% off', 'By sale end', 'Only if on order'), each group inside a box is separated by a thin divider, and hint text is tighter.
