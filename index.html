@@ -2433,8 +2433,8 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.3.9"></script>
-<script src="markdown-plans.js?v=3.3.9"></script>
+<script src="markdown-engine.js?v=3.4.0"></script>
+<script src="markdown-plans.js?v=3.4.0"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2468,7 +2468,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.3.9';
+const APP_VERSION='v3.4.0';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -6648,8 +6648,8 @@ function mdpSummaryHtml(print){
   const pctTxt=p=>p==null?'Full price (not in the sale)':p+'% off';
   const days=sum.periodDays||30;
   const note=x=>[x.manual?'<b>set by you</b>':'',x.blanket?'on-order blanket discount':'',x.protectedEx?'protected (deeper than Group C)':x.kept?'existing discount kept':'',x.draft?'draft in Shopify':''].filter(Boolean).join(' · ')||(x.core?'core':'');
-  const prodRows=items=>items.map(x=>`<tr><td class="l${x.manual?' b':''}">${E(x.name)}${x.colour?' — '+E(x.colour):''}</td><td class="l">${E(x.month||'—')}</td><td class="${x.manual?'b':''}">${x.pct==null?'—':x.pct+'%'}</td><td>${n(x.sales)}</td><td>${n(x.soh)}</td><td>${x.onOrder?n(x.onOrder):'—'}</td><td>${x.rrp?$(x.rrp):'—'}</td><td>${x.current?x.current+'%':'—'}</td><td class="${x.manual?'b':''}">${x.price!=null?$(x.price):'—'}</td><td class="l">${note(x)}</td></tr>`).join('');
-  const prodHead=`<thead><tr><th class="l">Product / colour</th><th class="l">Month del</th><th>Discount</th><th>${days}d sales</th><th>SOH</th><th>On order</th><th>RRP</th><th>Now</th><th>Sale price</th><th class="l">Note</th></tr></thead>`;
+  const prodRows=items=>items.map(x=>`<tr><td class="l${x.manual?' b':''}">${E(x.name)}${x.colour?' — '+E(x.colour):''}</td><td class="l">${E(x.month||'—')}</td><td class="${x.manual?'b':''}">${x.pct==null?'—':x.pct+'%'}</td><td>${n(x.sales)}</td><td>${n(x.soh)}</td><td>${x.onOrder?n(x.onOrder):'—'}</td><td>${x.rrp?$(x.rrp):'—'}</td><td>${x.current?x.current+'%':'—'}</td><td class="${x.manual?'b':''}">${x.price!=null?$(x.price):'—'}</td>${print?'':`<td class="l">${note(x)}</td>`}</tr>`).join('');
+  const prodHead=`<thead><tr><th class="l">Product / colour</th><th class="l">Month del</th><th>Discount</th><th>${days}d sales</th><th>SOH</th><th>On order</th><th>RRP</th><th>Now</th><th>Sale price</th>${print?'':'<th class="l">Note</th>'}</tr></thead>`;
   const wrap=(key,head,body,open)=>print?`<section class="blk"><div class="bh">${head}</div>${body}</section>`:`<details class="mdp-sumd" ${open||mdpSumOpen.has(key)?'open':''} ontoggle="mdpSumToggle('${E(key)}',this.open)"><summary>${head}</summary>${body}</details>`;
   const groupsHtml=groups=>groups.map(g=>`<div class="gh"><b>${E(pctTxt(g.pct))}</b> <span class="d">· ${n(g.count)} product${g.count===1?'':'s'} · ${n(g.soh)} SOH</span></div><table class="t">${prodHead}<tbody>${prodRows(g.items)}</tbody></table>`).join('');
   const cards=[[n(sum.counts.categoriesShown)+' / '+n(sum.counts.categoriesTotal),'categories '+(mdpSumAll?'(incl. not approved)':'approved')],[n(sum.counts.onSale),'products on sale'],[n(sum.counts.soh),'SOH units on sale'],[MarkdownPlans&&mdpCtx.plan.totals.effectiveDiscount+'%','effective discount (whole plan)'],[n(sum.special.products),'special buys'],[n(sum.nos.length),'not on sale'],[n(sum.gwp.length),'GWP']];
@@ -13571,6 +13571,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.4.0 — the Note column is removed from the Summary PDF export (it stays on the on-screen Summary and in the Tuesday CSV).
 // v3.3.9 — TUESDAY CSV on the Summary: a new '⬇ Tuesday CSV' button next to Export PDF downloads the whole plan as one flat file (one row per product, tagged Row Type = Sale product / Special buy / Not on sale / GWP / Mid-sale offer, with category, month del, group, discount %, current %, RRP, sale price, SOH, on order, period sales, set-manually flag, note, and for offers the name, dates, rule, collection, status, offer price and total % off). It follows the same approved-categories toggle as the screen. MarkdownPlans.buildTuesdayCsv + test.
 // v3.3.8 — Sale setup tidy-up, from Brendan's screenshot: the blanket-discount dropdown and the segmented controls overflowed their boxes. Controls now fill the box width (dropdowns and Strict/Preferred-style buttons stay inside it and wrap neatly), option labels are shorter ('Yes — 30% off', 'By sale end', 'Only if on order'), each group inside a box is separated by a thin divider, and hint text is tighter.
 // v3.3.7 — CLOUD SAVE, from Brendan: sale plans now follow you to any device. Every change is saved on this device instantly and sent to the cloud (Netlify Blobs, new function markdown-plans-store) ~1.5s later; each device checks the cloud on load, when you return to the tab, and every minute, merging plan by plan: a plan changed on only one side is taken or pushed; if the SAME plan was changed on two devices you're asked to keep this device's, use the other's, or keep both (nothing is ever overwritten silently). A status pill in the title bar shows Saved / Saving / Offline (work is safe on the device and syncs when back) / Needs attention. A fresh device adopts the cloud's plans (its empty default 'Sale 1' isn't pushed). The cloud keeps the previous version as a one-step backup. Covers everything in a plan: setup, categories, decisions, special buys, GWP, Not on sale, offers, mappings and export history. Pure merge logic in markdown-plans.js (mergeStates / resolveSyncConflict) and netlify/lib/plans-store.js, all tested. Note: like the other shared settings, the store is not behind a login.
