@@ -2443,9 +2443,9 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.6.1"></script>
-<script src="markdown-plans.js?v=3.6.1"></script>
-<script src="sales-cadence-pdf.js?v=3.6.1"></script>
+<script src="markdown-engine.js?v=3.6.2"></script>
+<script src="markdown-plans.js?v=3.6.2"></script>
+<script src="sales-cadence-pdf.js?v=3.6.2"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2479,7 +2479,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.6.1';
+const APP_VERSION='v3.6.2';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -5979,10 +5979,39 @@ function mdpLoadState(){
   try{raw=JSON.parse(localStorage.getItem(MDP_PLANS_KEY)||'null');}catch(e){}
   try{legacy=(JSON.parse(localStorage.getItem(MDP_KEY)||'null')||{}).settings||null;}catch(e){}
   mdpState=MarkdownPlans.migrate(raw,legacy);
-  try{localStorage.setItem(MDP_PLANS_KEY,JSON.stringify(mdpState));}catch(e){}
+  mdpTabBase=null;mdpLastRaw=null;mdpWriteLocal();
   setTimeout(mdpStartSync,0);                 // cloud save starts once the plans are loaded
 }
-function mdpSaveState(){try{localStorage.setItem(MDP_PLANS_KEY,JSON.stringify(mdpState));}catch(e){}if(typeof mdpQueueSync==='function')mdpQueueSync();}
+function mdpSaveState(){mdpWriteLocal();if(typeof mdpQueueSync==='function')mdpQueueSync();}
+/* ── Several tabs on one device ──
+   Every tab keeps its own copy of the plans in memory and they all share ONE localStorage key. So that a tab you only had open for reference can never overwrite
+   what you did in the other one: (1) every write first merges whatever another tab saved since this tab last looked, plan by plan; (2) a tab adopts another tab's
+   saves the moment they happen (the 'storage' event) without changing which sale it is showing; (3) only ONE tab at a time talks to the cloud (a Web Lock) — the rest
+   just follow through localStorage, and the next one takes over if that tab is closed. */
+let mdpLastRaw=null,mdpTabBase=null;
+function mdpWriteLocal(){
+  try{
+    const raw=localStorage.getItem(MDP_PLANS_KEY);
+    if(raw&&raw!==mdpLastRaw&&mdpTabBase){                      // another tab saved since this one last read/wrote
+      const m=MarkdownPlans.mergeStates(mdpState,MarkdownPlans.migrate(JSON.parse(raw),null),mdpTabBase);
+      mdpState=m.state;
+    }
+    const out=JSON.stringify(mdpState);
+    if(out!==raw)localStorage.setItem(MDP_PLANS_KEY,out);
+    mdpLastRaw=out;mdpTabBase=mdpState;
+  }catch(e){}
+}
+function mdpAdoptStored(){
+  if(!mdpState||!mdpTabBase)return;
+  let raw=null;try{raw=localStorage.getItem(MDP_PLANS_KEY);}catch(e){return;}
+  if(!raw||raw===mdpLastRaw)return;
+  try{
+    const m=MarkdownPlans.mergeStates(mdpState,MarkdownPlans.migrate(JSON.parse(raw),null),mdpTabBase);
+    const changed=JSON.stringify(m.state)!==JSON.stringify(mdpState);
+    mdpState=m.state;mdpLastRaw=raw;mdpTabBase=mdpState;
+    if(changed){mdpQueueSync();mdpRefreshIfOpen();}
+  }catch(e){}
+}
 function mdpPlan(){mdpLoadState();return mdpState.plans[mdpState.activeId];}
 function mdpCommit(next,keepNote){mdpState=next;mdpSaveState();if(!keepNote)mdpNoteMsg=null;renderMarkdownPlanner();}
 /* ── Cloud save: sale plans follow you to any device ──
@@ -5993,9 +6022,9 @@ const mdpSync={status:'idle',rev:0,at:null,conflicts:[],remote:null,busy:false,a
 function mdpDevice(){try{let d=localStorage.getItem(MDP_DEVICE_KEY);if(!d){d='d'+Math.random().toString(36).slice(2,8);localStorage.setItem(MDP_DEVICE_KEY,d);}return d;}catch(e){return'd?';}}
 function mdpLoadBase(){try{return JSON.parse(localStorage.getItem(MDP_BASE_KEY)||'null');}catch(e){return null;}}
 function mdpSaveBase(rev,state){try{localStorage.setItem(MDP_BASE_KEY,JSON.stringify({rev,state}));}catch(e){}}
-function mdpSaveLocalOnly(){try{localStorage.setItem(MDP_PLANS_KEY,JSON.stringify(mdpState));}catch(e){}}
+function mdpSaveLocalOnly(){mdpWriteLocal();}
 function mdpQueueSync(delay){
-  if(!mdpSync.started)return;
+  if(!mdpSync.started||mdpSync.leader===false)return;           // only the leader tab talks to the cloud
   if(mdpSync.status!=='conflict')mdpSync.status='saving';
   mdpRenderSyncPill();clearTimeout(mdpSync.timer);mdpSync.timer=setTimeout(()=>mdpSyncNow('save'),delay==null?1500:delay);
 }
@@ -6007,6 +6036,7 @@ async function mdpPush(state,ifRev){
 }
 async function mdpSyncNow(why){
   if(!mdpState||!mdpPlansOk()||typeof fetch!=='function')return;
+  if(mdpSync.leader===false&&why!=='manual'&&why!=='resolved')return;
   if(mdpSync.conflicts.length&&why!=='resolved')return;           // paused until you settle the conflict
   if(mdpSync.busy){mdpSync.again=true;return;}
   mdpSync.busy=true;mdpSync.err='';if(why==='save'||why==='manual'){mdpSync.status='saving';mdpRenderSyncPill();}
@@ -6052,17 +6082,36 @@ async function mdpForceSave(){
 }
 function mdpStartSync(){
   if(mdpSync.started)return;mdpSync.started=true;mdpSync.status='saving';
-  mdpSyncNow('load');
+  window.addEventListener('storage',e=>{if(e.key===MDP_PLANS_KEY)mdpAdoptStored();else if(e.key===MDP_SYNCINFO_KEY)mdpRenderSyncPill();});
   setInterval(()=>{if(!document.hidden)mdpSyncNow('poll');},60000);
-  document.addEventListener('visibilitychange',()=>{if(!document.hidden)mdpSyncNow('focus');});
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden){mdpAdoptStored();mdpSyncNow('focus');}});
   window.addEventListener('online',()=>mdpSyncNow('online'));
+  mdpElectLeader();
+}
+const MDP_SYNCINFO_KEY='wndrr_mdplans_syncinfo_v1';
+function mdpBecomeLeader(){mdpSync.leader=true;mdpAdoptStored();mdpSyncNow('load');mdpRenderSyncPill();return new Promise(()=>{});}   // never resolves: the lock is held until this tab closes
+function mdpElectLeader(){
+  if(!(typeof navigator!=='undefined'&&navigator.locks&&navigator.locks.request)){mdpSync.leader=true;mdpSyncNow('load');return;}   // no Web Locks: every tab syncs (as before)
+  navigator.locks.request('mdp-cloud-sync',{ifAvailable:true},lock=>{
+    if(lock)return mdpBecomeLeader();
+    mdpSync.leader=false;mdpRenderSyncPill();
+    navigator.locks.request('mdp-cloud-sync',()=>mdpBecomeLeader());   // takes over if the syncing tab is closed
+  });
 }
 function mdpSyncPill(){
+  if(mdpSync.leader===false){
+    let info=null;try{info=JSON.parse(localStorage.getItem(MDP_SYNCINFO_KEY)||'null');}catch(e){}
+    const bad=info&&info.status==='conflict',off=info&&info.status==='offline';
+    return`<button type="button" id="mdp-sync" class="mdp-sync ${bad?'bad':off?'off':'ok'}" title="${bad?'A sale was changed on another device too — settle it in your other Markdowns tab':'Saved on this device. Your other Markdowns tab is syncing to the cloud — click to sync from here'}" onclick="mdpSyncNow('manual')">${bad?'⚠ Needs attention in your other tab':off?'☁ Offline — saved on this device':'☁ Saved · synced in your other tab'}</button>`;
+  }
   const s=mdpSync,t=s.at?new Date(s.at).toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit'}):'';
   const [cls,txt,tip]=s.status==='synced'?['ok','☁ Saved'+(t?' · '+t:''),'Saved on this device and in the cloud — open it on any device']:s.status==='saving'?['wait','☁ Saving…','Saving to the cloud']:s.status==='offline'?['off','☁ Offline — saved on this device','Your work is safe on this device and will sync when the connection is back. '+s.err]:s.status==='conflict'?['bad','⚠ Needs attention','This sale was changed on another device too — see the message at the top']:['wait','☁ Connecting…','Connecting to cloud save'];
   return`<button type="button" id="mdp-sync" class="mdp-sync ${cls}" title="${mdpEsc(tip)} — click to sync now" onclick="mdpSyncNow('manual')">${txt}</button>`;
 }
-function mdpRenderSyncPill(){const el=typeof document!=='undefined'&&document.getElementById('mdp-sync');if(el)el.outerHTML=mdpSyncPill();}
+function mdpRenderSyncPill(){
+  if(mdpSync.leader!==false){try{localStorage.setItem(MDP_SYNCINFO_KEY,JSON.stringify({status:mdpSync.status,at:mdpSync.at}));}catch(e){}}   // so the other tabs can show the same status
+  const el=typeof document!=='undefined'&&document.getElementById('mdp-sync');if(el)el.outerHTML=mdpSyncPill();
+}
 // Conflict banner: a plan was changed on another device AND here.
 function mdpSyncBanner(){
   if(!mdpSync.conflicts.length||!mdpSync.remote)return'';
@@ -13847,6 +13896,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.6.2 — MARKDOWN PLANNER SAVING, TWO-TAB SAFE (Brendan: running two tabs for reference was bugging out). Cause: each tab kept its own copy and overwrote the shared saved copy wholesale (a reference tab could wipe what you'd just done in the other), and both tabs ran the cloud sync against one shared baseline, which could push a stale copy over newer work or raise false conflicts. Now: every save first merges whatever another tab saved (plan by plan), tabs adopt each other's changes instantly without switching the sale they're showing, and only ONE tab syncs to the cloud (a Web Lock; the other shows '☁ Saved · synced in your other tab' and takes over if that tab closes). Single-tab use is unchanged.
 // v3.6.1 — MARKDOWN PLANNER (Mid-sale offers): an offer can be added with no products and filled later (search in the offer, or the new 'Add to offer' option in Category Strategy). 'No products yet' is a status, not an error; the offer card lists what's still to do as an amber checklist instead of red warnings; it still can't be exported until it has products, dates, pricing and a collection.
 // v3.6.0 — MARKDOWN PLANNER (Category Strategy): add products to a mid-sale offer straight from the product tables. Every product's discount dropdown, the bulk-action dropdown (for ticked products) and each style's 'Set all…' dropdown have a new 'Mid-sale offer' group: '＋ Add to <offer name>' for each offer in the sale, or '＋ Add to a new offer'. Products go in as single-product picks (with their title), duplicates are skipped and counted, and a note says what was added; set the offer's dates, pricing and collection in step F as usual. It does not change the product's sale discount.
 // v3.5.9 — MARKDOWN PLANNER: every section (A–I) now starts collapsed whenever the page is loaded or reloaded, so you open only what you need (click a section heading or a step in the stepper to open it; Expand all opens everything).
