@@ -248,7 +248,6 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .rp-current{background:#eff6ff;color:#3b82f6;}
 .rp-onorder{background:var(--purple-light);color:var(--purple);}
 .rp-old{background:#f1f5f9;color:#64748b;}
-.rp-oldcore{background:#e5ebf5;color:#3b5a8a;}
 .rp-other{background:var(--surface2);color:var(--text-secondary);}
 
 /* Planning */
@@ -2444,9 +2443,9 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.5.5"></script>
-<script src="markdown-plans.js?v=3.5.5"></script>
-<script src="sales-cadence-pdf.js?v=3.5.5"></script>
+<script src="markdown-engine.js?v=3.5.6"></script>
+<script src="markdown-plans.js?v=3.5.6"></script>
+<script src="sales-cadence-pdf.js?v=3.5.6"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2480,7 +2479,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.5.5';
+const APP_VERSION='v3.5.6';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -2883,7 +2882,7 @@ function populateCadenceDelMonthFilter(){
   const monthOrder={Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
   const delMonthCounts={};
   for(const r of allVariantRows){if(r.deliveryMonth)delMonthCounts[r.deliveryMonth]=(delMonthCounts[r.deliveryMonth]||0)+1;}
-  const months=[...new Set(allVariantRows.map(r=>r.deliveryMonth).filter(d=>d&&d!=='CORE'))];
+  const months=[...new Set(allVariantRows.map(r=>r.deliveryMonth).filter(d=>d&&d!=='CORE'&&d!=='OLD CORE'))];
   months.sort((a,b)=>{
     const[am,ay]=a.split('-');const[bm,by]=b.split('-');
     const ayF=parseInt(ay)<50?2000+parseInt(ay):1900+parseInt(ay);
@@ -2892,7 +2891,7 @@ function populateCadenceDelMonthFilter(){
     return(monthOrder[bm]||0)-(monthOrder[am]||0);
   });
   container.innerHTML=
-    `<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="updateCadenceDelMonthLabel();renderCadence()"> CORE (${delMonthCounts['CORE']||0})</label>`+
+    `<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="updateCadenceDelMonthLabel();renderCadence()"> CORE (${delMonthCounts['CORE']||0})</label>`+(delMonthCounts['OLD CORE']?`<label class="ms-item"><input type="checkbox" value="OLD CORE" checked onchange="updateCadenceDelMonthLabel();renderCadence()"> OLD CORE (${delMonthCounts['OLD CORE']})</label>`:'')+
     months.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="updateCadenceDelMonthLabel();renderCadence()"> ${m} (${delMonthCounts[m]||0})</label>`).join('');
 }
 
@@ -3364,7 +3363,7 @@ function renderCadenceCompare(){
     const totalSold=Math.round(cp.totalSold)||0;
     const stPct=totalSold>0?totalSold/(cp.soh+totalSold)*100:null;
     const stColor=stPct===null?'color:var(--text-muted);':stPct>=60?'color:#15803d;font-weight:700;':stPct>=30?'color:var(--amber);font-weight:600;':'color:var(--red);font-weight:600;';
-    const _vcls=cp.vendor==='CORE'?'rp-core':cp.vendor==='NEW'?'rp-new':cp.vendor==='CURRENT'?'rp-current':cp.vendor==='OLD CORE'?'rp-oldcore':cp.vendor==='OLD'?'rp-old':cp.vendor==='REDUCED'?'rp-reduced':cp.vendor==='DRAFT'?'rp-draft':cp.vendor==='PRE-RELEASE'?'rp-prerelease':cp.vendor==='BUNDLE'?'rp-bundle':'rp-other';
+    const _vcls=cp.vendor==='CORE'?'rp-core':cp.vendor==='NEW'?'rp-new':cp.vendor==='CURRENT'?'rp-current':cp.vendor==='OLD'?'rp-old':cp.vendor==='REDUCED'?'rp-reduced':cp.vendor==='DRAFT'?'rp-draft':cp.vendor==='PRE-RELEASE'?'rp-prerelease':cp.vendor==='BUNDLE'?'rp-bundle':'rp-other';
     const statusCell=`<td style="white-space:nowrap;">${cp.vendor?`<span class="range-pill ${_vcls}">${cp.vendor}</span>`:'<span style="color:var(--text-muted);">—</span>'}</td>`;
     const cells=periods.map((p,i)=>{
       const v=Math.round(cp.data[p.label]||0);
@@ -3740,7 +3739,7 @@ function renderCadence(){
     // rather than the other way round. Product view is unchanged.
     const lyTotalOrder=cadenceView==='cat'?totalCols+lyMtdCell:lyMtdCell+totalCols;
     const _vnd=cadenceView==='prod'?(vendorByKey[k]||''):'';
-    const _vcls=_vnd==='CORE'?'rp-core':_vnd==='NEW'?'rp-new':_vnd==='CURRENT'?'rp-current':_vnd==='OLD CORE'?'rp-oldcore':_vnd==='OLD'?'rp-old':_vnd==='REDUCED'?'rp-reduced':_vnd==='DRAFT'?'rp-draft':_vnd==='PRE-RELEASE'?'rp-prerelease':_vnd==='BUNDLE'?'rp-bundle':'rp-other';
+    const _vcls=_vnd==='CORE'?'rp-core':_vnd==='NEW'?'rp-new':_vnd==='CURRENT'?'rp-current':_vnd==='OLD'?'rp-old':_vnd==='REDUCED'?'rp-reduced':_vnd==='DRAFT'?'rp-draft':_vnd==='PRE-RELEASE'?'rp-prerelease':_vnd==='BUNDLE'?'rp-bundle':'rp-other';
     const statusCell=cadenceView==='prod'?`<td style="white-space:nowrap;"><span class="range-pill ${_vcls}">${_vnd||'—'}</span></td>`:'';
     const _disc=cadenceView==='prod'?(discByKey[k]||0):0;
     const discCell=cadenceView==='prod'?`<td class="cell-num" style="${_disc>0?'color:var(--red);font-weight:600;':'color:var(--text-muted);'}">${_disc>0?Math.round(_disc)+'%':'—'}</td>`:'';
@@ -4953,7 +4952,7 @@ function analyseStockData(){
   const products=Object.values(productMap);
 
   // Helpers
-  const delLabel=p=>p.deliveryMonth&&p.deliveryMonth!=='CORE'?` <span style="font-size:11px;font-weight:500;color:var(--text-muted);background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:1px 5px;">${p.deliveryMonth}</span>`:(p.deliveryMonth==='CORE'?` <span style="font-size:11px;font-weight:600;color:var(--blue);">CORE</span>`:'');
+  const delLabel=p=>p.deliveryMonth&&p.deliveryMonth!=='CORE'&&p.deliveryMonth!=='OLD CORE'?` <span style="font-size:11px;font-weight:500;color:var(--text-muted);background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:1px 5px;">${p.deliveryMonth}</span>`:(p.deliveryMonth==='CORE'?` <span style="font-size:11px;font-weight:600;color:var(--blue);">CORE</span>`:(p.deliveryMonth==='OLD CORE'?` <span style="font-size:11px;font-weight:600;color:#3b5a8a;">OLD CORE</span>`:''));
   const fmt=p=>`<strong>${toTitleCase(p.productName)} — ${toTitleCase(p.colour)}</strong>${delLabel(p)}`;
   const isReduced=p=>(p.discountPct||0)>0;
   const hasOrder=p=>(p.onOrder||0)>0;
@@ -5215,11 +5214,11 @@ function swPopulateFilters(){
     `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="swUpdateLabel('disc')"> ${discLabels[v]} <span class="ms-count">(${discCounts[v]||0})</span></label>`).join('');
   const monthOrder={Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
   const delCounts=countBy(p=>p.deliveryMonth||null);
-  const months=[...new Set(products.map(p=>p.deliveryMonth).filter(d=>d&&d!=='CORE'))];
+  const months=[...new Set(products.map(p=>p.deliveryMonth).filter(d=>d&&d!=='CORE'&&d!=='OLD CORE'))];
   months.sort((a,b)=>{const[am,ay]=a.split('-');const[bm,by]=b.split('-');const ayF=parseInt(ay)<50?2000+parseInt(ay):1900+parseInt(ay);const byF=parseInt(by)<50?2000+parseInt(by):1900+parseInt(by);if(ayF!==byF)return byF-ayF;return(monthOrder[bm]||0)-(monthOrder[am]||0);});
   const coreCount=delCounts['CORE']||0;
   document.getElementById('ms-sw-delmonth-options').innerHTML=
-    `<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="swUpdateLabel('delmonth')"> CORE <span class="ms-count">(${coreCount})</span></label>`+
+    `<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="swUpdateLabel('delmonth')"> CORE <span class="ms-count">(${coreCount})</span></label>`+(delCounts['OLD CORE']?`<label class="ms-item"><input type="checkbox" value="OLD CORE" checked onchange="swUpdateLabel('delmonth')"> OLD CORE <span class="ms-count">(${delCounts['OLD CORE']})</span></label>`:'')+
     months.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="swUpdateLabel('delmonth')"> ${m} <span class="ms-count">(${delCounts[m]||0})</span></label>`).join('');
 }
 function swClearAll(){
@@ -5329,11 +5328,11 @@ function swcPopulateFilters(){
     `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="swcUpdateLabel('disc')"> ${discLabels[v]} <span class="ms-count">(${discCounts[v]||0})</span></label>`).join('');
   const monthOrder={Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
   const delCounts=countBy(p=>p.deliveryMonth||null);
-  const months=[...new Set(products.map(p=>p.deliveryMonth).filter(d=>d&&d!=='CORE'))];
+  const months=[...new Set(products.map(p=>p.deliveryMonth).filter(d=>d&&d!=='CORE'&&d!=='OLD CORE'))];
   months.sort((a,b)=>{const[am,ay]=a.split('-');const[bm,by]=b.split('-');const ayF=parseInt(ay)<50?2000+parseInt(ay):1900+parseInt(ay);const byF=parseInt(by)<50?2000+parseInt(by):1900+parseInt(by);if(ayF!==byF)return byF-ayF;return(monthOrder[bm]||0)-(monthOrder[am]||0);});
   const coreCount=delCounts['CORE']||0;
   document.getElementById('ms-swc-delmonth-options').innerHTML=
-    `<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="swcUpdateLabel('delmonth')"> CORE <span class="ms-count">(${coreCount})</span></label>`+
+    `<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="swcUpdateLabel('delmonth')"> CORE <span class="ms-count">(${coreCount})</span></label>`+(delCounts['OLD CORE']?`<label class="ms-item"><input type="checkbox" value="OLD CORE" checked onchange="swcUpdateLabel('delmonth')"> OLD CORE <span class="ms-count">(${delCounts['OLD CORE']})</span></label>`:'')+
     months.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="swcUpdateLabel('delmonth')"> ${m} <span class="ms-count">(${delCounts[m]||0})</span></label>`).join('');
 }
 
@@ -6908,7 +6907,7 @@ function mdpCategoryStrategy(plan,oo,hasEnd,pl,rows){
   const colls=[...new Set(plan.items.map(i=>i.row.p.collection).filter(Boolean))].sort();
   const mCount={};plan.items.forEach(i=>{if(i.row.p.isGWP||i.row.p.notOnSale)return;const m=i.row.p.deliveryMonth||'__none__';mCount[m]=(mCount[m]||0)+1;});
   const MO={JAN:1,FEB:2,MAR:3,APR:4,MAY:5,JUN:6,JUL:7,AUG:8,SEP:9,OCT:10,NOV:11,DEC:12},yf=y=>parseInt(y)<50?2000+parseInt(y):1900+parseInt(y);
-  const months=Object.keys(mCount).filter(m=>m!=='__none__'&&m!=='CORE').sort((a,b)=>{const[am,ay]=a.split('-'),[bm,by]=b.split('-');return yf(by)-yf(ay)||(MO[String(bm).toUpperCase()]||0)-(MO[String(am).toUpperCase()]||0)||a.localeCompare(b);}).concat(mCount.CORE?['CORE']:[]);
+  const months=Object.keys(mCount).filter(m=>m!=='__none__'&&m!=='CORE'&&m!=='OLD CORE').sort((a,b)=>{const[am,ay]=a.split('-'),[bm,by]=b.split('-');return yf(by)-yf(ay)||(MO[String(bm).toUpperCase()]||0)-(MO[String(am).toUpperCase()]||0)||a.localeCompare(b);}).concat(mCount.CORE?['CORE']:[]).concat(mCount['OLD CORE']?['OLD CORE']:[]);
   const sCount={};plan.items.forEach(i=>{if(i.row.p.isGWP||i.row.p.notOnSale)return;const k=i.systemPct==null?'__none__':String(i.systemPct);sCount[k]=(sCount[k]||0)+1;});
   const suggs=Object.keys(sCount).filter(k=>k!=='__none__').sort((a,b)=>Number(a)-Number(b));
   const opt=(v,l,cur)=>`<option value="${mdpEsc(v)}" ${String(cur)===String(v)?'selected':''}>${mdpEsc(l)}</option>`;
@@ -7945,7 +7944,7 @@ function renderReorders(){
 
   const SL={ok:'OK','on-order':'On Order',oos:'Out of Stock',reorder:'Re-Order',reduce:'Reduce',clearance:'Clearance'};
   const flagPillCls={ok:'sp-ok',reorder:'sp-reorder','on-order':'sp-onorder',oos:'sp-oos',reduce:'sp-reduce',clearance:'sp-clearance'};
-  const vendorCls=v=>v==='CORE'?'rp-core':v==='NEW'?'rp-new':v==='CURRENT'?'rp-current':v==='OLD CORE'?'rp-oldcore':v==='OLD'?'rp-old':v==='REDUCED'?'rp-reduced':v==='DRAFT'?'rp-draft':v==='PRE-RELEASE'?'rp-prerelease':'rp-other';
+  const vendorCls=v=>v==='CORE'?'rp-core':v==='NEW'?'rp-new':v==='CURRENT'?'rp-current':v==='OLD'?'rp-old':v==='REDUCED'?'rp-reduced':v==='DRAFT'?'rp-draft':v==='PRE-RELEASE'?'rp-prerelease':'rp-other';
 
   const soldLabel=`Sold (${roPeriod}d)`;
   const getSoldRo=p=>{
@@ -7987,7 +7986,7 @@ function renderReorders(){
       <td class="cell-product"><div class="prod-name">${(()=>{const t=p.amOnly?null:getTierForProduct(p.productName,p.colour);return t?`<span style="margin-right:3px;">${t.emoji}</span>`:''})()}${p.productName}${p.colour?" - "+p.colour:""}</div></td>
       <td class="cell-muted">${p.category||'—'}</td>
       <td style="padding:6px 10px;"><span class="range-pill ${vendorCls(p.vendor)}">${p.vendor||'—'}</span></td>
-      <td style="padding:6px 10px;font-size:12px;">${p.deliveryMonth==='CORE'?'<span style="font-size:11px;font-weight:600;color:var(--blue);">CORE</span>':p.deliveryMonth||'—'}</td>
+      <td style="padding:6px 10px;font-size:12px;">${p.deliveryMonth==='CORE'?'<span style="font-size:11px;font-weight:600;color:var(--blue);">CORE</span>':p.deliveryMonth==='OLD CORE'?'<span style="font-size:11px;font-weight:600;color:#3b5a8a;">OLD CORE</span>':p.deliveryMonth||'—'}</td>
       <td class="cell-num">${p.stock.toLocaleString()}</td>
       <td class="cell-num" style="color:var(--purple);">${onOrder>0?onOrder.toLocaleString():'—'}</td>
       <td class="cell-num">${sold>0?sold.toLocaleString():'—'}</td>
@@ -8126,11 +8125,11 @@ function roPopulateFilters(products){
     `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="roUpdateLabel('disc');renderReorders()"> ${discLabels[v]} <span class="ms-count">(${discCounts[v]||0})</span></label>`).join('');
   const monthOrder={Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
   const delCounts=countBy(p=>p.deliveryMonth||null);
-  const months=[...new Set(products.map(p=>p.deliveryMonth).filter(d=>d&&d!=='CORE'))];
+  const months=[...new Set(products.map(p=>p.deliveryMonth).filter(d=>d&&d!=='CORE'&&d!=='OLD CORE'))];
   months.sort((a,b)=>{const[am,ay]=a.split('-');const[bm,by]=b.split('-');const ayF=parseInt(ay)<50?2000+parseInt(ay):1900+parseInt(ay);const byF=parseInt(by)<50?2000+parseInt(by):1900+parseInt(by);if(ayF!==byF)return byF-ayF;return(monthOrder[bm]||0)-(monthOrder[am]||0);});
   const coreCount=delCounts['CORE']||0;
   document.getElementById('ms-ro-delmonth-options').innerHTML=
-    `<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="roUpdateLabel('delmonth');renderReorders()"> CORE <span class="ms-count">(${coreCount})</span></label>`+
+    `<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="roUpdateLabel('delmonth');renderReorders()"> CORE <span class="ms-count">(${coreCount})</span></label>`+(delCounts['OLD CORE']?`<label class="ms-item"><input type="checkbox" value="OLD CORE" checked onchange="roUpdateLabel('delmonth');renderReorders()"> OLD CORE <span class="ms-count">(${delCounts['OLD CORE']})</span></label>`:'')+
     months.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="roUpdateLabel('delmonth');renderReorders()"> ${m} <span class="ms-count">(${delCounts[m]||0})</span></label>`).join('');
 }
 
@@ -8599,7 +8598,7 @@ function mdPopulateFilters(products){
 
   // Month Del
   const delCounts=countBy(p=>p.deliveryMonth||null);
-  const months=[...new Set(products.map(p=>p.deliveryMonth).filter(d=>d&&d!=='CORE'))];
+  const months=[...new Set(products.map(p=>p.deliveryMonth).filter(d=>d&&d!=='CORE'&&d!=='OLD CORE'))];
   months.sort((a,b)=>{
     const[am,ay]=a.split('-');const[bm,by]=b.split('-');
     const ayF=parseInt(ay)<50?2000+parseInt(ay):1900+parseInt(ay);
@@ -8609,7 +8608,7 @@ function mdPopulateFilters(products){
   });
   const coreCount=delCounts['CORE']||0;
   document.getElementById('ms-md-delmonth-options').innerHTML=
-    `<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="mdUpdateLabel('delmonth');renderMarkdowns()"> CORE <span class="ms-count">(${coreCount})</span></label>`+
+    `<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="mdUpdateLabel('delmonth');renderMarkdowns()"> CORE <span class="ms-count">(${coreCount})</span></label>`+(delCounts['OLD CORE']?`<label class="ms-item"><input type="checkbox" value="OLD CORE" checked onchange="mdUpdateLabel('delmonth');renderMarkdowns()"> OLD CORE <span class="ms-count">(${delCounts['OLD CORE']})</span></label>`:'')+
     months.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="mdUpdateLabel('delmonth');renderMarkdowns()"> ${m} <span class="ms-count">(${delCounts[m]||0})</span></label>`).join('');
 }
 
@@ -8844,7 +8843,7 @@ function renderMarkdowns(){
     const disc=p.discountPct!=null?p.discountPct.toFixed(1)+'%':'—';
     const mg=p.margin!=null?p.margin.toFixed(1)+'%':'—';
     const proposedPrice=p.compareAt>0&&pct?(p.compareAt*(1-parseFloat(pct)/100)).toFixed(2):'';
-    const vendorCls=p.vendor==='CORE'?'rp-core':p.vendor==='NEW'?'rp-new':p.vendor==='CURRENT'?'rp-current':p.vendor==='OLD CORE'?'rp-oldcore':p.vendor==='OLD'?'rp-old':p.vendor==='REDUCED'?'rp-reduced':p.vendor==='DRAFT'?'rp-draft':p.vendor==='PRE-RELEASE'?'rp-prerelease':'rp-other';
+    const vendorCls=p.vendor==='CORE'?'rp-core':p.vendor==='NEW'?'rp-new':p.vendor==='CURRENT'?'rp-current':p.vendor==='OLD'?'rp-old':p.vendor==='REDUCED'?'rp-reduced':p.vendor==='DRAFT'?'rp-draft':p.vendor==='PRE-RELEASE'?'rp-prerelease':'rp-other';
     const safeKey=key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     const onOrder=(p.onOrder||0)+(p.productOnOrder||0);
     const collection=saved[key]?.collection||'';
@@ -8871,7 +8870,7 @@ function renderMarkdowns(){
       <td class="cell-muted">${p.category||'—'}</td>
       <td style="padding:6px 8px;font-size:12px;color:${(p.discountPct||0)>0?'var(--red)':'var(--text-secondary)'};">${disc}</td>
       <td style="padding:6px 8px;"><span class="range-pill ${vendorCls}">${p.vendor||'—'}</span></td>
-      <td style="padding:6px 8px;font-size:12px;">${p.deliveryMonth==='CORE'?'<span style="font-size:11px;font-weight:600;color:var(--blue);">CORE</span>':p.deliveryMonth?`<span style="font-size:12px;font-weight:500;color:var(--text-secondary);">${p.deliveryMonth}</span>`:'—'}</td>
+      <td style="padding:6px 8px;font-size:12px;">${p.deliveryMonth==='CORE'?'<span style="font-size:11px;font-weight:600;color:var(--blue);">CORE</span>':p.deliveryMonth==='OLD CORE'?'<span style="font-size:11px;font-weight:600;color:#3b5a8a;">OLD CORE</span>':p.deliveryMonth?`<span style="font-size:12px;font-weight:500;color:var(--text-secondary);">${p.deliveryMonth}</span>`:'—'}</td>
       <td class="cell-num">${st!=null?st+'%':'—'}</td>
       <td class="cell-num">${p.stock.toLocaleString()}</td>
       <td class="cell-num">${p.sohValue?'$'+Math.round(p.sohValue).toLocaleString():'—'}</td>
@@ -10873,7 +10872,7 @@ function opPrintReport(){
 const AM_MID_CACHE_KEY='amCatalogV1';
 const AM_MID_TTL=6*60*60*1000;
 const AM_CORE_GROUPS=new Set(['AA CORE STYLES','ACCESSORIES CURRENT']);
-// OLD CORE = former core styles / archived accessories: its own status (not CORE, not plain OLD), defined only by the AM product group.
+// OLD CORE = former core styles / archived accessories, defined only by the AM product group. Shown as a Month Del value (like CORE); it is NOT a status, so REDUCED / OLD etc. still apply.
 const AM_OLD_CORE_GROUPS=new Set(['AA OLD CORE','ACCESSORIES ARCHIVE']);
 // Normalise a group name for comparison ("AA - Core Styles" → "AA CORE STYLES")
 function normGroupName(g){return String(g||'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();}
@@ -11770,7 +11769,7 @@ function showShopifyFeedPanel(){
 
 /* ── HELPERS ── */
 function normaliseDeliveryMonth(val){
-  if(!val||val==='CORE')return val;
+  if(!val||val==='CORE'||val==='OLD CORE')return val;
   // Already in short format e.g. "Jan-25" — return as-is
   if(/^[A-Za-z]{3}-\d{2}$/.test(val.trim()))return val.trim();
   // Better Reports format: "Jan-25" or "Jan-2025"
@@ -12032,6 +12031,8 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     let deliveryMonth='';
     if(isCore){
       deliveryMonth='CORE';
+    } else if(isOldCore){
+      deliveryMonth='OLD CORE';   // AM group 'AA OLD CORE' / 'ACCESSORIES ARCHIVE' — shown in Month Del, the status stays whatever it naturally is (REDUCED, OLD…)
     } else {
       const amEntry=amVariantMap[styleCode+'||'+size]||
                     amVariantMap[styleCode+'||OS']||
@@ -12204,7 +12205,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     // BUNDLE takes precedence over CORE — CORE items in bundle deals show as BUNDLE (already tracked under Delivery Month)
     const isReduced=!isCore&&!isBundle&&!isDraft&&!isPreRelease&&(discountPct>0);
     // PRE-RELEASE: draft-flagged with stock — always shows regardless of delivery month
-    const effectiveVendor=isCore?'CORE':isOldCore?'OLD CORE':(isDraft&&!isDraftButCurrent)?'DRAFT':isPreRelease?'PRE-RELEASE':isBundle?'BUNDLE':isReduced?'REDUCED':(isNew||isDraftButCurrent)?'NEW':isEnd?'OLD':isCurrent?'CURRENT':vendor;
+    const effectiveVendor=isCore?'CORE':(isDraft&&!isDraftButCurrent)?'DRAFT':isPreRelease?'PRE-RELEASE':isBundle?'BUNDLE':isReduced?'REDUCED':(isNew||isDraftButCurrent)?'NEW':isEnd?'OLD':isCurrent?'CURRENT':vendor;
     // No suggested orders for BUNDLE or REDUCED — these shouldn't be restocked at full price
     const finalSuggestedOrder=isBundle||isReduced||isOldCore?0:suggestedOrder;
     // Re-run flag with effectiveVendor so CORE/NEW/CURRENT/ON ORDER status is respected
@@ -12524,7 +12525,7 @@ function buildVariantRows(){
   populateMultiSelect('vendor',vendors,vendorCounts);
 
   // Populate Month Del filter
-  const delMonths=[...new Set(allVariantRows.map(r=>r.deliveryMonth).filter(d=>d&&d!=='CORE'))];
+  const delMonths=[...new Set(allVariantRows.map(r=>r.deliveryMonth).filter(d=>d&&d!=='CORE'&&d!=='OLD CORE'))];
   const monthOrder={Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
   delMonths.sort((a,b)=>{
     const [am,ay]=a.split('-');const [bm,by]=b.split('-');
@@ -12541,7 +12542,7 @@ function buildVariantRows(){
     }
     const coreCount=delMonthCounts['CORE']||0;
     delMonthContainer.innerHTML=
-      `<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="applyFilters()"> CORE (${coreCount})</label>`+
+      `<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="applyFilters()"> CORE (${coreCount})</label>`+(delMonthCounts['OLD CORE']?`<label class="ms-item"><input type="checkbox" value="OLD CORE" checked onchange="applyFilters()"> OLD CORE (${delMonthCounts['OLD CORE']})</label>`:'')+
       delMonths.map(m=>`<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="applyFilters()"> ${m} (${delMonthCounts[m]||0})</label>`).join('');
   }
 
@@ -12958,7 +12959,7 @@ function toProduct(vr){
       let f=getFlag(days,p.stock,onOrder,p.vendor,p.discountPct);
       const ev=p.vendor; // effectiveVendor already set on p
       const pIsBundle=ev==='BUNDLE';
-      const pIsOld=ev==='OLD'||ev==='OLD CORE';
+      const pIsOld=ev==='OLD';
       const pIsNew=ev==='NEW';
       const pIsCurrent=ev==='CURRENT';
       const pIsOnOrder=ev==='ON ORDER';
@@ -13435,7 +13436,7 @@ function renderRow(row,headers){
       const labelVal=showAsBundle?'BUNDLE':displayVal;
       const isEnd=labelVal==='OLD';
       const v=labelVal.toLowerCase();
-      const cls=isEnd?'rp-old':v==='new'?'rp-new':v==='current'?'rp-current':v==='core'?'rp-core':v==='bundle'?'rp-bundle':v==='old core'?'rp-oldcore':v==='old'?'rp-old':v==='reduced'?'rp-reduced':v==='draft'?'rp-draft':v==='pre-release'?'rp-prerelease':'rp-other';
+      const cls=isEnd?'rp-old':v==='new'?'rp-new':v==='current'?'rp-current':v==='core'?'rp-core':v==='bundle'?'rp-bundle':v==='old'?'rp-old':v==='reduced'?'rp-reduced':v==='draft'?'rp-draft':v==='pre-release'?'rp-prerelease':'rp-other';
       return`<td><span class="range-pill ${cls}">${labelVal||'—'}</span></td>`;
     }
     if(h.k==='soldToday'){
@@ -13457,6 +13458,7 @@ function renderRow(row,headers){
     if(h.k==='deliveryMonth'){
       if(!val)return`<td class="cell-muted">—</td>`;
       if(val==='CORE')return`<td><span style="font-size:11px;font-weight:600;color:var(--blue);">CORE</span></td>`;
+      if(val==='OLD CORE')return`<td><span style="font-size:11px;font-weight:600;color:#3b5a8a;">OLD CORE</span></td>`;
       return`<td><span style="font-size:12px;font-weight:500;color:var(--text-secondary);">${val}</span></td>`;
     }
     if(h.k==='launchDate'){
@@ -13656,7 +13658,6 @@ function exportPDF(){
     'NEW':'background:#dcfce7;color:#15803d;',
     'CURRENT':'background:#e0f2fe;color:#0284c7;',
     'OLD':'background:#f3f4f6;color:#6b7280;',
-    'OLD CORE':'background:#e5ebf5;color:#3b5a8a;',
     'REDUCED':'background:#fff7ed;color:#c2410c;',
     'DRAFT':'background:#f3e8ff;color:#7c3aed;',
     'PRE-RELEASE':'background:#fff1f2;color:#e11d48;',
@@ -13799,6 +13800,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.5.6 — OLD CORE is now a MONTH DEL tag instead of a status (Brendan: the v3.5.4 status hid REDUCED). Products in the Apparel Magic groups 'AA OLD CORE' / 'ACCESSORIES ARCHIVE' show 'OLD CORE' in Month Del (like CORE does), so their status goes back to what it naturally is — REDUCED when discounted, otherwise OLD — and the REDUCED label is reinstated. OLD CORE appears as its own option in every Month Del filter (Dashboard, Sales Cadence, Planning, Reorders, Markdowns, Performance, Markdown Planner) when any exist. Unchanged from v3.5.4: not CORE (Non-Core toggle), no reorder flags / suggested orders, 'reduce' flag while undiscounted. Removed the OLD CORE status pill and its engine/PDF special-cases.
 // v3.5.5 — MARKDOWN PLANNER (Category Strategy): on-order blanket-discount products now sit in the Group whose discount matches theirs (20% = Group A at its default level), so the Group A / B / C cards count them (with an 'incl. N on order' line), the '% of eligible' shares include them, and clicking a group card / 'Show only Group A products' lists them. A blanket discount that matches no group (or a figure you type that fits none) shows under Exceptions ('N on-order discount (matches no group)'). They keep their 'On order' pill and are no longer also counted as special buys in the category header. Real special buys are unchanged (still outside A/B/C). Also fixed the category header's 'N not in the sale', which was counting Exceptions instead of excluded products. Prices, exports, approvals and the Tuesday CSV are unaffected (they follow each product's discount %, not its group).
 // v3.5.4 — OLD CORE status. A style is OLD CORE when its Apparel Magic product group is 'AA OLD CORE' or 'ACCESSORIES ARCHIVE' (matched loosely, like the core groups; collected in the same catalogue sync — cache upgraded, so the first load after this version does one fresh ~2.5 min sync). It shows its own 'OLD CORE' pill everywhere a status is shown (dashboard, Sales Cadence incl. its PDF, Planning, Working) and is a filterable status. It is NOT CORE: the Core toggle puts it under Non-Core, and it is never forced to 'OK'. It behaves like OLD stock: no reorder flags or suggested orders, flagged 'reduce' while it has undiscounted stock, and in the Markdown Planner it is scored as old stock (age floor 75) and can be discounted normally. A style only has one AM group, so it can never be both CORE and OLD CORE.
 // v3.5.3 — MARKDOWN PLANNER (Category Strategy product tables): products on the on-order blanket discount can now be changed. They keep the 'On order' label and the suggested discount, but get the same dropdown as every other product (move to Group A/B/C, a custom %, or Not in sale). Once changed, the row still shows 'On order' with 'suggested 20%' beside it, and '↺ Reset to the on-order discount (20%)' puts it back. The Suggested column and parent-style summary say 'On order' instead of 'S' / 'Special buy' for these. Real Sale specific buys are unchanged (still set in step C). No engine change — the engine already honoured decisions on these products; the table just never offered the control.
@@ -14281,7 +14283,7 @@ function perfPopulateFilters(data){
   // Month Delivery
   const monthOrder={Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
   const delCounts={};data.forEach(p=>{if(p.deliveryMonth)delCounts[p.deliveryMonth]=(delCounts[p.deliveryMonth]||0)+1;});
-  const delMonths=[...new Set(data.map(p=>p.deliveryMonth).filter(d=>d&&d!=='CORE'))];
+  const delMonths=[...new Set(data.map(p=>p.deliveryMonth).filter(d=>d&&d!=='CORE'&&d!=='OLD CORE'))];
   delMonths.sort((a,b)=>{
     const[am,ay]=a.split('-');const[bm,by]=b.split('-');
     const ayF=parseInt(ay)<50?2000+parseInt(ay):1900+parseInt(ay);
@@ -14293,7 +14295,9 @@ function perfPopulateFilters(data){
   if(dmContainer){
     const coreCount=delCounts['CORE']||0;
     const coreHtml=coreCount?`<label class="ms-item"><input type="checkbox" value="CORE" checked onchange="perfUpdateLabel('delmonth');renderPerformanceDeferred()"> CORE <span class="ms-count">(${coreCount})</span></label>`:'';
-    dmContainer.innerHTML=coreHtml+delMonths.map(m=>
+    const ocCount=delCounts['OLD CORE']||0;
+    const ocHtml=ocCount?`<label class="ms-item"><input type="checkbox" value="OLD CORE" checked onchange="perfUpdateLabel('delmonth');renderPerformanceDeferred()"> OLD CORE <span class="ms-count">(${ocCount})</span></label>`:'';
+    dmContainer.innerHTML=coreHtml+ocHtml+delMonths.map(m=>
       `<label class="ms-item"><input type="checkbox" value="${m}" checked onchange="perfUpdateLabel('delmonth');renderPerformanceDeferred()"> ${m} <span class="ms-count">(${delCounts[m]||0})</span></label>`
     ).join('');
   }
@@ -14564,7 +14568,7 @@ function renderPerformance(){
   const tierOrder={platinum:0,rocket:1,surfer:2,dog:3,egg:4};
   const monthOrder={Jan:1,Feb:2,Mar:3,Apr:4,May:5,Jun:6,Jul:7,Aug:8,Sep:9,Oct:10,Nov:11,Dec:12};
   function deliveryMonthKey(dm){
-    if(!dm||dm==='CORE')return dm==='CORE'?0:999999;
+    if(!dm||dm==='CORE'||dm==='OLD CORE')return dm==='CORE'?0:dm==='OLD CORE'?1:999999;
     const[m,y]=dm.split('-');
     const yr=parseInt(y)<50?2000+parseInt(y):1900+parseInt(y);
     return yr*100+(monthOrder[m]||0);
@@ -14649,9 +14653,9 @@ function renderPerformance(){
     const newBadge=p.isNew?`<span style="font-size:10px;font-weight:700;padding:2px 7px;border-radius:var(--r-pill);background:#fef9c3;color:#92400e;border:1px solid #fde68a;margin-left:5px;">NEW ${p.daysElapsed}d</span>`:'';
     const firstSale=p.firstSaleDay?p.firstSaleDay.slice(0,10):'—';
     const catBadge=p.category?`<span style="font-size:11px;color:var(--text-muted);">${p.category}</span>`:'';
-    const dmBadge=p.deliveryMonth&&p.deliveryMonth!=='CORE'
+    const dmBadge=p.deliveryMonth&&p.deliveryMonth!=='CORE'&&p.deliveryMonth!=='OLD CORE'
       ?`<span style="font-size:11px;color:var(--text-secondary);font-weight:500;">${p.deliveryMonth}</span>`
-      :(p.deliveryMonth==='CORE'?`<span style="font-size:11px;color:var(--blue);font-weight:600;">CORE</span>`:'');
+      :(p.deliveryMonth==='CORE'?`<span style="font-size:11px;color:var(--blue);font-weight:600;">CORE</span>`:(p.deliveryMonth==='OLD CORE'?`<span style="font-size:11px;color:#3b5a8a;font-weight:600;">OLD CORE</span>`:''));
     // Index display: projected (est) for new, actual for completed
     const indexDisplay=p.isNew
       ?`<span style="font-weight:700;color:${tierColor[p.tier]};">${p.indexScore}</span><span style="font-size:10px;color:var(--text-muted);margin-left:3px;">est</span>`
