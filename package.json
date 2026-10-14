@@ -6,6 +6,6 @@
     "@netlify/blobs": "11.1.0"
   },
   "scripts": {
-    "test": "node tests/sales-feed.test.js && node tests/markdown-engine.test.js && node tests/markdown-plans.test.js"
+    "test": "node tests/sales-feed.test.js && node tests/markdown-engine.test.js && node tests/markdown-plans.test.js && node tests/plans-store.test.js"
   }
 }

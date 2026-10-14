@@ -629,5 +629,46 @@ assert.deepEqual(P.buildForecast([], {}, 90).totals.demand, 0);
   assert.equal(R({ onOrderPct: 40, draftMode: 'onorder' }, { ...base, isDraft: true, onOrderAll: 7 }).specialPct, 40);          // a draft with units on order is shown and gets the blanket discount
   assert.equal(R({ onOrderPct: 40 }, { ...base, isDraft: true, onOrderAll: 0 }).skip, true);
 }
+// ── Cloud sync merge: plan by plan, three-way ──
+{
+  let n = 0; const gen = () => 'n' + (++n);
+  const mk = (name, rev, ts, extra) => ({ id: 'p1', name, rev, updatedTs: ts, overrides: {}, offers: [], special: [], setup: {}, settings: {}, ...(extra || {}) });
+  const S = (plans, order, active) => ({ v: 1, activeId: active || order[0], order, plans });
+  const A = mk('Black Friday', 5, 500), B2 = mk('Black Friday', 6, 600, { overrides: { x: 1 } });
+  // nothing changed anywhere
+  let m = P.mergeStates(S({ p1: A }, ['p1']), S({ p1: A }, ['p1']), S({ p1: A }, ['p1'])); assert.deepEqual(m.conflicts, []); assert.equal(m.needsPush, false); assert.equal(m.changedLocally, false);
+  // only this device changed -> push
+  m = P.mergeStates(S({ p1: B2 }, ['p1']), S({ p1: A }, ['p1']), S({ p1: A }, ['p1'])); assert.deepEqual(m.takeLocal, ['p1']); assert.equal(m.needsPush, true); assert.equal(m.state.plans.p1.rev, 6);
+  // only the cloud changed -> take it, nothing to push
+  m = P.mergeStates(S({ p1: A }, ['p1']), S({ p1: B2 }, ['p1']), S({ p1: A }, ['p1'])); assert.deepEqual(m.takeRemote, ['p1']); assert.equal(m.needsPush, false); assert.equal(m.changedLocally, true); assert.equal(m.state.plans.p1.rev, 6);
+  // both changed the same plan -> a conflict, local kept untouched, nothing taken
+  const C = mk('Black Friday', 6, 650, { overrides: { y: 2 } }); m = P.mergeStates(S({ p1: B2 }, ['p1']), S({ p1: C }, ['p1']), S({ p1: A }, ['p1'])); assert.deepEqual(m.conflicts, ['p1']); assert.deepEqual(m.state.plans.p1.overrides, { x: 1 });
+  // two devices edited the SAME plan from the same base and happened to stamp the same rev and time: still a conflict (content, not stamps, decides)
+  const T1 = mk('Black Friday', 6, 600, { overrides: { a: 1 } }), T2 = mk('Black Friday', 6, 600, { overrides: { b: 2 } }); assert.deepEqual(P.mergeStates(S({ p1: T1 }, ['p1']), S({ p1: T2 }, ['p1']), S({ p1: A }, ['p1'])).conflicts, ['p1']);
+  // different plans edited on different devices merge cleanly
+  const Q1 = mk('Sale Q', 3, 300, { id: 'q1' }), Q2 = mk('Sale Q', 4, 400, { id: 'q1', overrides: { z: 1 } });
+  m = P.mergeStates(S({ p1: B2, q1: Q1 }, ['p1', 'q1']), S({ p1: A, q1: Q2 }, ['p1', 'q1']), S({ p1: A, q1: Q1 }, ['p1', 'q1']));
+  assert.deepEqual(m.conflicts, []); assert.equal(m.state.plans.p1.rev, 6); assert.equal(m.state.plans.q1.rev, 4); assert.equal(m.needsPush, true);
+  // a plan created on another device appears here; one created here is pushed
+  m = P.mergeStates(S({ p1: A }, ['p1']), S({ p1: A, q1: Q1 }, ['p1', 'q1']), S({ p1: A }, ['p1'])); assert.deepEqual(Object.keys(m.state.plans).sort(), ['p1', 'q1']); assert.deepEqual(m.takeRemote, ['q1']);
+  m = P.mergeStates(S({ p1: A, q1: Q1 }, ['p1', 'q1']), S({ p1: A }, ['p1']), S({ p1: A }, ['p1'])); assert.deepEqual(m.takeLocal, ['q1']); assert.equal(m.needsPush, true);
+  // a brand-new device: its untouched default plan is NOT pushed; it adopts the cloud's plans
+  const blank = mk('Sale 1', 1, 1, { id: 'blank' }); m = P.mergeStates(S({ blank }, ['blank']), S({ p1: A, q1: Q1 }, ['p1', 'q1'], 'p1'), null);
+  assert.deepEqual(Object.keys(m.state.plans).sort(), ['p1', 'q1']); assert.equal(m.needsPush, false); assert.equal(m.state.activeId, 'p1');
+  // but a first-ever device (empty cloud) keeps and pushes its plan
+  m = P.mergeStates(S({ blank }, ['blank']), S({}, []), null); assert.deepEqual(Object.keys(m.state.plans), ['blank']); assert.equal(m.needsPush, true);
+  // an edited plan on a device with no history is kept (and flagged as a conflict only if the cloud has the same plan too)
+  m = P.mergeStates(S({ p1: B2 }, ['p1']), S({ p1: A }, ['p1']), null); assert.deepEqual(m.conflicts, ['p1']);
+  // each device keeps its own active tab
+  m = P.mergeStates(S({ p1: A, q1: Q1 }, ['p1', 'q1'], 'q1'), S({ p1: A, q1: Q1 }, ['p1', 'q1'], 'p1'), S({ p1: A, q1: Q1 }, ['p1', 'q1'])); assert.equal(m.state.activeId, 'q1');
+  // resolving
+  const loc = S({ p1: B2 }, ['p1']), rem = S({ p1: C }, ['p1']);
+  let r1 = P.resolveSyncConflict(loc, rem, 'p1', 'mine', 900, gen); assert.deepEqual(r1.plans.p1.overrides, { x: 1 }); assert.equal(r1.plans.p1.rev, 7);                          // wins the next sync
+  m = P.mergeStates(r1, rem, S({ p1: C }, ['p1'])); assert.deepEqual(m.conflicts, []); assert.equal(m.needsPush, true);
+  r1 = P.resolveSyncConflict(loc, rem, 'p1', 'theirs', 900, gen); assert.deepEqual(r1.plans.p1.overrides, { y: 2 }); m = P.mergeStates(r1, rem, S({ p1: C }, ['p1'])); assert.deepEqual(m.conflicts, []); assert.equal(m.needsPush, false);
+  r1 = P.resolveSyncConflict(loc, rem, 'p1', 'both', 900, gen); assert.equal(Object.keys(r1.plans).length, 2); assert.deepEqual(r1.plans.p1.overrides, { y: 2 }); const cp = Object.values(r1.plans).find(p => p.id !== 'p1'); assert.deepEqual(cp.overrides, { x: 1 }); assert.match(cp.name, /\(this device\)/); assert.equal(r1.order.length, 2);
+  assert.strictEqual(P.resolveSyncConflict(loc, rem, 'nope', 'mine', 1, gen), loc);
+  assert.equal(P.isPristine(mk('x', 1, 1)), true); assert.equal(P.isPristine(mk('x', 2, 1)), false); assert.equal(P.isPristine(mk('x', 1, 1, { overrides: { a: 1 } })), false);
+}
 console.log('markdown plans tests: all passed');
 })();
