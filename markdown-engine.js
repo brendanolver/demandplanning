@@ -92,7 +92,7 @@
     else if (ageWeeks < 26) s = ((ageWeeks - 8) / 18) * 50;
     else if (ageWeeks < 52) s = 50 + ((ageWeeks - 26) / 26) * 30;
     else s = 100;
-    if (String(status || '').toUpperCase() === 'OLD') s = Math.max(s, 75);
+    if (['OLD', 'OLD CORE'].includes(String(status || '').toUpperCase())) s = Math.max(s, 75);
     return s;
   }
 

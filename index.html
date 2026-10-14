@@ -248,6 +248,7 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .rp-current{background:#eff6ff;color:#3b82f6;}
 .rp-onorder{background:var(--purple-light);color:var(--purple);}
 .rp-old{background:#f1f5f9;color:#64748b;}
+.rp-oldcore{background:#e5ebf5;color:#3b5a8a;}
 .rp-other{background:var(--surface2);color:var(--text-secondary);}
 
 /* Planning */
@@ -2443,9 +2444,9 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.5.3"></script>
-<script src="markdown-plans.js?v=3.5.3"></script>
-<script src="sales-cadence-pdf.js?v=3.5.3"></script>
+<script src="markdown-engine.js?v=3.5.4"></script>
+<script src="markdown-plans.js?v=3.5.4"></script>
+<script src="sales-cadence-pdf.js?v=3.5.4"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2479,7 +2480,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.5.3';
+const APP_VERSION='v3.5.4';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -3363,7 +3364,7 @@ function renderCadenceCompare(){
     const totalSold=Math.round(cp.totalSold)||0;
     const stPct=totalSold>0?totalSold/(cp.soh+totalSold)*100:null;
     const stColor=stPct===null?'color:var(--text-muted);':stPct>=60?'color:#15803d;font-weight:700;':stPct>=30?'color:var(--amber);font-weight:600;':'color:var(--red);font-weight:600;';
-    const _vcls=cp.vendor==='CORE'?'rp-core':cp.vendor==='NEW'?'rp-new':cp.vendor==='CURRENT'?'rp-current':cp.vendor==='OLD'?'rp-old':cp.vendor==='REDUCED'?'rp-reduced':cp.vendor==='DRAFT'?'rp-draft':cp.vendor==='PRE-RELEASE'?'rp-prerelease':cp.vendor==='BUNDLE'?'rp-bundle':'rp-other';
+    const _vcls=cp.vendor==='CORE'?'rp-core':cp.vendor==='NEW'?'rp-new':cp.vendor==='CURRENT'?'rp-current':cp.vendor==='OLD CORE'?'rp-oldcore':cp.vendor==='OLD'?'rp-old':cp.vendor==='REDUCED'?'rp-reduced':cp.vendor==='DRAFT'?'rp-draft':cp.vendor==='PRE-RELEASE'?'rp-prerelease':cp.vendor==='BUNDLE'?'rp-bundle':'rp-other';
     const statusCell=`<td style="white-space:nowrap;">${cp.vendor?`<span class="range-pill ${_vcls}">${cp.vendor}</span>`:'<span style="color:var(--text-muted);">—</span>'}</td>`;
     const cells=periods.map((p,i)=>{
       const v=Math.round(cp.data[p.label]||0);
@@ -3739,7 +3740,7 @@ function renderCadence(){
     // rather than the other way round. Product view is unchanged.
     const lyTotalOrder=cadenceView==='cat'?totalCols+lyMtdCell:lyMtdCell+totalCols;
     const _vnd=cadenceView==='prod'?(vendorByKey[k]||''):'';
-    const _vcls=_vnd==='CORE'?'rp-core':_vnd==='NEW'?'rp-new':_vnd==='CURRENT'?'rp-current':_vnd==='OLD'?'rp-old':_vnd==='REDUCED'?'rp-reduced':_vnd==='DRAFT'?'rp-draft':_vnd==='PRE-RELEASE'?'rp-prerelease':_vnd==='BUNDLE'?'rp-bundle':'rp-other';
+    const _vcls=_vnd==='CORE'?'rp-core':_vnd==='NEW'?'rp-new':_vnd==='CURRENT'?'rp-current':_vnd==='OLD CORE'?'rp-oldcore':_vnd==='OLD'?'rp-old':_vnd==='REDUCED'?'rp-reduced':_vnd==='DRAFT'?'rp-draft':_vnd==='PRE-RELEASE'?'rp-prerelease':_vnd==='BUNDLE'?'rp-bundle':'rp-other';
     const statusCell=cadenceView==='prod'?`<td style="white-space:nowrap;"><span class="range-pill ${_vcls}">${_vnd||'—'}</span></td>`:'';
     const _disc=cadenceView==='prod'?(discByKey[k]||0):0;
     const discCell=cadenceView==='prod'?`<td class="cell-num" style="${_disc>0?'color:var(--red);font-weight:600;':'color:var(--text-muted);'}">${_disc>0?Math.round(_disc)+'%':'—'}</td>`:'';
@@ -7944,7 +7945,7 @@ function renderReorders(){
 
   const SL={ok:'OK','on-order':'On Order',oos:'Out of Stock',reorder:'Re-Order',reduce:'Reduce',clearance:'Clearance'};
   const flagPillCls={ok:'sp-ok',reorder:'sp-reorder','on-order':'sp-onorder',oos:'sp-oos',reduce:'sp-reduce',clearance:'sp-clearance'};
-  const vendorCls=v=>v==='CORE'?'rp-core':v==='NEW'?'rp-new':v==='CURRENT'?'rp-current':v==='OLD'?'rp-old':v==='REDUCED'?'rp-reduced':v==='DRAFT'?'rp-draft':v==='PRE-RELEASE'?'rp-prerelease':'rp-other';
+  const vendorCls=v=>v==='CORE'?'rp-core':v==='NEW'?'rp-new':v==='CURRENT'?'rp-current':v==='OLD CORE'?'rp-oldcore':v==='OLD'?'rp-old':v==='REDUCED'?'rp-reduced':v==='DRAFT'?'rp-draft':v==='PRE-RELEASE'?'rp-prerelease':'rp-other';
 
   const soldLabel=`Sold (${roPeriod}d)`;
   const getSoldRo=p=>{
@@ -8843,7 +8844,7 @@ function renderMarkdowns(){
     const disc=p.discountPct!=null?p.discountPct.toFixed(1)+'%':'—';
     const mg=p.margin!=null?p.margin.toFixed(1)+'%':'—';
     const proposedPrice=p.compareAt>0&&pct?(p.compareAt*(1-parseFloat(pct)/100)).toFixed(2):'';
-    const vendorCls=p.vendor==='CORE'?'rp-core':p.vendor==='NEW'?'rp-new':p.vendor==='CURRENT'?'rp-current':p.vendor==='OLD'?'rp-old':p.vendor==='REDUCED'?'rp-reduced':p.vendor==='DRAFT'?'rp-draft':p.vendor==='PRE-RELEASE'?'rp-prerelease':'rp-other';
+    const vendorCls=p.vendor==='CORE'?'rp-core':p.vendor==='NEW'?'rp-new':p.vendor==='CURRENT'?'rp-current':p.vendor==='OLD CORE'?'rp-oldcore':p.vendor==='OLD'?'rp-old':p.vendor==='REDUCED'?'rp-reduced':p.vendor==='DRAFT'?'rp-draft':p.vendor==='PRE-RELEASE'?'rp-prerelease':'rp-other';
     const safeKey=key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     const onOrder=(p.onOrder||0)+(p.productOnOrder||0);
     const collection=saved[key]?.collection||'';
@@ -10872,6 +10873,8 @@ function opPrintReport(){
 const AM_MID_CACHE_KEY='amCatalogV1';
 const AM_MID_TTL=6*60*60*1000;
 const AM_CORE_GROUPS=new Set(['AA CORE STYLES','ACCESSORIES CURRENT']);
+// OLD CORE = former core styles / archived accessories: its own status (not CORE, not plain OLD), defined only by the AM product group.
+const AM_OLD_CORE_GROUPS=new Set(['AA OLD CORE','ACCESSORIES ARCHIVE']);
 // Normalise a group name for comparison ("AA - Core Styles" → "AA CORE STYLES")
 function normGroupName(g){return String(g||'').toUpperCase().replace(/[^A-Z0-9]+/g,' ').trim();}
 function styleFromSku(sku){
@@ -10922,19 +10925,24 @@ function isCoreProduct(sku,productName,colour,vendor,coreSet){
   if(window.amCoreStyles&&window.amCoreStyles.size)return window.amCoreStyles.has(styleFromSku(sku));
   return(vendor||'').toUpperCase()==='CORE'||coreSet.has((productName+' - '+colour).toUpperCase());
 }
+function isOldCoreProduct(sku){
+  return !!(window.amOldCoreStyles&&window.amOldCoreStyles.size&&window.amOldCoreStyles.has(styleFromSku(sku)));
+}
 function loadAMMidCache(){
   try{
     const c=JSON.parse(localStorage.getItem(AM_MID_CACHE_KEY)||'null');
     if(c&&c.map){
       window.amStyleMidMap=Object.assign({},c.map,window.amStyleMidMap||{});
       window.amCoreStyles=new Set(c.core||[]);
+      window.amOldCoreStyles=new Set(c.oldCore||[]);
       if(c.costMap)window.amStyleCostMap=c.costMap;
       if(c.catMap)window.amStyleCat=c.catMap;
       // See the equivalent check in loadAMSkuIdCache — a cache written before
       // costMap/catMap existed has no way to backfill just the new part, so treat it
       // as stale rather than silently hiding landed cost (or the Markdown Planner's
       // collection/category pickers) for up to 6h.
-      return('costMap' in c&&'catMap' in c)?(c.ts||0):0;
+      // (a cache written before OLD CORE existed has no 'oldCore' list — also stale, so those styles aren't missing for up to 6h)
+      return('costMap' in c&&'catMap' in c&&'oldCore' in c)?(c.ts||0):0;
     }
   }catch(e){}
   return 0;
@@ -10948,7 +10956,7 @@ async function syncAMMidCodes(force=false){
   _amMidSyncing=true;
   try{
     const map={};
-    const core=[];
+    const core=[],oldCore=[];
     const costMap={};
     const catMap={}; // style -> [collection/group, category, title, RRP] — feeds the Markdown Planner's Apparel Magic pickers
     let last='';
@@ -10963,6 +10971,7 @@ async function syncAMMidCodes(force=false){
         const mid=(p.mid_code||'').trim();
         if(mid&&mid!=='0')map[style]=mid;
         if(AM_CORE_GROUPS.has(normGroupName(p.group)))core.push(style);
+        else if(AM_OLD_CORE_GROUPS.has(normGroupName(p.group)))oldCore.push(style);
         // cost_landed = cost_base + freight + duty, the fully landed unit
         // cost — confirmed identical to the plain 'cost' field in this AM
         // account's data (0 divergence across the full catalogue), so the
@@ -10978,9 +10987,10 @@ async function syncAMMidCodes(force=false){
     // Full sweep is authoritative for the whole catalogue (handles cleared values)
     window.amStyleMidMap=map;
     window.amCoreStyles=new Set(core);
+    window.amOldCoreStyles=new Set(oldCore);
     window.amStyleCostMap=costMap;
     window.amStyleCat=catMap;
-    try{localStorage.setItem(AM_MID_CACHE_KEY,JSON.stringify({ts:Date.now(),map,core,costMap,catMap}))}catch(e){}
+    try{localStorage.setItem(AM_MID_CACHE_KEY,JSON.stringify({ts:Date.now(),map,core,oldCore,costMap,catMap}))}catch(e){}
     if(typeof mdpRefreshIfOpen==='function')mdpRefreshIfOpen();
     if(allVariantRows&&allVariantRows.length){
       buildVariantRows();
@@ -12013,6 +12023,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const price=plEntry?plEntry.price:(pm.price||0);
     const compareAt=plEntry?plEntry.compareAt:(pm.compareAt||pm.price||0);
     const isCore=isCoreProduct(sku,productName,colour,vendor,coreSet);
+    const isOldCore=!isCore&&isOldCoreProduct(sku);   // AM group 'AA OLD CORE' / 'ACCESSORIES ARCHIVE' (a style has one group, so never both)
 
     // Delivery month: AM style code is authoritative when AM has an open order for this
     // product — AM is corrected/updated ahead of Shopify (products sometimes sync to
@@ -12177,7 +12188,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const isBundle=bundleSet.has(productName+' - '+colour);
     const hasNoOrder=(onOrder||0)+(productOnOrder||0)===0;
     const isOldStyle=skuDeliveryDate&&skuDeliveryDate<threeMonthsAgo;
-    const isEnd=(isOldStyle&&hasNoOrder&&!isCore)||isBundle;
+    const isEnd=(isOldStyle&&hasNoOrder&&!isCore)||isBundle||isOldCore;
 
     // NEW — delivered this calendar month, OR a future delivery month with stock on hand
     const isCurrentMonth=skuDeliveryDate&&skuDeliveryDate.getFullYear()===now.getFullYear()&&skuDeliveryDate.getMonth()===now.getMonth();
@@ -12193,9 +12204,9 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     // BUNDLE takes precedence over CORE — CORE items in bundle deals show as BUNDLE (already tracked under Delivery Month)
     const isReduced=!isCore&&!isBundle&&!isDraft&&!isPreRelease&&(discountPct>0);
     // PRE-RELEASE: draft-flagged with stock — always shows regardless of delivery month
-    const effectiveVendor=isCore?'CORE':(isDraft&&!isDraftButCurrent)?'DRAFT':isPreRelease?'PRE-RELEASE':isBundle?'BUNDLE':isReduced?'REDUCED':(isNew||isDraftButCurrent)?'NEW':isEnd?'OLD':isCurrent?'CURRENT':vendor;
+    const effectiveVendor=isCore?'CORE':isOldCore?'OLD CORE':(isDraft&&!isDraftButCurrent)?'DRAFT':isPreRelease?'PRE-RELEASE':isBundle?'BUNDLE':isReduced?'REDUCED':(isNew||isDraftButCurrent)?'NEW':isEnd?'OLD':isCurrent?'CURRENT':vendor;
     // No suggested orders for BUNDLE or REDUCED — these shouldn't be restocked at full price
-    const finalSuggestedOrder=isBundle||isReduced?0:suggestedOrder;
+    const finalSuggestedOrder=isBundle||isReduced||isOldCore?0:suggestedOrder;
     // Re-run flag with effectiveVendor so CORE/NEW/CURRENT/ON ORDER status is respected
     flag=getFlag(recalcDays,stock,onOrder,effectiveVendor,discountPct);
     if(isEnd&&!discountPct&&!isNew&&!isDraft&&!isDraftButCurrent&&!isPreRelease)flag='reduce';
@@ -12947,7 +12958,7 @@ function toProduct(vr){
       let f=getFlag(days,p.stock,onOrder,p.vendor,p.discountPct);
       const ev=p.vendor; // effectiveVendor already set on p
       const pIsBundle=ev==='BUNDLE';
-      const pIsOld=ev==='OLD';
+      const pIsOld=ev==='OLD'||ev==='OLD CORE';
       const pIsNew=ev==='NEW';
       const pIsCurrent=ev==='CURRENT';
       const pIsOnOrder=ev==='ON ORDER';
@@ -13424,7 +13435,7 @@ function renderRow(row,headers){
       const labelVal=showAsBundle?'BUNDLE':displayVal;
       const isEnd=labelVal==='OLD';
       const v=labelVal.toLowerCase();
-      const cls=isEnd?'rp-old':v==='new'?'rp-new':v==='current'?'rp-current':v==='core'?'rp-core':v==='bundle'?'rp-bundle':v==='old'?'rp-old':v==='reduced'?'rp-reduced':v==='draft'?'rp-draft':v==='pre-release'?'rp-prerelease':'rp-other';
+      const cls=isEnd?'rp-old':v==='new'?'rp-new':v==='current'?'rp-current':v==='core'?'rp-core':v==='bundle'?'rp-bundle':v==='old core'?'rp-oldcore':v==='old'?'rp-old':v==='reduced'?'rp-reduced':v==='draft'?'rp-draft':v==='pre-release'?'rp-prerelease':'rp-other';
       return`<td><span class="range-pill ${cls}">${labelVal||'—'}</span></td>`;
     }
     if(h.k==='soldToday'){
@@ -13645,6 +13656,7 @@ function exportPDF(){
     'NEW':'background:#dcfce7;color:#15803d;',
     'CURRENT':'background:#e0f2fe;color:#0284c7;',
     'OLD':'background:#f3f4f6;color:#6b7280;',
+    'OLD CORE':'background:#e5ebf5;color:#3b5a8a;',
     'REDUCED':'background:#fff7ed;color:#c2410c;',
     'DRAFT':'background:#f3e8ff;color:#7c3aed;',
     'PRE-RELEASE':'background:#fff1f2;color:#e11d48;',
@@ -13787,6 +13799,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.5.4 — OLD CORE status. A style is OLD CORE when its Apparel Magic product group is 'AA OLD CORE' or 'ACCESSORIES ARCHIVE' (matched loosely, like the core groups; collected in the same catalogue sync — cache upgraded, so the first load after this version does one fresh ~2.5 min sync). It shows its own 'OLD CORE' pill everywhere a status is shown (dashboard, Sales Cadence incl. its PDF, Planning, Working) and is a filterable status. It is NOT CORE: the Core toggle puts it under Non-Core, and it is never forced to 'OK'. It behaves like OLD stock: no reorder flags or suggested orders, flagged 'reduce' while it has undiscounted stock, and in the Markdown Planner it is scored as old stock (age floor 75) and can be discounted normally. A style only has one AM group, so it can never be both CORE and OLD CORE.
 // v3.5.3 — MARKDOWN PLANNER (Category Strategy product tables): products on the on-order blanket discount can now be changed. They keep the 'On order' label and the suggested discount, but get the same dropdown as every other product (move to Group A/B/C, a custom %, or Not in sale). Once changed, the row still shows 'On order' with 'suggested 20%' beside it, and '↺ Reset to the on-order discount (20%)' puts it back. The Suggested column and parent-style summary say 'On order' instead of 'S' / 'Special buy' for these. Real Sale specific buys are unchanged (still set in step C). No engine change — the engine already honoured decisions on these products; the table just never offered the control.
 // v3.5.2 — MARKDOWN PLANNER: products picked by style code (mid-sale offers, GWP, special buys, Not on sale) now show their product title next to the code — 'W25DI014BLK — DIGITAL TEE - BLACK' — instead of the bare code (a pick by style stored no label; the title is now looked up from Apparel Magic when shown, so existing sale plans are fixed too). Also: re-adding a collection whose products were all removed individually no longer pops a false 'No Apparel Magic styles matched' alert.
 // v3.5.1 — MARKDOWN PLANNER (pre-planning steps): single products can now be removed from GWP, Sale specific buys and Not on sale — including ones that came in through a whole collection / category / PO pick. Each section's product table has a Remove button per row (Not on sale gains a 'Products not on sale' list; Remove there puts the product back in the sale), and a 'Removed individually' list under it with × to put one back. The pick itself stays (it still shows how many products it matches and how many were removed); picking the product by name again also brings it back. A product removed from special buys / GWP goes back to its normal category markdown. Saved with the sale plan and synced like the rest; older plans load unchanged. Logic in markdown-plans.js (setSectionException, applyExceptions) with tests.

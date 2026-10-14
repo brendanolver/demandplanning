@@ -25,7 +25,7 @@ m = E.metrics(mk('A', { soh: -5 }), S0); assert.equal(m.soh, 0);
 m = E.metrics(mk('A', { sizeCount: null, soldOutSizes: null, ageWeeks: null }), S0); assert.equal(m.brokenRatio, null); assert.equal(m.ageWeeks, null);
 m = E.metrics(mk('A', { sold: { d7: 0, d30: 30 }, soh: 60 }), S0); assert.equal(m.trendRatio, 0); assert.equal(m.weeksCover, 60 / (30 / (30 / 7)));
 m = E.metrics(mk('A', { sold: { d30: 3 }, soh: 100000 }), S0); assert.equal(m.weeksCover, 104); // capped, never absurd
-assert.equal(E.ageScore(null), 50); assert.equal(E.ageScore(4), 0); assert.equal(E.ageScore(60), 100); assert.equal(E.ageScore(10, 'OLD'), 75);
+assert.equal(E.ageScore(null), 50); assert.equal(E.ageScore(4), 0); assert.equal(E.ageScore(60), 100); assert.equal(E.ageScore(10, 'OLD'), 75); assert.equal(E.ageScore(10, 'OLD CORE'), 75); assert.equal(E.ageScore(10, 'CORE'), E.ageScore(10));
 
 // category-relative scoring: the SAME 12 weeks of cover is fine in a slow category, excessive in a fast one
 const slowCat = [1, 2, 3, 4, 5, 6, 7].map(i => mk('S' + i, { category: 'SLOW', soh: 10 * i, sold: { d7: 1, d30: 4, d60: 8, d90: 12 } }));
