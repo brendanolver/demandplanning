@@ -459,18 +459,20 @@
       it.levelRaised = (it.action === 'A' || it.action === 'B') && cp.idx[it.action] > cp.startIdx[it.action];
       it.forecast = baseline(it.row.m, S);
       // Group membership is its own field (never inferred from the percentage): A / B / C, or X = an exception (a protected deeper discount, a kept existing
-      // discount, or a typed discount that fits none of the groups). null = not in the standard A/B/C split (GWP, excluded, special buy).
+      // discount, a typed discount that fits none of the groups, or an on-order blanket discount that fits none). null = not in the standard A/B/C split (GWP, excluded, special buy).
+      // An on-order blanket product (p.blanket, action 'S') sits in the group whose level equals its discount, so the group cards and the group filter include it.
       const lv3 = { A: levelOf(cp, 'A'), B: cp.noB ? null : levelOf(cp, 'B'), C: clearPct };
       const fits = g => lv3[g] != null && pct != null && Math.abs(lv3[g] - pct) < 0.05;
       let grp = null, xk = null;
+      const blanketS = !!p.blanket && it.action === 'S';
       if (p.isGWP || pct == null || r.final.action === 'Exclude') grp = null;
       else if (it.override === 'group') grp = r.final.action;                                    // you moved it
       else if (it.override === 'discount') {                                                    // you typed a discount: it keeps its saved group; a figure that fits no group is a manual exception
-        if (it.action === 'S') grp = null;
+        if (it.action === 'S' && !blanketS) grp = null;
         else if (['A', 'B', 'C'].includes(it.action)) { const base = it.action === 'B' && cp.noB ? 'A' : it.action; grp = fits(base) ? base : 'X'; }
         else grp = ['A', 'B', 'C'].find(fits) || 'X';
         if (grp === 'X') xk = 'manual';
-      } else if (r.final.action === 'S') grp = null;
+      } else if (r.final.action === 'S') { if (blanketS) { grp = ['A', 'B', 'C'].find(fits) || 'X'; if (grp === 'X') xk = 'onorder'; } else grp = null; }
       else if (r.final.action === 'P') { grp = 'X'; xk = 'protected'; }
       else if (r.keptExisting) { grp = 'X'; xk = 'kept'; }
       else grp = ['A', 'B', 'C'].includes(r.final.action) ? r.final.action : null;
@@ -515,12 +517,13 @@
   // The A / B / C split of a category's STANDARD-sale products (GWP, excluded and special buys are left out). Every product is in exactly one of
   // A, B, C or X (exception), so A + B + C + X = eligible. SOH is stock on hand now, never negative; on order is never added.
   function groupSplit(list) {
-    const out = { countA: 0, countB: 0, countC: 0, countX: 0, unitsA: 0, unitsB: 0, unitsC: 0, unitsX: 0, exProtected: 0, exKept: 0, exManual: 0 };
+    const out = { countA: 0, countB: 0, countC: 0, countX: 0, unitsA: 0, unitsB: 0, unitsC: 0, unitsX: 0, exProtected: 0, exKept: 0, exManual: 0, exOnOrder: 0, ooA: 0, ooB: 0, ooC: 0 };   // ooA/B/C: how many of each group are on-order blanket products
     for (const it of list) {
       const g = it.group; if (!g) continue;
       const u = Math.max(0, num(it.row.m.sohNow != null ? it.row.m.sohNow : it.row.m.soh) || 0);
       out['count' + g]++; out['units' + g] += u;
-      if (g === 'X') { if (it.exceptionKind === 'protected') out.exProtected++; else if (it.exceptionKind === 'kept') out.exKept++; else out.exManual++; }
+      if (it.row.p.blanket && it.final.action === 'S' && out['oo' + g] != null) out['oo' + g]++;
+      if (g === 'X') { if (it.exceptionKind === 'protected') out.exProtected++; else if (it.exceptionKind === 'kept') out.exKept++; else if (it.exceptionKind === 'onorder') out.exOnOrder++; else out.exManual++; }
     }
     out.eligible = out.countA + out.countB + out.countC + out.countX; out.eligibleUnits = out.unitsA + out.unitsB + out.unitsC + out.unitsX;
     return out;
@@ -539,7 +542,7 @@
       groupA: cp.items.some(it => it.group === 'A') ? cp.groupA : null,   // a group nobody ended up in isn't offered
       groupB: cp.items.some(it => it.group === 'B') ? cp.groupB : null,
       ...groupSplit(cp.items), levelC: clearanceLevel(S), cCapped: S.clearanceDiscount > clearanceLevel(S) + 0.01,
-      countS: cp.items.filter(it => it.final.action === 'S' && !it.row.p.isGWP).length,
+      countS: cp.items.filter(it => it.final.action === 'S' && !it.row.p.isGWP && !it.row.p.blanket).length,   // on-order blanket products are counted in their group instead
       countManual: cp.items.filter(it => it.override && it.group === 'X').length,
       countExcluded: cp.items.filter(it => it.final.action === 'Exclude' && !it.row.p.isGWP).length,
       forecastUnits: cp.items.reduce((a, it) => a + it.forecast.units, 0),

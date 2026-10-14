@@ -575,10 +575,25 @@ assert.doesNotThrow(() => E.buildPlan([mk('D'), mk('D')], {}));
   const st = { maxDiscount: 70 }, ovs = { BL1: { pct: 35, kind: 'discount' }, BL2: { group: 'A' } };
   const pl2 = E.buildPlan(range2, st, ovs), g = id => pl2.items.find(i => i.row.p.id === id);
   assert.equal(g('BL3').final.action, 'S'); assert.equal(g('BL3').final.pct, 20); assert.equal(g('BL3').override, null);                  // untouched: still the on-order suggestion
-  assert.equal(g('BL1').final.pct, 35); assert.equal(g('BL1').final.action, 'Manual'); assert.equal(g('BL1').override, 'discount'); assert.equal(g('BL1').group, null);   // typed discount wins; never counted as a normal group
+  assert.equal(g('BL1').final.pct, 35); assert.equal(g('BL1').final.action, 'Manual'); assert.equal(g('BL1').override, 'discount'); assert.equal(g('BL1').group, 'X');   // typed discount wins; fits no group so it is a manual exception, like any product
   assert.equal(g('BL1').systemPct, 20);                                                                                                    // the on-order suggestion is still reported
   assert.equal(g('BL2').override, 'group'); assert.equal(g('BL2').final.action, 'A');                                                      // moved into Group A: follows its level
   assert.equal(E.buildPlan(range2, st, {}).items.find(i => i.row.p.id === 'BL1').final.pct, 20);                                           // Reset (no decision) -> the on-order discount again
+}
+
+// on-order blanket products sit in the group whose level equals their discount (so the group cards / filter include them); otherwise an on-order exception
+{
+  const st = { maxDiscount: 70 };
+  const trio = [mk('G1', { soh: 80 }), mk('BA', { soh: 50, specialPct: 20, blanket: true }), mk('BN', { soh: 40, specialPct: 25, blanket: true }), mk('SB', { soh: 30, specialPct: 20 })];
+  const pl3 = E.buildPlan(trio, st, {}), it = id => pl3.items.find(i => i.row.p.id === id), cat = pl3.categories.find(c => c.category === 'TEES');
+  assert.equal(it('BA').final.action, 'S'); assert.equal(it('BA').group, 'A');                                                              // 20% = Group A's level
+  assert.equal(it('BN').group, 'X'); assert.equal(it('BN').exceptionKind, 'onorder');                                                       // 25% fits no group
+  assert.equal(it('SB').group, null);                                                                                                       // a real special buy stays outside A/B/C
+  assert.equal(cat.ooA, 1); assert.equal(cat.exOnOrder, 1); assert.equal(cat.countS, 1);                                                   // special-buy count no longer includes the blanket ones
+  assert.ok(cat.countA >= 2 && cat.unitsA >= 50 + 80 * 0);                                                                                 // Group A now counts the on-order product and its SOH
+  assert.equal(cat.eligible, cat.countA + cat.countB + cat.countC + cat.countX);
+  const rv = E.buildPlan(trio, st, { BA: { pct: 30, kind: 'discount' } }), b = rv.items.find(i => i.row.p.id === 'BA');
+  assert.equal(b.final.pct, 30); assert.equal(b.override, 'discount'); assert.equal(b.group, 'X');                                         // typed figure fits no group -> manual exception, as for any product
 }
 console.log('markdown engine tests: all passed');
 })();
