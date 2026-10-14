@@ -168,7 +168,7 @@ assert.deepEqual(P.buildReview([], {}).groups, []);
 let sp = P.createState(1, idGen), spid = sp.activeId;
 assert.deepEqual(sp.plans[spid].special, []); assert.deepEqual(sp.plans[spid].gwp, { items: [], threshold: null, qty: {} });
 assert.deepEqual(P.sanitizeSelection('special', { kind: 'group', value: '  2026 - BF EXCLUSIVE ', pct: 50 }), { kind: 'group', value: '2026 - BF EXCLUSIVE', pct: 50 });
-for (const bad of [null, {}, { kind: 'group', value: '' }, { kind: 'nope', value: 'x', pct: 50 }, { kind: 'group', value: 'x' }, { kind: 'group', value: 'x', pct: 0 }, { kind: 'group', value: 'x', pct: 99 }, { kind: 'category', value: 'GWP', pct: 50 }]) assert.equal(P.sanitizeSelection('special', bad), null);
+for (const bad of [null, {}, { kind: 'group', value: '' }, { kind: 'nope', value: 'x', pct: 50 }, { kind: 'group', value: 'x' }, { kind: 'group', value: 'x', pct: 0 }, { kind: 'group', value: 'x', pct: 99 }, { kind: 'colour', value: 'GWP', pct: 50 }]) assert.equal(P.sanitizeSelection('special', bad), null);   // special buys can now be picked by category; unknown kinds are still rejected
 assert.deepEqual(P.sanitizeSelection('gwp', { kind: 'category', value: 'GWP' }), { kind: 'category', value: 'GWP' }); assert.equal(P.sanitizeSelection('gwp', { kind: 'po', value: 'x' }), null);
 let a1 = P.addSelection(sp, spid, 'special', { kind: 'group', value: '2026 - BF EXCLUSIVE', pct: 50 }, 100, idGen);
 assert.ok(a1.id); assert.equal(a1.state.plans[spid].special.length, 1); assert.equal(a1.state.plans[spid].rev, 2); assert.deepEqual(sp.plans[spid].special, []);            // input untouched

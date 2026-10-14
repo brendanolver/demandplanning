@@ -1033,7 +1033,7 @@
   // Both are per-SALE allocations (they describe one promotion), so a Duplicate does not copy them.
   // A selection says WHICH Apparel Magic styles — by collection/group, category, parent style, a single
   // style, or a customer PO on the open orders — and special-buy selections also carry the discount.
-  const SPECIAL_KINDS = ['group', 'parent', 'style', 'po'];
+  const SPECIAL_KINDS = ['group', 'category', 'parent', 'style', 'po'];
   const GWP_KINDS = ['category', 'group', 'style'];
   const NOS_KINDS = ['group', 'category', 'style'];   // collection / category / product-colour (also used by mid-sale offers)
   const norm = v => String(v == null ? '' : v).toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();   // same normalisation the app uses for AM group names
