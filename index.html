@@ -2442,9 +2442,9 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.5.1"></script>
-<script src="markdown-plans.js?v=3.5.1"></script>
-<script src="sales-cadence-pdf.js?v=3.5.1"></script>
+<script src="markdown-engine.js?v=3.5.2"></script>
+<script src="markdown-plans.js?v=3.5.2"></script>
+<script src="sales-cadence-pdf.js?v=3.5.2"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2478,7 +2478,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.5.1';
+const APP_VERSION='v3.5.2';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -7032,7 +7032,7 @@ function mdpAddSel(section){
   if(!r.id){alert('That selection isn\'t valid.');return;}
   mdpCommit(r.state);
   const res=mdpResolveAll(mdpPlan()),now=mdpPlan();
-  const list=section==='gwp'?res.gwp:section==='special'?res.specialAll:MarkdownPlans.resolveSelections(isOffer?(now.offers.find(o=>o.id===section.slice(6))||{items:[]}).items:now.notOnSale.items,mdpCatalogue()||[],mdpSelCtx());
+  const list=section==='gwp'?res.gwpRaw:section==='special'?res.specialRaw:MarkdownPlans.resolveSelections(isOffer?(now.offers.find(o=>o.id===section.slice(6))||{items:[]}).items:now.notOnSale.items,mdpCatalogue()||[],mdpSelCtx());
   if(!list.some(x=>x.sels.some(s=>s.id===r.id)))setTimeout(()=>alert('No Apparel Magic styles matched "'+value+'"'+(res.hasCatalogue?'.':' yet — the Apparel Magic catalogue is still loading.')),50);
 }
 function mdpRemoveSel(section,id){mdpCommit(section.startsWith('offer-')?MarkdownPlans.removeOfferSelection(mdpState,mdpPlan().id,section.slice(6),id):MarkdownPlans.removeSelection(mdpState,mdpPlan().id,section,id));}
@@ -7055,6 +7055,19 @@ function mdpClearDecisionFor(style){
   mdpCommit(MarkdownPlans.clearOverrides(mdpState,mdpPlan().id,ids));
 }
 
+// What to show for a picked selection: its saved label, else — for a single product/colour or parent style — "STYLE — product title" from Apparel Magic (picks made by style code carry no label of their own).
+function mdpSelLabel(s){
+  if(!s)return'';
+  if(s.label)return s.label;
+  if(s.kind==='style'||s.kind==='parent'){
+    const v=String(s.value||'').trim().toUpperCase(),cat=mdpCatalogue();
+    const e=cat&&(s.kind==='style'?cat.find(x=>x.style===v):cat.find(x=>x.parentStyle===v));
+    let t=e&&e.title;
+    if(!t){const fb=(mdpSelCtx().fallback||{})[v];t=fb&&fb.title;}
+    if(t)return v+' — '+(s.kind==='parent'?t.replace(/\s+-\s+[^-]*$/,''):t);
+  }
+  return s.value;
+}
 const MDP_KIND_LABEL={group:'Collection',category:'Category',parent:'Parent style',style:'Style',po:'Customer PO'};
 // Where to look: Collection / Category / Product-colour tabs (Not on sale and mid-sale offers), or a plain dropdown (GWP, special buys).
 const mdpAdderKind={};
@@ -7085,7 +7098,7 @@ function mdpSelChips(section,list,matched,pl,left){
   if(!list.length)return'';
   return`<div class="mdp-selist">${list.map(s=>{
     const n=matched[s.id]||0;
-    return`<div class="mdp-selrow"><span class="mdp-chip mdp-kind">${MDP_KIND_LABEL[s.kind]}</span><b>${mdpEsc(s.label||s.value)}</b>
+    return`<div class="mdp-selrow"><span class="mdp-chip mdp-kind">${MDP_KIND_LABEL[s.kind]}</span><b>${mdpEsc(mdpSelLabel(s))}</b>
       <span class="${n?'mdp-dim':'mdp-b-cf'}">${n?n+' style'+(n===1?'':'s'):'no styles matched'}</span>${left&&left[s.id]?` <span class="mdp-dim" title="These are gift with purchase, so they're left out of this special buy">· ${left[s.id]} GWP left out</span>`:''}
       ${section==='special'?`<select class="mdp-sel mdp-xs" onchange="mdpSpecialPctSet('${s.id}',this.value)">${pl.settings.allowedDiscounts.filter(d=>d<=pl.settings.maxDiscount).map(d=>`<option value="${d}" ${d===s.pct?'selected':''}>${d}% off</option>`).join('')}${pl.settings.allowedDiscounts.includes(s.pct)&&s.pct<=pl.settings.maxDiscount?'':`<option value="${s.pct}" selected>${s.pct}% off</option>`}</select>`:''}
       <button class="mdp-act" onclick="mdpRemoveSel('${section}','${s.id}')">Remove</button></div>`;}).join('')}</div>`;
@@ -7156,8 +7169,8 @@ function mdpGwpSection(plan,oo,hasEnd,pl){
   const decisionStyles=plan.items.filter(i=>i.override&&res.gwpStyles.has(i.row.p.style)&&i.override!=='exclude').map(i=>i.row.p.style);
   const conflicts=MarkdownPlans.gwpConflicts(res.gwpStyles,Object.keys(res.specialMap),decisionStyles);
   const conf=conflicts.length?`<div class="mdp-err" style="margin-bottom:10px;"><b>⚠ ${conflicts.length} blocking conflict${conflicts.length===1?'':'s'} — resolve before exporting</b>${conflicts.map(c=>{
-      const vias=c.type==='special'?(res.special.find(x=>x.style===c.style)||{sels:[]}).sels.map(s=>`<button class="mdp-act" onclick="mdpRemoveSel('special','${s.id}')">Remove special buy “${mdpEsc((pl.special.find(x=>x.id===s.id)||{}).label||s.value)}”</button>`).join(''):`<button class="mdp-act" onclick="mdpClearDecisionFor('${mdpEsc(c.style)}')">Remove the markdown decision</button>`;
-      const gv=(res.gwp.find(x=>x.style===c.style)||{sels:[]}).sels.map(s=>`<button class="mdp-act" onclick="mdpRemoveSel('gwp','${s.id}')">Take out of GWP (“${mdpEsc((pl.gwp.items.find(x=>x.id===s.id)||{}).label||s.value)}”)</button>`).join('');
+      const vias=c.type==='special'?(res.special.find(x=>x.style===c.style)||{sels:[]}).sels.map(s=>`<button class="mdp-act" onclick="mdpRemoveSel('special','${s.id}')">Remove special buy “${mdpEsc(mdpSelLabel(pl.special.find(x=>x.id===s.id)||s))}”</button>`).join(''):`<button class="mdp-act" onclick="mdpClearDecisionFor('${mdpEsc(c.style)}')">Remove the markdown decision</button>`;
+      const gv=(res.gwp.find(x=>x.style===c.style)||{sels:[]}).sels.map(s=>`<button class="mdp-act" onclick="mdpRemoveSel('gwp','${s.id}')">Take out of GWP (“${mdpEsc(mdpSelLabel(pl.gwp.items.find(x=>x.id===s.id)||s))}”)</button>`).join('');
       return`<div style="margin-top:6px;"><b>${mdpEsc(c.style)}</b> ${mdpEsc(c.text)}. ${vias} ${gv}</div>`;}).join('')}</div>`:'';
   const tbl=rows.length?`<div class="mdp-scroll" style="max-height:420px;overflow:auto;margin-top:12px;"><table class="mdp-t mdp-t2"><thead><tr>
     <th class="l">Style</th><th class="l">Product</th><th class="l">Collection</th><th>SOH</th><th>Incoming</th><th>Unit cost</th><th>Available</th><th title="Editable — defaults to everything available">Planned giveaways</th><th>Est. cost</th><th class="l">Flags</th><th></th></tr></thead><tbody>
@@ -7205,18 +7218,18 @@ function mdpNosSection(plan,oo,hasEnd,pl){
   nos.all.forEach(r=>r.sels.forEach(s=>{(counts[s.id]=counts[s.id]||[]).push(r.style);}));   // everything each pick matches, including products since removed
   const rows=pl.notOnSale.items.map(s=>{
     const all=counts[s.id]||[],sty=all.filter(st=>!exSet.has(st)),t=mdpStyleTotals(sty,oo),nRem=all.length-sty.length;
-    return`<tr><td class="l"><span class="mdp-chip mdp-kind">${MDP_KIND_LABEL[s.kind]==='Style'?'Product / colour':MDP_KIND_LABEL[s.kind]}</span></td><td class="l"><b>${mdpEsc(s.label||s.value)}</b>${s.auto?` <span class="mdp-dim" title="Excluded in Category Strategy">· from Category Strategy${s.reason?' — '+mdpEsc(s.reason):''}</span>`:''}${all.length?'':' <span class="mdp-b-cf">no styles matched</span>'}${nRem?` <span class="mdp-dim">· ${nRem} removed individually</span>`:''}</td><td>${t.n.toLocaleString()}</td><td>${t.soh.toLocaleString()}</td><td>${t.on.toLocaleString()}</td><td><button class="mdp-act" onclick="mdpRemoveSel('nos','${s.id}')">Remove</button></td></tr>`;}).join('');
+    return`<tr><td class="l"><span class="mdp-chip mdp-kind">${MDP_KIND_LABEL[s.kind]==='Style'?'Product / colour':MDP_KIND_LABEL[s.kind]}</span></td><td class="l"><b>${mdpEsc(mdpSelLabel(s))}</b>${s.auto?` <span class="mdp-dim" title="Excluded in Category Strategy">· from Category Strategy${s.reason?' — '+mdpEsc(s.reason):''}</span>`:''}${all.length?'':' <span class="mdp-b-cf">no styles matched</span>'}${nRem?` <span class="mdp-dim">· ${nRem} removed individually</span>`:''}</td><td>${t.n.toLocaleString()}</td><td>${t.soh.toLocaleString()}</td><td>${t.on.toLocaleString()}</td><td><button class="mdp-act" onclick="mdpRemoveSel('nos','${s.id}')">Remove</button></td></tr>`;}).join('');
   const table=rows?`<div class="mdp-scroll" style="margin-top:12px;"><table class="mdp-t mdp-t2"><thead><tr><th class="l">Type</th><th class="l">Selection</th><th>Products</th><th>SOH</th><th>On order</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:'';
   const cat=mdpCatalogue()||[],titleOf=st=>{const e=cat.find(x=>x.style===st);return e?e.title:st;};
   const exc=mdpRemovedChips('nos',pl.notOnSale.exceptions.map(x=>String(x).toUpperCase()),titleOf);
   // every product currently kept out of the sale, each with its own Remove (it goes back into the sale)
-  const viaLabel=r=>r.sels.map(x=>{const it=pl.notOnSale.items.find(i=>i.id===x.id);return it?(it.label||it.value):'';}).filter(Boolean).join(', ');
+  const viaLabel=r=>r.sels.map(x=>{const it=pl.notOnSale.items.find(i=>i.id===x.id);return it?mdpSelLabel(it):'';}).filter(Boolean).join(', ');
   const prodRows=nos.rows.slice().sort((a,b)=>a.style.localeCompare(b.style));
   const prodTable=prodRows.length?`<details class="mdp-nosprods" style="margin-top:12px;"><summary style="cursor:pointer;font-weight:600;">Products not on sale (${prodRows.length.toLocaleString()}) — remove individual products</summary><div class="mdp-scroll" style="max-height:420px;overflow:auto;margin-top:8px;"><table class="mdp-t mdp-t2"><thead><tr><th class="l">Style</th><th class="l">Product</th><th class="l">Collection</th><th class="l">Category</th><th>SOH</th><th>On order</th><th class="l">Added via</th><th></th></tr></thead><tbody>${prodRows.map(r=>{const e=r.entry||{},l=live[r.style],o=oo&&oo.by[r.style];return`<tr><td class="l"><b>${mdpEsc(r.style)}</b></td><td class="l mdp-nm">${mdpEsc(e.title||titleOf(r.style))}</td><td class="l mdp-dim">${mdpEsc(e.group||'—')}</td><td class="l mdp-dim">${mdpEsc(e.category||'—')}</td><td>${l&&l.soh>0?l.soh.toLocaleString():'—'}</td><td>${o?o.units.toLocaleString():'—'}</td><td class="l mdp-dim">${mdpEsc(viaLabel(r))}</td><td><button class="mdp-act" title="Put just this product back in the sale" onclick="mdpSectionExclude('nos','${mdpEsc(r.style)}',true)">Remove</button></td></tr>`;}).join('')}</tbody></table></div></details>`:'';
   // a style that is Not on sale AND a discounted special buy needs a decision
   const conflicts=MarkdownPlans.nosConflicts(res.nosStyles,Object.keys(res.specialMap));
   const conf=conflicts.length?`<div class="mdp-err" style="margin:10px 0;"><b>⚠ ${conflicts.length} product${conflicts.length===1?' is':'s are'} both Not on sale and a discounted special buy</b> — they're kept at full price until you decide.${conflicts.slice(0,12).map(st=>{
-      const via=(res.special.find(x=>x.style===st)||{sels:[]}).sels.map(s=>`<button class="mdp-act" onclick="mdpRemoveSel('special','${s.id}')">Drop special buy “${mdpEsc((pl.special.find(x=>x.id===s.id)||{}).label||s.value)}”</button>`).join('');
+      const via=(res.special.find(x=>x.style===st)||{sels:[]}).sels.map(s=>`<button class="mdp-act" onclick="mdpRemoveSel('special','${s.id}')">Drop special buy “${mdpEsc(mdpSelLabel(pl.special.find(x=>x.id===s.id)||s))}”</button>`).join('');
       return`<div style="margin-top:6px;"><b>${mdpEsc(st)}</b> ${mdpEsc(titleOf(st))} — <button class="mdp-act" onclick="mdpNosException('${mdpEsc(st)}',true)">Put back in the sale (keep its special-buy discount)</button> ${via}</div>`;}).join('')}${conflicts.length>12?`<div class="mdp-dim" style="margin-top:6px;">…and ${conflicts.length-12} more</div>`:''}</div>`:'';
   return note+mdpReviewedBar('notOnSale',pl,[[tot.n.toLocaleString(),'unique product/colours not on sale'],[tot.soh.toLocaleString(),'excluded SOH units'],[tot.on.toLocaleString(),'excluded on order']])+conf
     +`<div class="mdp-sub" style="margin:0 0 10px;line-height:1.55;">Stock kept <b>out of the sale</b>: it keeps its current Shopify price, gets no markdown and is left out of the category groups and the exports. Pick whole collections or categories, or single product/colours. A product listed in several picks is counted once. Open <b>Products not on sale</b> to remove individual products — they go back into the sale, even if they came in through a whole collection or category.</div>`
@@ -7323,7 +7336,7 @@ function mdpOfferCard(m,i,n,pl){
     <div class="mdp-row" style="margin-top:10px;">${pricing}<label style="flex:2;min-width:220px;">Shopify collection (name to add products to)<input class="mdp-in" type="text" placeholder="e.g. BF RELOADED 50% OFF" value="${mdpEsc(o.collection.title)}" onchange="mdpOfferSetCol('${idq}','title',this.value)"></label></div>
     ${o.type==='bundle'?`<div class="mdp-hint" style="margin-top:8px;">A bundle is stored as a rule, not a % markdown. Exporting puts its products in the collection — <b>the bundle price itself still has to be created as a Shopify discount</b>.</div>`:`<div class="mdp-hint" style="margin-top:8px;">Priced as ${o.pct==null?'a new total':o.pct+'%'} off the <b>original RRP</b> (never stacked on the sale discount); a product already cheaper keeps its price.</div>`}
     <div class="mdp-bt2" style="margin-top:12px;">Products</div>${mdpAdder('offer-'+idq,['group','category','style'],false,pl)}
-    ${o.items.length?`<div class="mdp-selist">${o.items.map(s=>`<div class="mdp-selrow"><span class="mdp-chip mdp-kind">${s.kind==='style'?'Product / colour':MDP_KIND_LABEL[s.kind]}</span><b>${mdpEsc(s.label||s.value)}</b><span class="${selCounts[s.id]?'mdp-dim':'mdp-b-cf'}">${selCounts[s.id]?selCounts[s.id]+' style'+(selCounts[s.id]===1?'':'s'):'no styles matched'}</span><button class="mdp-act" onclick="mdpRemoveSel('offer-${idq}','${s.id}')">Remove</button></div>`).join('')}</div>`:''}
+    ${o.items.length?`<div class="mdp-selist">${o.items.map(s=>`<div class="mdp-selrow"><span class="mdp-chip mdp-kind">${s.kind==='style'?'Product / colour':MDP_KIND_LABEL[s.kind]}</span><b>${mdpEsc(mdpSelLabel(s))}</b><span class="${selCounts[s.id]?'mdp-dim':'mdp-b-cf'}">${selCounts[s.id]?selCounts[s.id]+' style'+(selCounts[s.id]===1?'':'s'):'no styles matched'}</span><button class="mdp-act" onclick="mdpRemoveSel('offer-${idq}','${s.id}')">Remove</button></div>`).join('')}</div>`:''}
     <div class="mdp-adder" style="margin-top:8px;"><input id="mdp-offx-${idq}-val" class="mdp-in mdp-grow" list="mdp-dl-offx-${idq}" placeholder="Take one product/colour out of this offer…" autocomplete="off" oninput="mdpFillExcList('offx-${idq}')" onfocus="mdpFillExcList('offx-${idq}')"><datalist id="mdp-dl-offx-${idq}"></datalist><button class="mdp-btn" onclick="mdpOfferException('${idq}',document.getElementById('mdp-offx-${idq}-val').value,true)">Exclude</button></div>${exc?`<div style="margin-top:6px;">${exc}</div>`:''}
     <label class="mdp-chk" style="margin-top:8px;"><input type="checkbox" ${o.includeExcluded?'checked':''} onchange="mdpOfferIncludeExcluded('${idq}',this.checked)"> Include GWP / Not on sale products in this offer <span class="mdp-dim">(off by default${skipped.length?` — ${skipped.length} left out`:''})</span></label>
     <label style="display:block;margin-top:10px;font-size:12px;color:#6b7280;">Internal notes<textarea class="mdp-in" rows="2" style="width:100%;" onchange="mdpOfferSet('${idq}','notes',this.value)">${mdpEsc(o.notes)}</textarea></label>
@@ -13771,6 +13784,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.5.2 — MARKDOWN PLANNER: products picked by style code (mid-sale offers, GWP, special buys, Not on sale) now show their product title next to the code — 'W25DI014BLK — DIGITAL TEE - BLACK' — instead of the bare code (a pick by style stored no label; the title is now looked up from Apparel Magic when shown, so existing sale plans are fixed too). Also: re-adding a collection whose products were all removed individually no longer pops a false 'No Apparel Magic styles matched' alert.
 // v3.5.1 — MARKDOWN PLANNER (pre-planning steps): single products can now be removed from GWP, Sale specific buys and Not on sale — including ones that came in through a whole collection / category / PO pick. Each section's product table has a Remove button per row (Not on sale gains a 'Products not on sale' list; Remove there puts the product back in the sale), and a 'Removed individually' list under it with × to put one back. The pick itself stays (it still shows how many products it matches and how many were removed); picking the product by name again also brings it back. A product removed from special buys / GWP goes back to its normal category markdown. Saved with the sale plan and synced like the rest; older plans load unchanged. Logic in markdown-plans.js (setSectionException, applyExceptions) with tests.
 // v3.5.0 — SALES CADENCE: new Export PDF button (top-right of the heading). Downloads WNDRR_Sales_Cadence_YYYY-MM-DD.pdf — an A4 landscape report built from the table's own numbers (the snapshot is recorded on every render), so it follows the current view: Category/Product, 12 Months/12 Weeks/5 Weeks/7 Days, Compare selection, every filter, search and sort order. Header with the original WNDRR logo (vector), 5 KPI tiles (aggregate ST%), product table with colour dots/status pills/tier badges and a TOTAL row, auto-pagination with repeated headings (never splits a product row), 'Page X of Y' footer. The PDF lists every filtered row (the screen caps an unfiltered Product view at 50). Real text, not a screenshot. New module sales-cadence-pdf.js + jsPDF/jspdf-autotable, loaded from jsDelivr only on first click (pinned versions + SRI hashes). No change to any existing Sales Cadence calculation.
 // v3.4.4 — SUMMARY: products on the on-order blanket discount are no longer listed as Sale specific buys. They now sit in their own category, grouped by their discount, with the note 'on-order blanket discount' (so they appear once that category is approved, like every other markdown). Special buys, the overview cards, the PDF and the Tuesday CSV (Row Type = Sale product) all follow. Real special buys are unchanged.
