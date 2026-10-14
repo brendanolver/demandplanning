@@ -919,6 +919,7 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
 .mdp-sum table.t{width:100%;border-collapse:collapse;font-size:12.5px;margin-bottom:8px;}.mdp-sum .t th{font-size:10.5px;text-transform:uppercase;letter-spacing:.03em;color:#6b7280;background:#f7f8fb;padding:7px 9px;text-align:right;border-bottom:1px solid #e8ebf2;}.mdp-sum .t td{padding:6px 9px;border-bottom:1px solid #f0f2f6;text-align:right;white-space:nowrap;}.mdp-sum .t th.l,.mdp-sum .t td.l{text-align:left;white-space:normal;}.mdp-sum .b{font-weight:700;}
 .mdp-sum .gh{margin:10px 0 4px;font-size:13px;}.mdp-sum .d{font-weight:400;color:#6b7280;font-size:12px;}.mdp-sum .warnx{color:#b45309;font-weight:600;}.mdp-sum .ov{max-width:640px;}
 .mdp-sumd{border:1px solid #e3e9f5;border-radius:10px;margin:8px 0;background:#fff;}.mdp-sumd>summary{cursor:pointer;padding:10px 14px;font-size:13px;list-style:none;}.mdp-sumd>summary::-webkit-details-marker{display:none;}.mdp-sumd[open]>summary{background:#f3f8ff;border-bottom:1px solid #e3e9f5;}.mdp-sumd>*:not(summary){margin-left:14px;margin-right:14px;}
+.mdp-collapseall{margin-left:auto;display:inline-flex;gap:8px;}
 /* v3.1.5: fixed layout with explicit column widths (the th widths in mdpReviewHtml). The auto layout let the full-width
    section / category header rows stretch the first column; this keeps every column exactly where it's set. Long text is cut
    with an ellipsis (hover for the full text). */
@@ -2424,8 +2425,8 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.3.4"></script>
-<script src="markdown-plans.js?v=3.3.4"></script>
+<script src="markdown-engine.js?v=3.3.5"></script>
+<script src="markdown-plans.js?v=3.3.5"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2459,7 +2460,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.3.4';
+const APP_VERSION='v3.3.5';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -6320,6 +6321,16 @@ function mdpGoStep(n){
   mdpCollapsed.delete(key);renderMarkdownPlanner();
   setTimeout(()=>{const el=document.getElementById('mdp-sec-'+key);if(el)el.scrollIntoView({behavior:'smooth',block:'start'});},30);
 }
+// Collapse / expand everything at once (sections, categories, offers, summary blocks) — for a calmer page.
+const MDP_SECTION_KEYS=['A','B','C','D','E','F','G','H','I'];
+function mdpCollapseSections(on){if(on)MDP_SECTION_KEYS.forEach(k=>mdpCollapsed.add(k));else mdpCollapsed.clear();renderMarkdownPlanner();}
+function mdpCollapseCats(){mdpOpenCats.clear();Object.keys(mdpGF).forEach(k=>delete mdpGF[k]);mdpRenderReview(true);}
+function mdpOffersSetAll(open){if(open)mdpPlan().offers.forEach(o=>mdpOpenOffers.add(o.id));else mdpOpenOffers.clear();renderMarkdownPlanner();}
+function mdpSumSetAll(open){
+  mdpSumOpen.clear();
+  if(open&&mdpCtx){const{sum,offers}=mdpSummaryData();sum.categories.forEach(c=>mdpSumOpen.add('cat|'+c.category));['special','nos','gwp'].forEach(k=>mdpSumOpen.add(k));offers.forEach(m=>mdpSumOpen.add('offer|'+m.offer.id));}
+  renderMarkdownPlanner();
+}
 function mdpToggleHelp(){mdpHelpOpen=!mdpHelpOpen;renderMarkdownPlanner();}
 
 // ── Product table (used under each category in B, and in section C) ──
@@ -6567,7 +6578,7 @@ function mdpSummaryHtml(print){
 }
 function mdpSummaryBody(){
   const s=mdpSummaryData().sum;
-  return`<div class="mdp-sumbar"><label class="mdp-chk"><input type="checkbox" ${mdpSumAll?'checked':''} onchange="mdpSumToggleAll(this.checked)"> Include categories not yet approved</label><span class="mdp-dim">${s.counts.categoriesShown} of ${s.counts.categoriesTotal} categories · ${s.counts.productsShown.toLocaleString()} products</span><button class="mdp-btn mdp-btn-go" style="margin-left:auto;" onclick="mdpExportPdf()" title="Opens the print dialog — choose Save as PDF">⬇ Export PDF</button></div><div class="mdp-sum">${mdpSummaryHtml(false)}</div>`;
+  return`<div class="mdp-sumbar"><label class="mdp-chk"><input type="checkbox" ${mdpSumAll?'checked':''} onchange="mdpSumToggleAll(this.checked)"> Include categories not yet approved</label><span class="mdp-dim">${s.counts.categoriesShown} of ${s.counts.categoriesTotal} categories · ${s.counts.productsShown.toLocaleString()} products</span><span style="margin-left:auto;display:inline-flex;gap:8px;"><button class="mdp-btn mdp-btn-ghost" onclick="mdpSumSetAll(false)">⌃ Collapse all</button><button class="mdp-btn mdp-btn-ghost" onclick="mdpSumSetAll(true)">⌄ Expand all</button><button class="mdp-btn mdp-btn-go" onclick="mdpExportPdf()" title="Opens the print dialog — choose Save as PDF">⬇ Export PDF</button></span></div><div class="mdp-sum">${mdpSummaryHtml(false)}</div>`;
 }
 const MDP_PRINT_CSS="@page{size:A4 landscape;margin:12mm}*{box-sizing:border-box}body{font-family:Inter,Arial,sans-serif;font-size:9pt;color:#111827;margin:0}h1{font-size:17pt;margin:0 0 2px}.sub{color:#6b7280;margin-bottom:10px}.cards{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.card{border:1px solid #d9dee8;border-radius:6px;padding:6px 10px;min-width:110px}.card b{display:block;font-size:12pt}.card span{font-size:7.5pt;color:#6b7280}.h{font-size:12pt;margin:16px 0 6px;border-bottom:2px solid #0a66e8;padding-bottom:3px;break-after:avoid}.pb{break-before:page}.blk{margin:0 0 12px}.bh{font-weight:700;font-size:10pt;margin:10px 0 4px;break-after:avoid;background:#eef3fb;padding:4px 8px;border-radius:4px}.d{font-weight:400;color:#4b5563;font-size:8.5pt}.gh{margin:6px 0 2px;font-size:9pt;break-after:avoid}table.t{width:100%;border-collapse:collapse;margin-bottom:6px;table-layout:fixed}.t th:first-child,.t td:first-child{width:30%}.t th{background:#f1f4f9;text-align:right;font-size:7.5pt;text-transform:uppercase;color:#4b5563;padding:3px 5px;border-bottom:1px solid #cfd6e4}.t td{padding:2.5px 5px;border-bottom:1px solid #eceff4;text-align:right}.t th.l,.t td.l{text-align:left}.t thead{display:table-header-group}.t tr{break-inside:avoid}.b{font-weight:700}.dim{color:#6b7280;margin:4px 0}.note{background:#fffbeb;border:1px solid #fde68a;border-radius:5px;padding:5px 8px;margin:6px 0}.warnx{color:#b45309}.ov{max-width:620px}";
 function mdpExportPdf(){
@@ -6638,7 +6649,7 @@ function mdpCategoryStrategy(plan,oo,hasEnd,pl,rows){
       <select class="mdp-sel" onchange="mdpRevSet('core',this.value)">${[['all','Core + non-core'],['core','Core only'],['noncore','Non-core only']].map(([v,l])=>opt(v,l,mdpRev.core)).join('')}</select>
       <select id="mdp-sortsel" class="mdp-sel" onchange="mdpRevSet('sort',this.value)">${sortOpts.map(([v,l])=>opt(v,l,MDP_SORT_OPTS.some(o=>o[0]===mdpRev.sort)?mdpRev.sort:'__col__')).join('')}</select></div>
     <div class="mdp-fbar2"><div class="mdp-seg" title="Columns shown"><button class="${mdpRev.compact?'on':''}" onclick="mdpRevSet('compact',true)">Compact</button><button class="${mdpRev.compact?'':'on'}" onclick="mdpRevSet('compact',false)">All columns</button></div>
-      <label class="mdp-chk"><input type="checkbox" ${mdpRev.flat?'':'checked'} onchange="mdpRevSet('flat',!this.checked)"> Group colours by style</label>
+      <label class="mdp-chk"><input type="checkbox" ${mdpRev.flat?'':'checked'} onchange="mdpRevSet('flat',!this.checked)"> Group colours by style</label><button class="mdp-btn mdp-btn-sm mdp-btn-ghost" onclick="mdpCollapseCats()" title="Close every open category">⌃ Collapse all categories</button>
       <span class="mdp-fchips">${vchip('all','All products',nonGwp.length,'g')}${vchip('overridden','Manually changed',nonGwp.filter(i=>i.override).length,'p')}${vchip('attention','Needs attention',plan.items.filter(i=>i.exception||i.blocked||i.overCap).length,'r')}
       <button class="mdp-btn mdp-btn-sm mdp-btn-ghost" onclick="mdpResetAll()"${plan.totals.overridden?'':' disabled'} title="Remove every discount and exclusion you set on individual products">Reset all</button><button class="mdp-btn mdp-btn-sm mdp-btn-ghost" onclick="mdpResetFilters()">Reset filters</button></span></div>`;
   const note=mdpNoteMsg?`<div class="mdp-warn" style="margin-bottom:12px;">ⓘ ${mdpEsc(mdpNoteMsg)}</div>`:'';
@@ -6967,7 +6978,7 @@ function mdpOffersSection(plan,oo,hasEnd,pl,res){
         <td class="l">${c.compatible?'<span class="mdp-dim">either (same)</span>':`<select class="mdp-sel mdp-xs" onchange="mdpResolveConflict('${mdpEsc(c.style)}',this.value)"><option value="">Choose…</option>${c.offers.map((id,k)=>`<option value="${id}" ${c.winner===id?'selected':''}>${mdpEsc(c.names[k])} only</option>`).join('')}</select>`}</td></tr>`).join('')}</tbody></table></div>${conflicts.length>60?`<div class="mdp-dim">…and ${conflicts.length-60} more</div>`:''}</div>`:'';
   const cards=models.map((m,i)=>mdpOfferCard(m,i,models.length,pl)).join('');
   return`<div class="mdp-sub" style="margin:0 0 10px;line-height:1.55;">Extra offers inside the sale — further reductions and bundles. Each has its own products, dates, pricing and Shopify collection, and is exported on its own. A further reduction is a <b>new total discount off the original RRP</b> (never stacked, never raising a lower price). Sale dates: <b>${mdpEsc(win)}</b>.</div>
-    <div class="mdp-row" style="margin-bottom:10px;"><button class="mdp-btn mdp-btn-go" onclick="mdpAddOffer()">＋ Add offer</button></div>${sum}${confHtml}${cards}`;
+    <div class="mdp-row" style="margin-bottom:10px;"><button class="mdp-btn mdp-btn-go" onclick="mdpAddOffer()">＋ Add offer</button>${models.length>1?`<button class="mdp-btn mdp-btn-ghost" onclick="mdpOffersSetAll(false)">⌃ Collapse all</button><button class="mdp-btn mdp-btn-ghost" onclick="mdpOffersSetAll(true)">⌄ Expand all</button>`:''}</div>${sum}${confHtml}${cards}`;
 }
 function mdpToggleOffer(id){if(mdpOpenOffers.has(id))mdpOpenOffers.delete(id);else mdpOpenOffers.add(id);renderMarkdownPlanner();}
 function mdpAddOffer(){const r=MarkdownPlans.addOffer(mdpState,mdpPlan().id,'Offer '+(mdpPlan().offers.length+1));if(r.id)mdpOpenOffers.add(r.id);mdpCollapsed.delete('F');mdpCommit(r.state);}
@@ -7241,7 +7252,7 @@ function renderMarkdownPlanner(){
       <span class="mdp-effchip" title="RRP value of every unit in the sale less the discount on each, as a % of that RRP value — updates live">Effective discount <b>${T.effectiveDiscount}%</b></span>
       <button class="mdp-btn mdp-btn-ghost mdp-btn-sm" onclick="mdpRefreshSuggestions()" title="Re-suggest categories that aren't approved from the latest stock and sales. Approved categories and your decisions are kept.">↻ Regenerate recommendations</button><button class="mdp-chv2" onclick="mdpToggleSection('E')">${bOpen?'⌃':'⌄'}</button></div>${bOpen?`<div class="mdp-secb">${bBody}</div>`:''}</div>`;
   const stepNames=[['A','Setup'],['B','GWP'],['C','Special Buys'],['D','Not on Sale'],['E','Category Strategy'],['F','Mid-Sale Offers'],['G','Summary'],['H','Financials'],['I','Export']];
-  const stepper=`<div class="mdp-steps">${stepNames.map(([k,n],i)=>`<button class="mdp-step${mdpStep===i+1?' on':''}" onclick="mdpGoStep(${i+1})"><i>${i+1}</i>${n}</button>${i<8?'<span class="mdp-step-sep">›</span>':''}`).join('')}</div>`;
+  const stepper=`<div class="mdp-steps">${stepNames.map(([k,n],i)=>`<button class="mdp-step${mdpStep===i+1?' on':''}" onclick="mdpGoStep(${i+1})"><i>${i+1}</i>${n}</button>${i<8?'<span class="mdp-step-sep">›</span>':''}`).join('')}<span class="mdp-collapseall"><button class="mdp-btn mdp-btn-ghost mdp-btn-sm" onclick="mdpCollapseSections(true)" title="Close every section so only the headings show">⌃ Collapse all</button><button class="mdp-btn mdp-btn-ghost mdp-btn-sm" onclick="mdpCollapseSections(false)" title="Open every section">⌄ Expand all</button></span></div>`;
   const help=mdpHelpOpen?`<div class="mdp-card mdp-help"><b>How this works</b><ol><li><b>Setup</b> — name, dates, allowed discounts and the rules.</li><li><b>GWP</b>, <b>Special buys</b>, <b>Not on sale</b> — decide what's outside the standard markdowns, from Apparel Magic. Tick <i>Reviewed</i> on each (even if there's nothing to add).</li><li><b>Category strategy</b> — each category gets Groups A / B / C. Adjust, then <b>Approve</b>; <b>Reopen</b> keeps every decision. If GWP / special buys / Not on sale change after approval, the category is flagged for review.</li><li><b>Mid-sale offers</b> — extra further reductions and bundles with their own dates, products and collection.</li><li><b>Summary</b> lists every product a decision has been made on, by category then discount, with special buys, not on sale, GWP and the mid-sale offers — and exports to PDF.</li><li><b>Financials</b> forecast the sale; <b>Export</b> builds collection-membership CSVs for the initial sale and for each offer.</li></ol></div>`:'';
   const later=(k,t,tag,txt)=>mdpSec(k,t,tag,`<div class="mdp-sub" style="margin:0 0 4px;line-height:1.55;">${txt}</div>`);
   const rv=k=>pl.reviewed[k]?' · ✓ Reviewed':'';
@@ -13456,6 +13467,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.3.5 — Collapse all / Expand all, from Brendan: a pair of buttons beside the step bar closes or opens every section (A–I) at once; Category strategy has 'Collapse all categories' (also clears the group-card filters); Mid-sale offers has Collapse all / Expand all; the Summary has Collapse all / Expand all for its category, special-buy, not-on-sale, GWP and offer blocks.
 // v3.3.4 — FIX: the Markdown Planner showed a blank page after v3.3.2. Cause: when the flat product table was replaced by the Summary, the scroll-position helpers (mdpScrollSnap / mdpScrollRestore, from v3.2.6) that sat between the old code and the replaced block were deleted too, so every render threw 'mdpScrollSnap is not defined'. Restored. Test harness now uses the real helpers (it used to stub them, which hid this).
 // v3.3.3 — Hextom export now matches your real Bulk Product Edit file (Black Friday 2026 Shopify Collections Export.csv): two columns, Product (the exact Shopify title, NAME - COLOUR) and New Collection, ONE ROW PER PRODUCT/COLOUR (no SKUs or sizes), grouped by collection, no BOM. Files are named '<Sale> Shopify Collections Export.csv' and '<Sale> - <Offer> Shopify Collections Export.csv'. Products with no live Shopify product yet are held back and reported; a product appears once. Collection ID boxes removed (only the collection name is needed); the section explains the Hextom steps (search Col 1 as Product Title, New Collection for editing). Still add-only — it doesn't remove last sale's members or change prices. From Brendan's sample + screenshot.
 // v3.3.2 — Section G 'Product review' becomes a SUMMARY of every decision made, from Brendan. Lists, for each approved category (or all, with a tick), the products by discount (lowest first, full price last) with month del, group, SOH, on order, RRP, current discount, sale price and a note (set by you in bold / existing discount kept / protected); overview cards and a discount overview table up top; special buys, Not on sale (with reasons) and GWP in their own lists (nothing is listed twice); and every mid-sale offer at the bottom with its dates, rule, collection, status and products with sale and offer prices. EXPORT PDF: opens a print-formatted version (A4 landscape, everything expanded, repeating table headers, titled with the sale name) in the print dialog — choose Save as PDF. The old flat product table is gone (all editing lives in the category tables). MarkdownPlans.buildSummary + tests.
