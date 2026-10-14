@@ -793,6 +793,7 @@ th{position:relative;}
 .mdp-chv{border:none;background:none;color:#0a66e8;font-size:14px;cursor:pointer;padding:0 4px;}
 .mdp-minibar{width:90px;height:6px;border-radius:99px;background:#d6e0f0;overflow:hidden;display:inline-block;}.mdp-minibar i{display:block;height:100%;background:#16a34a;}
 .mdp-apcell{display:flex;align-items:center;gap:7px;flex-wrap:nowrap;white-space:nowrap;}
+.mdp-apcell .mdp-dsel{flex:1 1 auto;min-width:118px;}
 .mdp-pctv{font-size:14px;min-width:34px;}
 .mdp-appbtn{border:1px solid #b6e0c4;background:#fff;color:#12843c;border-radius:7px;padding:3px 10px;font-family:'Inter',sans-serif;font-size:11.5px;font-weight:700;cursor:pointer;}.mdp-appbtn:hover{background:#16a34a;color:#fff;border-color:#16a34a;}
 .mdp-donebtn{border:none;background:#dcfce7;color:#12843c;border-radius:7px;padding:3px 10px;font-family:'Inter',sans-serif;font-size:11.5px;font-weight:700;cursor:pointer;}.mdp-donebtn:hover{background:#fee2e2;color:#b91c1c;}
@@ -2442,9 +2443,9 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.5.2"></script>
-<script src="markdown-plans.js?v=3.5.2"></script>
-<script src="sales-cadence-pdf.js?v=3.5.2"></script>
+<script src="markdown-engine.js?v=3.5.3"></script>
+<script src="markdown-plans.js?v=3.5.3"></script>
+<script src="sales-cadence-pdf.js?v=3.5.3"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2478,7 +2479,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.5.2';
+const APP_VERSION='v3.5.3';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -6379,7 +6380,7 @@ function mdpOoStylesTable(oo,cat,hasEnd,plan){
     const ks=Object.keys(s.due).map(Number).sort((a,b)=>a-b);
     const next=ks.length?mdpDueLabel(ks[0])+(ks.length>1?` <span class="mdp-dim">+${ks.length-1} more</span>`:''):'—';
     const its=plan?plan.items.filter(i=>i.row.p.style===s.style):[];
-    const sug=its.length?its.map(i=>i.final.pct!=null?`<b>${i.final.pct}%</b> <span class="mdp-pill ${i.final.action==='S'?'n':i.final.action==='C'?'c':'a'}">${{A:'Group A',B:'Group B',C:'Clearance',S:'Special buy',Manual:'Manual'}[i.final.action]||''}</span>`:`<span class="mdp-pill x" title="${mdpEsc(i.final.reason)}">Not in sale</span>`).join(' '):(!s.live?'<span class="mdp-pill n" title="No Shopify product yet, so there is no sales history to score. Add it as a special buy (section E) to give it a discount.">No Shopify product yet</span>':'<span class="mdp-dim">—</span>');
+    const sug=its.length?its.map(i=>i.final.pct!=null?`<b>${i.final.pct}%</b> <span class="mdp-pill ${i.final.action==='S'?'n':i.final.action==='C'?'c':'a'}">${i.final.action==='S'&&i.row.p.blanket?'On order':({A:'Group A',B:'Group B',C:'Clearance',S:'Special buy',Manual:'Manual'}[i.final.action]||'')}</span>`:`<span class="mdp-pill x" title="${mdpEsc(i.final.reason)}">Not in sale</span>`).join(' '):(!s.live?'<span class="mdp-pill n" title="No Shopify product yet, so there is no sales history to score. Add it as a special buy (section E) to give it a discount.">No Shopify product yet</span>':'<span class="mdp-dim">—</span>');
     return`<tr><td class="l"><b>${mdpEsc(s.style)}</b></td><td class="l">${mdpEsc(s.title)}</td>
       <td>${s.live?'<span class="mdp-pill x">Live</span>':'<span class="mdp-pill n" title="Not in Shopify yet">New style</span>'}</td>
       <td>${s.soh?s.soh.toLocaleString():'—'}</td><td><b>${s.units.toLocaleString()}</b></td><td>${hasEnd?s.byEnd.toLocaleString():'—'}</td>
@@ -6638,12 +6639,12 @@ function mdpProdTable(groups,o){
   const GL={A:'A',B:'B',C:'C',X:'exception'};
   const dsel=(it,i)=>{
     const f=it.final,r=rowByCat[it.row.p.category||'UNCATEGORISED']||{levelA:20,levelB:0,levelC:50,noB:true},bOk=!r.noB&&r.levelB>0;
-    const cur=f.pct==null?'Not in sale':`${f.pct}% · ${GL[it.group]||(f.action==='S'?'special':'')}`.replace(/ · $/,'');
+    const bl=!!it.row.p.blanket,cur=f.pct==null?'Not in sale':`${f.pct}% · ${GL[it.group]||(f.action==='S'?(bl?'On order':'special'):'')}`.replace(/ · $/,'');
     const pcts=lv.map(d=>`<option value="pct:${d}">${d}%</option>`).join('');
     return`<select class="mdp-sel mdp-dsel${it.override?' mdp-chg':''}"${ro?' disabled':''} onchange="mdpProdDiscount(${i},this.value)" title="${it.override?'Set by you':'Allocated by the planner'}"><option value="" selected>${cur}</option>
       <optgroup label="Move to group"><option value="grp:A">A · ${r.levelA}% Standard</option>${bOk?`<option value="grp:B">B · ${r.levelB}% Clearance</option>`:''}<option value="grp:C">C · ${r.levelC==null?50:r.levelC}% Existing reduced</option></optgroup>
       <optgroup label="Custom discount">${pcts}</optgroup>
-      <optgroup label="Other">${f.pct==null?'':'<option value="excl">Not in sale</option>'}${it.override?'<option value="auto">↺ Reset to recommendation</option>':''}</optgroup></select>`;
+      <optgroup label="Other">${f.pct==null?'':'<option value="excl">Not in sale</option>'}${it.override?`<option value="auto">↺ Reset to ${bl?'the on-order discount ('+it.systemPct+'%)':'recommendation'}</option>`:''}</optgroup></select>`;
   };
   const cell=(k,it,child)=>{
     const p=it.row.p,m=it.row.m,f=it.final,i=it.__i;
@@ -6662,10 +6663,12 @@ function mdpProdTable(groups,o){
       case'rrp':return`<td class="mdp-dim mdp-xc">${p.rrp>0?'$'+p.rrp.toFixed(2):'—'}</td>`;
       case'price':return`<td class="mdp-xc">${p.price>0?'$'+p.price.toFixed(2):'—'}</td>`;
       case'cur':{const c=p.currentDiscountPct||0;return`<td>${c>=1?`<span class="mdp-curp" title="Already ${Math.round(c)}% off RRP in Shopify">${Math.round(c)}%</span>`:'<span class="mdp-dim">0%</span>'}</td>`;}
-      case'sugg':return`<td class="mdp-xc">${it.systemPct==null?'<span class="mdp-dim">—</span>':it.systemPct+'% <span class="mdp-dim">'+it.action+'</span>'}</td>`;
+      case'sugg':return`<td class="mdp-xc">${it.systemPct==null?'<span class="mdp-dim">—</span>':it.systemPct+'% <span class="mdp-dim">'+(it.action==='S'&&p.blanket?'On order':it.action)+'</span>'}</td>`;
       case'disc':{
         if(it.blocked==='GWP'||p.isGWP)return'<td class="l mdp-ap"><span class="mdp-pill x">GWP</span></td>';
-        if(f.action==='S'&&!it.override)return`<td class="l mdp-ap"><span class="mdp-pill n" title="${p.blanket?'The blanket discount for stock on order (set in Sale setup)':'Set in Sale specific buys (step C)'}">${p.blanket?'On order':'Special buy'}</span> <b>${f.pct}%</b></td>`;
+        if(f.action==='S'&&!it.override&&!p.blanket)return`<td class="l mdp-ap"><span class="mdp-pill n" title="Set in Sale specific buys (step C)">Special buy</span> <b>${f.pct}%</b></td>`;
+        // On-order blanket discount: still suggested and labelled 'On order', but it can be changed like any other product (Reset puts the on-order discount back)
+        if(p.blanket&&it.action==='S'&&!it.blocked)return`<td class="l mdp-ap"><div class="mdp-apcell" style="flex-wrap:wrap;white-space:normal;"><span class="mdp-pill n" title="The blanket discount for stock on order (Sale setup) suggests ${it.systemPct}%${it.override?' — you have changed it':' — use the dropdown to change it'}">On order</span>${dsel(it,i)}${it.override?`<span class="mdp-dim" title="What the on-order blanket discount suggests">suggested ${it.systemPct}%</span>`:''}</div></td>`;
         const tags=(it.keptExisting?`<span class="mdp-kept" title="Already ${Math.round(it.currentPct)}% off — the planner never reduces an existing discount">kept</span>`:'')+(it.overCap?`<span class="mdp-b-ov" title="Its existing ${Math.round(it.currentPct)}% is deeper than this sale's highest single discount (${PS.maxDiscount}%) — review it; the price isn't raised automatically">over cap</span>`:'')+(it.priceUp?`<span class="mdp-b-ov" title="Your decision puts the price up from ${Math.round(it.currentPct)}% off">price ↑</span>`:'');
         return`<td class="l mdp-ap">${dsel(it,i)}${tags}</td>`;}
       case'new':return`<td class="mdp-xc">${f.pct==null||it.price.newPrice==null?'—':'<b>$'+it.price.newPrice.toFixed(2)+'</b>'}${it.noPriceChange?' <span class="mdp-nochg">no change</span>':''}</td>`;
@@ -13784,6 +13787,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.5.3 — MARKDOWN PLANNER (Category Strategy product tables): products on the on-order blanket discount can now be changed. They keep the 'On order' label and the suggested discount, but get the same dropdown as every other product (move to Group A/B/C, a custom %, or Not in sale). Once changed, the row still shows 'On order' with 'suggested 20%' beside it, and '↺ Reset to the on-order discount (20%)' puts it back. The Suggested column and parent-style summary say 'On order' instead of 'S' / 'Special buy' for these. Real Sale specific buys are unchanged (still set in step C). No engine change — the engine already honoured decisions on these products; the table just never offered the control.
 // v3.5.2 — MARKDOWN PLANNER: products picked by style code (mid-sale offers, GWP, special buys, Not on sale) now show their product title next to the code — 'W25DI014BLK — DIGITAL TEE - BLACK' — instead of the bare code (a pick by style stored no label; the title is now looked up from Apparel Magic when shown, so existing sale plans are fixed too). Also: re-adding a collection whose products were all removed individually no longer pops a false 'No Apparel Magic styles matched' alert.
 // v3.5.1 — MARKDOWN PLANNER (pre-planning steps): single products can now be removed from GWP, Sale specific buys and Not on sale — including ones that came in through a whole collection / category / PO pick. Each section's product table has a Remove button per row (Not on sale gains a 'Products not on sale' list; Remove there puts the product back in the sale), and a 'Removed individually' list under it with × to put one back. The pick itself stays (it still shows how many products it matches and how many were removed); picking the product by name again also brings it back. A product removed from special buys / GWP goes back to its normal category markdown. Saved with the sale plan and synced like the rest; older plans load unchanged. Logic in markdown-plans.js (setSectionException, applyExceptions) with tests.
 // v3.5.0 — SALES CADENCE: new Export PDF button (top-right of the heading). Downloads WNDRR_Sales_Cadence_YYYY-MM-DD.pdf — an A4 landscape report built from the table's own numbers (the snapshot is recorded on every render), so it follows the current view: Category/Product, 12 Months/12 Weeks/5 Weeks/7 Days, Compare selection, every filter, search and sort order. Header with the original WNDRR logo (vector), 5 KPI tiles (aggregate ST%), product table with colour dots/status pills/tier badges and a TOTAL row, auto-pagination with repeated headings (never splits a product row), 'Page X of Y' footer. The PDF lists every filtered row (the screen caps an unfiltered Product view at 50). Real text, not a screenshot. New module sales-cadence-pdf.js + jsPDF/jspdf-autotable, loaded from jsDelivr only on first click (pinned versions + SRI hashes). No change to any existing Sales Cadence calculation.

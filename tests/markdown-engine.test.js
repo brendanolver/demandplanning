@@ -568,5 +568,17 @@ for (const extra of [mk('SWG', { category: 'SW', isGWP: true, soh: 500, sold: { 
 // edge: empty input, single product, duplicate ids don't throw
 assert.equal(E.buildPlan([], {}).items.length, 0); assert.equal(E.buildPlan([mk('ONE')], {}).items.length, 1);
 assert.doesNotThrow(() => E.buildPlan([mk('D'), mk('D')], {}));
+
+// on-order blanket discount: suggested (as a special-buy style 'S' at the blanket %) but changeable like any product; Reset puts it back
+{
+  const range2 = [mk('BL1', { soh: 80, specialPct: 20, blanket: true }), mk('BL2', { soh: 80, specialPct: 20, blanket: true }), mk('BL3', { soh: 80, specialPct: 20, blanket: true })];
+  const st = { maxDiscount: 70 }, ovs = { BL1: { pct: 35, kind: 'discount' }, BL2: { group: 'A' } };
+  const pl2 = E.buildPlan(range2, st, ovs), g = id => pl2.items.find(i => i.row.p.id === id);
+  assert.equal(g('BL3').final.action, 'S'); assert.equal(g('BL3').final.pct, 20); assert.equal(g('BL3').override, null);                  // untouched: still the on-order suggestion
+  assert.equal(g('BL1').final.pct, 35); assert.equal(g('BL1').final.action, 'Manual'); assert.equal(g('BL1').override, 'discount'); assert.equal(g('BL1').group, null);   // typed discount wins; never counted as a normal group
+  assert.equal(g('BL1').systemPct, 20);                                                                                                    // the on-order suggestion is still reported
+  assert.equal(g('BL2').override, 'group'); assert.equal(g('BL2').final.action, 'A');                                                      // moved into Group A: follows its level
+  assert.equal(E.buildPlan(range2, st, {}).items.find(i => i.row.p.id === 'BL1').final.pct, 20);                                           // Reset (no decision) -> the on-order discount again
+}
 console.log('markdown engine tests: all passed');
 })();
