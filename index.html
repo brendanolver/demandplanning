@@ -2443,9 +2443,9 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.5.6"></script>
-<script src="markdown-plans.js?v=3.5.6"></script>
-<script src="sales-cadence-pdf.js?v=3.5.6"></script>
+<script src="markdown-engine.js?v=3.5.7"></script>
+<script src="markdown-plans.js?v=3.5.7"></script>
+<script src="sales-cadence-pdf.js?v=3.5.7"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2479,7 +2479,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.5.6';
+const APP_VERSION='v3.5.7';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -2603,8 +2603,8 @@ let globalCoreFilter='all';
 let planView='category'; // 'category' or 'product'
 
 function getActiveRows(){
-  if(globalCoreFilter==='core')return allVariantRows.filter(r=>r.vendor==='CORE');
-  if(globalCoreFilter==='noncore')return allVariantRows.filter(r=>r.vendor!=='CORE');
+  if(globalCoreFilter==='core')return allVariantRows.filter(r=>r.isCore);
+  if(globalCoreFilter==='noncore')return allVariantRows.filter(r=>!r.isCore);
   return allVariantRows;
 }
 let mdSortCol='productName';
@@ -3466,10 +3466,10 @@ function renderCadence(){
     const skuCatMapFull=window._skuCategoryMap||{};
     skuCatMap=skuCatMapFull;
     if(globalCoreFilter==='core'){
-      const coreSkus=new Set(allVariantRows.filter(r=>r.vendor==='CORE').map(r=>r.sku));
+      const coreSkus=new Set(allVariantRows.filter(r=>r.isCore).map(r=>r.sku));
       skuCatMap=Object.fromEntries(Object.entries(skuCatMapFull).filter(([sku])=>coreSkus.has(sku)));
     }else if(globalCoreFilter==='noncore'){
-      const coreSkus=new Set(allVariantRows.filter(r=>r.vendor==='CORE').map(r=>r.sku));
+      const coreSkus=new Set(allVariantRows.filter(r=>r.isCore).map(r=>r.sku));
       skuCatMap=Object.fromEntries(Object.entries(skuCatMapFull).filter(([sku])=>!coreSkus.has(sku)));
     }
     // Launch Date filter — applies at SKU level in category view
@@ -3973,10 +3973,10 @@ function getLYSalesByCategory(months){
   const skuCatMapFull=window._skuCategoryMap;
   let skuCatMap=skuCatMapFull;
   if(globalCoreFilter==='core'){
-    const coreSkus=new Set(allVariantRows.filter(r=>r.vendor==='CORE').map(r=>r.sku));
+    const coreSkus=new Set(allVariantRows.filter(r=>r.isCore).map(r=>r.sku));
     skuCatMap=Object.fromEntries(Object.entries(skuCatMapFull).filter(([sku])=>coreSkus.has(sku)));
   }else if(globalCoreFilter==='noncore'){
-    const coreSkus=new Set(allVariantRows.filter(r=>r.vendor==='CORE').map(r=>r.sku));
+    const coreSkus=new Set(allVariantRows.filter(r=>r.isCore).map(r=>r.sku));
     skuCatMap=Object.fromEntries(Object.entries(skuCatMapFull).filter(([sku])=>!coreSkus.has(sku)));
   }
   for(const[sku,cat] of Object.entries(skuCatMap)){
@@ -4095,7 +4095,7 @@ function getAMOnOrderByCategory(months){
 function getLYSalesByProduct(months){
   const result={};
   if(!window._salesBySkuDay||!allVariantRows)return result;
-  const coreSkus=(globalCoreFilter==='core'||globalCoreFilter==='noncore')?new Set(allVariantRows.filter(r=>r.vendor==='CORE').map(r=>r.sku)):null;
+  const coreSkus=(globalCoreFilter==='core'||globalCoreFilter==='noncore')?new Set(allVariantRows.filter(r=>r.isCore).map(r=>r.sku)):null;
   const skuProdMap={};
   for(const r of allVariantRows){if(r.amOnly)continue;if(globalCoreFilter==='core'&&coreSkus&&!coreSkus.has(r.sku))continue;if(globalCoreFilter==='noncore'&&coreSkus&&coreSkus.has(r.sku))continue;skuProdMap[r.sku]=r.productName+'||'+r.colour;}
   for(const[sku,dayData]of Object.entries(window._salesBySkuDay)){
@@ -4913,7 +4913,7 @@ async function generateInsights(){
 function analyseStockData(){
   // Statuses to exclude from all insight sections (except CORE which is allowed unless explicitly excluded per-section)
   const EXCLUDED_STATUSES=new Set(['ON ORDER','PRE-RELEASE','DRAFT','REDUCED']);
-  const isBundle=p=>p.vendor==='BUNDLE';
+  const isBundle=p=>p.vendor==='BUNDLE'&&!p.isCore;   // a core style in a bundle deal is still treated as core here
   const isExcluded=p=>EXCLUDED_STATUSES.has(p.vendor)||isBundle(p);
 
   // Aggregate variant rows to product level using active (Core/All filtered) rows
@@ -4929,7 +4929,7 @@ function analyseStockData(){
         vendor:r.vendor,stock:0,sold7:0,sold14:0,sold30:0,sold90:0,
         onOrder:0,discountPct:r.discountPct||0,flag:r.flag,
         price:r.price,daysDisplay:r.daysDisplay,soldOutSizes:r.soldOutSizes||0,
-        deliveryMonth:r.deliveryMonth||''
+        deliveryMonth:r.deliveryMonth||'',isCore:!!r.isCore
       };
     }
     const p=productMap[k];
@@ -4978,7 +4978,7 @@ function analyseStockData(){
   // Strong early ST% (≥15% in first 7-14 days) but now slow with high stock (>50)
   // Excludes CORE products and all other excluded statuses
   const needsMetaAds=products
-    .filter(p=>!isExcluded(p)&&p.vendor!=='CORE'&&p.stock>=50&&!isReduced(p))
+    .filter(p=>!isExcluded(p)&&!p.isCore&&p.stock>=50&&!isReduced(p))
     .filter(p=>{
       const st7=p.sold7>0&&(p.stock+p.sold7)>0?p.sold7/(p.stock+p.sold7)*100:0;
       const st14=p.sold14>0&&(p.stock+p.sold14)>0?p.sold14/(p.stock+p.sold14)*100:0;
@@ -4997,7 +4997,7 @@ function analyseStockData(){
   // ── 3. STYLES TO WATCH ──
   // ST% 15-19% over last 14 days — only CURRENT, NEW & CORE products
   const stylesToWatch=products
-    .filter(p=>['CURRENT','NEW','CORE'].includes(p.vendor)&&p.stock>0&&!isReduced(p)&&!hasOrder(p))
+    .filter(p=>(['CURRENT','NEW','CORE'].includes(p.vendor)||p.isCore)&&p.stock>0&&!isReduced(p)&&!hasOrder(p))
     .filter(p=>{
       const st7=p.sold7>0&&(p.stock+p.sold7)>0?p.sold7/(p.stock+p.sold7)*100:0;
       const st14=p.sold14>0&&(p.stock+p.sold14)>0?p.sold14/(p.stock+p.sold14)*100:0;
@@ -6316,7 +6316,7 @@ function mdpInputs(plan){
     out.push({
       id:p.fullTitle,fullTitle:p.fullTitle,style,name:p.productName,colour:p.colour,category:p.category||'UNCATEGORISED',collection:(cat&&cat[style]&&cat[style][0])||'',
       parentStyle:MDP_STYLE_RE.test(style)?style.slice(0,8):'',
-      isCore:p.vendor==='CORE',status:p.vendor,deliveryMonth:p.deliveryMonth||'',notOnSale:!!(R&&R.nosStyles.has(style)),isGWP:(p.category||'').toUpperCase()==='GWP'||!!(R&&R.gwpStyles.has(style)),
+      isCore:!!p.isCore,status:p.vendor,deliveryMonth:p.deliveryMonth||'',notOnSale:!!(R&&R.nosStyles.has(style)),isGWP:(p.category||'').toUpperCase()==='GWP'||!!(R&&R.gwpStyles.has(style)),
       specialPct:rule.specialPct,specialNote:rule.specialNote,blanket:rule.blanket,isDraft,
       soh:Math.max(0,stock),restockUnits:restock?incomingUnits:0,
       sohCost:restock?Math.round(incomingUnits*(cost[style]||0)*100)/100:(p.sohValue||0),onOrder:restock?0:incoming,
@@ -12202,14 +12202,14 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
     const isDraftButCurrent=isDraft&&(isCurrentMonth||isFutureWithStock||
       (skuDeliveryDate&&skuDeliveryDate>=new Date()))&&
       ((stock>0)||(onOrder>0)||(productOnOrder>0));
-    // BUNDLE takes precedence over CORE — CORE items in bundle deals show as BUNDLE (already tracked under Delivery Month)
+    // BUNDLE takes precedence over CORE in Status — a core style in a bundle deal reads BUNDLE (the core indicator lives in Month Del, and every core rule keys off row.isCore, not the status)
     const isReduced=!isCore&&!isBundle&&!isDraft&&!isPreRelease&&(discountPct>0);
     // PRE-RELEASE: draft-flagged with stock — always shows regardless of delivery month
-    const effectiveVendor=isCore?'CORE':(isDraft&&!isDraftButCurrent)?'DRAFT':isPreRelease?'PRE-RELEASE':isBundle?'BUNDLE':isReduced?'REDUCED':(isNew||isDraftButCurrent)?'NEW':isEnd?'OLD':isCurrent?'CURRENT':vendor;
+    const effectiveVendor=(isCore&&isBundle)?'BUNDLE':isCore?'CORE':(isDraft&&!isDraftButCurrent)?'DRAFT':isPreRelease?'PRE-RELEASE':isBundle?'BUNDLE':isReduced?'REDUCED':(isNew||isDraftButCurrent)?'NEW':isEnd?'OLD':isCurrent?'CURRENT':vendor;
     // No suggested orders for BUNDLE or REDUCED — these shouldn't be restocked at full price
     const finalSuggestedOrder=isBundle||isReduced||isOldCore?0:suggestedOrder;
     // Re-run flag with effectiveVendor so CORE/NEW/CURRENT/ON ORDER status is respected
-    flag=getFlag(recalcDays,stock,onOrder,effectiveVendor,discountPct);
+    flag=getFlag(recalcDays,stock,onOrder,isCore?'CORE':effectiveVendor,discountPct);   // core is always OK, whatever its status label
     if(isEnd&&!discountPct&&!isNew&&!isDraft&&!isDraftButCurrent&&!isPreRelease)flag='reduce';
     // Never flag NEW, CURRENT, ON ORDER or BUNDLE products as reduce
     if(flag==='reduce'&&(effectiveVendor==='NEW'||effectiveVendor==='CURRENT'||effectiveVendor==='ON ORDER'||effectiveVendor==='PRE-RELEASE'||isBundle))flag='ok';
@@ -12219,7 +12219,7 @@ function processRows(amVariantMap,amProductMap,amProducts,salesBySkuDay,priceMap
 
     rows.push({
       fullTitle:productName+' - '+colour,productName,colour,size,variant:size,sku,
-      category,vendor:effectiveVendor,inBundleDeal:isBundle,stock,
+      category,vendor:effectiveVendor,isCore,inBundleDeal:isBundle,stock,
       price,compareAt,discountPct,margin,
       velocity,vel7,vel30,
       sold7:s7.qty,sold14:s14.qty,sold30:s30.qty,sold60:s60.qty,sold90:s90.qty,sold365:s365.qty,
@@ -12956,14 +12956,14 @@ function toProduct(vr){
       }
     }
     const prodFlag=(()=>{
-      let f=getFlag(days,p.stock,onOrder,p.vendor,p.discountPct);
+      let f=getFlag(days,p.stock,onOrder,p.isCore?'CORE':p.vendor,p.discountPct);
       const ev=p.vendor; // effectiveVendor already set on p
       const pIsBundle=ev==='BUNDLE';
       const pIsOld=ev==='OLD';
       const pIsNew=ev==='NEW';
       const pIsCurrent=ev==='CURRENT';
       const pIsOnOrder=ev==='ON ORDER';
-      const pIsCore=ev==='CORE';
+      const pIsCore=!!p.isCore;
       // Reduce exclusions: NEW, CURRENT, ON ORDER, BUNDLE
       if(f==='reduce'&&(pIsNew||pIsCurrent||pIsOnOrder||pIsBundle))f='ok';
       // Reorder exclusions: OLD, BUNDLE (non-CORE), below MOQ
@@ -13800,6 +13800,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.5.7 — STATUS: BUNDLE now replaces CORE in Status for core styles that are in a bundle deal (the core indicator is in Month Del). This applies everywhere Status is used — tables, the Status filters (a core bundle product now matches the BUNDLE filter, not CORE), exports. Nothing else about core changes: every core rule (Core/Non-Core toggle, always-OK stock flag, Insights treatment, Markdown Planner's core protection) now keys off a new row field isCore instead of the status text, so a core bundle product still behaves as core. Core styles that are not in a bundle still read CORE.
 // v3.5.6 — OLD CORE is now a MONTH DEL tag instead of a status (Brendan: the v3.5.4 status hid REDUCED). Products in the Apparel Magic groups 'AA OLD CORE' / 'ACCESSORIES ARCHIVE' show 'OLD CORE' in Month Del (like CORE does), so their status goes back to what it naturally is — REDUCED when discounted, otherwise OLD — and the REDUCED label is reinstated. OLD CORE appears as its own option in every Month Del filter (Dashboard, Sales Cadence, Planning, Reorders, Markdowns, Performance, Markdown Planner) when any exist. Unchanged from v3.5.4: not CORE (Non-Core toggle), no reorder flags / suggested orders, 'reduce' flag while undiscounted. Removed the OLD CORE status pill and its engine/PDF special-cases.
 // v3.5.5 — MARKDOWN PLANNER (Category Strategy): on-order blanket-discount products now sit in the Group whose discount matches theirs (20% = Group A at its default level), so the Group A / B / C cards count them (with an 'incl. N on order' line), the '% of eligible' shares include them, and clicking a group card / 'Show only Group A products' lists them. A blanket discount that matches no group (or a figure you type that fits none) shows under Exceptions ('N on-order discount (matches no group)'). They keep their 'On order' pill and are no longer also counted as special buys in the category header. Real special buys are unchanged (still outside A/B/C). Also fixed the category header's 'N not in the sale', which was counting Exceptions instead of excluded products. Prices, exports, approvals and the Tuesday CSV are unaffected (they follow each product's discount %, not its group).
 // v3.5.4 — OLD CORE status. A style is OLD CORE when its Apparel Magic product group is 'AA OLD CORE' or 'ACCESSORIES ARCHIVE' (matched loosely, like the core groups; collected in the same catalogue sync — cache upgraded, so the first load after this version does one fresh ~2.5 min sync). It shows its own 'OLD CORE' pill everywhere a status is shown (dashboard, Sales Cadence incl. its PDF, Planning, Working) and is a filterable status. It is NOT CORE: the Core toggle puts it under Non-Core, and it is never forced to 'OK'. It behaves like OLD stock: no reorder flags or suggested orders, flagged 'reduce' while it has undiscounted stock, and in the Markdown Planner it is scored as old stock (age floor 75) and can be discounted normally. A style only has one AM group, so it can never be both CORE and OLD CORE.
