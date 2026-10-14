@@ -2445,9 +2445,9 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.6.4"></script>
-<script src="markdown-plans.js?v=3.6.4"></script>
-<script src="sales-cadence-pdf.js?v=3.6.4"></script>
+<script src="markdown-engine.js?v=3.6.5"></script>
+<script src="markdown-plans.js?v=3.6.5"></script>
+<script src="sales-cadence-pdf.js?v=3.6.5"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2481,7 +2481,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.6.4';
+const APP_VERSION='v3.6.5';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -6745,6 +6745,7 @@ const MDP_COLS=[
   {k:'parent',label:'Parent style',w:86,sort:'parent',x:1},
   {k:'month',label:'Month del',w:76,sort:'month',cls:'l'},
   {k:'core',label:'Core',w:86,cls:'l',x:1},
+  {k:'sizes',label:'Sizes out',w:66,sort:'sizesout',title:'Sizes sold out ÷ sizes in the range'},
   {k:'soh',label:'SOH',w:62,sort:'soh'},
   {k:'onorder',label:'On order',w:72,sort:'onorder'},
   {k:'d7',label:'7d',w:44,sort:'d7',x:1},
@@ -6752,7 +6753,6 @@ const MDP_COLS=[
   {k:'d60',label:'60d',w:44,sort:'d60',x:1},{k:'d90',label:'90d',w:44,sort:'d90',x:1},
   {k:'cover',label:'Weeks cover',w:78,sort:'cover'},
   {k:'sellthru',label:'Sell-thru*',w:68,sort:'sellthru',x:1,title:'Units sold ÷ (units sold + stock now) — a proxy; real sell-through needs stock history'},
-  {k:'sizes',label:'Sizes out',w:60,sort:'sizesout',x:1},
   {k:'rrp',label:'RRP',w:68,sort:'rrp',x:1},
   {k:'price',label:'Current price',w:84,sort:'price',x:1},
   {k:'cur',label:'Current disc.',w:88,sort:'current',title:'The discount the product already has in Shopify, measured against RRP'},
@@ -6793,7 +6793,7 @@ function mdpProdTable(groups,o){
       case'd7':return`<td class="mdp-xc">${p.sold.d7}</td>`;case'd30':return`<td>${p.sold.d30}</td>`;case'd60':return`<td class="mdp-xc">${p.sold.d60}</td>`;case'd90':return`<td class="mdp-xc">${p.sold.d90}</td>`;
       case'cover':return`<td>${cover(m)}</td>`;
       case'sellthru':return`<td class="mdp-xc">${sellT(m)}</td>`;
-      case'sizes':return`<td class="mdp-xc">${p.soldOutSizes||0}${p.sizeCount?`<span class="mdp-dim">/${p.sizeCount}</span>`:''}</td>`;
+      case'sizes':return`<td>${p.soldOutSizes||0}${p.sizeCount?`<span class="mdp-dim">/${p.sizeCount}</span>`:''}</td>`;
       case'rrp':return`<td class="mdp-dim mdp-xc">${p.rrp>0?'$'+p.rrp.toFixed(2):'—'}</td>`;
       case'price':return`<td class="mdp-xc">${p.price>0?'$'+p.price.toFixed(2):'—'}</td>`;
       case'cur':{const c=p.currentDiscountPct||0;return`<td>${c>=1?`<span class="mdp-curp" title="Already ${Math.round(c)}% off RRP in Shopify">${Math.round(c)}%</span>`:'<span class="mdp-dim">0%</span>'}</td>`;}
@@ -13935,6 +13935,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.6.5 — MARKDOWN PLANNER (Category Strategy tables): 'Sizes out' (sizes sold out / sizes in the range) is now a standard column between Month del and SOH — it was only in the 'All columns' view before. Sortable like the others.
 // v3.6.4 — MARKDOWN PLANNER (Category Strategy tables): the Proposed disc. column is wider (156 → 270px, Product column trimmed to 250) and its discount dropdown + Offer dropdown sit on one row, so the Offer control is no longer cut off at the table edge.
 // v3.6.3 — MARKDOWN PLANNER (Category Strategy): the mid-sale offer is now its OWN control beside each product's discount dropdown, so you can propose a sale discount AND add the product to an offer. The new '＋ Offer' dropdown lists every offer (with its % off RRP) and a new one; once a product is in an offer it shows '🏷 <offer name>' and lets you remove it again (even if a collection/category pick brought it in). The bulk bar has its own '＋ Add to mid-sale offer…' dropdown. Neither changes the product's sale discount: offers run for their 1–3 days only and the product goes back to its sale discount afterwards (said on the Mid-sale offers section). The offer options were taken out of the discount dropdowns.
 // v3.6.2 — MARKDOWN PLANNER SAVING, TWO-TAB SAFE (Brendan: running two tabs for reference was bugging out). Cause: each tab kept its own copy and overwrote the shared saved copy wholesale (a reference tab could wipe what you'd just done in the other), and both tabs ran the cloud sync against one shared baseline, which could push a stale copy over newer work or raise false conflicts. Now: every save first merges whatever another tab saved (plan by plan), tabs adopt each other's changes instantly without switching the sale they're showing, and only ONE tab syncs to the cloud (a Web Lock; the other shows '☁ Saved · synced in your other tab' and takes over if that tab closes). Single-tab use is unchanged.
