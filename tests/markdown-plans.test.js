@@ -524,25 +524,29 @@ assert.deepEqual(P.buildForecast([], {}, 90).totals.demand, 0);
   st = P.updateOffer(st, id, d.id, { start: '2026-11-21', end: '2026-11-22' }, 45); assert.equal(P.offerConflicts(st.plans[id], pbo).length, 0);
   st = P.updateOffer(st, id, d.id, { type: 'bundle', start: '2026-11-27', end: '2026-11-28', bundle: { mode: 'price', qty: 2, price: 100 } }, 46); assert.equal(P.offerConflicts(st.plans[id], pbo)[0].compatible, false);
   st = P.resolveOfferConflict(st, id, 'W26AA001BLK', oid, 47); st = P.deleteOffer(st, id, oid, 48); assert.equal(st.plans[id].offers.length, 1); assert.equal(st.plans[id].offerResolutions.W26AA001BLK, undefined);
-  const mkIt = (pid, cat2, pct, extra) => ({ row: { p: { id: pid, style: pid, name: pid + ' tee', colour: 'BLK', category: cat2, isGWP: false, ...(extra || {}) }, m: { soh: 10 } }, final: { action: pct == null ? 'Exclude' : 'A', pct }, group: pct == null ? null : 'A', price: { newPrice: pct == null ? null : 100 - pct } });
+  const mkIt = (pid, cat2, pct, extra) => ({ row: { p: { id: pid, style: pid, name: pid + ' TEE', colour: 'BLK', category: cat2, isGWP: false, ...(extra || {}) }, m: { soh: 10 } }, final: { action: pct == null ? 'Exclude' : 'A', pct }, group: pct == null ? null : 'A', price: { newPrice: pct == null ? null : 100 - pct } });
   let ep = P.createState(1, idGen); const eid = ep.activeId;
-  const items = [mkIt('S1', 'TEES', 20), mkIt('S2', 'TEES', 50), mkIt('S3', 'TEES', 60), mkIt('S4', 'TEES', null), mkIt('S5', 'TEES', 30, { notOnSale: true }), mkIt('S6', 'TEES', 30, { isGWP: true }), mkIt('S7', 'SHORTS', 20), mkIt('S8', 'TEES', 40)];
-  const vars = { S1: [{ sku: 'S1-S', size: 'S' }, { sku: 'S1-M', size: 'M' }], S2: [{ sku: 'S2-S', size: 'S' }], S3: [{ sku: 'S3-S', size: 'S' }], S5: [{ sku: 'S5-S' }], S7: [{ sku: 'S7-S' }], S8: [] };
-  const ctxE = { variants: s2 => vars[s2] || [] };
+  const items = [mkIt('S1', 'TEES', 20), mkIt('S2', 'TEES', 50), mkIt('S3', 'TEES', 60), mkIt('S4', 'TEES', null), mkIt('S5', 'TEES', 30, { notOnSale: true }), mkIt('S6', 'TEES', 30, { isGWP: true }), mkIt('S7', 'SHORTS', 20), mkIt('S8', 'TEES', 40), mkIt('S9', 'TEES', 20, { fullTitle: 'NINE TEE - OLIVE GREEN' })];
+  const live = new Set(['S1', 'S2', 'S3', 'S5', 'S7', 'S9']);                       // S8 has no Shopify product yet
+  const ctxE = { matched: s2 => live.has(s2) };
   let be = P.buildInitialExport(items, ep.plans[eid], ctxE); assert.equal(be.rows.length, 0); assert.ok(be.issues.some(i => /Nothing to export/.test(i.text)));
   ep = P.approveCategory(ep, eid, 'TEES', { A: 20, alloc: {} }, 5); be = P.buildInitialExport(items, ep.plans[eid], ctxE);
-  assert.deepEqual(be.rows.map(r2 => r2['Variant SKU']).sort(), ['S1-M', 'S1-S', 'S2-S']);
-  assert.ok(be.rows.every(r2 => r2['Collection title'])); assert.equal(be.rows.find(r2 => r2.Style === 'S2')['Collection title'], 'BF 50% OFF SALE ITEMS'); assert.equal(be.rows.find(r2 => r2.Style === 'S1')['Collection title'], 'BF 20% OFF SALE ITEMS');
-  assert.ok(be.issues.some(i => i.level === 'error' && /60%/.test(i.text))); assert.ok(be.issues.some(i => /no Shopify variants/.test(i.text))); assert.ok(be.issues.some(i => /not approved/.test(i.text)));
-  assert.equal(be.products, 2); assert.deepEqual(be.byPct, { 20: 1, 50: 1 });
-  ep = P.setMapping(ep, eid, 60, 'BF 60% OFF', 'gid://shopify/Collection/60', 6); be = P.buildInitialExport(items, ep.plans[eid], ctxE); assert.ok(be.rows.some(r2 => r2.Style === 'S3' && r2['Collection ID'] === 'gid://shopify/Collection/60')); assert.ok(!be.issues.some(i => /No Shopify collection mapped/.test(i.text)));
-  const csv = P.toCsv([{ Style: 'A,B', Product: 'say "hi"', Colour: 'x' }], ['Style', 'Product', 'Colour']); assert.equal(csv, 'Style,Product,Colour\r\n"A,B","say ""hi""",x\r\n');
+  assert.deepEqual(P.EXPORT_COLUMNS, ['Product', 'New Collection']);                                     // exactly what Hextom needs
+  assert.deepEqual(be.rows.map(r2 => r2.Product).sort(), ['NINE TEE - OLIVE GREEN', 'S1 TEE - BLK', 'S2 TEE - BLK']);   // one row per product/colour (not per size); S3 unmapped, S4 excluded, S5 not on sale, S6 GWP, S7 category not approved, S8 no Shopify product
+  assert.equal(be.rows.find(r2 => r2.Product === 'S2 TEE - BLK')['New Collection'], 'BF 50% OFF SALE ITEMS'); assert.equal(be.rows.find(r2 => r2.Product === 'S1 TEE - BLK')['New Collection'], 'BF 20% OFF SALE ITEMS');
+  assert.equal(P.exportTitle({ fullTitle: 'ABC - RED', name: 'x', colour: 'y' }), 'ABC - RED'); assert.equal(P.exportTitle({ name: 'ABC', colour: 'RED' }), 'ABC - RED'); assert.equal(P.exportTitle({ name: 'ABC', colour: '' }), 'ABC');
+  assert.ok(be.issues.some(i => i.level === 'error' && /60%/.test(i.text))); assert.ok(be.issues.some(i => /no Shopify product yet/.test(i.text))); assert.ok(be.issues.some(i => /not approved/.test(i.text)));
+  assert.equal(be.products, 3); assert.deepEqual(be.byPct, { 20: 2, 50: 1 });
+  assert.ok(be.rows.every((r2, i) => i === 0 || be.rows[i - 1]['New Collection'] <= r2['New Collection']));                          // grouped by collection
+  ep = P.setMapping(ep, eid, 60, 'BF 60% OFF', 'gid://shopify/Collection/60', 6); be = P.buildInitialExport(items, ep.plans[eid], ctxE); assert.ok(be.rows.some(r2 => r2.Product === 'S3 TEE - BLK' && r2['New Collection'] === 'BF 60% OFF')); assert.ok(!be.issues.some(i => /No Shopify collection mapped/.test(i.text)));
+  const csv = P.toCsv([{ Product: 'SAY, "HI" TEE - RED', 'New Collection': 'BF 20%' }], P.EXPORT_COLUMNS); assert.equal(csv, 'Product,New Collection\r\n"SAY, ""HI"" TEE - RED",BF 20%\r\n');
   const offX = { ...P.newOffer('Reloaded', 1, 'o1'), collection: { title: 'BF RELOADED 50% OFF', id: '9' }, pct: 50, start: '2026-11-27', end: '2026-11-29' };
-  let bo = P.buildOfferExport(offX, ep.plans[eid], ['S1', 'S2', 'S8'], { variants: s2 => vars[s2] || [], info: s2 => ({ name: s2 + ' tee', colour: 'BLK', price: 39.98, pct: 50 }) });
-  assert.equal(bo.products, 2); assert.equal(bo.rows.length, 3); assert.ok(bo.rows.every(r2 => r2['Collection title'] === 'BF RELOADED 50% OFF' && /Reloaded \(2026-11-27 to 2026-11-29\)/.test(r2.Offer))); assert.ok(bo.issues.some(i => /no Shopify variants/.test(i.text)));
-  bo = P.buildOfferExport({ ...offX, type: 'bundle' }, ep.plans[eid], ['S1'], { variants: s2 => vars[s2] || [], info: () => ({}) }); assert.match(bo.rows[0].Source, /collection membership only/);
+  const infoOf = s2 => ({ title: s2 === 'S2' ? '' : s2 + ' TEE - BLK' });
+  let bo = P.buildOfferExport(offX, ep.plans[eid], ['S1', 'S2', 'S8', 'S1'], { matched: s2 => live.has(s2), info: infoOf });
+  assert.equal(bo.products, 1); assert.deepEqual(bo.rows, [{ Product: 'S1 TEE - BLK', 'New Collection': 'BF RELOADED 50% OFF' }]); assert.ok(bo.issues.some(i => /no Shopify product yet/.test(i.text)));   // S2 has no title, S8 no product, S1 duplicate collapsed
+  bo = P.buildOfferExport({ ...offX, type: 'bundle' }, ep.plans[eid], ['S1'], { matched: () => true, info: infoOf }); assert.equal(bo.rows[0]['New Collection'], 'BF RELOADED 50% OFF');
   assert.ok(P.buildOfferExport({ ...offX, collection: { title: '', id: '' } }, ep.plans[eid], ['S1'], ctxE).issues.some(i => i.level === 'error' && /no Shopify collection/.test(i.text)));
-  const rec = P.newExportRecord(ep.plans[eid], 'offer', offX, bo, 99, gen, 'file.csv'); ep = P.addExportRecord(ep, eid, rec, 100); assert.equal(ep.plans[eid].exports.length, 1); assert.equal(ep.plans[eid].exports[0].offerId, 'o1'); assert.equal(ep.plans[eid].exports[0].filename, 'file.csv'); assert.equal(ep.plans[eid].exports[0].kind, 'offer');
+  const rec = P.newExportRecord(ep.plans[eid], 'offer', offX, bo, 99, gen, 'file.csv'); ep = P.addExportRecord(ep, eid, rec, 100); assert.equal(ep.plans[eid].exports.length, 1); assert.equal(ep.plans[eid].exports[0].offerId, 'o1'); assert.equal(ep.plans[eid].exports[0].filename, 'file.csv'); assert.equal(ep.plans[eid].exports[0].kind, 'offer'); assert.deepEqual(ep.plans[eid].exports[0].collections, ['BF RELOADED 50% OFF']);
   assert.equal(P.CHECKLIST.length, 6);
   const sigA = P.categorySignature(items, 'TEES'); let up = P.approveCategory(ep, eid, 'TEES', { A: 20, alloc: {}, sig: sigA }, 200);
   assert.equal(P.categoryRows(items, { categories: [] }, up.plans[eid], {}).find(r2 => r2.category === 'TEES').upstreamChanged, false);

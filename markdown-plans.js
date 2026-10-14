@@ -592,53 +592,57 @@
     return exported ? 'exported' : 'ready';
   }
 
-  // ── Exports (collection membership for Hextom; nothing here changes live Shopify prices) ──
-  // ctx.variants(style) -> [{ sku, size }]. The Hextom column layout is NOT verified against your import template (none was provided), so the file is
-  // keyed by SKU + product title + collection title/ID and is clearly labelled as collection membership. See exportColumns.
-  const EXPORT_COLUMNS = ['Style', 'Product', 'Colour', 'Variant SKU', 'Size', 'Discount %', 'Sale price', 'Collection title', 'Collection ID', 'Source', 'Offer'];
+  // ── Exports: Hextom "Bulk Product Edit" files ──────────────────────────────────────────────────────────────────────────────
+  // Verified against your sample (Black Friday 2026 Shopify Collections Export.csv): Hextom searches on the PRODUCT TITLE ("NAME - COLOUR", one row per
+  // product/colour, not per variant) and the "New Collection" column says which collection to add it to. Those two columns are all that's needed.
+  // This only ADDS products to collections: it does not remove old members and does not change live Shopify prices.
+  const EXPORT_COLUMNS = ['Product', 'New Collection'];
   const csvCell = v => { const t = v == null ? '' : String(v); return /[",\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
   function toCsv(rows, columns) { return [columns.map(csvCell).join(',')].concat(rows.map(r => columns.map(c => csvCell(r[c])).join(','))).join('\r\n') + '\r\n'; }
   const mapKey = pct => String(Math.round(Number(pct)));
   function mappingFor(plan, pct) { const m = plan.mappings[mapKey(pct)]; return m && m.title ? m : null; }
-  // Initial sale: approved categories only; GWP, Not on sale, excluded and unmatched products are left out. Returns { rows, issues, products, byPct }.
+  // The title Hextom matches on: exactly as Shopify has it ("NAME - COLOUR").
+  const exportTitle = p => String((p && (p.fullTitle || (p.colour ? p.name + ' - ' + p.colour : p.name))) || '').trim();
+  const sortRows = rows => rows.sort((a, b) => String(a['New Collection']).localeCompare(String(b['New Collection'])) || String(a.Product).localeCompare(String(b.Product)));
+  // Initial sale: approved categories only; GWP, Not on sale, excluded and products with no Shopify match are left out (and reported). ctx.matched(style) -> has a live Shopify product.
   function buildInitialExport(items, plan, ctx) {
-    const rows = [], issues = [], seen = new Set(), byPct = {}; let products = 0, unmatched = 0, notApproved = 0, unmapped = new Set();
+    const rows = [], issues = [], seen = new Set(), byPct = {}; let unmatched = 0, notApproved = 0; const unmapped = new Set();
     for (const it of items || []) {
       const p = it.row.p, f = it.final;
       if (p.isGWP || p.notOnSale || f.pct == null || f.action === 'Exclude') continue;
       const cat = p.category || 'UNCATEGORISED';
       if (!isApproved(plan, cat)) { notApproved++; continue; }
-      if (seen.has(p.id)) continue; seen.add(p.id);
-      const vs = (ctx && ctx.variants ? ctx.variants(p.style) : []) || [];
-      if (!vs.length) { unmatched++; continue; }
+      const title = exportTitle(p);
+      if (!title || seen.has(title)) continue;
+      if (ctx && ctx.matched && !ctx.matched(p.style)) { unmatched++; continue; }
       const m = mappingFor(plan, f.pct); if (!m) { unmapped.add(mapKey(f.pct)); continue; }
-      products++; byPct[mapKey(f.pct)] = (byPct[mapKey(f.pct)] || 0) + 1;
-      for (const v of vs) rows.push({ Style: p.style, Product: p.name, Colour: p.colour, 'Variant SKU': v.sku, Size: v.size || '', 'Discount %': f.pct, 'Sale price': it.price && it.price.newPrice != null ? it.price.newPrice.toFixed(2) : '', 'Collection title': m.title, 'Collection ID': m.id || '', Source: it.group === 'X' ? 'initial sale (exception)' : 'initial sale', Offer: '' });
+      seen.add(title); byPct[mapKey(f.pct)] = (byPct[mapKey(f.pct)] || 0) + 1;
+      rows.push({ Product: title, 'New Collection': m.title });
     }
     if (unmapped.size) issues.push({ level: 'error', text: 'No Shopify collection mapped for ' + [...unmapped].sort().map(x => x + '%').join(', ') + ' — those products are not in the file.' });
-    if (unmatched) issues.push({ level: 'warn', text: unmatched + ' product' + (unmatched === 1 ? ' has' : 's have') + ' no Shopify variants matched yet — held back.' });
+    if (unmatched) issues.push({ level: 'warn', text: unmatched + ' product' + (unmatched === 1 ? ' has' : 's have') + ' no Shopify product yet — held back.' });
     if (notApproved) issues.push({ level: 'warn', text: notApproved + ' product' + (notApproved === 1 ? '' : 's') + ' in categories that are not approved yet — not included.' });
-    if (!products) issues.push({ level: 'error', text: 'Nothing to export: approve at least one category that has a mapped collection.' });
-    return { rows, issues, products, byPct };
+    if (!rows.length) issues.push({ level: 'error', text: 'Nothing to export: approve at least one category that has a mapped collection.' });
+    sortRows(rows); return { rows, issues, products: rows.length, byPct };
   }
-  // One offer: its products into the offer's own collection. productInfo(style) -> { name, colour, price info }.
+  // One offer: its products into the offer's own collection. ctx.matched(style), ctx.info(style) -> { title }.
   function buildOfferExport(offer, plan, styles, ctx) {
-    const rows = [], issues = []; let products = 0, unmatched = 0;
+    const rows = [], issues = [], seen = new Set(); let unmatched = 0;
     if (!offer.collection.title) issues.push({ level: 'error', text: 'This offer has no Shopify collection set.' });
     for (const st of styles) {
-      const vs = (ctx && ctx.variants ? ctx.variants(st) : []) || [], info = (ctx && ctx.info ? ctx.info(st) : {}) || {};
-      if (!vs.length) { unmatched++; continue; }
-      products++;
-      for (const v of vs) rows.push({ Style: st, Product: info.name || '', Colour: info.colour || '', 'Variant SKU': v.sku, Size: v.size || '', 'Discount %': offer.type === 'reduction' ? (info.pct != null ? info.pct : offer.pct) : '', 'Sale price': info.price != null ? Number(info.price).toFixed(2) : '', 'Collection title': offer.collection.title, 'Collection ID': offer.collection.id || '', Source: offer.type === 'bundle' ? 'mid-sale bundle (collection membership only)' : 'mid-sale reduction', Offer: offer.name + ' (' + (offer.start || '?') + ' to ' + (offer.end || '?') + ')' });
+      const info = (ctx && ctx.info ? ctx.info(st) : {}) || {}, title = String(info.title || '').trim();
+      if (!title || (ctx && ctx.matched && !ctx.matched(st))) { unmatched++; continue; }
+      if (seen.has(title)) continue; seen.add(title);
+      rows.push({ Product: title, 'New Collection': offer.collection.title });
     }
-    if (unmatched) issues.push({ level: 'warn', text: unmatched + ' product' + (unmatched === 1 ? ' has' : 's have') + ' no Shopify variants matched yet — held back.' });
-    if (!products) issues.push({ level: 'error', text: 'No products to export for this offer.' });
-    return { rows, issues, products };
+    if (unmatched) issues.push({ level: 'warn', text: unmatched + ' product' + (unmatched === 1 ? ' has' : 's have') + ' no Shopify product yet — held back.' });
+    if (!rows.length) issues.push({ level: 'error', text: 'No products to export for this offer.' });
+    sortRows(rows); return { rows, issues, products: rows.length };
   }
-  const CHECKLIST = ['The Shopify collections used here exist.', 'Existing collections have been cleared, or their old members reconciled.', 'The collection mappings are correct.', 'Every product has a valid Shopify match.', 'Excluded products (GWP, Not on sale, manual exclusions) are omitted.', 'Any conflicting offers have been resolved.'];
+  const CHECKLIST = ['The Shopify collections used here exist.', 'Existing collections have been cleared, or their old members reconciled (Hextom only adds).', 'The collection names below match Shopify exactly.', 'Every product has a valid Shopify match.', 'Excluded products (GWP, Not on sale, manual exclusions) are omitted.', 'Any conflicting offers have been resolved.'];
   function newExportRecord(plan, kind, offer, built, now, idGen, filename) {
     return { id: idGen ? idGen() : defaultId(now), planId: plan.id, planRev: plan.rev, offerId: offer ? offer.id : null, kind, ts: now || Date.now(), products: built.products, rows: built.rows.length,
-      collections: [...new Set(built.rows.map(r => r['Collection title']))], filename: filename || '', checklist: CHECKLIST.length };
+      collections: [...new Set(built.rows.map(r => r['New Collection']))], filename: filename || '', checklist: CHECKLIST.length };
   }
   function addExportRecord(state, planId, rec, now) {
     if (!state.plans[planId]) return state; const s = clone(state), p = s.plans[planId];
@@ -1082,6 +1086,6 @@
     parseDay, durationDays, newPlan, createState, migrate, uniqueName, addPlan, duplicatePlan,
     renamePlan, setActive, archivePlan, restorePlan, cleanLevels, updatePlan, engineSettings, validatePlan,
     EXCLUDE_REASONS, VIEWS, sanitizeOverride, setOverrides, clearOverrides, overrideStats, buildReview,
-    SPECIAL_KINDS, GWP_KINDS, NOS_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setGwpQty, setGwpThreshold, lyWindow, lyUnitsByCategory, lyRevenueByCategory, buildForecast, addDays, demandScenarios, forecastConfidence, crossCheck, scenarioLevels, commercialSummary, addSnapshot, removeSnapshot, buildSummary, setReviewed, addNosStyles, addNosException, removeNosException, resolveNotOnSale, nosConflicts, categorySignature, OFFER_TYPES, BUNDLE_MODES, newOffer, sanitizeOffer, addOffer, updateOffer, duplicateOffer, deleteOffer, moveOffer, addOfferSelection, removeOfferSelection, setOfferException, resolveOfferConflict, resolveOffer, offerPricing, bundleText, offerConflicts, validateOffer, offerStatus, EXPORT_COLUMNS, toCsv, buildInitialExport, buildOfferExport, CHECKLIST, newExportRecord, addExportRecord, setMapping, defaultMappings, approveCategory, reopenCategory, releaseAllocation, refreshSuggestions, isApproved, frozenAllocs, categoryRows, approvalProgress, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
+    SPECIAL_KINDS, GWP_KINDS, NOS_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setGwpQty, setGwpThreshold, lyWindow, lyUnitsByCategory, lyRevenueByCategory, buildForecast, addDays, demandScenarios, forecastConfidence, crossCheck, scenarioLevels, commercialSummary, addSnapshot, removeSnapshot, buildSummary, setReviewed, addNosStyles, addNosException, removeNosException, resolveNotOnSale, nosConflicts, categorySignature, OFFER_TYPES, BUNDLE_MODES, newOffer, sanitizeOffer, addOffer, updateOffer, duplicateOffer, deleteOffer, moveOffer, addOfferSelection, removeOfferSelection, setOfferException, resolveOfferConflict, resolveOffer, offerPricing, bundleText, offerConflicts, validateOffer, offerStatus, EXPORT_COLUMNS, toCsv, buildInitialExport, buildOfferExport, exportTitle, CHECKLIST, newExportRecord, addExportRecord, setMapping, defaultMappings, approveCategory, reopenCategory, releaseAllocation, refreshSuggestions, isApproved, frozenAllocs, categoryRows, approvalProgress, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
   };
 });

@@ -2424,8 +2424,8 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.3.2"></script>
-<script src="markdown-plans.js?v=3.3.2"></script>
+<script src="markdown-engine.js?v=3.3.3"></script>
+<script src="markdown-plans.js?v=3.3.3"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2459,7 +2459,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.3.2';
+const APP_VERSION='v3.3.3';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -6048,7 +6048,7 @@ function mdpInputs(plan){
     const d90=p.sold90||0;
     const sold=restock?{d7:Math.round(d90/12.86),d30:Math.round(d90/3),d60:Math.round(d90*2/3),d90}:{d7:p.sold7||0,d30:p.sold30||0,d60:p.sold60||0,d90};
     out.push({
-      id:p.fullTitle,style,name:p.productName,colour:p.colour,category:p.category||'UNCATEGORISED',collection:(cat&&cat[style]&&cat[style][0])||'',
+      id:p.fullTitle,fullTitle:p.fullTitle,style,name:p.productName,colour:p.colour,category:p.category||'UNCATEGORISED',collection:(cat&&cat[style]&&cat[style][0])||'',
       parentStyle:MDP_STYLE_RE.test(style)?style.slice(0,8):'',
       isCore:p.vendor==='CORE',status:p.vendor,deliveryMonth:p.deliveryMonth||'',notOnSale:!!(R&&R.nosStyles.has(style)),isGWP:(p.category||'').toUpperCase()==='GWP'||!!(R&&R.gwpStyles.has(style)),
       specialPct:R&&R.specialMap[style]?R.specialMap[style].pct:null,specialNote:R&&R.specialMap[style]?R.specialMap[style].note:'',
@@ -6991,7 +6991,7 @@ function mdpOfferCard(m,i,n,pl){
   return`<div class="mdp-offer open">${head}<div class="mdp-offbody">
     <div class="mdp-row"><label style="flex:2;min-width:220px;">Offer name<input class="mdp-in" type="text" value="${mdpEsc(o.name)}" onchange="mdpOfferSet('${idq}','name',this.value)"></label>
       <label>Type<select class="mdp-sel" onchange="mdpOfferSet('${idq}','type',this.value)"><option value="reduction" ${o.type==='reduction'?'selected':''}>Further reduction</option><option value="bundle" ${o.type==='bundle'?'selected':''}>Bundle</option></select></label>${dateIn('start','Starts')}${dateIn('end','Ends')}</div>
-    <div class="mdp-row" style="margin-top:10px;">${pricing}<label style="flex:2;min-width:220px;">Shopify collection (title)<input class="mdp-in" type="text" placeholder="e.g. BF RELOADED 50% OFF" value="${mdpEsc(o.collection.title)}" onchange="mdpOfferSetCol('${idq}','title',this.value)"></label><label>Collection ID<input class="mdp-in" type="text" placeholder="optional" value="${mdpEsc(o.collection.id)}" onchange="mdpOfferSetCol('${idq}','id',this.value)"></label></div>
+    <div class="mdp-row" style="margin-top:10px;">${pricing}<label style="flex:2;min-width:220px;">Shopify collection (name to add products to)<input class="mdp-in" type="text" placeholder="e.g. BF RELOADED 50% OFF" value="${mdpEsc(o.collection.title)}" onchange="mdpOfferSetCol('${idq}','title',this.value)"></label></div>
     ${o.type==='bundle'?`<div class="mdp-hint" style="margin-top:8px;">A bundle is stored as a rule, not a % markdown. Exporting puts its products in the collection — <b>the bundle price itself still has to be created as a Shopify discount</b>.</div>`:`<div class="mdp-hint" style="margin-top:8px;">Priced as ${o.pct==null?'a new total':o.pct+'%'} off the <b>original RRP</b> (never stacked on the sale discount); a product already cheaper keeps its price.</div>`}
     <div class="mdp-bt2" style="margin-top:12px;">Products</div>${mdpAdder('offer-'+idq,['group','category','style'],false,pl)}
     ${o.items.length?`<div class="mdp-selist">${o.items.map(s=>`<div class="mdp-selrow"><span class="mdp-chip mdp-kind">${s.kind==='style'?'Product / colour':MDP_KIND_LABEL[s.kind]}</span><b>${mdpEsc(s.label||s.value)}</b><span class="${selCounts[s.id]?'mdp-dim':'mdp-b-cf'}">${selCounts[s.id]?selCounts[s.id]+' style'+(selCounts[s.id]===1?'':'s'):'no styles matched'}</span><button class="mdp-act" onclick="mdpRemoveSel('offer-${idq}','${s.id}')">Remove</button></div>`).join('')}</div>`:''}
@@ -7014,14 +7014,16 @@ function mdpVariantsByStyle(){
   _mdpVarKey=key;_mdpVar=m;return m;
 }
 function mdpDownload(name,text,mime){
-  try{const b=new Blob(['﻿'+text],{type:mime||'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);}catch(e){alert('Could not create the file: '+e.message);}
+  try{const b=new Blob([text],{type:mime||'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);}catch(e){alert('Could not create the file: '+e.message);}
 }
 const mdpSlug=t=>String(t||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40)||'plan';
 // Builds the rows for the initial sale or one offer, plus every problem found. Nothing here touches Shopify.
 function mdpBuildExport(kind,offerId){
-  const pl=mdpPlan(),res=mdpResolveAll(pl),plan=mdpCtx.plan,vm=mdpVariantsByStyle(),ctx={variants:s=>vm[s]||[]},issues=[];
+  const pl=mdpPlan(),res=mdpResolveAll(pl),plan=mdpCtx.plan,vm=mdpVariantsByStyle(),issues=[];
+  const matched=st=>(vm[st]||[]).length>0;                                   // has a live Shopify product
+  const titleOf={};plan.items.forEach(i=>{titleOf[i.row.p.style]=MarkdownPlans.exportTitle(i.row.p);});
   if(kind==='initial'){
-    const built=MarkdownPlans.buildInitialExport(plan.items,pl,ctx);built.issues.forEach(i=>issues.push(i));
+    const built=MarkdownPlans.buildInitialExport(plan.items,pl,{matched});built.issues.forEach(i=>issues.push(i));
     const blocked=plan.items.filter(i=>i.blocked&&mdpCtx.rows.some(r=>r.category===(i.row.p.category||'UNCATEGORISED')&&r.approved)).length;
     if(blocked)issues.push({level:'error',text:blocked+' product'+(blocked===1?' is':'s are')+' in an unresolved GWP / Not on sale conflict.'});
     const upstream=mdpCtx.rows.filter(r=>r.approved&&r.upstreamChanged).length;
@@ -7030,8 +7032,7 @@ function mdpBuildExport(kind,offerId){
   }
   const om=mdpOfferModel(plan,mdpCtx.oo,pl,res),m=om.models.find(x=>x.offer.id===offerId);
   if(!m)return{kind,built:{rows:[],products:0,issues:[]},issues:[{level:'error',text:'That offer no longer exists.'}],label:'Offer',offer:null};
-  const info=st=>{const r=m.rows.find(x=>x.style===st)||{};return{name:r.title,colour:r.colour,price:r.pricing&&r.pricing.price,pct:r.pricing&&r.pricing.pct};};
-  const built=MarkdownPlans.buildOfferExport(m.offer,pl,m.exportStyles,{variants:s=>vm[s]||[],info});
+  const built=MarkdownPlans.buildOfferExport(m.offer,pl,m.exportStyles,{matched,info:st=>({title:titleOf[st]||(m.rows.find(x=>x.style===st)||{}).title||''})});
   built.issues.forEach(i=>issues.push(i));
   m.val.errors.forEach(e=>issues.push({level:'error',text:e}));
   return{kind:'offer',built,issues,label:m.offer.name,offer:m.offer,model:m};
@@ -7040,8 +7041,8 @@ function mdpOpenExport(kind,offerId){mdpExportDlg={kind,offerId:offerId||null};m
 function mdpCloseExport(){mdpExportDlg=null;renderMarkdownPlanner();}
 function mdpExportCheck(i,on){mdpExportChecks[i]=!!on;renderMarkdownPlanner();}
 function mdpExportFile(pl,x){
-  const d=new Date().toISOString().slice(0,10);
-  return x.kind==='initial'?`${mdpSlug(pl.name)}_initial-sale_collection-membership_${d}.csv`:`${mdpSlug(pl.name)}_offer-${mdpSlug(x.offer.name)}_${x.offer.start||'nodate'}_to_${x.offer.end||'nodate'}_collection-membership_${d}.csv`;
+  const clean=t=>String(t||'').replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim();
+  return x.kind==='initial'?`${clean(pl.name)} Shopify Collections Export.csv`:`${clean(pl.name)} - ${clean(x.offer.name)} Shopify Collections Export.csv`;
 }
 function mdpDoExport(){
   if(!mdpExportDlg)return;
@@ -7055,7 +7056,7 @@ function mdpDoExport(){
   mdpExportDlg=null;mdpCommit(MarkdownPlans.addExportRecord(mdpState,pl.id,rec));
 }
 function mdpAuditText(rec,pl){
-  return['WNDRR Markdown Planner — export audit summary','','Export ID: '+rec.id,'Sale plan: '+pl.name+' ('+rec.planId+', version '+rec.planRev+')','Type: '+(rec.kind==='initial'?'Initial sale markdowns':'Mid-sale offer'+(rec.label?': '+rec.label:'')),rec.offerId?'Offer ID: '+rec.offerId:'','Exported: '+new Date(rec.ts).toISOString(),'File: '+rec.filename,'Products: '+rec.products+' · rows (variants): '+rec.rows,'Collections: '+(rec.collections||[]).join('; '),'Mappings: '+JSON.stringify(rec.mappings||{}),'Confirmed by: not recorded (no user sign-in in this app)','','Checklist confirmed:'].concat((rec.confirmed||[]).map(c=>' ✓ '+c)).concat(['','This file is collection membership only. It does not change live Shopify prices and does not create any Shopify discount or bundle.']).filter(l=>l!==undefined).join('\r\n');
+  return['WNDRR Markdown Planner — export audit summary','','Export ID: '+rec.id,'Sale plan: '+pl.name+' ('+rec.planId+', version '+rec.planRev+')','Type: '+(rec.kind==='initial'?'Initial sale markdowns':'Mid-sale offer'+(rec.label?': '+rec.label:'')),rec.offerId?'Offer ID: '+rec.offerId:'','Exported: '+new Date(rec.ts).toISOString(),'File: '+rec.filename,'Products (rows): '+rec.products,'Collections: '+(rec.collections||[]).join('; '),'Mappings: '+JSON.stringify(rec.mappings||{}),'Confirmed by: not recorded (no user sign-in in this app)','','Checklist confirmed:'].concat((rec.confirmed||[]).map(c=>' ✓ '+c)).concat(['','Hextom Bulk Product Edit file: columns Product (exact Shopify title) and New Collection. It only adds products to collections; it does not change live Shopify prices and does not create any Shopify discount or bundle.']).filter(l=>l!==undefined).join('\r\n');
 }
 function mdpAuditDownload(id){const pl=mdpPlan(),rec=pl.exports.find(e=>e.id===id);if(rec)mdpDownload('audit_'+mdpSlug(pl.name)+'_'+rec.id+'.txt',mdpAuditText(rec,pl),'text/plain;charset=utf-8');}
 function mdpFullPlanCsv(){
@@ -7069,18 +7070,18 @@ function mdpSetMapping(pct,field,val){const pl=mdpPlan(),cur=pl.mappings[String(
 function mdpExportSection(plan,oo,hasEnd,pl,res){
   const init=mdpBuildExport('initial'),om=mdpOfferModel(plan,oo,pl,res);
   const lvls=[...new Set(pl.settings.allowedDiscounts.concat(Object.keys(pl.mappings).map(Number)))].sort((a,b)=>a-b);
-  const map=`<div class="mdp-scroll"><table class="mdp-t mdp-t2"><thead><tr><th class="l">Discount</th><th class="l">Shopify collection title</th><th class="l">Collection ID</th><th>Products</th><th class="l">Status</th></tr></thead><tbody>${lvls.map(d=>{const m=pl.mappings[String(d)]||{title:'',id:''},n=init.built.byPct[String(d)]||0;
-      return`<tr><td class="l"><b>${d}%</b></td><td class="l"><input class="mdp-in" style="min-width:230px;" type="text" value="${mdpEsc(m.title)}" placeholder="Not mapped" onchange="mdpSetMapping(${d},'title',this.value)"></td><td class="l"><input class="mdp-in" style="width:150px;" type="text" value="${mdpEsc(m.id)}" placeholder="optional" onchange="mdpSetMapping(${d},'id',this.value)"></td><td>${n}</td><td class="l">${m.title?'<span class="mdp-pill x">Mapped</span>':'<span class="mdp-pill n" title="Products at this discount are held back until a collection is mapped">Unmapped — not exportable</span>'}</td></tr>`;}).join('')}</tbody></table></div>`;
+  const map=`<div class="mdp-scroll"><table class="mdp-t mdp-t2"><thead><tr><th class="l">Discount</th><th class="l">Shopify collection name</th><th>Products</th><th class="l">Status</th></tr></thead><tbody>${lvls.map(d=>{const m=pl.mappings[String(d)]||{title:'',id:''},n=init.built.byPct[String(d)]||0;
+      return`<tr><td class="l"><b>${d}%</b></td><td class="l"><input class="mdp-in" style="min-width:230px;" type="text" value="${mdpEsc(m.title)}" placeholder="Not mapped" onchange="mdpSetMapping(${d},'title',this.value)"></td><td>${n}</td><td class="l">${m.title?'<span class="mdp-pill x">Mapped</span>':'<span class="mdp-pill n" title="Products at this discount are held back until a collection is mapped">Unmapped — not exportable</span>'}</td></tr>`;}).join('')}</tbody></table></div>`;
   const errs=init.issues.filter(i=>i.level==='error'),warns=init.issues.filter(i=>i.level!=='error');
-  const initCard=`<div class="mdp-offer open"><div class="mdp-offhead" style="cursor:default;"><b>A. Initial sale markdowns</b><span class="mdp-dim">${init.built.products.toLocaleString()} product/colours · ${init.built.rows.length.toLocaleString()} variant rows · approved categories only</span></div><div class="mdp-offbody">
+  const initCard=`<div class="mdp-offer open"><div class="mdp-offhead" style="cursor:default;"><b>A. Initial sale markdowns</b><span class="mdp-dim">${init.built.products.toLocaleString()} product/colours · approved categories only</span></div><div class="mdp-offbody">
       ${errs.map(i=>`<div class="mdp-err" style="margin-bottom:6px;">⚠ ${mdpEsc(i.text)}</div>`).join('')}${warns.map(i=>`<div class="mdp-warn" style="margin-bottom:6px;">ⓘ ${mdpEsc(i.text)}</div>`).join('')}
       <div class="mdp-row"><button class="mdp-btn mdp-btn-go" onclick="mdpOpenExport('initial')" ${init.built.rows.length?'':'disabled'}>Export initial sale…</button><button class="mdp-btn mdp-btn-ghost" onclick="mdpFullPlanCsv()" title="Every product with its group, discount, price, collection and reason">Download full plan CSV</button></div></div></div>`;
   const offRows=om.models.map(m=>{const ex=mdpBuildExport('offer',m.offer.id),bad=ex.issues.some(i=>i.level==='error');
     return`<tr><td class="l"><b>${mdpEsc(m.offer.name)}</b></td><td class="l mdp-dim">${m.offer.start&&m.offer.end?mdpEsc(m.offer.start+' → '+m.offer.end):'—'}</td><td class="l">${m.offer.type==='bundle'?'Bundle':'Reduction'}</td><td>${ex.built.products.toLocaleString()}</td><td class="l">${m.offer.collection.title?mdpEsc(m.offer.collection.title):'<span class="mdp-dim">not set</span>'}</td><td class="l"><span class="mdp-pill ${MDP_OFFER_STATUS[m.status][1]}">${MDP_OFFER_STATUS[m.status][0]}</span></td><td><button class="mdp-btn mdp-btn-sm" onclick="mdpOpenExport('offer','${m.offer.id}')" ${ex.built.rows.length?'':'disabled'} title="${bad?mdpEsc(ex.issues.filter(i=>i.level==='error').map(i=>i.text).join(' · ')):'Export this offer'}">Export…</button></td></tr>`;}).join('');
   const offCard=`<div class="mdp-offer open"><div class="mdp-offhead" style="cursor:default;"><b>B. Mid-sale offers</b><span class="mdp-dim">each exported on its own into its own collection</span></div><div class="mdp-offbody">${om.models.length?`<div class="mdp-scroll"><table class="mdp-t mdp-t2"><thead><tr><th class="l">Offer</th><th class="l">Dates</th><th class="l">Type</th><th>Products</th><th class="l">Shopify collection</th><th class="l">Status</th><th></th></tr></thead><tbody>${offRows}</tbody></table></div>`:'<div class="mdp-dim">No mid-sale offers yet (section F).</div>'}</div></div>`;
   const hist=pl.exports.length?`<div class="mdp-bt2" style="margin-top:16px;">Export history</div><div class="mdp-scroll"><table class="mdp-t mdp-t2"><thead><tr><th class="l">When</th><th class="l">Type</th><th class="l">Offer</th><th>Products</th><th class="l">Collections</th><th class="l">File</th><th>Plan v</th><th></th></tr></thead><tbody>${pl.exports.slice(0,30).map(e=>`<tr><td class="l">${new Date(e.ts).toLocaleString('en-AU',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})}</td><td class="l">${e.kind==='initial'?'Initial sale':'Mid-sale offer'}</td><td class="l">${e.offerId?mdpEsc(e.label||e.offerId):'—'}</td><td>${e.products}</td><td class="l mdp-dim">${mdpEsc((e.collections||[]).join('; '))}</td><td class="l mdp-dim">${mdpEsc(e.filename)}</td><td>${e.planRev}</td><td><button class="mdp-act" onclick="mdpAuditDownload('${e.id}')">Audit summary</button></td></tr>`).join('')}</tbody></table></div>`:'';
-  return`<div class="mdp-warn" style="margin-bottom:12px;line-height:1.55;"><b>What this export is — and isn't.</b> It builds <b>collection-membership CSVs</b> (which SKUs go into which Shopify collection). It does <b>not</b> change live Shopify prices, and putting products in a collection does <b>not</b> by itself create a Shopify discount or a working bundle price — that stays a Hextom / Shopify step. <b>Heads-up:</b> this app has no Shopify product IDs or collection access, and no Hextom template has been supplied, so the file is keyed by <b>SKU</b> and its column layout is <u>not yet verified</u> against your Hextom import — check one small file in Hextom first.</div>
-    <div class="mdp-bt2">Collection mapping <span class="mdp-dim" style="font-weight:500;">— saved per sale; edit any time. Collections aren't read from Shopify here, so type the title (and ID if you have it).</span></div>${map}
+  return`<div class="mdp-warn" style="margin-bottom:12px;line-height:1.55;"><b>How this export works.</b> Each file has two columns — <b>Product</b> (the exact Shopify title, <i>NAME - COLOUR</i>) and <b>New Collection</b> (the collection to add it to) — one row per product/colour. In Hextom <i>Bulk Product Edit</i>: upload the file, then in Step 4 search with <b>Col 1 as Product Title</b> and use <b>New Collection</b> as the column for editing. It only <b>adds</b> products to collections (it won't remove last sale's members) and it <b>doesn't change prices</b> or create any Shopify discount or bundle price.</div>
+    <div class="mdp-bt2">Collection mapping <span class="mdp-dim" style="font-weight:500;">— saved per sale; type each collection's name exactly as it is in Shopify.</span></div>${map}
     <div style="margin-top:16px;">${initCard}${offCard}</div>${hist}`;
 }
 function mdpExportModal(){
@@ -7090,7 +7091,7 @@ function mdpExportModal(){
   const cols=[...new Set(x.built.rows.map(r=>r['Collection title']))];
   const when=x.offer?` (${mdpEsc(x.offer.start||'?')} → ${mdpEsc(x.offer.end||'?')})`:'';
   return`<div class="mdp-modal" onclick="if(event.target===this)mdpCloseExport()"><div class="mdp-dlg"><div class="mdp-dlghead"><b>Export to Hextom — ${mdpEsc(x.label)}${when}</b><button class="mdp-chv2" onclick="mdpCloseExport()">✕</button></div>
-    <div class="mdp-dlgbody"><div class="mdp-revsum"><span><b>${x.built.products.toLocaleString()}</b> product/colours</span><span class="mdp-dot"></span><span><b>${x.built.rows.length.toLocaleString()}</b> variant rows</span><span class="mdp-dot"></span><span>${cols.length?cols.map(mdpEsc).join(' · '):'no collection'}</span></div>
+    <div class="mdp-dlgbody"><div class="mdp-revsum"><span><b>${x.built.products.toLocaleString()}</b> product/colours</span><span class="mdp-dot"></span><span>${cols.length?cols.map(mdpEsc).join(' · '):'no collection'}</span></div><div class="mdp-hint" style="margin-top:8px;">File: <b>${mdpEsc(mdpExportFile(pl,x))}</b> — columns Product, New Collection.</div>
     ${x.kind==='offer'&&x.offer.type==='bundle'?`<div class="mdp-warn" style="margin:10px 0;">ⓘ Bundle: this puts the products in the collection only — the bundle price must still be created as a Shopify discount.</div>`:''}
     ${errs.map(i=>`<div class="mdp-err" style="margin-top:8px;">⚠ ${mdpEsc(i.text)}</div>`).join('')}${warns.map(i=>`<div class="mdp-warn" style="margin-top:8px;">ⓘ ${mdpEsc(i.text)}</div>`).join('')}
     <div class="mdp-bt2" style="margin-top:14px;">Before you export, confirm:</div>${MarkdownPlans.CHECKLIST.map((t,i)=>`<label class="mdp-chk" style="display:flex;padding:5px 0;"><input type="checkbox" ${mdpExportChecks[i]?'checked':''} onchange="mdpExportCheck(${i},this.checked)"> ${mdpEsc(t)}</label>`).join('')}
@@ -13436,6 +13437,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.3.3 — Hextom export now matches your real Bulk Product Edit file (Black Friday 2026 Shopify Collections Export.csv): two columns, Product (the exact Shopify title, NAME - COLOUR) and New Collection, ONE ROW PER PRODUCT/COLOUR (no SKUs or sizes), grouped by collection, no BOM. Files are named '<Sale> Shopify Collections Export.csv' and '<Sale> - <Offer> Shopify Collections Export.csv'. Products with no live Shopify product yet are held back and reported; a product appears once. Collection ID boxes removed (only the collection name is needed); the section explains the Hextom steps (search Col 1 as Product Title, New Collection for editing). Still add-only — it doesn't remove last sale's members or change prices. From Brendan's sample + screenshot.
 // v3.3.2 — Section G 'Product review' becomes a SUMMARY of every decision made, from Brendan. Lists, for each approved category (or all, with a tick), the products by discount (lowest first, full price last) with month del, group, SOH, on order, RRP, current discount, sale price and a note (set by you in bold / existing discount kept / protected); overview cards and a discount overview table up top; special buys, Not on sale (with reasons) and GWP in their own lists (nothing is listed twice); and every mid-sale offer at the bottom with its dates, rule, collection, status and products with sale and offer prices. EXPORT PDF: opens a print-formatted version (A4 landscape, everything expanded, repeating table headers, titled with the sale name) in the print dialog — choose Save as PDF. The old flat product table is gone (all editing lives in the category tables). MarkdownPlans.buildSummary + tests.
 // v3.3.1 — Financial forecast re-checked, from Brendan (expected revenue ~$2.3–2.5M; the page showed ~$1.15M ex GST). Findings: (1) 'Growth vs last year' was blank, so the whole forecast was flat on last year (+0%; Low/High ±10%) — at your +90% target the units almost double. Section H now has the growth box at the top and a clear warning while it's blank. (2) Revenue was shown ex GST only (units × planned price ÷ 1.1); added 'projected revenue incl GST' so it can be compared with takings. (3) Added a REALITY CHECK against what last year's same dates actually brought in, from the Shopify price feed (net of discounts, per category): last year's units, revenue, price per unit and average discount, this year's planned price per unit, and the forecast units at last year's realised prices — plus 'LY revenue' and 'At LY price' columns in the category table — so a gap between planned-price revenue and last year's pace is visible and explained (product mix / discount depth). MarkdownPlans.lyRevenueByCategory + test.
 // v3.3.0 — Excluding products in the Category Strategy tables (the Proposed disc. 'Not in sale', Exclude selected, or the parent-row menu) now moves them to step D, Not on sale, automatically — each as a product/colour entry tagged 'from Category Strategy' with the reason you picked — so everything that's out of the sale is listed in one place with its SOH / on order. They leave the category tables and totals and keep their current price (no separate exclude decision is saved); Remove an entry in step D to bring the product back with the planner's recommendation. The planner's own 'not in sale' suggestions for healthy sellers are NOT moved there. From Brendan.
