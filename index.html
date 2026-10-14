@@ -1435,9 +1435,18 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
   <div id="cadence-screen" style="display:none;padding:28px;overflow-y:auto;height:calc(100vh - 56px);">
     <div style="max-width:1600px;margin:0 auto;">
       <div class="insights-header" style="flex-wrap:wrap;gap:12px;">
-        <div>
-          <div class="insights-title">Sales Cadence</div>
-          <div class="insights-sub">Units sold across time — all data from your 365-day sales history</div>
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;width:100%;">
+          <div>
+            <div class="insights-title">Sales Cadence</div>
+            <div class="insights-sub">Units sold across time — all data from your 365-day sales history</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+            <span id="cadence-export-msg" role="alert" style="display:none;max-width:340px;font-size:12px;line-height:1.35;color:var(--red);background:var(--red-light);border-radius:var(--r-sm);padding:6px 10px;"></span>
+            <button id="cadence-export-btn" class="tb-btn accent" onclick="exportCadencePdf()" style="padding:8px 16px;font-size:12px;font-weight:600;" title="Download the current Sales Cadence view as an A4 landscape PDF">
+              <svg id="cadence-export-ico" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="M7 11l5 5 5-5"/><path d="M5 21h14"/></svg>
+              <span id="cadence-export-label">Export PDF</span>
+            </button>
+          </div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
           <div class="cadence-toggle">
@@ -2433,8 +2442,9 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.4.4"></script>
-<script src="markdown-plans.js?v=3.4.4"></script>
+<script src="markdown-engine.js?v=3.5.0"></script>
+<script src="markdown-plans.js?v=3.5.0"></script>
+<script src="sales-cadence-pdf.js?v=3.5.0"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2468,7 +2478,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.4.4';
+const APP_VERSION='v3.5.0';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -3124,11 +3134,169 @@ function setCompareSort(col){
   renderCadenceCompare();
 }
 
+/* ── SALES CADENCE PDF EXPORT ──
+   Every render of the Sales Cadence table (renderCadence / renderCadenceCompare) records a plain-data
+   snapshot of exactly what it just displayed — rows, period columns, totals, applied filters — in
+   _cadenceExportSnap. "Export PDF" hands that to sales-cadence-pdf.js (jsPDF + autotable, so the PDF has
+   selectable text and real tables, not a screenshot). Because the snapshot comes from the table's own
+   numbers, the PDF can't disagree with the screen, and it automatically follows the current view, period,
+   filters, sort order and Compare selection. One deliberate difference: the on-screen Product list stops
+   at 50 rows when no filter is set (a display limit); the PDF lists every row of the filtered set, so
+   nothing is silently left out and its totals describe everything it lists. */
+let _cadenceExportSnap=null;
+let _cadenceExporting=false;
+const CADENCE_MODE_LABELS={'12m':'12 Months','12w':'12 Weeks','5w':'5 Weeks','7d':'7 Days'};
+const CADENCE_PDF_LIBS=[
+  {src:'https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js',integrity:'sha384-qovJwSBbRDPP5cEjCp8S0UP66wrvnjaa60XMOGzTNanrThcrGfXfnZkvgY8N1KT3'},
+  {src:'https://cdn.jsdelivr.net/npm/jspdf-autotable@5.0.8/dist/jspdf.plugin.autotable.min.js',integrity:'sha384-5jk55M0XWoAw7LyhlXJe19ErOr3doBAPzxw9vahPFbvolqWa2yDk4fhHa2zuYeOa'},
+];
+function cadenceLocalYmd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+// Totals are summed from the listed rows themselves, so the KPI band, the TOTAL row and the table always agree.
+function cadenceFinishSnapshot(rows,periods,extra){
+  const totals={soh:0,onOrder:0,total:0,stPct:null,cells:periods.map(()=>0)};
+  for(const r of rows){
+    totals.soh+=r.soh;totals.onOrder+=r.onOrder;totals.total+=r.total;
+    r.cells.forEach((v,i)=>{totals.cells[i]+=v;});
+  }
+  totals.stPct=totals.total>0&&(totals.soh+totals.total)>0?totals.total/(totals.soh+totals.total)*100:null;
+  const oldest=periods.length?periods[periods.length-1].start:null;
+  return Object.assign({
+    mode:cadenceMode,modeLabel:CADENCE_MODE_LABELS[cadenceMode]||cadenceMode,
+    periods:periods.map(p=>({label:p.label})),rows,totals,
+    range:oldest?{from:cadenceLocalYmd(oldest),to:getBusinessToday()}:null,
+  },extra);
+}
+const CADENCE_DISC_LABELS={none:'No Discount','10':'10%','20':'20%','25':'25%','30':'30%','40':'40%','50':'50%','60':'60%','70':'70%+'};
+const CADENCE_FLAG_LABELS={reorder:'Re-Order',ok:'OK',oos:'Out of Stock','on-order':'On Order',reduce:'Reduce'};
+const CADENCE_TIER_LABELS={platinum:'Platinum',rocket:'Rocket',surfer:'Surfer',dog:'Dog',egg:'Egg'};
+// What is actually narrowing this view, in the user's own terms. Empty selection = "All".
+function cadenceFilterSummary(compareCount){
+  const f=[];
+  const list=(label,vals,fmt,alwaysShow)=>{if(vals.length)f.push({label,value:vals.map(fmt||(v=>v)).join(', ')});else if(alwaysShow)f.push({label,value:'All'});};
+  const core=globalCoreFilter==='core'?'Core only':globalCoreFilter==='noncore'?'Non-Core only':null;
+  if(cadenceView==='cat'){
+    f.push({label:'Core',value:core||'All'});
+    list('Launch Date',getCadenceSelectedLaunches(),v=>v==='__none__'?'No launch date':v);
+    return f;
+  }
+  if(compareCount!=null)f.push({label:'Products',value:compareCount+' selected'});
+  const picker=compareCount!=null; // in Compare mode these only narrowed what could be picked, so show them only when set
+  list('Status',getCadenceSelectedStatuses(),null,!picker);
+  list('Categories',getCadenceSelectedCats(),null,!picker);
+  list('Month Del',getCadenceSelectedDelMonths(),v=>v||'No month');
+  list('Launch Date',getCadenceSelectedLaunches(),v=>v==='__none__'?'No launch date':v);
+  list('Discount',getCadenceSelectedDiscs(),v=>CADENCE_DISC_LABELS[v]||v);
+  list('Stock Status',getCadenceSelectedFlags(),v=>CADENCE_FLAG_LABELS[v]||v);
+  list('Tiers',getCadenceSelectedTiers(),v=>CADENCE_TIER_LABELS[v]||v,!picker);
+  if(core)f.push({label:'Core',value:core});
+  if(compareCount==null){
+    const q=(document.getElementById('cadence-search')?.value||'').trim();
+    if(q)f.push({label:'Search',value:'"'+q+'"'});
+  }
+  return f;
+}
+function cadenceTierFor(name,colour){
+  const t=window._tierMap?getTierForProduct(name,colour):null;
+  return t?{emoji:t.emoji,label:getPerfLabel(t.tier)}:null;
+}
+function cadenceRecordSnapshot(keys,periods,data,sohByKey,onOrderByKey,totalByKey,vendorByKey){
+  const isCat=cadenceView==='cat';
+  const rows=keys.map(k=>{
+    const parts=isCat?[k,'']:k.split('||');
+    const cells=periods.map(p=>Math.round(data[k]?.[p.label]||0));
+    const total=totalByKey[k]||0,soh=sohByKey[k]||0;
+    return{name:parts[0],colour:parts[1]||'',status:isCat?'':(vendorByKey[k]||''),tier:isCat?null:cadenceTierFor(parts[0],parts[1]||''),dot:null,
+      soh,onOrder:onOrderByKey[k]||0,total,stPct:total>0?total/(soh+total)*100:null,cells};
+  });
+  _cadenceExportSnap=cadenceFinishSnapshot(rows,periods,{view:cadenceView,compare:false,filters:cadenceFilterSummary(null)});
+}
+function cadenceRecordCompareSnapshot(productData,periods){
+  const rows=productData.map(cp=>{
+    const total=Math.round(cp.totalSold)||0;
+    return{name:cp.productName,colour:cp.colour,status:cp.vendor||'',tier:cadenceTierFor(cp.productName,cp.colour),dot:cp.color,
+      soh:cp.soh||0,onOrder:cp.onOrder||0,total,stPct:total>0?total/((cp.soh||0)+total)*100:null,
+      cells:periods.map(p=>Math.round(cp.data[p.label]||0))};
+  });
+  _cadenceExportSnap=cadenceFinishSnapshot(rows,periods,{view:'prod',compare:true,filters:cadenceFilterSummary(rows.length)});
+}
+
+let _cadenceLibsPromise=null;
+function cadenceLoadScript(lib){
+  return new Promise((resolve,reject)=>{
+    const el=document.createElement('script');
+    el.src=lib.src;el.integrity=lib.integrity;el.crossOrigin='anonymous';
+    el.onload=()=>resolve();
+    el.onerror=()=>{el.remove();reject(new Error("Couldn't load the PDF library ("+lib.src.split('/').pop()+') — check your internet connection and try again.'));};
+    document.head.appendChild(el);
+  });
+}
+// Loaded on first use, not at page load — it's ~450KB nobody needs until they click Export.
+function cadenceLoadPdfLibs(){
+  const ready=()=>window.jspdf&&window.jspdf.jsPDF&&window.jspdf.jsPDF.API&&typeof window.jspdf.jsPDF.API.autoTable==='function';
+  if(ready())return Promise.resolve();
+  if(!_cadenceLibsPromise){
+    _cadenceLibsPromise=(async()=>{for(const lib of CADENCE_PDF_LIBS)await cadenceLoadScript(lib);if(!ready())throw new Error('The PDF library loaded but is not usable in this browser.');})()
+      .catch(e=>{_cadenceLibsPromise=null;throw e;});
+  }
+  return _cadenceLibsPromise;
+}
+// The tier badges are emoji, which the PDF's built-in fonts can't print — render each to a small PNG with the browser's own emoji font.
+const _cadenceEmojiCache={};
+function cadenceEmojiPng(emoji){
+  if(emoji in _cadenceEmojiCache)return _cadenceEmojiCache[emoji];
+  let out=null;
+  try{
+    const c=document.createElement('canvas');c.width=c.height=96;
+    const g=c.getContext('2d');
+    g.font='74px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+    g.textAlign='center';g.textBaseline='middle';g.fillText(emoji,48,54);
+    const px=g.getImageData(0,0,96,96).data;let ink=0;
+    for(let i=3;i<px.length;i+=4)if(px[i]>20)ink++;
+    if(ink>60)out=c.toDataURL('image/png'); // blank canvas = no emoji font here; skip the icon rather than print an empty box
+  }catch(e){}
+  return _cadenceEmojiCache[emoji]=out;
+}
+function cadenceExportMessage(text){
+  const el=document.getElementById('cadence-export-msg');
+  if(!el)return;
+  clearTimeout(cadenceExportMessage._t);
+  if(!text){el.style.display='none';el.textContent='';return;}
+  el.textContent=text;el.style.display='block';
+  cadenceExportMessage._t=setTimeout(()=>cadenceExportMessage(''),12000);
+}
+function cadenceExportBusy(on){
+  _cadenceExporting=on;
+  const btn=document.getElementById('cadence-export-btn');
+  if(!btn)return;
+  btn.disabled=on;btn.style.opacity=on?'0.75':'';btn.style.cursor=on?'progress':'';
+  document.getElementById('cadence-export-label').textContent=on?'Generating…':'Export PDF';
+  const ico=document.getElementById('cadence-export-ico');
+  if(ico)ico.style.animation=on?'spin 0.9s linear infinite':'';
+}
+async function exportCadencePdf(){
+  if(_cadenceExporting)return;
+  cadenceExportMessage('');
+  cadenceExportBusy(true);
+  try{
+    if(!_cadenceExportSnap)throw new Error('There is no Sales Cadence data to export yet — load your data and open Sales Cadence first.');
+    if(typeof window.SalesCadencePdf!=='object')throw new Error("The PDF builder didn't load — refresh the page and try again.");
+    await cadenceLoadPdfLibs();
+    const snap=Object.assign({},_cadenceExportSnap,{generatedAt:new Date().toISOString(),tz:BUSINESS_TZ});
+    const J=window.jspdf;
+    const doc=SalesCadencePdf.buildPdf({jsPDF:J.jsPDF,autoTable:(d,o)=>d.autoTable(o),snapshot:snap,emojiImage:cadenceEmojiPng});
+    doc.save(SalesCadencePdf.makeFilename(snap.generatedAt,snap.tz));
+  }catch(e){
+    console.error('Sales Cadence PDF export failed:',e);
+    cadenceExportMessage('PDF export failed: '+((e&&e.message)||'unknown error'));
+  }finally{cadenceExportBusy(false);}
+}
+
 function renderCadenceCompare(){
   const body=document.getElementById('cadence-body');
   renderCadenceCompareTags();
 
   if(!cadenceCompareProducts.length){
+    _cadenceExportSnap=cadenceFinishSnapshot([],buildCadencePeriods((()=>{const t=new Date();t.setHours(0,0,0,0);return t;})()).reverse(),{view:'prod',compare:true,filters:cadenceFilterSummary(0)});
     body.innerHTML=`<div class="insights-empty"><div class="insights-empty-ico">⚡</div><div class="insights-empty-title">Compare Mode</div><div class="insights-empty-sub">Search and search above and add products to compare their sales cadence side by side.</div></div>`;
     return;
   }
@@ -3170,6 +3338,7 @@ function renderCadenceCompare(){
     });
   }
 
+  cadenceRecordCompareSnapshot(productData,periods); // after the sort, so the PDF lists products in the order shown
   // Column totals
   const colTotals={};
   for(const p of periods){
@@ -3262,6 +3431,7 @@ function renderCadenceCompare(){
 
 function renderCadence(){
   if(!allVariantRows||allVariantRows.length===0){
+    _cadenceExportSnap=null;
     document.getElementById('cadence-body').innerHTML=`<div class="insights-error">⚠️ No data loaded yet. Please upload your files and analyse first.</div>`;
     return;
   }
@@ -3484,6 +3654,7 @@ function renderCadence(){
     });
   }
 
+  const exportKeys=rowKeys.slice(); // the PDF lists every filtered row, not just the on-screen top 50
   // Limit to 50 results only when no search/filters/sort active (AFTER sort)
   if(cadenceView==='prod'&&!search&&!cadenceSortCol){
     const ss=getCadenceSelectedStatuses();
@@ -3494,6 +3665,7 @@ function renderCadence(){
     const sf=getCadenceSelectedFlags();
     if(!ss.length&&!sc.length&&!sdm.length&&!sl.length&&!sd.length&&!sf.length)rowKeys=rowKeys.slice(0,50);
   }
+  cadenceRecordSnapshot(exportKeys,periods,data,sohByKey,onOrderByKey,totalByKey,vendorByKey);
 
   // Sortable header helper
   const sortArrow=col=>cadenceSortCol===col?(cadenceSortDir==='desc'?' ↓':' ↑'):'';
@@ -13576,6 +13748,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.5.0 — SALES CADENCE: new Export PDF button (top-right of the heading). Downloads WNDRR_Sales_Cadence_YYYY-MM-DD.pdf — an A4 landscape report built from the table's own numbers (the snapshot is recorded on every render), so it follows the current view: Category/Product, 12 Months/12 Weeks/5 Weeks/7 Days, Compare selection, every filter, search and sort order. Header with the original WNDRR logo (vector), 5 KPI tiles (aggregate ST%), product table with colour dots/status pills/tier badges and a TOTAL row, auto-pagination with repeated headings (never splits a product row), 'Page X of Y' footer. The PDF lists every filtered row (the screen caps an unfiltered Product view at 50). Real text, not a screenshot. New module sales-cadence-pdf.js + jsPDF/jspdf-autotable, loaded from jsDelivr only on first click (pinned versions + SRI hashes). No change to any existing Sales Cadence calculation.
 // v3.4.4 — SUMMARY: products on the on-order blanket discount are no longer listed as Sale specific buys. They now sit in their own category, grouped by their discount, with the note 'on-order blanket discount' (so they appear once that category is approved, like every other markdown). Special buys, the overview cards, the PDF and the Tuesday CSV (Row Type = Sale product) all follow. Real special buys are unchanged.
 // v3.4.3 — B. GWP and C. Sale specific buys now use the same search as D. Not on sale: Collection | Category | Product / colour tabs with a type-ahead list (special buys also keep a Customer PO tab; a typed product name that matches exactly one product is used). Parent-style picks are no longer offered for new picks (existing ones still work). Special buys can now be picked by category.
 // v3.4.2 — Summary and Summary PDF: SOH now comes before the xxD sales column (product tables and the Not on sale table).
