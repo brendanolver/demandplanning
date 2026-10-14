@@ -510,7 +510,7 @@ assert.deepEqual(P.buildForecast([], {}, 90).totals.demand, 0);
   assert.ok(P.validateOffer({ ...bad, start: '2026-11-29', end: '2026-11-27' }, st.plans[id], { count: 2 }).errors.some(e => /ends before/.test(e)));
   assert.ok(P.validateOffer({ ...bad, pct: 80 }, st.plans[id], { count: 2 }).errors.some(e => /highest single discount/.test(e)));
   assert.ok(P.validateOffer({ ...bad, collection: { title: '', id: '' } }, st.plans[id], { count: 2 }).errors.some(e => /Shopify collection/.test(e)));
-  assert.ok(P.validateOffer({ ...bad, items: [] }, st.plans[id], { count: 0 }).errors.some(e => /Pick the products/.test(e)));
+  { const v = P.validateOffer({ ...bad, items: [] }, st.plans[id], { count: 0 }); assert.ok(!v.errors.some(e => /products/i.test(e))); assert.ok(v.warnings.some(e => /No products yet/.test(e))); assert.equal(P.offerStatus({ ...bad, items: [] }, v, false), 'empty'); }   // an offer can be set up before any products are added
   assert.ok(P.validateOffer(bad, st.plans[id], { count: 2, unresolved: 2 }).errors.some(e => /2 overlapping products need a decision/.test(e)));
   assert.ok(P.validateOffer({ ...bad, type: 'bundle' }, st.plans[id], { count: 2 }).warnings.some(e => /does not create it/.test(e)));
   assert.ok(P.validateOffer({ ...bad, type: 'bundle', bundle: { mode: 'price', qty: 2, price: null, mix: true } }, st.plans[id], { count: 2 }).errors.some(e => /bundle price/.test(e)));

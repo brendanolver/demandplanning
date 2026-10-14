@@ -584,7 +584,7 @@
       if (bd.mode === 'price' && bd.price == null) errors.push('Enter the bundle price.');
       if (bd.mode === 'pct' && bd.pct == null) errors.push('Enter the bundle % off.');
     }
-    if (!offer.items.length) errors.push('Pick the products: a collection, category or product.');
+    if (!offer.items.length) warnings.push('No products yet — add them with the search above, or from the product tables in Category Strategy. An offer can be set up first and filled later; it just can\'t be exported until it has products.');
     else if (info.count === 0) errors.push('The selections match no products right now.');
     if (!offer.collection.title) errors.push('Set the Shopify collection for this offer.');
     if (info.unresolved) errors.push(info.unresolved + ' overlapping product' + (info.unresolved === 1 ? '' : 's') + ' need a decision.');
@@ -594,6 +594,7 @@
     return { errors, warnings };
   }
   function offerStatus(offer, v, exported) {
+    if (offer.items && !offer.items.length) return 'empty';   // set up, waiting for products (not an error)
     if (v.errors.length) return 'draft';
     return exported ? 'exported' : 'ready';
   }
