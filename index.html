@@ -922,6 +922,12 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
 .mdp-collapseall{margin-left:auto;display:inline-flex;gap:8px;}
 .mdp-sync{border:1px solid #dfe3ec;background:#fff;border-radius:999px;padding:5px 12px;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;}
 .mdp-sync.ok{color:#15803d;border-color:#bbf7d0;background:#f0fdf4;}.mdp-sync.wait{color:#6b7280;}.mdp-sync.off{color:#b45309;border-color:#fde68a;background:#fffbeb;}.mdp-sync.bad{color:#b91c1c;border-color:#fecaca;background:#fff1f2;}
+/* v3.3.8: Sale setup boxes — controls fill the box, nothing overflows, groups are separated */
+.mdp-box .mdp-seg{display:flex;width:100%;flex-wrap:wrap;}.mdp-box .mdp-seg button{flex:1 1 auto;text-align:center;padding:6px 8px;}
+.mdp-box .mdp-sel{width:100%;max-width:100%;box-sizing:border-box;text-overflow:ellipsis;}.mdp-box .mdp-sel.mdp-sm{width:auto;}
+.mdp-box .mdp-bt2{margin-top:14px!important;padding-top:12px;border-top:1px solid #e8ebf2;}.mdp-box .mdp-bt+.mdp-bt2{margin-top:0!important;padding-top:0;border-top:0;}
+.mdp-box .mdp-hint{margin:6px 0 0;line-height:1.45;}
+.mdp-box .mdp-capwrap{flex-wrap:wrap;}
 /* v3.1.5: fixed layout with explicit column widths (the th widths in mdpReviewHtml). The auto layout let the full-width
    section / category header rows stretch the first column; this keeps every column exactly where it's set. Long text is cut
    with an ellipsis (hover for the full text). */
@@ -2427,8 +2433,8 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.3.7"></script>
-<script src="markdown-plans.js?v=3.3.7"></script>
+<script src="markdown-engine.js?v=3.3.8"></script>
+<script src="markdown-plans.js?v=3.3.8"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2462,7 +2468,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.3.7';
+const APP_VERSION='v3.3.8';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -7309,12 +7315,12 @@ function renderMarkdownPlanner(){
         <div style="margin-top:8px;">${custom} <input class="mdp-in mdp-add" type="number" min="5" max="90" placeholder="+ level %" onchange="mdpAddLevel(this)"></div>
         <div class="mdp-hint">Always worked out against the original RRP — never stacked on a current sale price. Every level you offer needs its own Shopify collection at export.</div></div>
       <div class="mdp-box"><div class="mdp-bt">Inventory handling</div>
-        <div class="mdp-bt2">Incoming stock</div>${mdpSeg('i',[['none','SOH only'],['sale','Arrives by sale end'],['all','All on order']],SU.incoming,"mdpSetup.bind(null,'incoming')")}
+        <div class="mdp-bt2">Incoming stock</div>${mdpSeg('i',[['none','SOH only'],['sale','By sale end'],['all','All on order']],SU.incoming,"mdpSetup.bind(null,'incoming')")}
         <div class="mdp-hint">${SU.incoming==='sale'&&!SU.end?'Set an end date — until then all stock on order is counted.':'Counts stock on order toward remnant checks, and plans sold-out styles that restock by the sale (they get a Restock suggestion).'}</div>
         <div class="mdp-bt2" style="margin-top:10px;">Blanket discount on stock on order</div>
-        <select class="mdp-sel" onchange="mdpSetup('onOrderPct',this.value===''?null:+this.value)"><option value="">No — use the normal recommendations</option>${PS.allowedDiscounts.filter(d=>d<=PS.maxDiscount).map(d=>`<option value="${d}" ${SU.onOrderPct===d?'selected':''}>Yes — ${d}% off every product with units on order</option>`).join('')}</select>
-        <div class="mdp-hint">${SU.onOrderPct==null?'Want one discount for all incoming stock? Pick it here — it applies to every product that has open Apparel Magic orders.':`Applies to <b>${plan.items.filter(i=>i.row.p.blanket).length}</b> product${plan.items.filter(i=>i.row.p.blanket).length===1?'':'s'} now. Special buys, your own decisions, GWP and Not on sale still win, and a deeper existing discount is never reduced.`}</div>
-        <div class="mdp-bt2" style="margin-top:10px;">Draft Shopify products</div>${mdpSeg('d',[['onorder','Only with units on order'],['hide','Hide'],['all','Show all']],SU.draftMode,"mdpSetup.bind(null,'draftMode')")}
+        <select class="mdp-sel" onchange="mdpSetup('onOrderPct',this.value===''?null:+this.value)"><option value="">No — normal recommendations</option>${PS.allowedDiscounts.filter(d=>d<=PS.maxDiscount).map(d=>`<option value="${d}" ${SU.onOrderPct===d?'selected':''}>Yes — ${d}% off</option>`).join('')}</select>
+        <div class="mdp-hint">${SU.onOrderPct==null?'One discount for every product with units on order (open Apparel Magic orders), instead of the normal Group A / B suggestion.':`Applies to <b>${plan.items.filter(i=>i.row.p.blanket).length}</b> product${plan.items.filter(i=>i.row.p.blanket).length===1?'':'s'} now. Special buys, your own decisions, GWP and Not on sale still win, and a deeper existing discount is never reduced.`}</div>
+        <div class="mdp-bt2" style="margin-top:10px;">Draft Shopify products</div>${mdpSeg('d',[['onorder','Only if on order'],['hide','Hide'],['all','Show all']],SU.draftMode,"mdpSetup.bind(null,'draftMode')")}
         <div class="mdp-hint">${plan.items.filter(i=>i.row.p.isDraft).length} draft product${plan.items.filter(i=>i.row.p.isDraft).length===1?'':'s'} shown${SU.draftMode==='onorder'?' (only those with units on order)':''} — tagged DRAFT; filter them with the product view.</div>
         <div class="mdp-bt2" style="margin-top:10px;">Already-reduced products</div>${mdpSeg('r',[['clearance','Move to '+clr+'%'],['retain','Retain'],['reassess','Reassess'],['exclude','Exclude']],PS.existingReduced,"mdpSet.bind(null,'existingReduced')")}
         <div class="mdp-bt2" style="margin-top:10px;">Core products</div>${mdpSeg('c',[['protect','Protect'],['include','Include'],['exclude','Exclude']],PS.coreMode,"mdpSet.bind(null,'coreMode')")}<div class="mdp-hint">Protect = Group A only</div>
@@ -13559,6 +13565,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.3.8 — Sale setup tidy-up, from Brendan's screenshot: the blanket-discount dropdown and the segmented controls overflowed their boxes. Controls now fill the box width (dropdowns and Strict/Preferred-style buttons stay inside it and wrap neatly), option labels are shorter ('Yes — 30% off', 'By sale end', 'Only if on order'), each group inside a box is separated by a thin divider, and hint text is tighter.
 // v3.3.7 — CLOUD SAVE, from Brendan: sale plans now follow you to any device. Every change is saved on this device instantly and sent to the cloud (Netlify Blobs, new function markdown-plans-store) ~1.5s later; each device checks the cloud on load, when you return to the tab, and every minute, merging plan by plan: a plan changed on only one side is taken or pushed; if the SAME plan was changed on two devices you're asked to keep this device's, use the other's, or keep both (nothing is ever overwritten silently). A status pill in the title bar shows Saved / Saving / Offline (work is safe on the device and syncs when back) / Needs attention. A fresh device adopts the cloud's plans (its empty default 'Sale 1' isn't pushed). The cloud keeps the previous version as a one-step backup. Covers everything in a plan: setup, categories, decisions, special buys, GWP, Not on sale, offers, mappings and export history. Pure merge logic in markdown-plans.js (mergeStates / resolveSyncConflict) and netlify/lib/plans-store.js, all tested. Note: like the other shared settings, the store is not behind a login.
 // v3.3.6 — from Brendan. SUMMARY: (1) the Discount overview now ends with a TOTAL row (products, SOH, RRP value of stock, discount given) and the overall effective discount; (2) the 'Group' column is replaced by the actual DISCOUNT (bold when set by you); (3) a '<N>d sales' column (N = the sales analysis period in Sale setup, default 30) in the category, special-buy and not-on-sale tables. SALE SETUP: (4) 'Blanket discount on stock on order' — pick one % and every product with open Apparel Magic orders gets it (treated like a designated special-buy discount, tagged 'On order'); special buys, your own decisions, GWP and Not on sale still win and a deeper existing discount is never reduced. (5) 'Draft Shopify products' — only with units on order (default) / hide / show all: drafts are tagged DRAFT, planned on the stock arriving (even if it lands after the sale), and filterable with a new 'Draft products' view. MarkdownPlans.planInputRules + tests.
 // v3.3.5 — Collapse all / Expand all, from Brendan: a pair of buttons beside the step bar closes or opens every section (A–I) at once; Category strategy has 'Collapse all categories' (also clears the group-card filters); Mid-sale offers has Collapse all / Expand all; the Summary has Collapse all / Expand all for its category, special-buy, not-on-sale, GWP and offer blocks.
