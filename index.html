@@ -2443,9 +2443,9 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.5.9"></script>
-<script src="markdown-plans.js?v=3.5.9"></script>
-<script src="sales-cadence-pdf.js?v=3.5.9"></script>
+<script src="markdown-engine.js?v=3.6.0"></script>
+<script src="markdown-plans.js?v=3.6.0"></script>
+<script src="sales-cadence-pdf.js?v=3.6.0"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2479,7 +2479,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.5.9';
+const APP_VERSION='v3.6.0';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -6503,6 +6503,7 @@ function mdpClearSel(){mdpSel.clear();mdpLastSel=null;mdpRenderReview(true);}
 // Turn a menu choice into saved decisions for the given product ids (GWP is never discounted).
 function mdpApply(ids,value){
   if(!value||!mdpCtx)return;
+  if(value.startsWith('offer:')){mdpAddToOffer(ids,value.slice(6));return;}
   const pl=mdpPlan(),byId=Object.fromEntries(mdpCtx.plan.items.map(i=>[i.row.p.id,i]));
   const entries={};let skipped=0;
   if(value.startsWith('pct:')&&!mdpPriceUpOk(ids.filter(id=>byId[id]&&!byId[id].row.p.isGWP),+value.slice(4)))return;   // one prompt for the whole selection
@@ -6540,6 +6541,7 @@ function mdpStyleAction(psKey,v){
 function mdpProdDiscount(i,v){
   if(!mdpCtx||!v)return;
   const id=mdpIds[i],items=mdpCtx.plan.items,it=items.find(x=>x.row.p.id===id);if(!it)return;
+  if(v.startsWith('offer:')){mdpAddToOffer([id],v.slice(6));return;}
   if(v==='excl'){mdpApply([id],'excl:Commercial decision');return;}
   if(v==='auto'){mdpApply([id],'auto');return;}
   const isGrp=v.startsWith('grp:'),n=isGrp?null:+v.slice(4),p=it.row.p,what=isGrp?'Group '+v.slice(4):n+'%';let ids=[id];
@@ -6576,13 +6578,37 @@ function mdpResetAll(){
   if(!n||!confirm('Remove all '+n+' saved decision'+(n===1?'':'s')+' on "'+pl.name+'" and go back to the planner\'s suggestions?'))return;
   mdpCommit(MarkdownPlans.clearOverrides(mdpState,pl.id,null));
 }
+// "Mid-sale offer" choices for a product's / bulk dropdown: every offer in this sale, plus a new one.
+function mdpOfferOptions(){
+  const offers=mdpPlan().offers||[];
+  return`<optgroup label="Mid-sale offer">${offers.map(o=>`<option value="offer:${mdpEsc(o.id)}">＋ Add to ${mdpEsc(o.name)}</option>`).join('')}<option value="offer:new">＋ Add to a new offer</option></optgroup>`;
+}
+// Add products (by id) to a mid-sale offer as single-product picks, from Category Strategy. offerId 'new' creates the offer first.
+function mdpAddToOffer(ids,offerId){
+  if(!mdpCtx)return;
+  const pl=mdpPlan(),byId=Object.fromEntries(mdpCtx.plan.items.map(i=>[i.row.p.id,i]));
+  let next=mdpState,oid=offerId;
+  if(oid==='new'){const r=MarkdownPlans.addOffer(next,pl.id,'Offer '+(pl.offers.length+1));if(!r.id)return;next=r.state;oid=r.id;mdpOpenOffers.add(oid);}
+  const cur=(next.plans[pl.id].offers.find(o=>o.id===oid)||{items:[]}).items,have=new Set(cur.filter(x=>x.kind==='style').map(x=>MarkdownPlans.norm(x.value)));
+  let added=0,already=0;const seen=new Set();
+  for(const id of ids){
+    const it=byId[id];if(!it||it.row.p.isGWP||it.row.p.notOnSale)continue;
+    const st=it.row.p.style;if(seen.has(st))continue;seen.add(st);
+    if(have.has(MarkdownPlans.norm(st))){already++;continue;}
+    const r=MarkdownPlans.addOfferSelection(next,pl.id,oid,{kind:'style',value:st,label:it.row.p.name+(it.row.p.colour?' — '+it.row.p.colour:'')});
+    if(r.id){next=r.state;added++;}
+  }
+  const o=next.plans[pl.id].offers.find(x=>x.id===oid);
+  mdpNoteMsg=(added?added+' product'+(added===1?'':'s')+' added to “'+(o?o.name:'the offer')+'”':'Nothing new to add to “'+(o?o.name:'the offer')+'”')+(already?' ('+already+' already in it)':'')+' — set its dates, pricing and collection in step F (Mid-sale offers).';
+  mdpCommit(next,true);
+}
 function mdpActionOptions(first,row){
   const PS=mdpPlan().settings,lv=PS.allowedDiscounts.filter(d=>d<=PS.maxDiscount);
   const gl=row?{A:` — ${row.levelA}%`,B:row.levelB>0&&!row.noB?` — ${row.levelB}%`:'',C:` — ${row.levelC}%`}:{A:'',B:'',C:''};
   return`<option value="">${first||'Change…'}</option><option value="auto">↺ Reset to recommendation</option>
     <optgroup label="Move to group"><option value="grp:A">Group A · Standard${gl.A}</option>${row&&(row.noB||!(row.levelB>0))?'':`<option value="grp:B">Group B · Clearance${gl.B}</option>`}<option value="grp:C">Group C · Existing reduced${gl.C}</option></optgroup>
     <optgroup label="Custom discount">${lv.map(d=>`<option value="pct:${d}">${d}% off</option>`).join('')}</optgroup>
-    <optgroup label="Exclude from sale">${MarkdownPlans.EXCLUDE_REASONS.map(r=>`<option value="excl:${mdpEsc(r)}">${mdpEsc(r)}</option>`).join('')}</optgroup>`;
+    <optgroup label="Exclude from sale">${MarkdownPlans.EXCLUDE_REASONS.map(r=>`<option value="excl:${mdpEsc(r)}">${mdpEsc(r)}</option>`).join('')}</optgroup>${mdpOfferOptions()}`;
 }
 
 // ── Category approval ──
@@ -6665,7 +6691,7 @@ function mdpProdTable(groups,o){
     return`<select class="mdp-sel mdp-dsel${it.override?' mdp-chg':''}"${ro?' disabled':''} onchange="mdpProdDiscount(${i},this.value)" title="${it.override?'Set by you':'Allocated by the planner'}"><option value="" selected>${cur}</option>
       <optgroup label="Move to group"><option value="grp:A">A · ${r.levelA}% Standard</option>${bOk?`<option value="grp:B">B · ${r.levelB}% Clearance</option>`:''}<option value="grp:C">C · ${r.levelC==null?50:r.levelC}% Existing reduced</option></optgroup>
       <optgroup label="Custom discount">${pcts}</optgroup>
-      <optgroup label="Other">${f.pct==null?'':'<option value="excl">Not in sale</option>'}${it.override?`<option value="auto">↺ Reset to ${bl?'the on-order discount ('+it.systemPct+'%)':'recommendation'}</option>`:''}</optgroup></select>`;
+      <optgroup label="Other">${f.pct==null?'':'<option value="excl">Not in sale</option>'}${it.override?`<option value="auto">↺ Reset to ${bl?'the on-order discount ('+it.systemPct+'%)':'recommendation'}</option>`:''}</optgroup>${mdpOfferOptions()}</select>`;
   };
   const cell=(k,it,child)=>{
     const p=it.row.p,m=it.row.m,f=it.final,i=it.__i;
@@ -13821,6 +13847,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.6.0 — MARKDOWN PLANNER (Category Strategy): add products to a mid-sale offer straight from the product tables. Every product's discount dropdown, the bulk-action dropdown (for ticked products) and each style's 'Set all…' dropdown have a new 'Mid-sale offer' group: '＋ Add to <offer name>' for each offer in the sale, or '＋ Add to a new offer'. Products go in as single-product picks (with their title), duplicates are skipped and counted, and a note says what was added; set the offer's dates, pricing and collection in step F as usual. It does not change the product's sale discount.
 // v3.5.9 — MARKDOWN PLANNER: every section (A–I) now starts collapsed whenever the page is loaded or reloaded, so you open only what you need (click a section heading or a step in the stepper to open it; Expand all opens everything).
 // v3.5.8 — MARKDOWN PLANNER: new '💾 Save' button (header, beside the Saved pill). It makes THIS device's sale plans the current version everywhere: asks first, then overwrites the cloud copy and — through it — the other versions of the same plans on your other devices (they take it on their next sync, ~1 min or on focus), with no keep-mine / use-theirs prompt; it also clears any open conflict banner. Each overwritten plan is stamped newer than both copies so other devices treat it as latest; plans that exist only in the cloud are kept (plans are never deleted, only archived); the server's one-step backup holds the previous cloud copy. If another device saves mid-way it looks again and overwrites that too. markdown-plans.js: forceOverwrite() with tests.
 // v3.5.7 — STATUS: BUNDLE now replaces CORE in Status for core styles that are in a bundle deal (the core indicator is in Month Del). This applies everywhere Status is used — tables, the Status filters (a core bundle product now matches the BUNDLE filter, not CORE), exports. Nothing else about core changes: every core rule (Core/Non-Core toggle, always-OK stock flag, Insights treatment, Markdown Planner's core protection) now keys off a new row field isCore instead of the status text, so a core bundle product still behaves as core. Core styles that are not in a bundle still read CORE.
