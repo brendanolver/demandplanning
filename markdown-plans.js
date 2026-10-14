@@ -714,6 +714,23 @@
     return { state, conflicts, takeRemote, takeLocal, needsPush: takeLocal.length > 0 || JSON.stringify(order) !== JSON.stringify((remote && remote.order) || []),
       changedLocally: takeRemote.length > 0 || JSON.stringify(order) !== JSON.stringify((local && local.order) || []) };
   }
+  // 'Save' = make THIS device's plans the current version everywhere. Every plan this device has wins over the cloud's copy (stamped newer than both, so every
+  // other device sees it as the latest and takes it); a plan that exists only in the cloud is kept (plans are never deleted, only archived). Returns the state to write.
+  function forceOverwrite(local, remote, now) {
+    const t = now || Date.now(), L = (local && local.plans) || {}, R = (remote && remote.plans) || {}, plans = {};
+    for (const id of Object.keys(L)) {
+      const l = clone(L[id]), r = R[id];
+      if (r && JSON.stringify(l) !== JSON.stringify(r)) { l.rev = Math.max(l.rev || 0, r.rev || 0) + 1; l.updatedTs = Math.max(t, l.updatedTs || 0, r.updatedTs || 0) + 1; }
+      plans[id] = l;
+    }
+    for (const id of Object.keys(R)) if (!plans[id]) plans[id] = clone(R[id]);
+    const order = [];
+    for (const id of ((local && local.order) || []).concat((remote && remote.order) || [])) if (plans[id] && !order.includes(id)) order.push(id);
+    for (const id of Object.keys(plans)) if (!order.includes(id)) order.push(id);
+    const live = id => plans[id] && !plans[id].archived;
+    const activeId = live(local && local.activeId) ? local.activeId : (order.find(live) || order[0] || null);
+    return { v: (local && local.v) || (remote && remote.v) || STATE_VERSION, activeId, order, plans };
+  }
   // Settle one conflicted plan. choice: 'mine' | 'theirs' | 'both' (keep this device's as a copy and take the cloud's). Returns the new local state; the caller records
   // the cloud's version of that plan as the new base so the next sync sees only the right side as changed.
   function resolveSyncConflict(local, remote, planId, choice, now, idGen) {
@@ -1199,6 +1216,6 @@
     parseDay, durationDays, newPlan, createState, migrate, uniqueName, addPlan, duplicatePlan,
     renamePlan, setActive, archivePlan, restorePlan, cleanLevels, updatePlan, engineSettings, validatePlan,
     EXCLUDE_REASONS, VIEWS, sanitizeOverride, setOverrides, clearOverrides, overrideStats, buildReview,
-    buildTuesdayCsv, TUESDAY_COLUMNS, SPECIAL_KINDS, GWP_KINDS, NOS_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setSectionException, applyExceptions, setGwpQty, setGwpThreshold, lyWindow, lyUnitsByCategory, lyRevenueByCategory, buildForecast, addDays, demandScenarios, forecastConfidence, crossCheck, scenarioLevels, commercialSummary, addSnapshot, removeSnapshot, mergeStates, resolveSyncConflict, isPristine, planInputRules, buildSummary, setReviewed, addNosStyles, addNosException, removeNosException, resolveNotOnSale, nosConflicts, categorySignature, OFFER_TYPES, BUNDLE_MODES, newOffer, sanitizeOffer, addOffer, updateOffer, duplicateOffer, deleteOffer, moveOffer, addOfferSelection, removeOfferSelection, setOfferException, resolveOfferConflict, resolveOffer, offerPricing, bundleText, offerConflicts, validateOffer, offerStatus, EXPORT_COLUMNS, toCsv, buildInitialExport, buildOfferExport, exportTitle, CHECKLIST, newExportRecord, addExportRecord, setMapping, defaultMappings, approveCategory, reopenCategory, releaseAllocation, refreshSuggestions, isApproved, frozenAllocs, categoryRows, approvalProgress, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
+    buildTuesdayCsv, TUESDAY_COLUMNS, SPECIAL_KINDS, GWP_KINDS, NOS_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setSectionException, applyExceptions, setGwpQty, setGwpThreshold, lyWindow, lyUnitsByCategory, lyRevenueByCategory, buildForecast, addDays, demandScenarios, forecastConfidence, crossCheck, scenarioLevels, commercialSummary, addSnapshot, removeSnapshot, mergeStates, forceOverwrite, resolveSyncConflict, isPristine, planInputRules, buildSummary, setReviewed, addNosStyles, addNosException, removeNosException, resolveNotOnSale, nosConflicts, categorySignature, OFFER_TYPES, BUNDLE_MODES, newOffer, sanitizeOffer, addOffer, updateOffer, duplicateOffer, deleteOffer, moveOffer, addOfferSelection, removeOfferSelection, setOfferException, resolveOfferConflict, resolveOffer, offerPricing, bundleText, offerConflicts, validateOffer, offerStatus, EXPORT_COLUMNS, toCsv, buildInitialExport, buildOfferExport, exportTitle, CHECKLIST, newExportRecord, addExportRecord, setMapping, defaultMappings, approveCategory, reopenCategory, releaseAllocation, refreshSuggestions, isApproved, frozenAllocs, categoryRows, approvalProgress, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
   };
 });

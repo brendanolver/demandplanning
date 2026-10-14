@@ -731,5 +731,28 @@ assert.deepEqual(P.buildForecast([], {}, 90).totals.demand, 0);
   const rt = P.migrate(JSON.parse(JSON.stringify(st)), null, 1, idGen); assert.deepEqual(rt.plans[id].gwp.exceptions, ['W26LG011BLK']); assert.deepEqual(rt.plans[id].specialExceptions, ['W27BA003BLK']);
   assert.ok(st.plans[id].rev > 1);
 }
+
+// ── 'Save' (force-overwrite): this device's plans become the current version everywhere ──
+{
+  const base = P.createState(1000, idGen), id = base.activeId;
+  const mine = P.updatePlan(base, id, { setup: { name: 'Black Friday (this device)' } }, 2000);
+  let theirs = P.updatePlan(base, id, { setup: { name: 'Black Friday (other device)' } }, 3000);
+  const extra = P.addPlan(theirs, 'Only in the cloud', 3500, idGen); theirs = extra.state;
+  const out = P.forceOverwrite(mine, theirs, 4000);
+  assert.equal(out.plans[id].setup.name, 'Black Friday (this device)');                                   // this device wins on a plan both have
+  assert.ok(out.plans[id].rev > theirs.plans[id].rev && out.plans[id].rev > mine.plans[id].rev);          // stamped newer than both copies
+  assert.ok(out.plans[id].updatedTs > theirs.plans[id].updatedTs && out.plans[id].updatedTs > mine.plans[id].updatedTs);
+  assert.ok(out.plans[extra.id]);                                                                         // a plan only the cloud has is kept, never deleted
+  assert.deepEqual(Object.keys(out.plans).sort(), Object.keys(theirs.plans).sort());
+  assert.equal(out.activeId, mine.activeId); assert.ok(out.order.includes(id) && out.order.includes(extra.id));
+  // another device that last synced `theirs` and has no local edits takes the forced version without a conflict prompt
+  const m2 = P.mergeStates(theirs, out, theirs);
+  assert.deepEqual(m2.conflicts, []); assert.equal(m2.state.plans[id].setup.name, 'Black Friday (this device)');
+  // identical content is left alone (no pointless revision bump); inputs are never mutated
+  const same = P.forceOverwrite(mine, mine, 5000); assert.equal(same.plans[id].rev, mine.plans[id].rev);
+  const snapshot = JSON.stringify(mine); P.forceOverwrite(mine, theirs, 6000); assert.equal(JSON.stringify(mine), snapshot);
+  // nothing in the cloud yet: just this device's plans
+  assert.deepEqual(Object.keys(P.forceOverwrite(mine, null, 7000).plans), Object.keys(mine.plans));
+}
 console.log('markdown plans tests: all passed');
 })();

@@ -2443,9 +2443,9 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.5.7"></script>
-<script src="markdown-plans.js?v=3.5.7"></script>
-<script src="sales-cadence-pdf.js?v=3.5.7"></script>
+<script src="markdown-engine.js?v=3.5.8"></script>
+<script src="markdown-plans.js?v=3.5.8"></script>
+<script src="sales-cadence-pdf.js?v=3.5.8"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2479,7 +2479,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.5.7';
+const APP_VERSION='v3.5.8';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -6029,6 +6029,27 @@ async function mdpSyncNow(why){
   }catch(e){mdpSync.status='offline';mdpSync.err=String(e&&e.message||e);}
   finally{mdpSync.busy=false;if(mdpSync.again){mdpSync.again=false;mdpQueueSync(300);}mdpRenderSyncPill();}
 }
+// 'Save' button: make THIS device's sale plans the current version everywhere — overwrites the cloud copy and, through it, every other device's older version
+// (they pick it up on their next sync). Skips the keep-mine / use-theirs prompt, so it asks first. The previous cloud copy is kept as the server's one-step backup.
+async function mdpForceSave(){
+  if(!mdpState||!mdpPlansOk()||typeof fetch!=='function')return;
+  if(mdpSync.busy){alert('A sync is running — try again in a moment.');return;}
+  if(!confirm('Save this device\'s sale plans as the current version everywhere?\n\nThis overwrites the cloud copy and replaces the other versions of the same plans on your other devices, which will switch to this one on their next sync (any unsaved changes there are replaced too).\n\nThe cloud\'s previous copy is kept as a one-step backup. Plans that exist only in the cloud are kept.\n\nOK = overwrite with this device\'s version · Cancel = leave everything as it is'))return;
+  clearTimeout(mdpSync.timer);mdpSync.busy=true;mdpSync.err='';mdpSync.status='saving';mdpRenderSyncPill();
+  try{
+    let done=false;
+    for(let attempt=0;attempt<4&&!done;attempt++){
+      const resp=await fetch(MDP_SYNC_URL,{cache:'no-store'});if(!resp.ok)throw new Error('HTTP '+resp.status);
+      const j=await resp.json(),remote=j.state?MarkdownPlans.migrate(j.state,null):null;
+      const next=MarkdownPlans.forceOverwrite(mdpState,remote);
+      if(await mdpPush(next,j.rev)){mdpState=next;mdpSaveLocalOnly();done=true;}       // false = someone saved in between: look again and overwrite that too
+    }
+    if(!done)throw new Error('the cloud copy kept changing — try again');
+    mdpSync.conflicts=[];mdpSync.remote=null;mdpSync.status='synced';mdpSync.at=Date.now();
+    mdpNoteMsg='Saved — this device\'s plans are now the current version on every device.';
+  }catch(e){mdpSync.status='offline';mdpSync.err=String(e&&e.message||e);mdpNoteMsg='Couldn\'t save to the cloud ('+mdpSync.err+'). Your work is still saved on this device.';}
+  finally{mdpSync.busy=false;mdpRenderSyncPill();renderMarkdownPlanner();}
+}
 function mdpStartSync(){
   if(mdpSync.started)return;mdpSync.started=true;mdpSync.status='saving';
   mdpSyncNow('load');
@@ -7505,7 +7526,7 @@ function renderMarkdownPlanner(){
     ${live.length>1?`<button class="mdp-act" onclick="mdpArchivePlan()">Archive</button>`:''}
     ${archived.length?`<button class="mdp-act" onclick="mdpToggleArchived()">Archived (${archived.length})</button>`:''}${archList}</div>`;
 
-  const titleBar=`<div class="mdp-top"><div class="mdp-logo">🏷️</div><div style="flex:1;min-width:260px"><div class="mdp-title">Markdown Planner</div><div class="mdp-tsub">Plan and allocate markdowns by category. All eligible products are included in the sale (except GWP items).</div></div><div class="mdp-fresh">${fresh}</div>${mdpSyncPill()}<button class="mdp-btn mdp-btn-ghost mdp-btn-sm" onclick="mdpToggleHelp()">? How this works</button></div>`;
+  const titleBar=`<div class="mdp-top"><div class="mdp-logo">🏷️</div><div style="flex:1;min-width:260px"><div class="mdp-title">Markdown Planner</div><div class="mdp-tsub">Plan and allocate markdowns by category. All eligible products are included in the sale (except GWP items).</div></div><div class="mdp-fresh">${fresh}</div>${mdpSyncPill()}<button class="mdp-btn mdp-btn-sm" title="Make this device's sale plans the current version everywhere — overwrites the other versions (asks first)" onclick="mdpForceSave()">💾 Save</button><button class="mdp-btn mdp-btn-ghost mdp-btn-sm" onclick="mdpToggleHelp()">? How this works</button></div>`;
 
   const capW=plan.categories.filter(c=>c.groupWarn).map(c=>`${c.category}: Group B (${c.groupB}%) is not deeper than Group A (${c.groupA}%) — both levels were set by you.`);
   const warnAll=val.warnings.concat(capW);
@@ -13800,6 +13821,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.5.8 — MARKDOWN PLANNER: new '💾 Save' button (header, beside the Saved pill). It makes THIS device's sale plans the current version everywhere: asks first, then overwrites the cloud copy and — through it — the other versions of the same plans on your other devices (they take it on their next sync, ~1 min or on focus), with no keep-mine / use-theirs prompt; it also clears any open conflict banner. Each overwritten plan is stamped newer than both copies so other devices treat it as latest; plans that exist only in the cloud are kept (plans are never deleted, only archived); the server's one-step backup holds the previous cloud copy. If another device saves mid-way it looks again and overwrites that too. markdown-plans.js: forceOverwrite() with tests.
 // v3.5.7 — STATUS: BUNDLE now replaces CORE in Status for core styles that are in a bundle deal (the core indicator is in Month Del). This applies everywhere Status is used — tables, the Status filters (a core bundle product now matches the BUNDLE filter, not CORE), exports. Nothing else about core changes: every core rule (Core/Non-Core toggle, always-OK stock flag, Insights treatment, Markdown Planner's core protection) now keys off a new row field isCore instead of the status text, so a core bundle product still behaves as core. Core styles that are not in a bundle still read CORE.
 // v3.5.6 — OLD CORE is now a MONTH DEL tag instead of a status (Brendan: the v3.5.4 status hid REDUCED). Products in the Apparel Magic groups 'AA OLD CORE' / 'ACCESSORIES ARCHIVE' show 'OLD CORE' in Month Del (like CORE does), so their status goes back to what it naturally is — REDUCED when discounted, otherwise OLD — and the REDUCED label is reinstated. OLD CORE appears as its own option in every Month Del filter (Dashboard, Sales Cadence, Planning, Reorders, Markdowns, Performance, Markdown Planner) when any exist. Unchanged from v3.5.4: not CORE (Non-Core toggle), no reorder flags / suggested orders, 'reduce' flag while undiscounted. Removed the OLD CORE status pill and its engine/PDF special-cases.
 // v3.5.5 — MARKDOWN PLANNER (Category Strategy): on-order blanket-discount products now sit in the Group whose discount matches theirs (20% = Group A at its default level), so the Group A / B / C cards count them (with an 'incl. N on order' line), the '% of eligible' shares include them, and clicking a group card / 'Show only Group A products' lists them. A blanket discount that matches no group (or a figure you type that fits none) shows under Exceptions ('N on-order discount (matches no group)'). They keep their 'On order' pill and are no longer also counted as special buys in the category header. Real special buys are unchanged (still outside A/B/C). Also fixed the category header's 'N not in the sale', which was counting Exceptions instead of excluded products. Prices, exports, approvals and the Tuesday CSV are unaffected (they follow each product's discount %, not its group).
