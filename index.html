@@ -2433,8 +2433,8 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.4.3"></script>
-<script src="markdown-plans.js?v=3.4.3"></script>
+<script src="markdown-engine.js?v=3.4.4"></script>
+<script src="markdown-plans.js?v=3.4.4"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2468,7 +2468,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.4.3';
+const APP_VERSION='v3.4.4';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -13576,6 +13576,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.4.4 — SUMMARY: products on the on-order blanket discount are no longer listed as Sale specific buys. They now sit in their own category, grouped by their discount, with the note 'on-order blanket discount' (so they appear once that category is approved, like every other markdown). Special buys, the overview cards, the PDF and the Tuesday CSV (Row Type = Sale product) all follow. Real special buys are unchanged.
 // v3.4.3 — B. GWP and C. Sale specific buys now use the same search as D. Not on sale: Collection | Category | Product / colour tabs with a type-ahead list (special buys also keep a Customer PO tab; a typed product name that matches exactly one product is used). Parent-style picks are no longer offered for new picks (existing ones still work). Special buys can now be picked by category.
 // v3.4.2 — Summary and Summary PDF: SOH now comes before the xxD sales column (product tables and the Not on sale table).
 // v3.4.1 — COLLAPSE ALL now collapses everything: the top-level button closes every section and also resets what was open inside them (categories, expanded size rows, group filters, offers, summary blocks), and Expand all also reopens the Suggested/Approved category panels; 'Collapse all categories' also closes expanded size rows.

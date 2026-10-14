@@ -597,6 +597,12 @@ assert.deepEqual(P.buildForecast([], {}, 90).totals.demand, 0);
   const ids = sm.categories.flatMap(c => c.groups.flatMap(g => g.items.map(i => i.id))).concat(sm.special.groups.flatMap(g => g.items.map(i => i.id))); assert.equal(new Set(ids).size, ids.length); assert.equal(ids.length, items.length - 2);
   const withReason = P.addNosStyles(st, id, [{ style: 'N1', label: 'N1 tee — BLK', reason: 'Strong current sales' }], 9); assert.equal(P.buildSummary(items, withReason.plans[id], {}).nos[0].reason, 'Strong current sales');
   assert.equal(P.buildSummary([], st.plans[id], {}).counts.productsShown, 0);
+  // on-order blanket discount: a normal category markdown (not a special buy); it appears once its category is approved, and a real special buy still goes to Special buys
+  const bl = [mkI('B1', 'TEES', 20, { sp: true, blanket: true }), mkI('S2', 'TEES', 20, { sp: true })];
+  const smb = P.buildSummary(bl, st.plans[id], {});
+  assert.equal(smb.special.products, 1); assert.deepEqual(smb.special.groups.flatMap(g => g.items.map(i => i.id)), ['S2']);
+  const inCat = smb.categories.find(c => c.category === 'TEES').groups.flatMap(g => g.items); assert.deepEqual(inCat.map(i => i.id), ['B1']); assert.equal(inCat[0].blanket, true);
+
 }
 // blanket on-order discount + draft handling settings, summary columns / totals, draft view
 {

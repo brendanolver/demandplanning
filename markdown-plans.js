@@ -762,7 +762,7 @@
       if (p.isGWP) { gwp.push(e); continue; }
       if (p.notOnSale) { const n = nosInfo[String(p.style).toUpperCase()]; nos.push({ ...e, reason: n && n.auto ? (n.reason || 'excluded in Category Strategy') : '' }); continue; }
       const cat = e.category;
-      if (it.final.action === 'S' && !it.override) { bucket(specialMap, e); continue; }
+      if (it.final.action === 'S' && !it.override && !p.blanket) { bucket(specialMap, e); continue; }   // the on-order blanket discount is a normal category markdown (flagged in the note), not a special buy
       if (!(opts.includeUnapproved || isApproved(plan, cat))) { notIncluded.add(cat); continue; }
       const c = cats[cat] || (cats[cat] = { category: cat, approved: isApproved(plan, cat), map: {} }); bucket(c.map, e);
     }
