@@ -598,5 +598,36 @@ assert.deepEqual(P.buildForecast([], {}, 90).totals.demand, 0);
   const withReason = P.addNosStyles(st, id, [{ style: 'N1', label: 'N1 tee — BLK', reason: 'Strong current sales' }], 9); assert.equal(P.buildSummary(items, withReason.plans[id], {}).nos[0].reason, 'Strong current sales');
   assert.equal(P.buildSummary([], st.plans[id], {}).counts.productsShown, 0);
 }
+// blanket on-order discount + draft handling settings, summary columns / totals, draft view
+{
+  let st = P.createState(1, idGen); const id = st.activeId;
+  assert.equal(st.plans[id].setup.onOrderPct, null); assert.equal(st.plans[id].setup.draftMode, 'onorder');
+  for (const [inp, out] of [[30, 30], ['40', 40], ['', null], [0, null], [3, null], [99, null], ['x', null], [12.34, 12.3]]) assert.equal(P.updatePlan(st, id, { setup: { onOrderPct: inp } }).plans[id].setup.onOrderPct, out);
+  for (const [inp, out] of [['hide', 'hide'], ['all', 'all'], ['onorder', 'onorder'], ['junk', 'onorder'], [null, 'onorder']]) assert.equal(P.updatePlan(st, id, { setup: { draftMode: inp } }).plans[id].setup.draftMode, out);
+  assert.equal(P.migrate({ v: st.v, activeId: id, order: [id], plans: { [id]: { ...st.plans[id], setup: { start: '', end: '' } } } }, null, 1, idGen).plans[id].setup.draftMode, 'onorder');   // older plans pick up the defaults
+  const mkI = (pid, pct, o) => ({ row: { p: { id: pid, style: pid, name: pid, colour: 'X', category: 'TEES', rrp: 100, currentDiscountPct: 0, sold: { d7: 1, d30: 7, d60: 11, d90: 20 }, ...(o || {}) }, m: { sohNow: 10, soh: 10 } }, final: { action: pct == null ? 'Exclude' : 'A', pct }, group: pct == null ? null : 'A', price: { newPrice: pct == null ? null : 100 - pct }, override: null });
+  const items = [mkI('A1', 20), mkI('A2', 30, { isDraft: true }), mkI('A3', 30), mkI('A4', 50, { blanket: true })];
+  st = P.approveCategory(st, id, 'TEES', { A: 20, alloc: {} }, 5);
+  let sm = P.buildSummary(items, st.plans[id], { periodDays: 30 }); const all = sm.categories[0].groups.flatMap(g => g.items);
+  assert.equal(all.find(i => i.id === 'A1').sales, 7); assert.equal(P.buildSummary(items, st.plans[id], { periodDays: 90 }).categories[0].groups.flatMap(g => g.items).find(i => i.id === 'A1').sales, 20); assert.equal(P.buildSummary(items, st.plans[id], {}).periodDays, 30);
+  assert.ok(all.find(i => i.id === 'A2').draft && !all.find(i => i.id === 'A1').draft); assert.ok(all.find(i => i.id === 'A4').blanket);
+  assert.deepEqual(sm.overviewTotals, { products: 4, soh: 40, rrpValue: 4000, offValue: 1300, effective: 32.5 });
+  assert.equal(sm.overviewTotals.products, sm.overview.reduce((a, o) => a + o.products, 0)); assert.equal(sm.overviewTotals.soh, sm.counts.soh); assert.equal(sm.overviewTotals.effective, Math.round(sm.overviewTotals.offValue / sm.overviewTotals.rrpValue * 1000) / 10);
+  const ids = f => P.buildReview(items, f).groups.flatMap(g => g.items.map(i => i.row.p.id)).sort().join(''); assert.equal(ids({ view: 'draft' }), 'A2');
+}
+// input rules: drafts and the on-order blanket discount
+{
+  const R = P.planInputRules, base = { isDraft: false, onOrderAll: 0, isGWP: false, notOnSale: false, specialPct: null, specialNote: '' };
+  // drafts: default = only with units on order
+  assert.equal(R({}, { ...base, isDraft: true, onOrderAll: 0 }).skip, true); assert.equal(R({}, { ...base, isDraft: true, onOrderAll: 5 }).skip, false); assert.equal(R({ draftMode: 'onorder' }, { ...base, isDraft: true }).skip, true);
+  assert.equal(R({ draftMode: 'hide' }, { ...base, isDraft: true, onOrderAll: 500 }).skip, true); assert.equal(R({ draftMode: 'all' }, { ...base, isDraft: true, onOrderAll: 0 }).skip, false); assert.equal(R({ draftMode: 'hide' }, base).skip, false);
+  // blanket: only products with units on order; special buys keep theirs; GWP / Not on sale never get it; null = none
+  assert.equal(R({ onOrderPct: 40 }, { ...base, onOrderAll: 10 }).specialPct, 40); assert.equal(R({ onOrderPct: 40 }, { ...base, onOrderAll: 10 }).blanket, true); assert.match(R({ onOrderPct: 40 }, { ...base, onOrderAll: 10 }).specialNote, /blanket/);
+  assert.equal(R({ onOrderPct: 40 }, { ...base, onOrderAll: 0 }).specialPct, null); assert.equal(R({ onOrderPct: null }, { ...base, onOrderAll: 10 }).specialPct, null); assert.equal(R({}, { ...base, onOrderAll: 10 }).blanket, false);
+  const sb = R({ onOrderPct: 40 }, { ...base, onOrderAll: 10, specialPct: 50, specialNote: 'Colab' }); assert.equal(sb.specialPct, 50); assert.equal(sb.blanket, false); assert.equal(sb.specialNote, 'Colab');
+  assert.equal(R({ onOrderPct: 40 }, { ...base, onOrderAll: 10, isGWP: true }).specialPct, null); assert.equal(R({ onOrderPct: 40 }, { ...base, onOrderAll: 10, notOnSale: true }).specialPct, null);
+  assert.equal(R({ onOrderPct: 40, draftMode: 'onorder' }, { ...base, isDraft: true, onOrderAll: 7 }).specialPct, 40);          // a draft with units on order is shown and gets the blanket discount
+  assert.equal(R({ onOrderPct: 40 }, { ...base, isDraft: true, onOrderAll: 0 }).skip, true);
+}
 console.log('markdown plans tests: all passed');
 })();

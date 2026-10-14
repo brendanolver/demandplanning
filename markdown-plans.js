@@ -39,6 +39,8 @@
     liftPct: null,            // scenario assumption: extra demand (%) per allowed level of deeper discount in the Aggressive scenario (and less in Conservative); blank = none
     growthPct: null,          // planned growth vs the same dates last year (%), e.g. 90 = nearly double; blank = flat on last year
     incoming: 'sale',
+    onOrderPct: null,         // blanket discount (%) for every product that has units on order; null = none (normal recommendations)
+    draftMode: 'onorder',     // draft Shopify products: 'onorder' = show only if they have units on order, 'hide', or 'all'
   };
 
   const clone = o => JSON.parse(JSON.stringify(o));
@@ -196,6 +198,7 @@
     if (!state.plans[id]) return state;
     const s = clone(state), p = s.plans[id];
     if (patch.setup) p.setup = { ...p.setup, ...patch.setup };
+    { const b = Number(p.setup.onOrderPct); p.setup.onOrderPct = p.setup.onOrderPct == null || p.setup.onOrderPct === '' || !isFinite(b) || b < 5 || b > 95 ? null : Math.round(b * 10) / 10; if (!['onorder', 'hide', 'all'].includes(p.setup.draftMode)) p.setup.draftMode = 'onorder'; }
     { const l = p.setup.liftPct, n = Number(l); p.setup.liftPct = l == null || l === '' || !isFinite(n) || n <= 0 ? null : Math.min(50, Math.round(n * 10) / 10); }
     { const g = p.setup.growthPct, n = Number(g); p.setup.growthPct = g == null || g === '' || !isFinite(n) ? null : Math.max(-90, Math.min(500, Math.round(n * 10) / 10)); }
     if (patch.settings) p.settings = { ...p.settings, ...patch.settings, weights: { ...p.settings.weights, ...((patch.settings || {}).weights || {}) } };
@@ -654,6 +657,21 @@
     p.updatedTs = now || Date.now(); p.rev += 1; return s;
   }
 
+  // How the setup's two input rules shape one product before the engine sees it:
+  //  • Draft Shopify products: shown only if they have units on order (default), hidden, or all.
+  //  • Blanket discount: every product with units on order gets one designated % (like a special buy) — unless it is already a special buy, GWP or Not on sale.
+  // f = { isDraft, onOrderAll, isGWP, notOnSale, specialPct, specialNote }
+  function planInputRules(setup, f) {
+    setup = setup || {};
+    if (f.isDraft && !f.isGWP) {
+      if (setup.draftMode === 'hide') return { skip: true };
+      if ((setup.draftMode || 'onorder') === 'onorder' && !(f.onOrderAll > 0)) return { skip: true };
+    }
+    let sp = f.specialPct == null ? null : f.specialPct, note = f.specialNote || '', blanket = false;
+    if (sp == null && setup.onOrderPct != null && f.onOrderAll > 0 && !f.isGWP && !f.notOnSale) { sp = setup.onOrderPct; note = 'On-order blanket discount'; blanket = true; }
+    return { skip: false, specialPct: sp, specialNote: note, blanket };
+  }
+
   // ── Summary: every product a decision has been made on, by category then discount ───────────────────────────────────────────
   // Approved categories only unless opts.includeUnapproved. Special buys, Not on sale and GWP are listed in their own sections (never inside a category), so
   // nothing appears twice. opts.onOrder(item) -> units on order.
@@ -663,6 +681,7 @@
     const entry = it => {
       const p = it.row.p, soh = Math.max(0, Number(it.row.m.sohNow != null ? it.row.m.sohNow : it.row.m.soh) || 0);
       return { id: p.id, style: p.style, name: p.name, colour: p.colour || '', category: p.category || 'UNCATEGORISED', month: p.deliveryMonth || '', group: it.group || null, pct: it.final.pct, soh, onOrder: onOrder(it) || 0,
+        sales: (p.sold && p.sold['d' + (opts.periodDays || 30)]) || 0, draft: !!p.isDraft, blanket: !!p.blanket,
         rrp: p.rrp > 0 ? p.rrp : null, current: Math.round(p.currentDiscountPct || 0), price: it.price && it.price.newPrice != null && it.final.pct != null ? it.price.newPrice : null,
         manual: !!it.override, special: it.final.action === 'S', protectedEx: it.exceptionKind === 'protected', kept: !!it.keptExisting, core: !!p.isCore };
     };
@@ -690,8 +709,10 @@
       o.products += grp.count; o.soh += grp.soh; o.rrpValue += grp.items.reduce((a, x) => a + (x.rrp ? x.soh * x.rrp : 0), 0);
     }
     const ov = Object.values(overview).sort((a, b) => a.pct - b.pct).map(o => ({ ...o, rrpValue: Math.round(o.rrpValue), offValue: Math.round(o.rrpValue * o.pct / 100) }));
+    const ovTotals = ov.reduce((t, o) => ({ products: t.products + o.products, soh: t.soh + o.soh, rrpValue: t.rrpValue + o.rrpValue, offValue: t.offValue + o.offValue }), { products: 0, soh: 0, rrpValue: 0, offValue: 0 });
+    ovTotals.effective = ovTotals.rrpValue > 0 ? Math.round(ovTotals.offValue / ovTotals.rrpValue * 1000) / 10 : 0;
     const totalCats = new Set((items || []).filter(i => !i.row.p.isGWP && !i.row.p.notOnSale).map(i => i.row.p.category || 'UNCATEGORISED')).size;
-    return { categories, special: { groups: sp, products: sp.reduce((a, g) => a + g.count, 0), soh: sp.reduce((a, g) => a + g.soh, 0) }, nos: nos.sort((a, b) => a.name.localeCompare(b.name)), gwp: gwp.sort((a, b) => a.name.localeCompare(b.name)), overview: ov,
+    return { categories, special: { groups: sp, products: sp.reduce((a, g) => a + g.count, 0), soh: sp.reduce((a, g) => a + g.soh, 0) }, nos: nos.sort((a, b) => a.name.localeCompare(b.name)), gwp: gwp.sort((a, b) => a.name.localeCompare(b.name)), overview: ov, overviewTotals: ovTotals, periodDays: opts.periodDays || 30,
       counts: { categoriesShown: categories.length, categoriesTotal: totalCats, pendingCategories: [...notIncluded].sort(), productsShown: categories.reduce((a, c) => a + c.products, 0) + sp.reduce((a, g) => a + g.count, 0), onSale: ov.reduce((a, o) => a + o.products, 0), soh: ov.reduce((a, o) => a + o.soh, 0) } };
   }
 
@@ -848,7 +869,7 @@
   // ── Review table: filter, group by parent style, sort ───────────────────────
   // Pure — the screen only renders what this returns. A parent-style row appears only when 2+ colours
   // of that style survive the filters; everything else is a plain single row.
-  const VIEWS = ['all', 'sale', 'notsale', 'clearance', 'special', 'groupA', 'groupB', 'groupC', 'exceptions', 'overridden', 'attention', 'onorder', 'restock'];
+  const VIEWS = ['all', 'sale', 'notsale', 'clearance', 'special', 'groupA', 'groupB', 'groupC', 'exceptions', 'draft', 'overridden', 'attention', 'onorder', 'restock'];
   function buildReview(items, f, opts) {
     f = f || {}; opts = opts || {};
     const q = String(f.q || '').trim().toLowerCase();
@@ -868,6 +889,7 @@
       if (view === 'notsale' && fin.action !== 'Exclude') return false;
       if ((view === 'clearance' || view === 'groupC') && it.group !== 'C') return false;
       if (view === 'exceptions' && it.group !== 'X') return false;
+      if (view === 'draft' && !p.isDraft) return false;
       if (view === 'special' && fin.action !== 'S') return false;
       if (view === 'onorder' && !(oo(it) > 0)) return false;
       if (view === 'restock' && !(it.row.m.restock > 0)) return false;
@@ -1086,6 +1108,6 @@
     parseDay, durationDays, newPlan, createState, migrate, uniqueName, addPlan, duplicatePlan,
     renamePlan, setActive, archivePlan, restorePlan, cleanLevels, updatePlan, engineSettings, validatePlan,
     EXCLUDE_REASONS, VIEWS, sanitizeOverride, setOverrides, clearOverrides, overrideStats, buildReview,
-    SPECIAL_KINDS, GWP_KINDS, NOS_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setGwpQty, setGwpThreshold, lyWindow, lyUnitsByCategory, lyRevenueByCategory, buildForecast, addDays, demandScenarios, forecastConfidence, crossCheck, scenarioLevels, commercialSummary, addSnapshot, removeSnapshot, buildSummary, setReviewed, addNosStyles, addNosException, removeNosException, resolveNotOnSale, nosConflicts, categorySignature, OFFER_TYPES, BUNDLE_MODES, newOffer, sanitizeOffer, addOffer, updateOffer, duplicateOffer, deleteOffer, moveOffer, addOfferSelection, removeOfferSelection, setOfferException, resolveOfferConflict, resolveOffer, offerPricing, bundleText, offerConflicts, validateOffer, offerStatus, EXPORT_COLUMNS, toCsv, buildInitialExport, buildOfferExport, exportTitle, CHECKLIST, newExportRecord, addExportRecord, setMapping, defaultMappings, approveCategory, reopenCategory, releaseAllocation, refreshSuggestions, isApproved, frozenAllocs, categoryRows, approvalProgress, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
+    SPECIAL_KINDS, GWP_KINDS, NOS_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setGwpQty, setGwpThreshold, lyWindow, lyUnitsByCategory, lyRevenueByCategory, buildForecast, addDays, demandScenarios, forecastConfidence, crossCheck, scenarioLevels, commercialSummary, addSnapshot, removeSnapshot, planInputRules, buildSummary, setReviewed, addNosStyles, addNosException, removeNosException, resolveNotOnSale, nosConflicts, categorySignature, OFFER_TYPES, BUNDLE_MODES, newOffer, sanitizeOffer, addOffer, updateOffer, duplicateOffer, deleteOffer, moveOffer, addOfferSelection, removeOfferSelection, setOfferException, resolveOfferConflict, resolveOffer, offerPricing, bundleText, offerConflicts, validateOffer, offerStatus, EXPORT_COLUMNS, toCsv, buildInitialExport, buildOfferExport, exportTitle, CHECKLIST, newExportRecord, addExportRecord, setMapping, defaultMappings, approveCategory, reopenCategory, releaseAllocation, refreshSuggestions, isApproved, frozenAllocs, categoryRows, approvalProgress, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
   };
 });
