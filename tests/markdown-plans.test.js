@@ -670,5 +670,20 @@ assert.deepEqual(P.buildForecast([], {}, 90).totals.demand, 0);
   assert.strictEqual(P.resolveSyncConflict(loc, rem, 'nope', 'mine', 1, gen), loc);
   assert.equal(P.isPristine(mk('x', 1, 1)), true); assert.equal(P.isPristine(mk('x', 2, 1)), false); assert.equal(P.isPristine(mk('x', 1, 1, { overrides: { a: 1 } })), false);
 }
+// ── Tuesday import CSV: every product once, tagged by Row Type; offers add their own rows ──
+{
+  let st = P.createState(1, idGen); const id = st.activeId;
+  const mkI = (pid, cat, pct, o) => ({ row: { p: { id: pid, style: pid, name: pid + ' tee', colour: 'Blk', category: cat, rrp: 100, currentDiscountPct: 0, deliveryMonth: 'Oct-26', isCore: false, ...(o || {}) }, m: { sohNow: 10 } }, group: pct ? 'A' : null, final: { pct, action: pct ? 'A' : 'Exclude' }, price: pct ? { newPrice: 100 - pct } : null, override: null });
+  const items = [mkI('A1', 'TEES', 20), mkI('A2', 'TEES', null), mkI('N1', 'TEES', null, { notOnSale: true }), mkI('G1', 'TEES', null, { isGWP: true })];
+  st = P.approveCategory(st, id, 'TEES', { A: 20, alloc: {} }, 5);
+  const sm = P.buildSummary(items, st.plans[id], {});
+  const off = [{ status: 'draft', offer: { name: 'Weekend', type: 'reduction', pct: 60, start: '2026-11-20', end: '2026-11-22', collection: { title: 'BF 60% OFF' } }, rows: [{ style: 'A1', title: 'A1 tee — Blk', colour: 'Blk', soh: 10, onOrder: 0, initialPct: 20, pricing: { basePrice: 80, price: 40, pct: 60 } }] }];
+  const r = P.buildTuesdayCsv(st.plans[id], sm, off);
+  assert.deepEqual(r.rows.map(x => x['Row Type']), ['Sale product', 'Sale product', 'Not on sale', 'GWP', 'Mid-sale offer']);
+  assert.equal(r.rows[0].Product, 'A1 TEE - BLK'); assert.equal(r.rows[0]['Discount %'], 20); assert.equal(r.rows[0]['Sale Price'], '80.00'); assert.equal(r.rows[1]['Discount %'], '');
+  assert.equal(r.rows[4]['Offer Price'], '40.00'); assert.equal(r.rows[4]['Offer Collection'], 'BF 60% OFF'); assert.equal(r.rows[4].Product, 'A1 TEE - BLK');
+  assert.equal(r.csv.split('\r\n')[0], P.TUESDAY_COLUMNS.join(',')); assert.equal(r.csv.trim().split('\r\n').length, 6);
+  assert.equal(P.buildTuesdayCsv(st.plans[id], P.buildSummary([], st.plans[id], {}), []).rows.length, 0);
+}
 console.log('markdown plans tests: all passed');
 })();

@@ -602,6 +602,30 @@
   const EXPORT_COLUMNS = ['Product', 'New Collection'];
   const csvCell = v => { const t = v == null ? '' : String(v); return /[",\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
   function toCsv(rows, columns) { return [columns.map(csvCell).join(',')].concat(rows.map(r => columns.map(c => csvCell(r[c])).join(','))).join('\r\n') + '\r\n'; }
+  // ── Tuesday import CSV: the whole plan as one flat file, one row per product (and one per product per mid-sale offer). ──
+  // `Row Type` is the key Tuesday filters on: Sale product / Special buy / Not on sale / GWP / Mid-sale offer. Discount % is blank when the product stays at full price.
+  const TUESDAY_COLUMNS = ['Sale', 'Sale Start', 'Sale End', 'Row Type', 'Category', 'Product', 'Style', 'Colour', 'Month Del', 'Group', 'Discount %', 'Current Disc %', 'RRP', 'Sale Price',
+    'SOH', 'On Order', 'Sales (period)', 'Set Manually', 'Note', 'Reason', 'Offer', 'Offer Start', 'Offer End', 'Offer Rule', 'Offer Collection', 'Offer Status', 'Offer Price', 'Offer Total Disc %'];
+  function buildTuesdayCsv(plan, sum, offers) {
+    const rows = [], su = (plan && plan.setup) || {}, base = { Sale: plan.name || '', 'Sale Start': su.start || '', 'Sale End': su.end || '' };
+    const title = e => e.colour ? String(e.name).toUpperCase() + ' - ' + String(e.colour).toUpperCase() : String(e.name).toUpperCase();
+    const note = e => [e.manual ? 'set manually' : '', e.blanket ? 'on-order blanket discount' : '', e.protectedEx ? 'protected (deeper than Group C)' : e.kept ? 'existing discount kept' : '', e.draft ? 'draft in Shopify' : ''].filter(Boolean).join('; ');
+    const money = v => v == null ? '' : Number(v).toFixed(2);
+    const prod = (type, e, extra) => Object.assign({}, base, { 'Row Type': type, Category: e.category, Product: title(e), Style: e.style, Colour: e.colour || '', 'Month Del': e.month || '', Group: e.group || '',
+      'Discount %': e.pct == null ? '' : e.pct, 'Current Disc %': e.current || 0, RRP: money(e.rrp), 'Sale Price': money(e.price), SOH: e.soh, 'On Order': e.onOrder || 0, 'Sales (period)': e.sales || 0,
+      'Set Manually': e.manual ? 'Yes' : '', Note: note(e) }, extra || {});
+    for (const c of sum.categories) for (const g of c.groups) for (const e of g.items) rows.push(prod('Sale product', e));
+    for (const g of sum.special.groups) for (const e of g.items) rows.push(prod('Special buy', e));
+    for (const e of sum.nos) rows.push(prod('Not on sale', e, { 'Discount %': '', 'Sale Price': '', Reason: e.reason || '' }));
+    for (const e of sum.gwp) rows.push(prod('GWP', e, { 'Discount %': '', 'Sale Price': '' }));
+    for (const m of offers || []) {
+      const o = m.offer, rule = o.type === 'bundle' ? bundleText(o.bundle) : 'Further reduction to ' + (o.pct == null ? '?' : o.pct) + '% off the original RRP';
+      for (const x of m.rows) rows.push(Object.assign({}, base, { 'Row Type': 'Mid-sale offer', Product: String(x.title || x.style).toUpperCase().replace(/ — /g, ' - '), Style: x.style, Colour: x.colour || '', 'Discount %': x.initialPct == null ? '' : x.initialPct,
+        'Sale Price': money(x.pricing && x.pricing.basePrice), SOH: x.soh || 0, 'On Order': x.onOrder || 0, Offer: o.name || '', 'Offer Start': o.start || '', 'Offer End': o.end || '', 'Offer Rule': rule,
+        'Offer Collection': (o.collection && o.collection.title) || '', 'Offer Status': m.status || '', 'Offer Price': money(x.pricing && x.pricing.price), 'Offer Total Disc %': x.pricing && x.pricing.pct != null ? x.pricing.pct : '' }));
+    }
+    return { columns: TUESDAY_COLUMNS, rows, csv: toCsv(rows, TUESDAY_COLUMNS) };
+  }
   const mapKey = pct => String(Math.round(Number(pct)));
   function mappingFor(plan, pct) { const m = plan.mappings[mapKey(pct)]; return m && m.title ? m : null; }
   // The title Hextom matches on: exactly as Shopify has it ("NAME - COLOUR").
@@ -1152,6 +1176,6 @@
     parseDay, durationDays, newPlan, createState, migrate, uniqueName, addPlan, duplicatePlan,
     renamePlan, setActive, archivePlan, restorePlan, cleanLevels, updatePlan, engineSettings, validatePlan,
     EXCLUDE_REASONS, VIEWS, sanitizeOverride, setOverrides, clearOverrides, overrideStats, buildReview,
-    SPECIAL_KINDS, GWP_KINDS, NOS_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setGwpQty, setGwpThreshold, lyWindow, lyUnitsByCategory, lyRevenueByCategory, buildForecast, addDays, demandScenarios, forecastConfidence, crossCheck, scenarioLevels, commercialSummary, addSnapshot, removeSnapshot, mergeStates, resolveSyncConflict, isPristine, planInputRules, buildSummary, setReviewed, addNosStyles, addNosException, removeNosException, resolveNotOnSale, nosConflicts, categorySignature, OFFER_TYPES, BUNDLE_MODES, newOffer, sanitizeOffer, addOffer, updateOffer, duplicateOffer, deleteOffer, moveOffer, addOfferSelection, removeOfferSelection, setOfferException, resolveOfferConflict, resolveOffer, offerPricing, bundleText, offerConflicts, validateOffer, offerStatus, EXPORT_COLUMNS, toCsv, buildInitialExport, buildOfferExport, exportTitle, CHECKLIST, newExportRecord, addExportRecord, setMapping, defaultMappings, approveCategory, reopenCategory, releaseAllocation, refreshSuggestions, isApproved, frozenAllocs, categoryRows, approvalProgress, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
+    buildTuesdayCsv, TUESDAY_COLUMNS, SPECIAL_KINDS, GWP_KINDS, NOS_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setGwpQty, setGwpThreshold, lyWindow, lyUnitsByCategory, lyRevenueByCategory, buildForecast, addDays, demandScenarios, forecastConfidence, crossCheck, scenarioLevels, commercialSummary, addSnapshot, removeSnapshot, mergeStates, resolveSyncConflict, isPristine, planInputRules, buildSummary, setReviewed, addNosStyles, addNosException, removeNosException, resolveNotOnSale, nosConflicts, categorySignature, OFFER_TYPES, BUNDLE_MODES, newOffer, sanitizeOffer, addOffer, updateOffer, duplicateOffer, deleteOffer, moveOffer, addOfferSelection, removeOfferSelection, setOfferException, resolveOfferConflict, resolveOffer, offerPricing, bundleText, offerConflicts, validateOffer, offerStatus, EXPORT_COLUMNS, toCsv, buildInitialExport, buildOfferExport, exportTitle, CHECKLIST, newExportRecord, addExportRecord, setMapping, defaultMappings, approveCategory, reopenCategory, releaseAllocation, refreshSuggestions, isApproved, frozenAllocs, categoryRows, approvalProgress, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
   };
 });
