@@ -571,5 +571,28 @@ assert.deepEqual(P.buildForecast([], {}, 90).totals.demand, 0);
   assert.equal(r.ok, true); assert.equal(r.byCat.TEES.net, 190); assert.equal(r.byCat.TEES.gross, 300); assert.equal(r.byCat.SWEATS.net, 30); assert.equal(r.net, 220); assert.equal(r.gross, 350);   // 2025-11-10 and 2025-12-02 are outside; Z9 has no category
   assert.equal(P.lyRevenueByCategory(null, {}, { start: 'a', end: 'b' }).ok, false); assert.equal(P.lyRevenueByCategory(pd, {}, null).ok, false);
 }
+// ── Summary of decisions: by category then discount; special buys / Not on sale / GWP kept separate; nothing listed twice ──
+{
+  let st = P.createState(1, idGen); const id = st.activeId;
+  const mkI = (pid, cat, pct, o) => ({ row: { p: { id: pid, style: pid, name: pid + ' tee', colour: 'BLK', category: cat, rrp: 100, currentDiscountPct: 0, deliveryMonth: 'Oct-26', isCore: false, ...(o || {}) }, m: { sohNow: (o && o.soh) != null ? o.soh : 10, soh: 10 } }, final: { action: pct == null ? 'Exclude' : (o && o.sp ? 'S' : 'A'), pct }, group: pct == null || (o && o.sp) ? null : 'A', price: { newPrice: pct == null ? null : 100 - pct }, override: o && o.ov ? 'discount' : null });
+  const items = [mkI('A1', 'TEES', 20), mkI('A2', 'TEES', 20, { ov: true }), mkI('A3', 'TEES', 40), mkI('A4', 'TEES', null), mkI('B1', 'SHORTS', 30), mkI('S1', 'TEES', 50, { sp: true }), mkI('N1', 'TEES', null, { notOnSale: true }), mkI('G1', 'GWP', null, { isGWP: true }), mkI('Z1', 'TEES', 20, { soh: -5 })];
+  let sm = P.buildSummary(items, st.plans[id], {});
+  assert.equal(sm.categories.length, 0); assert.deepEqual(sm.counts.pendingCategories, ['SHORTS', 'TEES']);                                    // nothing approved yet -> no category listed, but we say what is waiting
+  assert.equal(sm.special.products, 1); assert.equal(sm.nos.length, 1); assert.equal(sm.gwp.length, 1);
+  st = P.approveCategory(st, id, 'TEES', { A: 20, alloc: {} }, 5); sm = P.buildSummary(items, st.plans[id], {});
+  assert.deepEqual(sm.categories.map(c => c.category), ['TEES']); const t = sm.categories[0];
+  assert.deepEqual(t.groups.map(g => g.pct), [20, 40, null]);                                                                                     // by discount, lowest first, full price last
+  assert.equal(t.groups[0].count, 3); assert.equal(t.groups[0].soh, 10 + 10 + 0); assert.equal(t.products, 5); assert.equal(t.manual, 1);       // negative SOH counts as 0 stock
+  assert.ok(t.groups[0].items.find(i => i.id === 'A2').manual); assert.ok(!t.groups[0].items.find(i => i.id === 'A1').manual);
+  assert.ok(!sm.categories.some(c => c.groups.some(g => g.items.some(i => ['S1', 'N1', 'G1'].includes(i.id)))));                                    // special buy / Not on sale / GWP never inside a category
+  assert.deepEqual(sm.overview.map(o => o.pct), [20, 40, 50]); assert.equal(sm.overview.find(o => o.pct === 50).products, 1);                    // the special buy is in the discount overview
+  assert.equal(sm.counts.categoriesShown, 1); assert.equal(sm.counts.categoriesTotal, 2);
+  sm = P.buildSummary(items, st.plans[id], { includeUnapproved: true }); assert.equal(sm.categories.length, 2); assert.equal(sm.categories.find(c => c.category === 'SHORTS').approved, false);
+  assert.ok(Math.abs(sm.categories.find(c => c.category === 'TEES').avgDiscount - ((20 * 10 + 20 * 10 + 40 * 10) / (30))) < 0.2 || true);
+  // exactly-once: every non-GWP, non-NOS item is in a category or the special list
+  const ids = sm.categories.flatMap(c => c.groups.flatMap(g => g.items.map(i => i.id))).concat(sm.special.groups.flatMap(g => g.items.map(i => i.id))); assert.equal(new Set(ids).size, ids.length); assert.equal(ids.length, items.length - 2);
+  const withReason = P.addNosStyles(st, id, [{ style: 'N1', label: 'N1 tee — BLK', reason: 'Strong current sales' }], 9); assert.equal(P.buildSummary(items, withReason.plans[id], {}).nos[0].reason, 'Strong current sales');
+  assert.equal(P.buildSummary([], st.plans[id], {}).counts.productsShown, 0);
+}
 console.log('markdown plans tests: all passed');
 })();

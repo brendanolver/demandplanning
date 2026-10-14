@@ -650,6 +650,47 @@
     p.updatedTs = now || Date.now(); p.rev += 1; return s;
   }
 
+  // ── Summary: every product a decision has been made on, by category then discount ───────────────────────────────────────────
+  // Approved categories only unless opts.includeUnapproved. Special buys, Not on sale and GWP are listed in their own sections (never inside a category), so
+  // nothing appears twice. opts.onOrder(item) -> units on order.
+  function buildSummary(items, plan, opts) {
+    opts = opts || {}; const onOrder = opts.onOrder || (() => 0), cats = {}, special = [], nos = [], gwp = [], notIncluded = new Set();
+    const nosInfo = {}; for (const e of plan.notOnSale.items) if (e.kind === 'style') nosInfo[String(e.value).toUpperCase()] = e;
+    const entry = it => {
+      const p = it.row.p, soh = Math.max(0, Number(it.row.m.sohNow != null ? it.row.m.sohNow : it.row.m.soh) || 0);
+      return { id: p.id, style: p.style, name: p.name, colour: p.colour || '', category: p.category || 'UNCATEGORISED', month: p.deliveryMonth || '', group: it.group || null, pct: it.final.pct, soh, onOrder: onOrder(it) || 0,
+        rrp: p.rrp > 0 ? p.rrp : null, current: Math.round(p.currentDiscountPct || 0), price: it.price && it.price.newPrice != null && it.final.pct != null ? it.price.newPrice : null,
+        manual: !!it.override, special: it.final.action === 'S', protectedEx: it.exceptionKind === 'protected', kept: !!it.keptExisting, core: !!p.isCore };
+    };
+    const bucket = (map, e) => { const k = e.pct == null ? 'none' : String(e.pct); const b = map[k] || (map[k] = { pct: e.pct, items: [] }); b.items.push(e); };
+    const groupsOf = map => Object.keys(map).map(k => map[k]).sort((a, b) => (a.pct == null ? 1 : b.pct == null ? -1 : a.pct - b.pct))
+      .map(g => ({ ...g, items: g.items.sort((a, b) => a.name.localeCompare(b.name) || a.colour.localeCompare(b.colour)), count: g.items.length, soh: g.items.reduce((a, x) => a + x.soh, 0) }));
+    const specialMap = {};
+    for (const it of items || []) {
+      const p = it.row.p, e = entry(it);
+      if (p.isGWP) { gwp.push(e); continue; }
+      if (p.notOnSale) { const n = nosInfo[String(p.style).toUpperCase()]; nos.push({ ...e, reason: n && n.auto ? (n.reason || 'excluded in Category Strategy') : '' }); continue; }
+      const cat = e.category;
+      if (it.final.action === 'S' && !it.override) { bucket(specialMap, e); continue; }
+      if (!(opts.includeUnapproved || isApproved(plan, cat))) { notIncluded.add(cat); continue; }
+      const c = cats[cat] || (cats[cat] = { category: cat, approved: isApproved(plan, cat), map: {} }); bucket(c.map, e);
+    }
+    const categories = Object.keys(cats).sort().map(k => {
+      const c = cats[k], groups = groupsOf(c.map), all = groups.flatMap(g => g.items), inSale = all.filter(x => x.pct != null && x.rrp);
+      const rrpV = inSale.reduce((a, x) => a + x.soh * x.rrp, 0), off = inSale.reduce((a, x) => a + x.soh * x.rrp * x.pct / 100, 0);
+      return { category: k, approved: c.approved, groups, products: all.length, soh: all.reduce((a, x) => a + x.soh, 0), onOrder: all.reduce((a, x) => a + x.onOrder, 0), manual: all.filter(x => x.manual).length, avgDiscount: rrpV > 0 ? Math.round(off / rrpV * 1000) / 10 : 0 };
+    });
+    const sp = groupsOf(specialMap), overview = {};
+    for (const grp of categories.flatMap(c => c.groups).concat(sp)) {
+      if (grp.pct == null) continue; const o = overview[grp.pct] || (overview[grp.pct] = { pct: grp.pct, products: 0, soh: 0, rrpValue: 0 });
+      o.products += grp.count; o.soh += grp.soh; o.rrpValue += grp.items.reduce((a, x) => a + (x.rrp ? x.soh * x.rrp : 0), 0);
+    }
+    const ov = Object.values(overview).sort((a, b) => a.pct - b.pct).map(o => ({ ...o, rrpValue: Math.round(o.rrpValue), offValue: Math.round(o.rrpValue * o.pct / 100) }));
+    const totalCats = new Set((items || []).filter(i => !i.row.p.isGWP && !i.row.p.notOnSale).map(i => i.row.p.category || 'UNCATEGORISED')).size;
+    return { categories, special: { groups: sp, products: sp.reduce((a, g) => a + g.count, 0), soh: sp.reduce((a, g) => a + g.soh, 0) }, nos: nos.sort((a, b) => a.name.localeCompare(b.name)), gwp: gwp.sort((a, b) => a.name.localeCompare(b.name)), overview: ov,
+      counts: { categoriesShown: categories.length, categoriesTotal: totalCats, pendingCategories: [...notIncluded].sort(), productsShown: categories.reduce((a, c) => a + c.products, 0) + sp.reduce((a, g) => a + g.count, 0), onSale: ov.reduce((a, o) => a + o.products, 0), soh: ov.reduce((a, o) => a + o.soh, 0) } };
+  }
+
   // ── Category approval (the main workflow) ───────────────────────────────────
   // Approving a category saves its final Group A / B levels and every product's allocation in it, and moves it to Approved. Reopening
   // moves it back but keeps everything saved (levels, allocations, your product decisions). 'Regenerate' drops the saved allocations of
@@ -1041,6 +1082,6 @@
     parseDay, durationDays, newPlan, createState, migrate, uniqueName, addPlan, duplicatePlan,
     renamePlan, setActive, archivePlan, restorePlan, cleanLevels, updatePlan, engineSettings, validatePlan,
     EXCLUDE_REASONS, VIEWS, sanitizeOverride, setOverrides, clearOverrides, overrideStats, buildReview,
-    SPECIAL_KINDS, GWP_KINDS, NOS_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setGwpQty, setGwpThreshold, lyWindow, lyUnitsByCategory, lyRevenueByCategory, buildForecast, addDays, demandScenarios, forecastConfidence, crossCheck, scenarioLevels, commercialSummary, addSnapshot, removeSnapshot, setReviewed, addNosStyles, addNosException, removeNosException, resolveNotOnSale, nosConflicts, categorySignature, OFFER_TYPES, BUNDLE_MODES, newOffer, sanitizeOffer, addOffer, updateOffer, duplicateOffer, deleteOffer, moveOffer, addOfferSelection, removeOfferSelection, setOfferException, resolveOfferConflict, resolveOffer, offerPricing, bundleText, offerConflicts, validateOffer, offerStatus, EXPORT_COLUMNS, toCsv, buildInitialExport, buildOfferExport, CHECKLIST, newExportRecord, addExportRecord, setMapping, defaultMappings, approveCategory, reopenCategory, releaseAllocation, refreshSuggestions, isApproved, frozenAllocs, categoryRows, approvalProgress, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
+    SPECIAL_KINDS, GWP_KINDS, NOS_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setGwpQty, setGwpThreshold, lyWindow, lyUnitsByCategory, lyRevenueByCategory, buildForecast, addDays, demandScenarios, forecastConfidence, crossCheck, scenarioLevels, commercialSummary, addSnapshot, removeSnapshot, buildSummary, setReviewed, addNosStyles, addNosException, removeNosException, resolveNotOnSale, nosConflicts, categorySignature, OFFER_TYPES, BUNDLE_MODES, newOffer, sanitizeOffer, addOffer, updateOffer, duplicateOffer, deleteOffer, moveOffer, addOfferSelection, removeOfferSelection, setOfferException, resolveOfferConflict, resolveOffer, offerPricing, bundleText, offerConflicts, validateOffer, offerStatus, EXPORT_COLUMNS, toCsv, buildInitialExport, buildOfferExport, CHECKLIST, newExportRecord, addExportRecord, setMapping, defaultMappings, approveCategory, reopenCategory, releaseAllocation, refreshSuggestions, isApproved, frozenAllocs, categoryRows, approvalProgress, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
   };
 });
