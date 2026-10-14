@@ -77,7 +77,8 @@
       mappings: defaultMappings(),    // discount % -> Shopify collection { title, id }, independent per sale (Black Friday names to start; editable)
       exports: [],     // phase 7: export + confirmation history
       special: [],     // special buys: Apparel Magic selections + the discount for each
-      gwp: { items: [], threshold: null, qty: {} },   // gift with purchase: selections, optional spend threshold, planned giveaways per style
+      specialExceptions: [],   // single styles taken OUT of the special buys even though a collection / category / PO pick matches them
+      gwp: { items: [], threshold: null, qty: {}, exceptions: [] },   // exceptions: single styles taken out of GWP   // gift with purchase: selections, optional spend threshold, planned giveaways per style
       notOnSale: { items: [], exceptions: [] },        // stock kept OUT of the sale: collections / categories / styles picked from Apparel Magic, plus styles put back in
       offers: [],                                      // mid-sale offers (further reductions, bundles), each with its own products, dates, pricing and collection
       offerResolutions: {},                            // { STYLE: offerId } — which offer wins when a style sits in overlapping offers with incompatible pricing
@@ -112,8 +113,10 @@
         p.catApprovals = p.catApprovals && typeof p.catApprovals === 'object' && !Array.isArray(p.catApprovals) ? p.catApprovals : {};
         p.overrides = p.overrides || {}; p.mappings = p.mappings || {}; p.exports = p.exports || [];
         p.special = Array.isArray(p.special) ? p.special : [];
-        p.gwp = { items: [], threshold: null, qty: {}, ...(p.gwp || {}) };
+        p.specialExceptions = Array.isArray(p.specialExceptions) ? p.specialExceptions : [];
+        p.gwp = { items: [], threshold: null, qty: {}, exceptions: [], ...(p.gwp || {}) };
         if (!Array.isArray(p.gwp.items)) p.gwp.items = [];
+        if (!Array.isArray(p.gwp.exceptions)) p.gwp.exceptions = [];
         if (!p.gwp.qty || typeof p.gwp.qty !== 'object') p.gwp.qty = {};
       }
       if (!s.plans[s.activeId] || s.plans[s.activeId].archived) s.activeId = s.order.find(id => s.plans[id] && !s.plans[id].archived) || s.order[0];
@@ -417,7 +420,7 @@
   function resolveNotOnSale(plan, catalogue, ctx) {
     const rows = resolveSelections(plan.notOnSale.items, catalogue, ctx), ex = new Set((plan.notOnSale.exceptions || []).map(x => String(x).toUpperCase()));
     const kept = rows.filter(r => !ex.has(r.style));
-    return { rows: kept, styles: new Set(kept.map(r => r.style)), excepted: rows.filter(r => ex.has(r.style)).map(r => r.style) };
+    return { rows: kept, all: rows, styles: new Set(kept.map(r => r.style)), excepted: rows.filter(r => ex.has(r.style)).map(r => r.style) };
   }
   // A style that is Not on sale AND a discounted special buy: needs a decision, never silently discounted.
   function nosConflicts(nosStyles, specialStyles) {
@@ -1067,8 +1070,28 @@
     let id;
     if (ex) { Object.assign(ex, clean); id = ex.id; }
     else { id = (idGen ? idGen() : defaultId(now)); list.push({ id, ...clean, addedTs: now || Date.now() }); }
+    if (clean.kind === 'style') {          // picking a product by name again brings it back if it had been taken out of this section
+      const k = clean.value.toUpperCase(), drop = a => (a || []).filter(x => String(x).toUpperCase() !== k);
+      if (section === 'gwp') p.gwp.exceptions = drop(p.gwp.exceptions); else if (section === 'special') p.specialExceptions = drop(p.specialExceptions); else if (section === 'nos') p.notOnSale.exceptions = drop(p.notOnSale.exceptions);
+    }
     p.updatedTs = now || Date.now(); p.rev += 1;
     return { state: s, id };
+  }
+  // Take ONE style out of GWP or Sale specific buys (even if a collection / category / PO pick brought it in), or put it back.
+  // Not on sale uses addNosException / removeNosException (a style 'put back in the sale' is the same thing there).
+  function setSectionException(state, planId, section, style, on, now) {
+    const plan = state.plans[planId], k = String(style || '').trim().toUpperCase();
+    if (!plan || !k || (section !== 'gwp' && section !== 'special')) return state;
+    const cur = section === 'gwp' ? plan.gwp.exceptions : plan.specialExceptions;
+    if (cur.includes(k) === !!on) return state;
+    const s = clone(state), p = s.plans[planId], next = on ? cur.concat(k) : cur.filter(x => x !== k);
+    if (section === 'gwp') { p.gwp.exceptions = next; if (on) delete p.gwp.qty[k]; } else p.specialExceptions = next;     // a style taken out of GWP loses its planned giveaways
+    p.updatedTs = now || Date.now(); p.rev += 1; return s;
+  }
+  // Split resolved rows into those still in the section and those taken out by an exception.
+  function applyExceptions(rows, exceptions) {
+    const ex = new Set((exceptions || []).map(x => String(x).toUpperCase()));
+    return { kept: (rows || []).filter(r => !ex.has(r.style)), removed: (rows || []).filter(r => ex.has(r.style)) };
   }
   function removeSelection(state, planId, section, selId, now) {
     const plan = state.plans[planId]; if (!plan || !planList(plan, section).some(x => x.id === selId)) return state;
@@ -1176,6 +1199,6 @@
     parseDay, durationDays, newPlan, createState, migrate, uniqueName, addPlan, duplicatePlan,
     renamePlan, setActive, archivePlan, restorePlan, cleanLevels, updatePlan, engineSettings, validatePlan,
     EXCLUDE_REASONS, VIEWS, sanitizeOverride, setOverrides, clearOverrides, overrideStats, buildReview,
-    buildTuesdayCsv, TUESDAY_COLUMNS, SPECIAL_KINDS, GWP_KINDS, NOS_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setGwpQty, setGwpThreshold, lyWindow, lyUnitsByCategory, lyRevenueByCategory, buildForecast, addDays, demandScenarios, forecastConfidence, crossCheck, scenarioLevels, commercialSummary, addSnapshot, removeSnapshot, mergeStates, resolveSyncConflict, isPristine, planInputRules, buildSummary, setReviewed, addNosStyles, addNosException, removeNosException, resolveNotOnSale, nosConflicts, categorySignature, OFFER_TYPES, BUNDLE_MODES, newOffer, sanitizeOffer, addOffer, updateOffer, duplicateOffer, deleteOffer, moveOffer, addOfferSelection, removeOfferSelection, setOfferException, resolveOfferConflict, resolveOffer, offerPricing, bundleText, offerConflicts, validateOffer, offerStatus, EXPORT_COLUMNS, toCsv, buildInitialExport, buildOfferExport, exportTitle, CHECKLIST, newExportRecord, addExportRecord, setMapping, defaultMappings, approveCategory, reopenCategory, releaseAllocation, refreshSuggestions, isApproved, frozenAllocs, categoryRows, approvalProgress, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
+    buildTuesdayCsv, TUESDAY_COLUMNS, SPECIAL_KINDS, GWP_KINDS, NOS_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setSectionException, applyExceptions, setGwpQty, setGwpThreshold, lyWindow, lyUnitsByCategory, lyRevenueByCategory, buildForecast, addDays, demandScenarios, forecastConfidence, crossCheck, scenarioLevels, commercialSummary, addSnapshot, removeSnapshot, mergeStates, resolveSyncConflict, isPristine, planInputRules, buildSummary, setReviewed, addNosStyles, addNosException, removeNosException, resolveNotOnSale, nosConflicts, categorySignature, OFFER_TYPES, BUNDLE_MODES, newOffer, sanitizeOffer, addOffer, updateOffer, duplicateOffer, deleteOffer, moveOffer, addOfferSelection, removeOfferSelection, setOfferException, resolveOfferConflict, resolveOffer, offerPricing, bundleText, offerConflicts, validateOffer, offerStatus, EXPORT_COLUMNS, toCsv, buildInitialExport, buildOfferExport, exportTitle, CHECKLIST, newExportRecord, addExportRecord, setMapping, defaultMappings, approveCategory, reopenCategory, releaseAllocation, refreshSuggestions, isApproved, frozenAllocs, categoryRows, approvalProgress, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
   };
 });

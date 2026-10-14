@@ -166,7 +166,7 @@ assert.deepEqual(P.sanitizeOverride({ exclude: true, confirm: true, reason: 'x' 
 assert.deepEqual(P.buildReview([], {}).groups, []);
 // ── Special buys & GWP selections ───────────────────────────────────────────
 let sp = P.createState(1, idGen), spid = sp.activeId;
-assert.deepEqual(sp.plans[spid].special, []); assert.deepEqual(sp.plans[spid].gwp, { items: [], threshold: null, qty: {} });
+assert.deepEqual(sp.plans[spid].special, []); assert.deepEqual(sp.plans[spid].gwp, { items: [], threshold: null, qty: {}, exceptions: [] });
 assert.deepEqual(P.sanitizeSelection('special', { kind: 'group', value: '  2026 - BF EXCLUSIVE ', pct: 50 }), { kind: 'group', value: '2026 - BF EXCLUSIVE', pct: 50 });
 for (const bad of [null, {}, { kind: 'group', value: '' }, { kind: 'nope', value: 'x', pct: 50 }, { kind: 'group', value: 'x' }, { kind: 'group', value: 'x', pct: 0 }, { kind: 'group', value: 'x', pct: 99 }, { kind: 'colour', value: 'GWP', pct: 50 }]) assert.equal(P.sanitizeSelection('special', bad), null);   // special buys can now be picked by category; unknown kinds are still rejected
 assert.deepEqual(P.sanitizeSelection('gwp', { kind: 'category', value: 'GWP' }), { kind: 'category', value: 'GWP' }); assert.equal(P.sanitizeSelection('gwp', { kind: 'po', value: 'x' }), null);
@@ -187,9 +187,9 @@ assert.equal(P.setGwpThreshold(g1.state, spid, null), g1.state);
 let rm = P.removeSelection(g1.state, spid, 'special', a1.id, 1000); assert.equal(rm.plans[spid].special.length, 1); assert.equal(P.removeSelection(rm, spid, 'special', 'ghost'), rm);
 assert.equal(P.removeSelection(g1.state, spid, 'gwp', g1.id, 1000).plans[spid].gwp.items.length, 0);
 // allocations are for ONE promotion: a duplicate does not inherit them; archive/restore keeps them; old saved plans get empty defaults
-const dp2 = P.duplicatePlan(g1.state, spid, 1100, idGen); assert.deepEqual(dp2.state.plans[dp2.id].special, []); assert.deepEqual(dp2.state.plans[dp2.id].gwp, { items: [], threshold: null, qty: {} }); assert.equal(g1.state.plans[spid].special.length, 2);
+const dp2 = P.duplicatePlan(g1.state, spid, 1100, idGen); assert.deepEqual(dp2.state.plans[dp2.id].special, []); assert.deepEqual(dp2.state.plans[dp2.id].gwp, { items: [], threshold: null, qty: {}, exceptions: [] }); assert.equal(g1.state.plans[spid].special.length, 2);
 assert.equal(P.restorePlan(P.archivePlan(dp2.state, spid, 1), spid, 2).plans[spid].special.length, 2);
-const olds = JSON.parse(JSON.stringify(sp)); delete olds.plans[spid].special; delete olds.plans[spid].gwp; const mg = P.migrate(olds, null, 1, idGen).plans[spid]; assert.deepEqual(mg.special, []); assert.deepEqual(mg.gwp, { items: [], threshold: null, qty: {} });
+const olds = JSON.parse(JSON.stringify(sp)); delete olds.plans[spid].special; delete olds.plans[spid].gwp; const mg = P.migrate(olds, null, 1, idGen).plans[spid]; assert.deepEqual(mg.special, []); assert.deepEqual(mg.gwp, { items: [], threshold: null, qty: {}, exceptions: [] });
 
 // resolver
 const cat2 = [
@@ -690,6 +690,46 @@ assert.deepEqual(P.buildForecast([], {}, 90).totals.demand, 0);
   assert.equal(r.rows[4]['Offer Price'], '40.00'); assert.equal(r.rows[4]['Offer Collection'], 'BF 60% OFF'); assert.equal(r.rows[4].Product, 'A1 TEE - BLK');
   assert.equal(r.csv.split('\r\n')[0], P.TUESDAY_COLUMNS.join(',')); assert.equal(r.csv.trim().split('\r\n').length, 6);
   assert.equal(P.buildTuesdayCsv(st.plans[id], P.buildSummary([], st.plans[id], {}), []).rows.length, 0);
+}
+
+// ── Removing individual products from GWP / special buys / Not on sale (even when a whole collection or category added them) ──
+{
+  let st = P.createState(1000, idGen), id = st.activeId;
+  const names = (rows) => rows.map(r => r.style);
+  // GWP: whole category in, then one product out
+  st = P.addSelection(st, id, 'gwp', { kind: 'category', value: 'GWP' }, 1, idGen).state;
+  assert.deepEqual(names(P.resolveSelections(st.plans[id].gwp.items, cat2, ctx2)), ['W26LG011BLK', 'W26KG916BLK']);
+  st = P.setSectionException(st, id, 'gwp', 'w26lg011blk', true, 2);                              // case-insensitive
+  assert.deepEqual(st.plans[id].gwp.exceptions, ['W26LG011BLK']);
+  let ap = P.applyExceptions(P.resolveSelections(st.plans[id].gwp.items, cat2, ctx2), st.plans[id].gwp.exceptions);
+  assert.deepEqual(names(ap.kept), ['W26KG916BLK']); assert.deepEqual(names(ap.removed), ['W26LG011BLK']);
+  assert.equal(P.setSectionException(st, id, 'gwp', 'W26LG011BLK', true, 3), st);                  // already out: no change, no new revision
+  // taking it out also drops its planned giveaways
+  let st2 = P.setGwpQty(P.setSectionException(st, id, 'gwp', 'W26LG011BLK', false, 3), id, 'W26LG011BLK', 40, 4); st2 = P.setSectionException(st2, id, 'gwp', 'W26LG011BLK', true, 5); assert.ok(!('W26LG011BLK' in st2.plans[id].gwp.qty));
+  // put it back
+  st = P.setSectionException(st, id, 'gwp', 'W26LG011BLK', false, 6); assert.deepEqual(st.plans[id].gwp.exceptions, []);
+  // special buys: collection pick at 50%, one product out; the others keep the discount; the pick itself is untouched
+  st = P.addSelection(st, id, 'special', { kind: 'group', value: '2027 AW1 - IKIZAMA', pct: 50 }, 7, idGen).state;
+  st = P.setSectionException(st, id, 'special', 'W27BA003BLK', true, 8);
+  ap = P.applyExceptions(P.resolveSelections(st.plans[id].special, cat2, ctx2), st.plans[id].specialExceptions);
+  assert.deepEqual(names(ap.kept), ['W27BA003OYS']); assert.deepEqual(names(ap.removed), ['W27BA003BLK']); assert.equal(st.plans[id].special.length, 1);
+  // picking the product by name again brings it back
+  st = P.addSelection(st, id, 'special', { kind: 'style', value: 'W27BA003BLK', pct: 40 }, 9, idGen).state;
+  assert.deepEqual(st.plans[id].specialExceptions, []);
+  // Not on sale: the existing 'put back in the sale' exception is the removal; naming the product again cancels it
+  st = P.addSelection(st, id, 'nos', { kind: 'category', value: 'BOX FIT TEES' }, 10, idGen).state;
+  st = P.addNosException(st, id, 'W27BA003OYS', 11);
+  let nos = P.resolveNotOnSale(st.plans[id], cat2, ctx2);
+  assert.deepEqual(names(nos.rows), ['W27BA003BLK']); assert.deepEqual(names(nos.all), ['W27BA003OYS', 'W27BA003BLK']); assert.deepEqual(nos.excepted, ['W27BA003OYS']);
+  st = P.addSelection(st, id, 'nos', { kind: 'style', value: 'W27BA003OYS' }, 12, idGen).state; assert.deepEqual(st.plans[id].notOnSale.exceptions, []);
+  // bad input and unknown plans / sections are ignored
+  assert.equal(P.setSectionException(st, id, 'nos', 'X', true), st); assert.equal(P.setSectionException(st, 'nope', 'gwp', 'X', true), st); assert.equal(P.setSectionException(st, id, 'gwp', '  ', true), st);
+  // older saved plans (no exception fields) load with empty lists, and the fields survive a clone / migrate round trip
+  const old = JSON.parse(JSON.stringify(st)); delete old.plans[id].specialExceptions; delete old.plans[id].gwp.exceptions;
+  const mg = P.migrate(old, null, 1, idGen); assert.deepEqual(mg.plans[id].specialExceptions, []); assert.deepEqual(mg.plans[id].gwp.exceptions, []);
+  st = P.setSectionException(P.setSectionException(st, id, 'gwp', 'W26LG011BLK', true), id, 'special', 'W27BA003BLK', true);
+  const rt = P.migrate(JSON.parse(JSON.stringify(st)), null, 1, idGen); assert.deepEqual(rt.plans[id].gwp.exceptions, ['W26LG011BLK']); assert.deepEqual(rt.plans[id].specialExceptions, ['W27BA003BLK']);
+  assert.ok(st.plans[id].rev > 1);
 }
 console.log('markdown plans tests: all passed');
 })();
