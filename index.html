@@ -2445,9 +2445,9 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.6.9"></script>
-<script src="markdown-plans.js?v=3.6.9"></script>
-<script src="sales-cadence-pdf.js?v=3.6.9"></script>
+<script src="markdown-engine.js?v=3.7.0"></script>
+<script src="markdown-plans.js?v=3.7.0"></script>
+<script src="sales-cadence-pdf.js?v=3.7.0"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2481,7 +2481,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.6.9';
+const APP_VERSION='v3.7.0';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -6342,6 +6342,10 @@ function mdpAgeWeeks(p){
 // Open Apparel Magic on-order units per style (qty_open), optionally only what is due by the
 // sale's end. Read straight from the AM orders — NOT from the product rows, which only pick
 // their on-order figures up several seconds after the orders land and would briefly read 0.
+// Products whose only stock is on order (special buys, blanket-discount products, restocks) are built from Apparel Magic's open orders. Until those have loaded they are
+// simply absent from the plan — so anything counted or exported in that window is incomplete.
+function mdpOnOrderPending(){return typeof isAMSyncEnabled==='function'&&isAMSyncEnabled()&&amApiData===null&&!window._amOrdersDone;}
+const MDP_PENDING_MSG='Apparel Magic\'s open orders haven\'t finished loading, so products that only have stock on order (special buys, on-order blanket discounts, restocks) are missing right now.';
 function mdpOnOrderByEnd(endIso){
   if(!amApiData||!amApiData.length)return null;
   const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(endIso||'');
@@ -6986,17 +6990,19 @@ function mdpSummaryHtml(print){
 }
 function mdpSummaryBody(){
   const s=mdpSummaryData().sum;
-  return`<div class="mdp-sumbar"><label class="mdp-chk"><input type="checkbox" ${mdpSumAll?'checked':''} onchange="mdpSumToggleAll(this.checked)"> Include categories not yet approved</label><span class="mdp-dim">${s.counts.categoriesShown} of ${s.counts.categoriesTotal} categories · ${s.counts.productsShown.toLocaleString()} products</span><span style="margin-left:auto;display:inline-flex;gap:8px;"><button class="mdp-btn mdp-btn-ghost" onclick="mdpSumSetAll(false)">⌃ Collapse all</button><button class="mdp-btn mdp-btn-ghost" onclick="mdpSumSetAll(true)">⌄ Expand all</button><button class="mdp-btn mdp-btn-ghost" onclick="mdpExportTuesdayCsv()" title="One row per product (plus one per mid-sale offer product) — the file Tuesday imports">⬇ Tuesday CSV</button><button class="mdp-btn mdp-btn-go" onclick="mdpExportPdf()" title="Opens the print dialog — choose Save as PDF">⬇ Export PDF</button></span></div><div class="mdp-sum">${mdpSummaryHtml(false)}</div>`;
+  return(mdpOnOrderPending()?`<div class="mdp-err" style="margin-bottom:10px;">⚠ <b>Incomplete for now.</b> ${MDP_PENDING_MSG} This Summary, the PDF and the Tuesday CSV will be short until they load (the page updates by itself) — wait before exporting.</div>`:'')+`<div class="mdp-sumbar"><label class="mdp-chk"><input type="checkbox" ${mdpSumAll?'checked':''} onchange="mdpSumToggleAll(this.checked)"> Include categories not yet approved</label><span class="mdp-dim">${s.counts.categoriesShown} of ${s.counts.categoriesTotal} categories · ${s.counts.productsShown.toLocaleString()} products</span><span style="margin-left:auto;display:inline-flex;gap:8px;"><button class="mdp-btn mdp-btn-ghost" onclick="mdpSumSetAll(false)">⌃ Collapse all</button><button class="mdp-btn mdp-btn-ghost" onclick="mdpSumSetAll(true)">⌄ Expand all</button><button class="mdp-btn mdp-btn-ghost" onclick="mdpExportTuesdayCsv()" title="One row per product (plus one per mid-sale offer product) — the file Tuesday imports">⬇ Tuesday CSV</button><button class="mdp-btn mdp-btn-go" onclick="mdpExportPdf()" title="Opens the print dialog — choose Save as PDF">⬇ Export PDF</button></span></div><div class="mdp-sum">${mdpSummaryHtml(false)}</div>`;
 }
 const MDP_PRINT_CSS="@page{size:A4 landscape;margin:12mm}*{box-sizing:border-box}body{font-family:Inter,Arial,sans-serif;font-size:9pt;color:#111827;margin:0}h1{font-size:17pt;margin:0 0 2px}.sub{color:#6b7280;margin-bottom:10px}.cards{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.card{border:1px solid #d9dee8;border-radius:6px;padding:6px 10px;min-width:110px}.card b{display:block;font-size:12pt}.card span{font-size:7.5pt;color:#6b7280}.h{font-size:12pt;margin:16px 0 6px;border-bottom:2px solid #0a66e8;padding-bottom:3px;break-after:avoid}.pb{break-before:page}.blk{margin:0 0 12px}.bh{font-weight:700;font-size:10pt;margin:10px 0 4px;break-after:avoid;background:#eef3fb;padding:4px 8px;border-radius:4px}.d{font-weight:400;color:#4b5563;font-size:8.5pt}.gh{margin:6px 0 2px;font-size:9pt;break-after:avoid}table.t{width:100%;border-collapse:collapse;margin-bottom:6px;table-layout:fixed}.t th:first-child,.t td:first-child{width:30%}.t th{background:#f1f4f9;text-align:right;font-size:7.5pt;text-transform:uppercase;color:#4b5563;padding:3px 5px;border-bottom:1px solid #cfd6e4}.t td{padding:2.5px 5px;border-bottom:1px solid #eceff4;text-align:right}.t th.l,.t td.l{text-align:left}.t thead{display:table-header-group}.t tr{break-inside:avoid}.b{font-weight:700}.dim{color:#6b7280;margin:4px 0}.note{background:#fffbeb;border:1px solid #fde68a;border-radius:5px;padding:5px 8px;margin:6px 0}.warnx{color:#b45309}.ov{max-width:620px}.t tr.tot td{border-top:2px solid #0a66e8;border-bottom:0;font-size:9.5pt}";
 function mdpExportTuesdayCsv(){
   if(!mdpCtx)return;
+  if(mdpOnOrderPending()&&!confirm(MDP_PENDING_MSG+'\n\nThe Tuesday CSV would be incomplete. Export it anyway?'))return;
   const pl=mdpPlan(),d=mdpSummaryData(),r=MarkdownPlans.buildTuesdayCsv(pl,d.sum,d.offers);
   if(!r.rows.length){alert('Nothing to export yet — approve at least one category first (or tick "Include categories not yet approved").');return;}
   mdpDownload((String(pl.name||'Sale').replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim())+' - Tuesday Import.csv',r.csv);
 }
 function mdpExportPdf(){
   if(!mdpCtx)return;
+  if(mdpOnOrderPending()&&!confirm(MDP_PENDING_MSG+'\n\nThe PDF would be incomplete. Export it anyway?'))return;
   const pl=mdpPlan(),SU=pl.setup,now=new Date().toLocaleString('en-AU',{day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit'}),rv=pl.reviewed;
   const title=pl.name+' — markdown plan summary';
   const doc=`<!doctype html><html><head><meta charset="utf-8"><title>${mdpEsc(title)}</title><style>${MDP_PRINT_CSS}</style></head><body><h1>${mdpEsc(pl.name)} — markdown plan summary</h1>
@@ -7503,6 +7509,7 @@ function mdpBuildExport(kind,offerId){
   const matched=st=>(vm[st]||[]).length>0;                                   // has a live Shopify product
   const titleOf={};plan.items.forEach(i=>{titleOf[i.row.p.style]=MarkdownPlans.exportTitle(i.row.p);});
   if(kind==='initial'){
+    if(mdpOnOrderPending())issues.push({level:'error',text:MDP_PENDING_MSG+' Wait for them to load, then export again.'});
     const built=MarkdownPlans.buildInitialExport(plan.items,pl,{matched});built.issues.forEach(i=>issues.push(i));
     const blocked=plan.items.filter(i=>i.blocked&&mdpCtx.rows.some(r=>r.category===(i.row.p.category||'UNCATEGORISED')&&r.approved)).length;
     if(blocked)issues.push({level:'error',text:blocked+' product'+(blocked===1?' is':'s are')+' in an unresolved GWP / Not on sale conflict.'});
@@ -10278,10 +10285,11 @@ async function fetchAMOrdersFromAPI(){
       allItems.push(...items);
     }
     if(!allItems.length){
+      window._amOrdersDone=true;
       if(pill)pill.innerHTML='<span class="live-dot" style="background:#9ca3af"></span>AM (no open items)';
       return;
     }
-    amApiData=allItems;
+    amApiData=allItems;window._amOrdersDone=true;
     // Fetch AM product categories for all unique style_numbers (for pre-release items not yet in Shopify)
     const uniqueStyles=[...new Set(allItems.map(i=>(i.style_number||'').trim()).filter(Boolean))];
     window.amStyleCategoryMap=window.amStyleCategoryMap||{};
@@ -12704,7 +12712,7 @@ function buildDashboard(){
   document.getElementById('app').style.display='flex';
   currentView='category';
   _cachedAMData=null;
-  amApiData=null;
+  amApiData=null;window._amOrdersDone=false;
   showScreen('dashboard');
   buildVariantRows();
   console.log('🟢 buildVariantRows done, rows:',allVariantRows.length);
@@ -13935,6 +13943,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.7.0 — GUARD AGAINST INCOMPLETE EXPORTS (Brendan: special buys and blanket-discount products went missing from the Tuesday CSV). Cause: products that only have stock on order are built from Apparel Magic's open orders; right after a page load, before those orders arrive, they are absent from the plan, so the Summary, PDF and Tuesday CSV came out short with no warning. Now the Summary shows a red 'Incomplete for now' banner while orders are still loading (it refreshes by itself), the Tuesday CSV and PDF ask before exporting, and the Hextom initial export is blocked until they've loaded.
 // v3.6.9 — TUESDAY CSV: special buys in an approved category are now Row Type 'Sale product' (Note 'special buy'), not 'Special buy', so Tuesday lists them with that category's discount group (it builds category tables from Sale product rows). Row Type 'Special buy' is now only used for special buys whose category isn't approved yet.
 // v3.6.8 — SUMMARY / PDF / TUESDAY CSV: Sale specific buys now sit inside their category's discount groups (e.g. TEES > 30% off), flagged 'special buy' in the Note, instead of a separate list. Until their category is approved (or 'Include categories not yet approved' is ticked) they wait in a small 'categories not approved yet' list, so none are lost or shown twice. The 'special buys' card still counts all of them. The Tuesday CSV lists them in the same category/discount order with Row Type 'Special buy' (Note 'special buy'); everything else is unchanged.
 // v3.6.7 — MARKDOWN PLANNER (Category Strategy tables): every product's Proposed disc. info — On order tag, discount dropdown, kept / over-cap tags and the Offer dropdown — now sits on ONE row (column widened to 400px; no more stacked controls).
@@ -14849,7 +14858,7 @@ function renderPerformance(){
 
 /* ── RESET ── */
 function resetApp(){
-  shopifyInvData=null;shopifySalesData=null;amData=null;amApiData=null;soldOutData=null;variantsSoldOutData=null;
+  shopifyInvData=null;shopifySalesData=null;amData=null;amApiData=null;window._amOrdersDone=false;soldOutData=null;variantsSoldOutData=null;
   coreStylesData=null;bundleStylesData=null;allProductsListData=null;
   _cachedSalesMaps=null;_cachedAMData=null;_cachedSoldOutData=null;
   allVariantRows=[];
