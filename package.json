@@ -6,7 +6,7 @@
     "@netlify/blobs": "11.1.0"
   },
   "scripts": {
-    "test": "node tests/sales-feed.test.js && node tests/markdown-engine.test.js && node tests/markdown-plans.test.js && node tests/plans-store.test.js && node tests/sales-cadence-pdf.test.js"
+    "test": "node tests/sales-feed.test.js && node tests/markdown-engine.test.js && node tests/markdown-plans.test.js && node tests/plans-store.test.js && node tests/sales-cadence-pdf.test.js && node tests/send-to-tuesday.test.js"
   },
   "devDependencies": {
     "jspdf": "4.2.1",
