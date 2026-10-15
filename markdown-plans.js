@@ -618,7 +618,7 @@
     const prod = (type, e, extra) => Object.assign({}, base, { 'Row Type': type, Category: e.category, Product: title(e), Style: e.style, Colour: e.colour || '', 'Month Del': e.month || '', Group: e.group || '',
       'Discount %': e.pct == null ? '' : e.pct, 'Current Disc %': e.current || 0, RRP: money(e.rrp), 'Sale Price': money(e.price), SOH: e.soh, 'On Order': e.onOrder || 0, 'Sales (period)': e.sales || 0,
       'Set Manually': e.manual ? 'Yes' : '', Note: note(e) }, extra || {});
-    for (const c of sum.categories) for (const g of c.groups) for (const e of g.items) rows.push(prod(e.specialBuy ? 'Special buy' : 'Sale product', e));
+    for (const c of sum.categories) for (const g of c.groups) for (const e of g.items) rows.push(prod('Sale product', e));   // a special buy in an approved category is a normal sale row in that category (Note says 'special buy'), so Tuesday groups it with the rest of the category's discount
     for (const g of sum.special.groups) for (const e of g.items) rows.push(prod('Special buy', e));
     for (const e of sum.nos) rows.push(prod('Not on sale', e, { 'Discount %': '', 'Sale Price': '', Reason: e.reason || '' }));
     for (const e of sum.gwp) rows.push(prod('GWP', e, { 'Discount %': '', 'Sale Price': '' }));

@@ -2445,9 +2445,9 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.6.8"></script>
-<script src="markdown-plans.js?v=3.6.8"></script>
-<script src="sales-cadence-pdf.js?v=3.6.8"></script>
+<script src="markdown-engine.js?v=3.6.9"></script>
+<script src="markdown-plans.js?v=3.6.9"></script>
+<script src="sales-cadence-pdf.js?v=3.6.9"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2481,7 +2481,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.6.8';
+const APP_VERSION='v3.6.9';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -13935,6 +13935,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.6.9 — TUESDAY CSV: special buys in an approved category are now Row Type 'Sale product' (Note 'special buy'), not 'Special buy', so Tuesday lists them with that category's discount group (it builds category tables from Sale product rows). Row Type 'Special buy' is now only used for special buys whose category isn't approved yet.
 // v3.6.8 — SUMMARY / PDF / TUESDAY CSV: Sale specific buys now sit inside their category's discount groups (e.g. TEES > 30% off), flagged 'special buy' in the Note, instead of a separate list. Until their category is approved (or 'Include categories not yet approved' is ticked) they wait in a small 'categories not approved yet' list, so none are lost or shown twice. The 'special buys' card still counts all of them. The Tuesday CSV lists them in the same category/discount order with Row Type 'Special buy' (Note 'special buy'); everything else is unchanged.
 // v3.6.7 — MARKDOWN PLANNER (Category Strategy tables): every product's Proposed disc. info — On order tag, discount dropdown, kept / over-cap tags and the Offer dropdown — now sits on ONE row (column widened to 400px; no more stacked controls).
 // v3.6.6 — 'Sizes out' now shows just the number of sizes sold out (no '/ total sizes').

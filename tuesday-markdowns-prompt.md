@@ -38,7 +38,7 @@ Header row, in this order (match headers case-insensitively and ignore extra or 
 - `Row Type` is one of: `Sale product`, `Special buy`, `Not on sale`, `GWP`, `Mid-sale offer`. Reject any other value and report it by line number.
 - Required: Row Type, Product, Style. Everything else may be blank.
 - Dates are `YYYY-MM-DD`. `Group` is A, B, C, X or blank. `Set Manually` is `Yes` or blank. Money has 2 decimals (no `$`). `Discount %` is a number or blank (blank = stays at full price).
-- `Sale product` and `Special buy` rows carry the sale discount and sale price.
+- `Sale product` and `Special buy` rows carry the sale discount and sale price. A special buy whose category is approved arrives as a normal `Sale product` row with Note `special buy` (so it sits in its category's discount group); `Special buy` rows appear only for special buys in categories not yet approved.
 - `Not on sale` rows carry a `Reason`.
 - `GWP` rows are listed only.
 - `Mid-sale offer` rows are one per product per offer. They carry Offer, Offer Start/End, Offer Rule, Offer Collection, Offer Status, Offer Price and Offer Total Disc %. Their `Discount %` and `Sale Price` are the price *before* the offer.

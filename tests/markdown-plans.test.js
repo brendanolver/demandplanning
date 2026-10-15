@@ -605,7 +605,8 @@ assert.deepEqual(P.buildForecast([], {}, 90).totals.demand, 0);
   assert.equal(smb.special.products, 1); assert.equal(smb.special.groups.length, 0);
   const inCat = smb.categories.find(c => c.category === 'TEES').groups.flatMap(g => g.items); assert.deepEqual(inCat.map(i => i.id).sort(), ['B1', 'S2']);
   assert.equal(inCat.find(i => i.id === 'B1').blanket, true); assert.equal(inCat.find(i => i.id === 'B1').specialBuy, false); assert.equal(inCat.find(i => i.id === 'S2').specialBuy, true);
-  const csv = P.buildTuesdayCsv(st.plans[id], smb, []); assert.deepEqual(csv.rows.map(r => [r.Product.split(' ')[0], r['Row Type']]).sort(), [['B1', 'Sale product'], ['S2', 'Special buy']]);
+  const csv = P.buildTuesdayCsv(st.plans[id], smb, []); assert.deepEqual(csv.rows.map(r => [r.Product.split(' ')[0], r['Row Type']]).sort(), [['B1', 'Sale product'], ['S2', 'Sale product']]); assert.equal(csv.rows.find(r => r.Product.startsWith('S2')).Note, 'special buy');   // in a category: a normal sale row, flagged in the Note
+  { const w = P.buildTuesdayCsv(st.plans[id], P.buildSummary([mkI('S9', 'SHORTS', 50, { sp: true })], st.plans[id], {}), []); assert.deepEqual(w.rows.map(r => r['Row Type']), ['Special buy']); }   // category not approved yet: still the separate Special buy type
 }
 // blanket on-order discount + draft handling settings, summary columns / totals, draft view
 {
