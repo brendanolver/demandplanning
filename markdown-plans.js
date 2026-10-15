@@ -613,12 +613,12 @@
   function buildTuesdayCsv(plan, sum, offers) {
     const rows = [], su = (plan && plan.setup) || {}, base = { Sale: plan.name || '', 'Sale Start': su.start || '', 'Sale End': su.end || '' };
     const title = e => e.colour ? String(e.name).toUpperCase() + ' - ' + String(e.colour).toUpperCase() : String(e.name).toUpperCase();
-    const note = e => [e.manual ? 'set manually' : '', e.blanket ? 'on-order blanket discount' : '', e.protectedEx ? 'protected (deeper than Group C)' : e.kept ? 'existing discount kept' : '', e.draft ? 'draft in Shopify' : ''].filter(Boolean).join('; ');
+    const note = e => [e.manual ? 'set manually' : '', e.specialBuy ? 'special buy' : '', e.blanket ? 'on-order blanket discount' : '', e.protectedEx ? 'protected (deeper than Group C)' : e.kept ? 'existing discount kept' : '', e.draft ? 'draft in Shopify' : ''].filter(Boolean).join('; ');
     const money = v => v == null ? '' : Number(v).toFixed(2);
     const prod = (type, e, extra) => Object.assign({}, base, { 'Row Type': type, Category: e.category, Product: title(e), Style: e.style, Colour: e.colour || '', 'Month Del': e.month || '', Group: e.group || '',
       'Discount %': e.pct == null ? '' : e.pct, 'Current Disc %': e.current || 0, RRP: money(e.rrp), 'Sale Price': money(e.price), SOH: e.soh, 'On Order': e.onOrder || 0, 'Sales (period)': e.sales || 0,
       'Set Manually': e.manual ? 'Yes' : '', Note: note(e) }, extra || {});
-    for (const c of sum.categories) for (const g of c.groups) for (const e of g.items) rows.push(prod('Sale product', e));
+    for (const c of sum.categories) for (const g of c.groups) for (const e of g.items) rows.push(prod(e.specialBuy ? 'Special buy' : 'Sale product', e));
     for (const g of sum.special.groups) for (const e of g.items) rows.push(prod('Special buy', e));
     for (const e of sum.nos) rows.push(prod('Not on sale', e, { 'Discount %': '', 'Sale Price': '', Reason: e.reason || '' }));
     for (const e of sum.gwp) rows.push(prod('GWP', e, { 'Discount %': '', 'Sale Price': '' }));
@@ -772,7 +772,7 @@
       return { id: p.id, style: p.style, name: p.name, colour: p.colour || '', category: p.category || 'UNCATEGORISED', month: p.deliveryMonth || '', group: it.group || null, pct: it.final.pct, soh, onOrder: onOrder(it) || 0,
         sales: (p.sold && p.sold['d' + (opts.periodDays || 30)]) || 0, draft: !!p.isDraft, blanket: !!p.blanket,
         rrp: p.rrp > 0 ? p.rrp : null, current: Math.round(p.currentDiscountPct || 0), price: it.price && it.price.newPrice != null && it.final.pct != null ? it.price.newPrice : null,
-        manual: !!it.override, special: it.final.action === 'S', protectedEx: it.exceptionKind === 'protected', kept: !!it.keptExisting, core: !!p.isCore };
+        manual: !!it.override, special: it.final.action === 'S', specialBuy: it.final.action === 'S' && !it.override && !p.blanket, protectedEx: it.exceptionKind === 'protected', kept: !!it.keptExisting, core: !!p.isCore };
     };
     const bucket = (map, e) => { const k = e.pct == null ? 'none' : String(e.pct); const b = map[k] || (map[k] = { pct: e.pct, items: [] }); b.items.push(e); };
     const groupsOf = map => Object.keys(map).map(k => map[k]).sort((a, b) => (a.pct == null ? 1 : b.pct == null ? -1 : a.pct - b.pct))
@@ -783,8 +783,11 @@
       if (p.isGWP) { gwp.push(e); continue; }
       if (p.notOnSale) { const n = nosInfo[String(p.style).toUpperCase()]; nos.push({ ...e, reason: n && n.auto ? (n.reason || 'excluded in Category Strategy') : '' }); continue; }
       const cat = e.category;
-      if (it.final.action === 'S' && !it.override && !p.blanket) { bucket(specialMap, e); continue; }   // the on-order blanket discount is a normal category markdown (flagged in the note), not a special buy
-      if (!(opts.includeUnapproved || isApproved(plan, cat))) { notIncluded.add(cat); continue; }
+      const shown = opts.includeUnapproved || isApproved(plan, cat);
+      // A real special buy sits in its category's discount group (flagged 'special buy'); only while its category isn't listed yet does it wait in the Special buys list, so nothing is lost or shown twice.
+      // The on-order blanket discount is a normal category markdown too (flagged in the note).
+      if (it.final.action === 'S' && !it.override && !p.blanket && !shown) { bucket(specialMap, e); continue; }
+      if (!shown) { notIncluded.add(cat); continue; }
       const c = cats[cat] || (cats[cat] = { category: cat, approved: isApproved(plan, cat), map: {} }); bucket(c.map, e);
     }
     const categories = Object.keys(cats).sort().map(k => {
@@ -801,7 +804,8 @@
     const ovTotals = ov.reduce((t, o) => ({ products: t.products + o.products, soh: t.soh + o.soh, rrpValue: t.rrpValue + o.rrpValue, offValue: t.offValue + o.offValue }), { products: 0, soh: 0, rrpValue: 0, offValue: 0 });
     ovTotals.effective = ovTotals.rrpValue > 0 ? Math.round(ovTotals.offValue / ovTotals.rrpValue * 1000) / 10 : 0;
     const totalCats = new Set((items || []).filter(i => !i.row.p.isGWP && !i.row.p.notOnSale).map(i => i.row.p.category || 'UNCATEGORISED')).size;
-    return { categories, special: { groups: sp, products: sp.reduce((a, g) => a + g.count, 0), soh: sp.reduce((a, g) => a + g.soh, 0) }, nos: nos.sort((a, b) => a.name.localeCompare(b.name)), gwp: gwp.sort((a, b) => a.name.localeCompare(b.name)), overview: ov, overviewTotals: ovTotals, periodDays: opts.periodDays || 30,
+    const inCatSpecial = categories.flatMap(c => c.groups.flatMap(g => g.items)).filter(x => x.specialBuy);
+    return { categories, special: { groups: sp, pending: sp.reduce((a, g) => a + g.count, 0), inCategories: inCatSpecial.length, products: sp.reduce((a, g) => a + g.count, 0) + inCatSpecial.length, soh: sp.reduce((a, g) => a + g.soh, 0) + inCatSpecial.reduce((a, x) => a + x.soh, 0) }, nos: nos.sort((a, b) => a.name.localeCompare(b.name)), gwp: gwp.sort((a, b) => a.name.localeCompare(b.name)), overview: ov, overviewTotals: ovTotals, periodDays: opts.periodDays || 30,
       counts: { categoriesShown: categories.length, categoriesTotal: totalCats, pendingCategories: [...notIncluded].sort(), productsShown: categories.reduce((a, c) => a + c.products, 0) + sp.reduce((a, g) => a + g.count, 0), onSale: ov.reduce((a, o) => a + o.products, 0), soh: ov.reduce((a, o) => a + o.soh, 0) } };
   }
 

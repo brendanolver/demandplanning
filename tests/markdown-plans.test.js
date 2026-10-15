@@ -585,10 +585,12 @@ assert.deepEqual(P.buildForecast([], {}, 90).totals.demand, 0);
   assert.equal(sm.special.products, 1); assert.equal(sm.nos.length, 1); assert.equal(sm.gwp.length, 1);
   st = P.approveCategory(st, id, 'TEES', { A: 20, alloc: {} }, 5); sm = P.buildSummary(items, st.plans[id], {});
   assert.deepEqual(sm.categories.map(c => c.category), ['TEES']); const t = sm.categories[0];
-  assert.deepEqual(t.groups.map(g => g.pct), [20, 40, null]);                                                                                     // by discount, lowest first, full price last
-  assert.equal(t.groups[0].count, 3); assert.equal(t.groups[0].soh, 10 + 10 + 0); assert.equal(t.products, 5); assert.equal(t.manual, 1);       // negative SOH counts as 0 stock
+  assert.deepEqual(t.groups.map(g => g.pct), [20, 40, 50, null]);   // the special buy (50%) sits in its category's discount groups                                                                                     // by discount, lowest first, full price last
+  assert.equal(t.groups[0].count, 3); assert.equal(t.groups[0].soh, 10 + 10 + 0); assert.equal(t.products, 6); assert.equal(t.manual, 1);       // negative SOH counts as 0 stock
   assert.ok(t.groups[0].items.find(i => i.id === 'A2').manual); assert.ok(!t.groups[0].items.find(i => i.id === 'A1').manual);
-  assert.ok(!sm.categories.some(c => c.groups.some(g => g.items.some(i => ['S1', 'N1', 'G1'].includes(i.id)))));                                    // special buy / Not on sale / GWP never inside a category
+  assert.ok(!sm.categories.some(c => c.groups.some(g => g.items.some(i => ['N1', 'G1'].includes(i.id)))));   // Not on sale / GWP never inside a category
+  { const sb = t.groups.find(g => g.pct === 50).items[0]; assert.equal(sb.id, 'S1'); assert.equal(sb.specialBuy, true); assert.equal(sm.special.inCategories, 1); assert.equal(sm.special.pending, 0); assert.equal(sm.special.products, 1); assert.equal(sm.special.groups.length, 0); }   // approved category: no separate list, still counted
+  { const un = P.buildSummary(items, st.plans[id], { includeUnapproved: false }); const x = P.buildSummary([mkI('S9', 'SHORTS', 50, { sp: true })], st.plans[id], {}); assert.equal(x.special.pending, 1); assert.equal(x.special.products, 1); assert.equal(x.special.inCategories, 0); }   // category not approved: waits in the list, nothing lost                                    // special buy / Not on sale / GWP never inside a category
   assert.deepEqual(sm.overview.map(o => o.pct), [20, 40, 50]); assert.equal(sm.overview.find(o => o.pct === 50).products, 1);                    // the special buy is in the discount overview
   assert.equal(sm.counts.categoriesShown, 1); assert.equal(sm.counts.categoriesTotal, 2);
   sm = P.buildSummary(items, st.plans[id], { includeUnapproved: true }); assert.equal(sm.categories.length, 2); assert.equal(sm.categories.find(c => c.category === 'SHORTS').approved, false);
@@ -597,12 +599,13 @@ assert.deepEqual(P.buildForecast([], {}, 90).totals.demand, 0);
   const ids = sm.categories.flatMap(c => c.groups.flatMap(g => g.items.map(i => i.id))).concat(sm.special.groups.flatMap(g => g.items.map(i => i.id))); assert.equal(new Set(ids).size, ids.length); assert.equal(ids.length, items.length - 2);
   const withReason = P.addNosStyles(st, id, [{ style: 'N1', label: 'N1 tee — BLK', reason: 'Strong current sales' }], 9); assert.equal(P.buildSummary(items, withReason.plans[id], {}).nos[0].reason, 'Strong current sales');
   assert.equal(P.buildSummary([], st.plans[id], {}).counts.productsShown, 0);
-  // on-order blanket discount: a normal category markdown (not a special buy); it appears once its category is approved, and a real special buy still goes to Special buys
+  // on-order blanket discount and real special buys both sit in their (approved) category; only the real one is flagged as a special buy
   const bl = [mkI('B1', 'TEES', 20, { sp: true, blanket: true }), mkI('S2', 'TEES', 20, { sp: true })];
   const smb = P.buildSummary(bl, st.plans[id], {});
-  assert.equal(smb.special.products, 1); assert.deepEqual(smb.special.groups.flatMap(g => g.items.map(i => i.id)), ['S2']);
-  const inCat = smb.categories.find(c => c.category === 'TEES').groups.flatMap(g => g.items); assert.deepEqual(inCat.map(i => i.id), ['B1']); assert.equal(inCat[0].blanket, true);
-
+  assert.equal(smb.special.products, 1); assert.equal(smb.special.groups.length, 0);
+  const inCat = smb.categories.find(c => c.category === 'TEES').groups.flatMap(g => g.items); assert.deepEqual(inCat.map(i => i.id).sort(), ['B1', 'S2']);
+  assert.equal(inCat.find(i => i.id === 'B1').blanket, true); assert.equal(inCat.find(i => i.id === 'B1').specialBuy, false); assert.equal(inCat.find(i => i.id === 'S2').specialBuy, true);
+  const csv = P.buildTuesdayCsv(st.plans[id], smb, []); assert.deepEqual(csv.rows.map(r => [r.Product.split(' ')[0], r['Row Type']]).sort(), [['B1', 'Sale product'], ['S2', 'Special buy']]);
 }
 // blanket on-order discount + draft handling settings, summary columns / totals, draft view
 {

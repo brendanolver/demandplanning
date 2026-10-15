@@ -2445,9 +2445,9 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.6.7"></script>
-<script src="markdown-plans.js?v=3.6.7"></script>
-<script src="sales-cadence-pdf.js?v=3.6.7"></script>
+<script src="markdown-engine.js?v=3.6.8"></script>
+<script src="markdown-plans.js?v=3.6.8"></script>
+<script src="sales-cadence-pdf.js?v=3.6.8"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2481,7 +2481,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.6.7';
+const APP_VERSION='v3.6.8';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -6962,7 +6962,7 @@ function mdpSummaryHtml(print){
   const{pl}=mdpCtx,{sum,offers,conflicts}=mdpSummaryData(),E=mdpEsc,n=v=>Number(v||0).toLocaleString(),$=v=>'$'+Number(v).toFixed(2),money=v=>'$'+Math.round(v).toLocaleString();
   const pctTxt=p=>p==null?'Full price (not in the sale)':p+'% off';
   const days=sum.periodDays||30;
-  const note=x=>[x.manual?'<b>set by you</b>':'',x.blanket?'on-order blanket discount':'',x.protectedEx?'protected (deeper than Group C)':x.kept?'existing discount kept':'',x.draft?'draft in Shopify':''].filter(Boolean).join(' · ')||(x.core?'core':'');
+  const note=x=>[x.manual?'<b>set by you</b>':'',x.specialBuy?'special buy':'',x.blanket?'on-order blanket discount':'',x.protectedEx?'protected (deeper than Group C)':x.kept?'existing discount kept':'',x.draft?'draft in Shopify':''].filter(Boolean).join(' · ')||(x.core?'core':'');
   const prodRows=items=>items.map(x=>`<tr><td class="l${x.manual?' b':''}">${E(x.name)}${x.colour?' — '+E(x.colour):''}</td><td class="l">${E(x.month||'—')}</td><td class="${x.manual?'b':''}">${x.pct==null?'—':x.pct+'%'}</td><td>${n(x.soh)}</td><td>${n(x.sales)}</td><td>${x.onOrder?n(x.onOrder):'—'}</td><td>${x.rrp?$(x.rrp):'—'}</td><td>${x.current?x.current+'%':'—'}</td><td class="${x.manual?'b':''}">${x.price!=null?$(x.price):'—'}</td>${print?'':`<td class="l">${note(x)}</td>`}</tr>`).join('');
   const prodHead=`<thead><tr><th class="l">Product / colour</th><th class="l">Month del</th><th>Discount</th><th>SOH</th><th>${days}d sales</th><th>On order</th><th>RRP</th><th>Now</th><th>Sale price</th>${print?'':'<th class="l">Note</th>'}</tr></thead>`;
   const wrap=(key,head,body,open)=>print?`<section class="blk"><div class="bh">${head}</div>${body}</section>`:`<details class="mdp-sumd" ${open||mdpSumOpen.has(key)?'open':''} ontoggle="mdpSumToggle('${E(key)}',this.open)"><summary>${head}</summary>${body}</details>`;
@@ -6971,7 +6971,7 @@ function mdpSummaryHtml(print){
   const overview=sum.overview.length?`<table class="t ov"><thead><tr><th class="l">Discount</th><th>Products</th><th>SOH units</th><th>RRP value of stock</th><th>Discount given</th></tr></thead><tbody>${sum.overview.map(o=>`<tr><td class="l"><b>${o.pct}% off</b></td><td>${n(o.products)}</td><td>${n(o.soh)}</td><td>${money(o.rrpValue)}</td><td>${money(o.offValue)}</td></tr>`).join('')}<tr class="tot"><td class="l"><b>Total</b> <span class="d">· ${sum.overviewTotals.effective}% effective discount</span></td><td><b>${n(sum.overviewTotals.products)}</b></td><td><b>${n(sum.overviewTotals.soh)}</b></td><td><b>${money(sum.overviewTotals.rrpValue)}</b></td><td><b>${money(sum.overviewTotals.offValue)}</b></td></tr></tbody></table>`:'<div class="dim">No discounted products yet — approve a category in step E.</div>';
   const cats=sum.categories.map(c=>wrap('cat|'+c.category,`<b>${E(c.category)}</b> <span class="d">· ${n(c.products)} product${c.products===1?'':'s'} · ${n(c.soh)} SOH · ${c.avgDiscount}% average discount${c.manual?' · '+c.manual+' set by you':''}${c.approved?'':' · <span class="warnx">not approved yet</span>'} · ${c.groups.filter(g=>g.pct!=null).map(g=>g.pct+'% ×'+g.count).join('  ')}</span>`,groupsHtml(c.groups),false)).join('');
   const pending=sum.counts.pendingCategories.length&&!mdpSumAll?`<div class="note">${sum.counts.pendingCategories.length} categor${sum.counts.pendingCategories.length===1?'y isn\'t':'ies aren\'t'} approved yet, so not listed: ${E(sum.counts.pendingCategories.join(', '))}.</div>`:'';
-  const spec=sum.special.products?wrap('special',`<b>Sale specific buys</b> <span class="d">· ${n(sum.special.products)} product${sum.special.products===1?'':'s'} · ${n(sum.special.soh)} SOH · keep their designated discounts</span>`,groupsHtml(sum.special.groups),false):'';
+  const spec=sum.special.pending?wrap('special',`<b>Sale specific buys — categories not approved yet</b> <span class="d">· ${n(sum.special.pending)} product${sum.special.pending===1?'':'s'} · keep their designated discounts (once their category is approved they move into it)</span>`,groupsHtml(sum.special.groups),false):'';
   const nosT=sum.nos.length?wrap('nos',`<b>Not on sale</b> <span class="d">· ${n(sum.nos.length)} product${sum.nos.length===1?'':'s'} · ${n(sum.nos.reduce((a,x)=>a+x.soh,0))} SOH · keep their current price</span>`,`<table class="t"><thead><tr><th class="l">Product / colour</th><th class="l">Category</th><th>SOH</th><th>${days}d sales</th><th>On order</th><th class="l">Reason</th></tr></thead><tbody>${sum.nos.map(x=>`<tr><td class="l">${E(x.name)}${x.colour?' — '+E(x.colour):''}</td><td class="l">${E(x.category)}</td><td>${n(x.soh)}</td><td>${n(x.sales)}</td><td>${x.onOrder?n(x.onOrder):'—'}</td><td class="l">${E(x.reason||'')}</td></tr>`).join('')}</tbody></table>`,false):'';
   const gwpT=sum.gwp.length?wrap('gwp',`<b>Gift with purchase</b> <span class="d">· ${n(sum.gwp.length)} product${sum.gwp.length===1?'':'s'} · never discounted</span>`,`<table class="t"><thead><tr><th class="l">Product / colour</th><th>SOH</th><th>On order</th></tr></thead><tbody>${sum.gwp.map(x=>`<tr><td class="l">${E(x.name)}${x.colour?' — '+E(x.colour):''}</td><td>${n(x.soh)}</td><td>${x.onOrder?n(x.onOrder):'—'}</td></tr>`).join('')}</tbody></table>`,false):'';
   const offerT=offers.length?offers.map(m=>{const o=m.offer,rule=o.type==='bundle'?MarkdownPlans.bundleText(o.bundle)+' (collection membership; the bundle price is set up in Shopify)':'Further reduction to '+(o.pct==null?'?':o.pct)+'% off the original RRP';
@@ -13935,6 +13935,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.6.8 — SUMMARY / PDF / TUESDAY CSV: Sale specific buys now sit inside their category's discount groups (e.g. TEES > 30% off), flagged 'special buy' in the Note, instead of a separate list. Until their category is approved (or 'Include categories not yet approved' is ticked) they wait in a small 'categories not approved yet' list, so none are lost or shown twice. The 'special buys' card still counts all of them. The Tuesday CSV lists them in the same category/discount order with Row Type 'Special buy' (Note 'special buy'); everything else is unchanged.
 // v3.6.7 — MARKDOWN PLANNER (Category Strategy tables): every product's Proposed disc. info — On order tag, discount dropdown, kept / over-cap tags and the Offer dropdown — now sits on ONE row (column widened to 400px; no more stacked controls).
 // v3.6.6 — 'Sizes out' now shows just the number of sizes sold out (no '/ total sizes').
 // v3.6.5 — MARKDOWN PLANNER (Category Strategy tables): 'Sizes out' (sizes sold out / sizes in the range) is now a standard column between Month del and SOH — it was only in the 'All columns' view before. Sortable like the others.
