@@ -2445,9 +2445,9 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.7.2"></script>
-<script src="markdown-plans.js?v=3.7.2"></script>
-<script src="sales-cadence-pdf.js?v=3.7.2"></script>
+<script src="markdown-engine.js?v=3.7.3"></script>
+<script src="markdown-plans.js?v=3.7.3"></script>
+<script src="sales-cadence-pdf.js?v=3.7.3"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2481,7 +2481,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.7.2';
+const APP_VERSION='v3.7.3';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -7001,25 +7001,31 @@ function mdpExportTuesdayCsv(){
   mdpDownload((String(pl.name||'Sale').replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim())+' - Tuesday Import.csv',r.csv);
 }
 /* ── Send To Tuesday ──
-   Posts this sale's plan (the same rows as the Tuesday CSV) straight to the WNDRR Tuesday app, into a sale you choose. It REPLACES that sale's Markdowns tab,
-   exactly like importing the file there. The call goes through this site's own Netlify function (send-to-tuesday), which holds Tuesday's key in its environment
-   variables, so it works on any device with nothing to enter. */
-const MDP_TUESDAY_URL='https://wndrrtuesday-production.up.railway.app',MDP_SEND_FN='/.netlify/functions/send-to-tuesday',MDP_TUESDAY_MAP='wndrr_mdp_tuesday_map_v1';
+   Tuesday has several Sales Promotions, so each plan is LINKED to one of them (saved on the plan, so it follows you to every device) and sending always goes there.
+   Sending posts the plan (the same rows as the Tuesday CSV) through this site's Netlify function (send-to-tuesday, which holds Tuesday's key) and REPLACES that
+   promotion's Markdowns tab, exactly like importing the file there. */
+const MDP_TUESDAY_URL='https://wndrrtuesday-production.up.railway.app',MDP_SEND_FN='/.netlify/functions/send-to-tuesday';
 let mdpSendDlg=null;
-function mdpTueMap(){try{return JSON.parse(localStorage.getItem(MDP_TUESDAY_MAP)||'{}')||{};}catch(e){return{};}}
-function mdpTueRemember(planId,v){try{const m=mdpTueMap();m[planId]=v;localStorage.setItem(MDP_TUESDAY_MAP,JSON.stringify(m));}catch(e){}}
 async function mdpTueFetch(path,body){
   const r=await fetch(path==='sales'?MDP_SEND_FN+'?action=sales':MDP_SEND_FN,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});
   let j=null;try{j=await r.json();}catch(e){}
   return{status:r.status,ok:r.ok,json:j||{}};
 }
-function mdpSendToTuesday(){
-  if(!mdpCtx)return;
-  if(mdpOnOrderPending()&&!confirm(MDP_PENDING_MSG+'\n\nThe plan sent to Tuesday would be incomplete. Send it anyway?'))return;
-  const pl=mdpPlan(),d=mdpSummaryData(),r=MarkdownPlans.buildTuesdayCsv(pl,d.sum,d.offers);
-  if(!r.rows.length){alert('Nothing to send yet — approve at least one category first (or tick "Include categories not yet approved").');return;}
-  const counts={};r.rows.forEach(x=>{counts[x['Row Type']]=(counts[x['Row Type']]||0)+1;});
-  mdpSendDlg={step:'loading',planId:pl.id,plan:pl.name,csv:r.csv,rows:r.rows.length,counts,sales:[],saleId:'',msg:'',errors:[],result:null};
+const mdpTueWhen=ts=>new Date(ts).toLocaleString('en-AU',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'});
+function mdpSendToTuesday(){mdpTueOpen('send');}
+function mdpTueLinkOpen(){mdpTueOpen('link');}
+function mdpTueOpen(mode){
+  if(mode==='send'){
+    if(!mdpCtx)return;
+    if(mdpOnOrderPending()&&!confirm(MDP_PENDING_MSG+'\n\nThe plan sent to Tuesday would be incomplete. Send it anyway?'))return;
+  }
+  const pl=mdpPlan();let csv='',rows=0,counts={};
+  if(mode==='send'){
+    const d=mdpSummaryData(),r=MarkdownPlans.buildTuesdayCsv(pl,d.sum,d.offers);
+    if(!r.rows.length){alert('Nothing to send yet — approve at least one category first (or tick "Include categories not yet approved").');return;}
+    csv=r.csv;rows=r.rows.length;r.rows.forEach(x=>{counts[x['Row Type']]=(counts[x['Row Type']]||0)+1;});
+  }
+  mdpSendDlg={mode,step:'loading',planId:pl.id,plan:pl.name,csv,rows,counts,sales:[],saleId:'',msg:'',errors:[],result:null};
   renderMarkdownPlanner();
   mdpSendLoad();
 }
@@ -7031,57 +7037,89 @@ async function mdpSendLoad(){
     if(mdpSendDlg!==dlg)return;
     if(!r.ok){dlg.step='error';dlg.msg=r.json.error||('Tuesday answered with an error (HTTP '+r.status+').');}
     else{
-      dlg.sales=r.json.sales||[];
-      const norm=t=>String(t||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(),mem=mdpTueMap()[dlg.planId];
-      const hit=(mem&&dlg.sales.find(x=>x.id===mem.saleId))||dlg.sales.find(x=>norm(x.name)===norm(dlg.plan))||dlg.sales.find(x=>norm(dlg.plan).includes(norm(x.name))||norm(x.name).includes(norm(dlg.plan)));
-      dlg.saleId=hit?hit.id:'';dlg.step='pick';dlg.msg='';
+      dlg.sales=r.json.sales||[];dlg.msg='';
+      const link=mdpPlan().tuesday,linked=link&&dlg.sales.find(x=>x.id===link.saleId);
+      if(linked){dlg.saleId=linked.id;dlg.step=dlg.mode==='send'?'confirm':'pick';}
+      else{
+        const norm=t=>String(t||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim(),hit=dlg.sales.find(x=>norm(x.name)===norm(dlg.plan))||dlg.sales.find(x=>norm(dlg.plan).includes(norm(x.name))||norm(x.name).includes(norm(dlg.plan)));
+        dlg.saleId=hit?hit.id:'';dlg.step='pick';
+        if(link)dlg.msg='This plan was linked to “'+link.saleName+'”, which is no longer an active promotion in Tuesday. Choose the promotion it should send to.';
+      }
     }
   }catch(e){if(mdpSendDlg!==dlg)return;dlg.step='error';dlg.msg='Couldn\'t reach Tuesday ('+(e&&e.message||e)+'). Check your connection and try again.';}
   renderMarkdownPlanner();
 }
 function mdpSendPick(v){if(mdpSendDlg){mdpSendDlg.saleId=v;renderMarkdownPlanner();}}
+function mdpSendChange(){if(mdpSendDlg){mdpSendDlg.step='pick';mdpSendDlg.msg='';renderMarkdownPlanner();}}
+// Link this plan to the chosen promotion (asking first if another of your plans is already linked to it); then send, or just close in 'link' mode.
+function mdpSendLink(thenSend){
+  const d=mdpSendDlg,sale=d&&d.sales.find(x=>x.id===d.saleId);if(!sale)return;
+  const others=MarkdownPlans.plansLinkedTo(mdpState,sale.id,d.planId);
+  if(others.length&&!confirm('“'+others.map(p=>p.name).join('”, “')+'” is already linked to “'+sale.name+'” in Tuesday.\n\nTwo plans linked to one promotion overwrite each other\'s Markdowns tab each time either is sent.\n\nLink this plan to it anyway?'))return;
+  mdpState=MarkdownPlans.setTuesdayLink(mdpState,d.planId,{saleId:sale.id,saleName:sale.name});mdpSaveState();
+  if(thenSend){mdpSendNow(false);return;}
+  mdpSendDlg=null;mdpNoteMsg='Linked to the Tuesday promotion “'+sale.name+'”. Send to Tuesday (Summary) will update its Markdowns tab.';renderMarkdownPlanner();
+}
 async function mdpSendNow(allowSkips){
-  const dlg=mdpSendDlg;if(!dlg||!dlg.saleId)return;
+  const dlg=mdpSendDlg,link=mdpPlan().tuesday;if(!dlg||!link)return;
   dlg.step='sending';dlg.errors=[];renderMarkdownPlanner();
   try{
-    const r=await mdpTueFetch('import',{saleId:dlg.saleId,csv:dlg.csv,fileName:'Sent from Demand Planning — '+dlg.plan,allowSkips:!!allowSkips});
+    const r=await mdpTueFetch('import',{saleId:link.saleId,csv:dlg.csv,fileName:'Sent from Demand Planning — '+dlg.plan,allowSkips:!!allowSkips});
     if(mdpSendDlg!==dlg)return;
     if(r.ok&&r.json.ok){
       dlg.step='done';dlg.result=r.json;
-      mdpTueRemember(dlg.planId,{saleId:dlg.saleId,saleName:r.json.saleName,ts:Date.now(),rows:r.json.imported});
+      mdpCommit(MarkdownPlans.recordTuesdaySend(mdpState,dlg.planId,r.json.imported),true);
+      return;
     }else if(r.status===503||r.status===401||r.status===403){dlg.step='error';dlg.msg=r.json.error||'Tuesday refused the send.';}
-    else{dlg.step='pick';dlg.msg=r.json.error||('Tuesday answered with an error (HTTP '+r.status+').');dlg.errors=r.json.errors||[];}
+    else if(r.status===404){dlg.step='pick';dlg.msg=r.json.error||'That promotion no longer exists in Tuesday.';dlg.saleId='';}
+    else{dlg.step='confirm';dlg.msg=r.json.error||('Tuesday answered with an error (HTTP '+r.status+').');dlg.errors=r.json.errors||[];}
   }catch(e){if(mdpSendDlg!==dlg)return;dlg.step='error';dlg.msg='Couldn\'t reach Tuesday ('+(e&&e.message||e)+'). Nothing was changed there.';}
   renderMarkdownPlanner();
 }
+// The Summary bar: where this plan sends, and when it last did.
 function mdpTueLast(){
-  const pl=mdpPlan(),m=pl&&mdpTueMap()[pl.id];if(!m||!m.ts)return'';
-  return`<span class="mdp-dim" title="Last sent to Tuesday from this device">Last sent to Tuesday: ${mdpEsc(m.saleName||'')} · ${new Date(m.ts).toLocaleString('en-AU',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})}</span>`;
+  const t=mdpPlan().tuesday;if(!t)return`<span class="mdp-dim">Not linked to a Tuesday promotion yet</span>`;
+  return`<span class="mdp-dim" title="The Tuesday Sales Promotion this plan sends to">→ ${mdpEsc(t.saleName)}${t.lastSentTs?' · last sent '+mdpEsc(mdpTueWhen(t.lastSentTs)):' · not sent yet'}</span>`;
+}
+// Sale details (step A): which Tuesday promotion this plan belongs to.
+function mdpTueSetupRow(pl){
+  const t=pl.tuesday;
+  return`<div class="mdp-bt" style="margin-top:12px;">Tuesday promotion</div><div class="mdp-row" style="align-items:center;gap:10px;">${t?`<b>${mdpEsc(t.saleName)}</b><span class="mdp-dim">${t.lastSentTs?'last sent '+mdpEsc(mdpTueWhen(t.lastSentTs))+(t.lastSentRows!=null?' · '+t.lastSentRows.toLocaleString()+' rows':''):'not sent yet'}</span><button class="mdp-act" onclick="mdpTueLinkOpen()">Change</button>`:`<span class="mdp-dim">Not linked yet — pick the Sales Promotion in Tuesday this plan's markdowns go to</span><button class="mdp-btn mdp-btn-sm" onclick="mdpTueLinkOpen()">Link to a Tuesday promotion…</button>`}</div>`;
 }
 function mdpSendModal(){
   const d=mdpSendDlg;if(!d)return'';
-  const E=mdpEsc,n=v=>Number(v||0).toLocaleString(),head=`<div class="mdp-dlghead"><b>Send to Tuesday — ${E(d.plan)}</b><button class="mdp-chv2" onclick="mdpSendClose()">✕</button></div>`;
-  const csvLink=`<button class="mdp-act" onclick="mdpExportTuesdayCsv()">Download the CSV instead</button>`;
+  const E=mdpEsc,n=v=>Number(v||0).toLocaleString(),link=mdpPlan().tuesday,linkMode=d.mode==='link';
+  const head=`<div class="mdp-dlghead"><b>${linkMode?'Link to a Tuesday promotion':'Send to Tuesday'} — ${E(d.plan)}</b><button class="mdp-chv2" onclick="mdpSendClose()">✕</button></div>`;
+  const csvLink=linkMode?'':`<button class="mdp-act" onclick="mdpExportTuesdayCsv()">Download the CSV instead</button>`;
   const types=Object.entries(d.counts).map(([k,v])=>`${n(v)} ${E(k.toLowerCase())}`).join(' · ');
+  const summary=linkMode?'':`<div class="mdp-revsum"><span><b>${n(d.rows)}</b> rows</span><span class="mdp-dot"></span><span>${types}</span></div>`;
+  const errs=d.msg?`<div class="mdp-err" style="margin-top:10px;">⚠ ${E(d.msg)}${d.errors.length?'<br>'+d.errors.map(e=>'Line '+E(e.line)+': '+E(e.message)).join('<br>'):''}</div>`:'';
+  const sel=d.sales.find(x=>x.id===d.saleId);
   let body='',foot='';
   if(d.step==='loading'||d.step==='sending'){
-    body=`<div class="mdp-hint" style="padding:18px 0;text-align:center;">${d.step==='loading'?'Asking Tuesday for its sales…':'Sending '+n(d.rows)+' rows to Tuesday…'}</div>`;
-  }else if(d.step==='pick'){
-    const sel=d.sales.find(x=>x.id===d.saleId);
-    body=`<div class="mdp-revsum"><span><b>${n(d.rows)}</b> rows</span><span class="mdp-dot"></span><span>${types}</span></div>
-      ${d.msg?`<div class="mdp-err" style="margin-top:10px;">⚠ ${E(d.msg)}${d.errors.length?'<br>'+d.errors.map(e=>'Line '+E(e.line)+': '+E(e.message)).join('<br>'):''}</div>`:''}
-      <label style="display:block;margin-top:12px;font-size:12px;color:#6b7280;">Send to this Tuesday sale<select class="mdp-sel" style="width:100%;margin-top:4px;" onchange="mdpSendPick(this.value)"><option value="">Choose a sale…</option>${d.sales.map(x=>`<option value="${E(x.id)}" ${x.id===d.saleId?'selected':''}>${E(x.name)}${x.rowCount?' — has '+n(x.rowCount)+' rows now':''}</option>`).join('')}</select></label>
-      ${sel&&sel.rowCount?`<div class="mdp-warn" style="margin-top:10px;">ⓘ This <b>replaces</b> the ${n(sel.rowCount)} markdown rows currently on “${E(sel.name)}” in Tuesday (last updated ${E(new Date(sel.importedAt).toLocaleString('en-AU',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'}))}).</div>`:''}
-      ${d.sales.length?'':'<div class="mdp-warn" style="margin-top:10px;">Tuesday has no active sales to send to. Create the sale in Sales Promotions first.</div>'}
+    body=`<div class="mdp-hint" style="padding:18px 0;text-align:center;">${d.step==='loading'?'Asking Tuesday for its promotions…':'Sending '+n(d.rows)+' rows to Tuesday…'}</div>`;
+  }else if(d.step==='confirm'){
+    body=`${summary}${errs}
+      <div style="margin-top:12px;font-size:13px;">Sends to the Tuesday promotion <b>${E(link.saleName)}</b> <span class="mdp-dim">(linked)</span> <button class="mdp-act" onclick="mdpSendChange()">Change promotion</button></div>
+      ${sel&&sel.rowCount?`<div class="mdp-warn" style="margin-top:10px;">ⓘ This <b>replaces</b> the ${n(sel.rowCount)} markdown rows on “${E(sel.name)}” in Tuesday (last updated ${E(mdpTueWhen(sel.importedAt))}).</div>`:'<div class="mdp-hint" style="margin-top:10px;">Its Markdowns tab is empty, so nothing is replaced.</div>'}
       <div style="margin-top:10px;font-size:12px;">${csvLink}</div>`;
-    foot=`<button class="mdp-btn mdp-btn-ghost" onclick="mdpSendClose()">Cancel</button>${d.errors.length?`<button class="mdp-btn mdp-btn-ghost" onclick="mdpSendNow(true)" ${d.saleId?'':'disabled'}>Send anyway, skipping those lines</button>`:''}<button class="mdp-btn mdp-btn-go" ${d.saleId?'':'disabled'} onclick="mdpSendNow(false)">➡ Send to Tuesday</button>`;
+    foot=`<button class="mdp-btn mdp-btn-ghost" onclick="mdpSendClose()">Cancel</button>${d.errors.length?`<button class="mdp-btn mdp-btn-ghost" onclick="mdpSendNow(true)">Send anyway, skipping those lines</button>`:''}<button class="mdp-btn mdp-btn-go" onclick="mdpSendNow(false)">➡ Send to Tuesday</button>`;
+  }else if(d.step==='pick'){
+    const taken=id=>MarkdownPlans.plansLinkedTo(mdpState,id,d.planId).map(p=>p.name);
+    body=`${summary}${errs}
+      <div class="mdp-hint" style="margin:${linkMode?'0':'12px'} 0 4px;">${linkMode?'Each plan belongs to one Tuesday Sales Promotion. Sending always goes to the one you choose here.':'Which Tuesday Sales Promotion are these markdowns for? You only choose this once — the plan stays linked.'}</div>
+      <select class="mdp-sel" style="width:100%;" onchange="mdpSendPick(this.value)"><option value="">Choose a promotion…</option>${d.sales.map(x=>{const o=taken(x.id);return`<option value="${E(x.id)}" ${x.id===d.saleId?'selected':''}>${E(x.name)}${x.rowCount?' — has '+n(x.rowCount)+' markdown rows':''}${o.length?' — linked to '+E(o.join(', ')):''}</option>`;}).join('')}</select>
+      ${sel&&sel.rowCount&&!linkMode?`<div class="mdp-warn" style="margin-top:10px;">ⓘ Sending <b>replaces</b> the ${n(sel.rowCount)} markdown rows on “${E(sel.name)}” (last updated ${E(mdpTueWhen(sel.importedAt))}).</div>`:''}
+      ${d.sales.length?'':'<div class="mdp-warn" style="margin-top:10px;">Tuesday has no active promotions. Create the Sales Promotion in Tuesday first.</div>'}
+      ${csvLink?`<div style="margin-top:10px;font-size:12px;">${csvLink}</div>`:''}`;
+    foot=`<button class="mdp-btn mdp-btn-ghost" onclick="mdpSendClose()">Cancel</button>${linkMode?`<button class="mdp-btn mdp-btn-go" ${d.saleId?'':'disabled'} onclick="mdpSendLink(false)">Link</button>`:`<button class="mdp-btn mdp-btn-go" ${d.saleId?'':'disabled'} onclick="mdpSendLink(true)">Link & send</button>`}`;
   }else if(d.step==='done'){
     const r=d.result;
     body=`<div style="padding:6px 0;color:#15803d;"><b>✓ Sent ${n(r.imported)} rows</b> to “${E(r.saleName)}” in Tuesday${r.skipped?' ('+n(r.skipped)+' lines skipped)':''}.</div>
       <div class="mdp-hint">Its Markdowns tab now shows this plan. Send again any time to update it.</div>`;
     foot=`<button class="mdp-btn mdp-btn-ghost" onclick="mdpSendClose()">Close</button><a class="mdp-btn mdp-btn-go" style="text-decoration:none;" href="${E(MDP_TUESDAY_URL+(r.path||''))}" target="_blank" rel="noopener">Open in Tuesday ↗</a>`;
   }else{
-    body=`<div class="mdp-err">⚠ ${E(d.msg)}</div><div style="margin-top:10px;font-size:12px;">${csvLink}</div>`;
+    body=`<div class="mdp-err">⚠ ${E(d.msg)}</div>${csvLink?`<div style="margin-top:10px;font-size:12px;">${csvLink}</div>`:''}`;
     foot=`<button class="mdp-btn mdp-btn-ghost" onclick="mdpSendClose()">Close</button><button class="mdp-btn mdp-btn-go" onclick="mdpSendDlg.step='loading';mdpSendDlg.msg='';renderMarkdownPlanner();mdpSendLoad()">Try again</button>`;
   }
   return`<div class="mdp-modal" onclick="if(event.target===this)mdpSendClose()"><div class="mdp-dlg">${head}<div class="mdp-dlgbody">${body}</div><div class="mdp-dlgfoot">${foot}</div></div></div>`;
@@ -7745,6 +7783,7 @@ function renderMarkdownPlanner(){
           <label>Starts<input class="mdp-in" type="date" value="${mdpEsc(SU.start)}" onchange="mdpSetup('start',this.value)"></label>
           <label>Ends<input class="mdp-in" type="date" value="${mdpEsc(SU.end)}" onchange="mdpSetup('end',this.value)"></label>
           <div class="mdp-dur"><span>Duration</span><b>${dur?dur+(dur===1?' day':' days'):'—'}</b></div></div>
+        ${mdpTueSetupRow(pl)}
         <div class="mdp-bt" style="margin-top:12px;">Primary objective</div>
         ${mdpSeg('o',[['clear','Clear stock'],['balance','Balance'],['revenue','Revenue'],['profit','Gross profit']],SU.objective,"mdpSetup.bind(null,'objective')")}
         <div class="mdp-hint">${OB[SU.objective].label}: a product enters the sale from a clearance score of ${OB[SU.objective].excludeBelow}, and the deeper Group B from ${OB[SU.objective].groupBAt}.</div>
@@ -14029,6 +14068,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.7.3 — LINK EACH PLAN TO A TUESDAY SALES PROMOTION (Brendan: Tuesday has several promotions). A plan now has a saved link to one Tuesday promotion (Sale details in step A: 'Tuesday promotion' with Link / Change; also offered the first time you Send). Sending always goes to the linked promotion and shows what it will replace; the link, and when/how much was last sent, are saved on the plan so they follow you to every device. A Duplicate is not linked (so copies can't overwrite each other), linking a promotion another of your plans already uses asks first, and a promotion that has been removed or archived in Tuesday asks you to relink. Replaces the v3.7.1 per-device 'remembered sale'. MarkdownPlans.setTuesdayLink / recordTuesdaySend / plansLinkedTo + tests.
 // v3.7.2 — SEND TO TUESDAY uses a Netlify function (send-to-tuesday) that holds Tuesday's key in this site's environment variables (MARKDOWNS_API_KEY), so it works on any device with no key to type (Brendan's ask). The browser only ever talks to this site; the function forwards just the two Tuesday calls (list sales, send plan), refuses other sites' origins, and says clearly if the variable isn't set yet. The per-device key step is gone.
 // v3.7.1 — SEND TO TUESDAY: the Summary's 'Tuesday CSV' button is replaced by '➡ Send to Tuesday'. It posts the plan (the same rows as the CSV) straight to the WNDRR Tuesday app, into the Tuesday sale you choose (pre-selected by name / the one you used last), replacing that sale's Markdowns tab. Tuesday's new /api/markdowns routes check a send key you type once per device (stored in this browser only). It shows what will be replaced, reports any bad lines, offers 'Send anyway', links to the sale in Tuesday afterwards, remembers 'Last sent', and keeps 'Download the CSV instead' as a fallback. The incomplete-data guard from v3.7.0 applies.
 // v3.7.0 — GUARD AGAINST INCOMPLETE EXPORTS (Brendan: special buys and blanket-discount products went missing from the Tuesday CSV). Cause: products that only have stock on order are built from Apparel Magic's open orders; right after a page load, before those orders arrive, they are absent from the plan, so the Summary, PDF and Tuesday CSV came out short with no warning. Now the Summary shows a red 'Incomplete for now' banner while orders are still loading (it refreshes by itself), the Tuesday CSV and PDF ask before exporting, and the Hextom initial export is blocked until they've loaded.

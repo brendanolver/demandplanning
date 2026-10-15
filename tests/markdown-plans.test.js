@@ -758,5 +758,22 @@ assert.deepEqual(P.buildForecast([], {}, 90).totals.demand, 0);
   // nothing in the cloud yet: just this device's plans
   assert.deepEqual(Object.keys(P.forceOverwrite(mine, null, 7000).plans), Object.keys(mine.plans));
 }
+// ── Tuesday promotion link: set, relink, record a send, never copied by Duplicate, tidied on load ──
+{
+  let st = P.createState(1, idGen); const id = st.activeId; assert.equal(st.plans[id].tuesday, null);
+  const L = { saleId: '8e04a392-4d0e-42ff-9f34-04212380fa35', saleName: 'Black Friday 2026' };
+  st = P.setTuesdayLink(st, id, L, 5); assert.equal(st.plans[id].tuesday.saleName, 'Black Friday 2026'); assert.equal(st.plans[id].tuesday.lastSentTs, null); const rev1 = st.plans[id].rev;
+  assert.strictEqual(P.setTuesdayLink(st, id, L, 6), st);                                                        // the same link again changes nothing (no needless save)
+  st = P.recordTuesdaySend(st, id, 550, 9); assert.equal(st.plans[id].tuesday.lastSentRows, 550); assert.equal(st.plans[id].tuesday.lastSentTs, 9); assert.ok(st.plans[id].rev > rev1);
+  st = P.setTuesdayLink(st, id, { ...L, saleName: 'Black Friday 2026 (renamed)' }, 10); assert.equal(st.plans[id].tuesday.lastSentRows, 550);   // same promotion, renamed: the history stays
+  st = P.setTuesdayLink(st, id, { saleId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', saleName: 'EOFY' }, 11); assert.equal(st.plans[id].tuesday.lastSentTs, null);   // a different promotion forgets the last send
+  assert.strictEqual(P.recordTuesdaySend(P.setTuesdayLink(st, id, null, 12), id, 5, 13).plans[id].tuesday, null);   // unlinked: nothing to record against
+  assert.equal(P.setTuesdayLink(st, id, null, 12).plans[id].tuesday, null);
+  const dup = P.duplicatePlan(st, id, 20, idGen); assert.equal(dup.state.plans[dup.id].tuesday, null);              // a copy must not silently send to the same promotion
+  assert.deepEqual(P.plansLinkedTo(dup.state, 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', dup.id).map(p => p.id), [id]);
+  assert.equal(P.plansLinkedTo(dup.state, 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', id).length, 0);
+  const old = JSON.parse(JSON.stringify(st)); delete old.plans[id].tuesday; assert.equal(P.migrate(old, null).plans[id].tuesday, null);   // plans saved before this existed load as not linked
+  old.plans[id].tuesday = { saleId: 'x' }; assert.equal(P.migrate(old, null).plans[id].tuesday, null);              // junk is dropped
+}
 console.log('markdown plans tests: all passed');
 })();

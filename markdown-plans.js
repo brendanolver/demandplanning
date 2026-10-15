@@ -83,6 +83,7 @@
       offers: [],                                      // mid-sale offers (further reductions, bundles), each with its own products, dates, pricing and collection
       offerResolutions: {},                            // { STYLE: offerId } — which offer wins when a style sits in overlapping offers with incompatible pricing
       reviewed: { gwp: false, special: false, notOnSale: false },   // each pre-planning step can be marked Reviewed, even with nothing selected
+      tuesday: null,   // the Tuesday Sales Promotion this plan sends its markdowns to: { saleId, saleName, lastSentTs, lastSentRows } (a Duplicate is NOT linked)
     };
   }
 
@@ -108,6 +109,7 @@
         p.notOnSale = { items: [], exceptions: [], ...(p.notOnSale || {}) }; if (!Array.isArray(p.notOnSale.items)) p.notOnSale.items = []; if (!Array.isArray(p.notOnSale.exceptions)) p.notOnSale.exceptions = [];
         p.offers = Array.isArray(p.offers) ? p.offers : []; p.offerResolutions = p.offerResolutions && typeof p.offerResolutions === 'object' ? p.offerResolutions : {};
         p.reviewed = { gwp: false, special: false, notOnSale: false, ...(p.reviewed || {}) };
+        p.tuesday = sanitizeTuesday(p.tuesday);
         if (!p.mappings || typeof p.mappings !== 'object' || !Object.keys(p.mappings).length) p.mappings = defaultMappings();
         p.exports = Array.isArray(p.exports) ? p.exports : [];
         p.catApprovals = p.catApprovals && typeof p.catApprovals === 'object' && !Array.isArray(p.catApprovals) ? p.catApprovals : {};
@@ -125,6 +127,28 @@
     const st = createState(now, idGen);
     if (legacySettings && typeof legacySettings === 'object') st.plans[st.activeId].settings = Engine.mergeSettings(legacySettings);
     return st;
+  }
+
+  // The Tuesday promotion a plan is linked to. Sending always goes to this one; relinking to a different promotion forgets when it was last sent.
+  function sanitizeTuesday(t) {
+    if (!t || typeof t !== 'object' || typeof t.saleId !== 'string' || t.saleId.length < 8) return null;
+    const n = Number(t.lastSentRows), ts = Number(t.lastSentTs);
+    return { saleId: t.saleId.slice(0, 64), saleName: String(t.saleName || '').slice(0, 120), lastSentTs: isFinite(ts) && ts > 0 ? ts : null, lastSentRows: isFinite(n) && n >= 0 ? Math.floor(n) : null };
+  }
+  function setTuesdayLink(state, planId, link, now) {
+    const plan = state.plans[planId]; if (!plan) return state;
+    const next = link && link.saleId ? sanitizeTuesday({ saleId: link.saleId, saleName: link.saleName, lastSentTs: plan.tuesday && plan.tuesday.saleId === link.saleId ? plan.tuesday.lastSentTs : null, lastSentRows: plan.tuesday && plan.tuesday.saleId === link.saleId ? plan.tuesday.lastSentRows : null }) : null;
+    if (JSON.stringify(next) === JSON.stringify(plan.tuesday || null)) return state;
+    const s = clone(state), p = s.plans[planId]; p.tuesday = next; p.updatedTs = now || Date.now(); p.rev += 1; return s;
+  }
+  function recordTuesdaySend(state, planId, rows, now) {
+    const plan = state.plans[planId]; if (!plan || !plan.tuesday) return state;
+    const s = clone(state), p = s.plans[planId], t = now || Date.now();
+    p.tuesday = { ...p.tuesday, lastSentTs: t, lastSentRows: Math.max(0, Math.floor(Number(rows) || 0)) }; p.updatedTs = t; p.rev += 1; return s;
+  }
+  // Which other plans (not archived) are already linked to this Tuesday promotion — so two plans don't quietly overwrite each other's Markdowns tab.
+  function plansLinkedTo(state, saleId, exceptPlanId) {
+    return Object.values(state.plans).filter(p => p.id !== exceptPlanId && !p.archived && p.tuesday && p.tuesday.saleId === saleId);
   }
 
   function uniqueName(state, name, exceptId) {
@@ -1221,6 +1245,6 @@
     parseDay, durationDays, newPlan, createState, migrate, uniqueName, addPlan, duplicatePlan,
     renamePlan, setActive, archivePlan, restorePlan, cleanLevels, updatePlan, engineSettings, validatePlan,
     EXCLUDE_REASONS, VIEWS, sanitizeOverride, setOverrides, clearOverrides, overrideStats, buildReview,
-    buildTuesdayCsv, TUESDAY_COLUMNS, SPECIAL_KINDS, GWP_KINDS, NOS_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setSectionException, applyExceptions, setGwpQty, setGwpThreshold, lyWindow, lyUnitsByCategory, lyRevenueByCategory, buildForecast, addDays, demandScenarios, forecastConfidence, crossCheck, scenarioLevels, commercialSummary, addSnapshot, removeSnapshot, mergeStates, forceOverwrite, resolveSyncConflict, isPristine, planInputRules, buildSummary, setReviewed, addNosStyles, addNosException, removeNosException, resolveNotOnSale, nosConflicts, categorySignature, OFFER_TYPES, BUNDLE_MODES, newOffer, sanitizeOffer, addOffer, updateOffer, duplicateOffer, deleteOffer, moveOffer, addOfferSelection, removeOfferSelection, setOfferException, resolveOfferConflict, resolveOffer, offerPricing, bundleText, offerConflicts, validateOffer, offerStatus, EXPORT_COLUMNS, toCsv, buildInitialExport, buildOfferExport, exportTitle, CHECKLIST, newExportRecord, addExportRecord, setMapping, defaultMappings, approveCategory, reopenCategory, releaseAllocation, refreshSuggestions, isApproved, frozenAllocs, categoryRows, approvalProgress, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
+    buildTuesdayCsv, TUESDAY_COLUMNS, setTuesdayLink, recordTuesdaySend, plansLinkedTo, sanitizeTuesday, SPECIAL_KINDS, GWP_KINDS, NOS_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setSectionException, applyExceptions, setGwpQty, setGwpThreshold, lyWindow, lyUnitsByCategory, lyRevenueByCategory, buildForecast, addDays, demandScenarios, forecastConfidence, crossCheck, scenarioLevels, commercialSummary, addSnapshot, removeSnapshot, mergeStates, forceOverwrite, resolveSyncConflict, isPristine, planInputRules, buildSummary, setReviewed, addNosStyles, addNosException, removeNosException, resolveNotOnSale, nosConflicts, categorySignature, OFFER_TYPES, BUNDLE_MODES, newOffer, sanitizeOffer, addOffer, updateOffer, duplicateOffer, deleteOffer, moveOffer, addOfferSelection, removeOfferSelection, setOfferException, resolveOfferConflict, resolveOffer, offerPricing, bundleText, offerConflicts, validateOffer, offerStatus, EXPORT_COLUMNS, toCsv, buildInitialExport, buildOfferExport, exportTitle, CHECKLIST, newExportRecord, addExportRecord, setMapping, defaultMappings, approveCategory, reopenCategory, releaseAllocation, refreshSuggestions, isApproved, frozenAllocs, categoryRows, approvalProgress, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
   };
 });
