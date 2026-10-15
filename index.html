@@ -2445,9 +2445,9 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.7.3"></script>
-<script src="markdown-plans.js?v=3.7.3"></script>
-<script src="sales-cadence-pdf.js?v=3.7.3"></script>
+<script src="markdown-engine.js?v=3.7.4"></script>
+<script src="markdown-plans.js?v=3.7.4"></script>
+<script src="sales-cadence-pdf.js?v=3.7.4"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2481,7 +2481,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.7.3';
+const APP_VERSION='v3.7.4';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -7006,6 +7006,12 @@ function mdpExportTuesdayCsv(){
    promotion's Markdowns tab, exactly like importing the file there. */
 const MDP_TUESDAY_URL='https://wndrrtuesday-production.up.railway.app',MDP_SEND_FN='/.netlify/functions/send-to-tuesday';
 let mdpSendDlg=null;
+// The dialog lives in its own element outside the planner, so each step shows instantly (re-drawing the whole planner each time is slow with a full plan).
+function mdpSendRender(){
+  let h=document.getElementById('mdp-send-host');
+  if(!h){h=document.createElement('div');h.id='mdp-send-host';document.body.appendChild(h);}
+  h.innerHTML=mdpSendModal();
+}
 async function mdpTueFetch(path,body){
   const r=await fetch(path==='sales'?MDP_SEND_FN+'?action=sales':MDP_SEND_FN,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});
   let j=null;try{j=await r.json();}catch(e){}
@@ -7026,10 +7032,10 @@ function mdpTueOpen(mode){
     csv=r.csv;rows=r.rows.length;r.rows.forEach(x=>{counts[x['Row Type']]=(counts[x['Row Type']]||0)+1;});
   }
   mdpSendDlg={mode,step:'loading',planId:pl.id,plan:pl.name,csv,rows,counts,sales:[],saleId:'',msg:'',errors:[],result:null};
-  renderMarkdownPlanner();
+  mdpSendRender();
   mdpSendLoad();
 }
-function mdpSendClose(){mdpSendDlg=null;renderMarkdownPlanner();}
+function mdpSendClose(){mdpSendDlg=null;mdpSendRender();}
 async function mdpSendLoad(){
   const dlg=mdpSendDlg;if(!dlg)return;
   try{
@@ -7047,10 +7053,10 @@ async function mdpSendLoad(){
       }
     }
   }catch(e){if(mdpSendDlg!==dlg)return;dlg.step='error';dlg.msg='Couldn\'t reach Tuesday ('+(e&&e.message||e)+'). Check your connection and try again.';}
-  renderMarkdownPlanner();
+  mdpSendRender();
 }
-function mdpSendPick(v){if(mdpSendDlg){mdpSendDlg.saleId=v;renderMarkdownPlanner();}}
-function mdpSendChange(){if(mdpSendDlg){mdpSendDlg.step='pick';mdpSendDlg.msg='';renderMarkdownPlanner();}}
+function mdpSendPick(v){if(mdpSendDlg){mdpSendDlg.saleId=v;mdpSendRender();}}
+function mdpSendChange(){if(mdpSendDlg){mdpSendDlg.step='pick';mdpSendDlg.msg='';mdpSendRender();}}
 // Link this plan to the chosen promotion (asking first if another of your plans is already linked to it); then send, or just close in 'link' mode.
 function mdpSendLink(thenSend){
   const d=mdpSendDlg,sale=d&&d.sales.find(x=>x.id===d.saleId);if(!sale)return;
@@ -7058,23 +7064,24 @@ function mdpSendLink(thenSend){
   if(others.length&&!confirm('“'+others.map(p=>p.name).join('”, “')+'” is already linked to “'+sale.name+'” in Tuesday.\n\nTwo plans linked to one promotion overwrite each other\'s Markdowns tab each time either is sent.\n\nLink this plan to it anyway?'))return;
   mdpState=MarkdownPlans.setTuesdayLink(mdpState,d.planId,{saleId:sale.id,saleName:sale.name});mdpSaveState();
   if(thenSend){mdpSendNow(false);return;}
-  mdpSendDlg=null;mdpNoteMsg='Linked to the Tuesday promotion “'+sale.name+'”. Send to Tuesday (Summary) will update its Markdowns tab.';renderMarkdownPlanner();
+  mdpSendDlg=null;mdpSendRender();mdpNoteMsg='Linked to the Tuesday promotion “'+sale.name+'”. Send to Tuesday (Summary) will update its Markdowns tab.';renderMarkdownPlanner();
 }
 async function mdpSendNow(allowSkips){
   const dlg=mdpSendDlg,link=mdpPlan().tuesday;if(!dlg||!link)return;
-  dlg.step='sending';dlg.errors=[];renderMarkdownPlanner();
+  dlg.step='sending';dlg.errors=[];mdpSendRender();
   try{
     const r=await mdpTueFetch('import',{saleId:link.saleId,csv:dlg.csv,fileName:'Sent from Demand Planning — '+dlg.plan,allowSkips:!!allowSkips});
     if(mdpSendDlg!==dlg)return;
     if(r.ok&&r.json.ok){
       dlg.step='done';dlg.result=r.json;
-      mdpCommit(MarkdownPlans.recordTuesdaySend(mdpState,dlg.planId,r.json.imported),true);
+      mdpSendRender();                                                                                            // show the result first
+      setTimeout(()=>mdpCommit(MarkdownPlans.recordTuesdaySend(mdpState,dlg.planId,r.json.imported),true),30);   // then save it on the plan and redraw the planner behind the dialog
       return;
     }else if(r.status===503||r.status===401||r.status===403){dlg.step='error';dlg.msg=r.json.error||'Tuesday refused the send.';}
     else if(r.status===404){dlg.step='pick';dlg.msg=r.json.error||'That promotion no longer exists in Tuesday.';dlg.saleId='';}
     else{dlg.step='confirm';dlg.msg=r.json.error||('Tuesday answered with an error (HTTP '+r.status+').');dlg.errors=r.json.errors||[];}
   }catch(e){if(mdpSendDlg!==dlg)return;dlg.step='error';dlg.msg='Couldn\'t reach Tuesday ('+(e&&e.message||e)+'). Nothing was changed there.';}
-  renderMarkdownPlanner();
+  mdpSendRender();
 }
 // The Summary bar: where this plan sends, and when it last did.
 function mdpTueLast(){
@@ -7120,7 +7127,7 @@ function mdpSendModal(){
     foot=`<button class="mdp-btn mdp-btn-ghost" onclick="mdpSendClose()">Close</button><a class="mdp-btn mdp-btn-go" style="text-decoration:none;" href="${E(MDP_TUESDAY_URL+(r.path||''))}" target="_blank" rel="noopener">Open in Tuesday ↗</a>`;
   }else{
     body=`<div class="mdp-err">⚠ ${E(d.msg)}</div>${csvLink?`<div style="margin-top:10px;font-size:12px;">${csvLink}</div>`:''}`;
-    foot=`<button class="mdp-btn mdp-btn-ghost" onclick="mdpSendClose()">Close</button><button class="mdp-btn mdp-btn-go" onclick="mdpSendDlg.step='loading';mdpSendDlg.msg='';renderMarkdownPlanner();mdpSendLoad()">Try again</button>`;
+    foot=`<button class="mdp-btn mdp-btn-ghost" onclick="mdpSendClose()">Close</button><button class="mdp-btn mdp-btn-go" onclick="mdpSendDlg.step='loading';mdpSendDlg.msg='';mdpSendRender();mdpSendLoad()">Try again</button>`;
   }
   return`<div class="mdp-modal" onclick="if(event.target===this)mdpSendClose()"><div class="mdp-dlg">${head}<div class="mdp-dlgbody">${body}</div><div class="mdp-dlgfoot">${foot}</div></div></div>`;
 }
@@ -7853,7 +7860,7 @@ function renderMarkdownPlanner(){
     +mdpSec('G','G. Summary','all decisions · exportable as PDF',cBody)
     +mdpSec('H','H. Financial &amp; stock forecast',fcast?'last year × growth':'needs sale dates',mdpForecastSection({plan,pl,fcSet,win:lyWin,ly:lyData,SU,oo,PS,scen:fcSet?mdpScenarioPlans(pl,S,mdpIn,plan):null}))
     +mdpSec('I','I. Shopify / Hextom export',pl.exports.length?pl.exports.length+' export'+(pl.exports.length===1?'':'s')+' made':'',mdpCollapsed.has('I')?'':mdpExportSection(plan,oo,hasEnd,pl,res0))
-    +mdpExportModal()+mdpSendModal();
+    +mdpExportModal();
   mdpScrollRestore(scrollSnap);
   if(mdpRenaming){const el=document.getElementById('mdp-rename');if(el){el.focus();el.select();}}
 }
@@ -14068,6 +14075,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.7.4 — SEND TO TUESDAY dialog felt dead: every step (loading, sending, done) re-drew the WHOLE planner behind it, which is slow with a full plan, so pressing 'Send to Tuesday' showed nothing for a long moment even though the send went through. The dialog now draws itself in its own element (instantly), shows the result first, and only then saves 'last sent' on the plan and redraws the planner.
 // v3.7.3 — LINK EACH PLAN TO A TUESDAY SALES PROMOTION (Brendan: Tuesday has several promotions). A plan now has a saved link to one Tuesday promotion (Sale details in step A: 'Tuesday promotion' with Link / Change; also offered the first time you Send). Sending always goes to the linked promotion and shows what it will replace; the link, and when/how much was last sent, are saved on the plan so they follow you to every device. A Duplicate is not linked (so copies can't overwrite each other), linking a promotion another of your plans already uses asks first, and a promotion that has been removed or archived in Tuesday asks you to relink. Replaces the v3.7.1 per-device 'remembered sale'. MarkdownPlans.setTuesdayLink / recordTuesdaySend / plansLinkedTo + tests.
 // v3.7.2 — SEND TO TUESDAY uses a Netlify function (send-to-tuesday) that holds Tuesday's key in this site's environment variables (MARKDOWNS_API_KEY), so it works on any device with no key to type (Brendan's ask). The browser only ever talks to this site; the function forwards just the two Tuesday calls (list sales, send plan), refuses other sites' origins, and says clearly if the variable isn't set yet. The per-device key step is gone.
 // v3.7.1 — SEND TO TUESDAY: the Summary's 'Tuesday CSV' button is replaced by '➡ Send to Tuesday'. It posts the plan (the same rows as the CSV) straight to the WNDRR Tuesday app, into the Tuesday sale you choose (pre-selected by name / the one you used last), replacing that sale's Markdowns tab. Tuesday's new /api/markdowns routes check a send key you type once per device (stored in this browser only). It shows what will be replaced, reports any bad lines, offers 'Send anyway', links to the sale in Tuesday afterwards, remembers 'Last sent', and keeps 'Download the CSV instead' as a fallback. The incomplete-data guard from v3.7.0 applies.
