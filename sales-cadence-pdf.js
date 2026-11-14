@@ -6,7 +6,7 @@
 // (window.SalesCadencePdf) and tests/sales-cadence-pdf.test.js runs the same file under Node.
 //
 // Snapshot shape (everything already rounded/derived by the app, exactly as displayed):
-//   { view:'cat'|'prod', compare:bool, mode:'12m'|'12w'|'5w'|'7d', modeLabel:'12 Months',
+//   { view:'cat'|'prod', compare:bool, mode:'12m'|'12w'|'5w'|'7d'|'custom', modeLabel:'12 Months' (a custom date range: its preset name, or 'Custom range'),
 //     tz:'Australia/Melbourne', generatedAt:<ISO>, range:{from:'YYYY-MM-DD', to:'YYYY-MM-DD'},
 //     periods:[{label}]                    // newest → oldest, as displayed
 //     rows:[{ name, colour, status, tier:{emoji,label}|null, dot:'#rrggbb'|null,

@@ -287,6 +287,52 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .cadence-btn{padding:6px 16px;border:none;background:transparent;font-family:'Inter',sans-serif;font-size:12px;font-weight:500;color:var(--text-secondary);cursor:pointer;border-radius:var(--r-sm);transition:all 0.12s;white-space:nowrap;}
 .cadence-btn:hover{color:var(--teal);}
 .cadence-btn.active{background:var(--teal);color:white;font-weight:600;}
+.cadence-btn:disabled{opacity:0.4;cursor:not-allowed;}
+.cadence-btn:disabled:hover{color:var(--text-secondary);}
+
+/* Date range picker (maths in date-range.js) — presets on the left, two months, Cancel / Update */
+.drp-wrap{position:relative;}
+.drp-trigger{min-width:0;gap:8px;font-weight:600;}
+.drp-trigger svg{flex-shrink:0;}
+.drp-pop{position:absolute;top:calc(100% + 6px);left:0;z-index:300;display:flex;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:0 12px 32px rgba(17,24,39,0.16);overflow:hidden;font-family:'Inter',sans-serif;text-align:left;}
+.drp-presets{width:176px;flex-shrink:0;background:var(--surface2);border-right:1px solid var(--border);padding:10px;display:flex;flex-direction:column;gap:2px;}
+.drp-preset{text-align:left;padding:8px 10px;border:none;background:transparent;border-radius:var(--r);font-family:inherit;font-size:13px;color:var(--text-secondary);cursor:pointer;transition:background 0.1s;}
+.drp-preset:hover{background:var(--border-light);color:var(--text);}
+.drp-preset.active,.drp-preset.active:hover{background:var(--text);color:#fff;font-weight:600;}
+.drp-preset small{display:block;font-size:11px;font-weight:400;color:var(--text-muted);margin-top:2px;}
+.drp-preset.active small{color:rgba(255,255,255,0.7);}
+.drp-main{padding:14px 16px;}
+.drp-nav{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.drp-nav button{width:30px;height:32px;flex-shrink:0;border:1px solid var(--border);background:var(--surface);border-radius:var(--r);font-size:15px;line-height:1;color:var(--text);cursor:pointer;}
+.drp-nav button:hover:not(:disabled){border-color:var(--teal);color:var(--teal);}
+.drp-nav button:disabled{opacity:0.35;cursor:default;}
+.drp-nav select{flex:1;min-width:0;height:32px;border:1px solid var(--border);border-radius:var(--r);padding:0 8px;font-family:inherit;font-size:13px;font-weight:500;color:var(--text);background:var(--surface);outline:none;cursor:pointer;}
+.drp-nav select:focus{border-color:var(--teal);}
+.drp-months{display:flex;gap:24px;}
+.drp-month{width:238px;}
+.drp-month-title{text-align:center;font-size:13px;font-weight:700;color:var(--text);margin:4px 0 6px;}
+.drp-grid{display:grid;grid-template-columns:repeat(7,34px);row-gap:2px;}
+.drp-dow{font-size:11px;font-weight:600;color:var(--text-secondary);text-align:center;padding:4px 0 6px;}
+.drp-day{position:relative;height:34px;border:none;background:transparent;font-family:inherit;font-size:13px;color:var(--text);cursor:pointer;padding:0;}
+.drp-day:hover:not(:disabled):not(.cap){background:var(--border-light);border-radius:var(--r);}
+.drp-day:disabled{color:var(--text-muted);opacity:0.5;cursor:default;}
+.drp-day.in,.drp-day.in:hover:not(:disabled){background:#eceef2;border-radius:0;}
+.drp-day.cap{background:var(--text);color:#fff;font-weight:700;border-radius:var(--r);}
+.drp-day.today::after{content:'';position:absolute;left:50%;bottom:4px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:currentColor;}
+.drp-summary{margin-top:12px;font-size:13px;font-weight:700;color:var(--text);}
+.drp-note{font-size:12px;color:var(--text-secondary);margin-top:4px;}
+.drp-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px;}
+.drp-actions button{padding:9px 18px;border-radius:var(--r);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;}
+.drp-cancel{background:var(--surface);border:1px solid var(--border);color:var(--text);}
+.drp-cancel:hover{border-color:var(--text-muted);}
+.drp-apply{background:var(--teal);border:1px solid var(--teal);color:#fff;}
+.drp-apply:hover:not(:disabled){background:var(--teal-dark);border-color:var(--teal-dark);}
+.drp-apply:disabled{background:#9ca3af;border-color:#9ca3af;cursor:default;}
+@media(max-width:860px){
+  .drp-pop{flex-direction:column;max-width:calc(100vw - 24px);}
+  .drp-presets{width:auto;flex-direction:row;flex-wrap:wrap;border-right:none;border-bottom:1px solid var(--border);}
+  .drp-preset small{display:none;}
+}
 .cadence-table-wrap{overflow-x:auto;margin-bottom:28px;}
 .cadence-table{width:100%;border-collapse:collapse;font-size:12px;}
 .cadence-table th{background:var(--surface2);padding:8px 12px;text-align:right;font-weight:600;color:var(--text-secondary);border-bottom:2px solid var(--border);white-space:nowrap;font-size:11px;}
@@ -1462,6 +1508,18 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
             <button class="cadence-btn" id="cad-5w" onclick="setCadence('5w')">5 Weeks</button>
             <button class="cadence-btn" id="cad-7d" onclick="setCadence('7d')">7 Days</button>
           </div>
+          <!-- Custom date range (all Sales Cadence views). Choosing one switches the four rolling views off; clicking any of them switches it back off. -->
+          <div class="drp-wrap">
+            <button class="ms-btn drp-trigger" id="cadence-range-btn" onclick="openCadenceRangePicker()" title="Choose your own date range">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+              <span id="cadence-range-label">Custom range</span><span class="ms-arrow">▾</span>
+            </button>
+          </div>
+          <div class="cadence-toggle" id="cadence-group-toggle" style="display:none;">
+            <button class="cadence-btn" id="cad-grp-day" onclick="setCadenceGroup('day')">Days</button>
+            <button class="cadence-btn" id="cad-grp-week" onclick="setCadenceGroup('week')">Weeks</button>
+            <button class="cadence-btn" id="cad-grp-month" onclick="setCadenceGroup('month')">Months</button>
+          </div>
           <div id="cadence-search-wrap" style="display:none;">
             <div class="search-wrap" style="min-width:220px;">
               <span class="search-ico">🔍</span>
@@ -2445,9 +2503,10 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.7.4"></script>
-<script src="markdown-plans.js?v=3.7.4"></script>
-<script src="sales-cadence-pdf.js?v=3.7.4"></script>
+<script src="markdown-engine.js?v=3.7.5"></script>
+<script src="markdown-plans.js?v=3.7.5"></script>
+<script src="sales-cadence-pdf.js?v=3.7.5"></script>
+<script src="date-range.js?v=3.7.5"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2481,7 +2540,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.7.4';
+const APP_VERSION='v3.7.5';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -2617,7 +2676,206 @@ let cadenceCompareProducts=[];
 
 function setCadence(mode){
   cadenceMode=mode;
-  ['12m','12w','5w','7d'].forEach(m=>document.getElementById('cad-'+m).classList.toggle('active',m===mode));
+  cadenceRange=null;                    // picking a rolling view switches a custom date range off
+  updateCadenceRangeUI();               // also sets which of the four buttons is lit
+  renderCadence();
+}
+
+/* ── DATE RANGE PICKER ──
+   The on-screen part of date-range.js (which holds all the date maths, tested on its own). Laid out like the
+   WNDRR international dashboard's and Meta Ads' pickers: presets down the left, two months side by side, a
+   summary line, Cancel / Update. Nothing changes until Update is pressed.
+     openDateRangePicker({anchor, selection, today, minDay, tzLabel, onApply})
+       anchor     the button it drops down from (inside a .drp-wrap)
+       selection  what is applied now: {key:'last_30'} | {from,to} | null
+       today      'YYYY-MM-DD' in the business timezone; later days can't be picked
+       minDay     first day there is data for ('' = no limit); earlier days can't be picked
+       onApply    called with the new selection: {key} for a preset (so it keeps rolling), else {from,to} */
+let _drp=null;
+function closeDateRangePicker(){
+  if(!_drp)return;
+  document.removeEventListener('mousedown',_drp.onDoc,true);
+  document.removeEventListener('keydown',_drp.onKey,true);
+  _drp.el.remove();
+  _drp=null;
+}
+function openDateRangePicker(opts){
+  closeDateRangePicker();
+  const R=window.DateRange,today=opts.today,minDay=opts.minDay&&opts.minDay<=today?opts.minDay:'';
+  const applied=R.resolve(opts.selection,today,minDay);
+  const presets=R.presets(today,minDay);
+  // Two months side by side, or one on a narrow screen (matches the .drp-pop breakpoint in the stylesheet).
+  const two=!(window.matchMedia&&window.matchMedia('(max-width:860px)').matches);
+  // The first month shown can run from the first month with data up to this month — or up to last month when a
+  // second one sits to its right, since that is always the month after.
+  const maxLeft=two?R.addMonths(today,-1):R.startOfMonth(today);
+  const firstMonth=minDay?R.startOfMonth(minDay):R.addMonths(today,-120);
+  const minLeft=firstMonth<maxLeft?firstMonth:maxLeft;
+  const clampLeft=m=>m<minLeft?minLeft:m>maxLeft?maxLeft:m;
+  const leftFor=day=>clampLeft(two?R.addMonths(day,-1):R.startOfMonth(day));   // puts that day's month on screen (right-hand side when there are two)
+  const st={
+    sel:applied?{from:applied.from,to:applied.to,picking:false}:null,
+    key:applied?applied.key:null,
+    hover:null,
+    left:leftFor(applied?applied.to:today),
+  };
+  const el=document.createElement('div');
+  el.className='drp-pop';
+  el.setAttribute('role','dialog');
+  el.setAttribute('aria-label','Choose a date range');
+  // The range as it would be if you clicked now: while the second end is still being chosen it follows the pointer.
+  const shown=()=>{
+    if(!st.sel)return null;
+    if(st.sel.picking&&st.hover)return st.hover<st.sel.from?{from:st.hover,to:st.sel.from}:{from:st.sel.from,to:st.hover};
+    return{from:st.sel.from,to:st.sel.to};
+  };
+  const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const monthHtml=first=>{
+    const y=+first.slice(0,4),m=+first.slice(5,7);
+    const cells=R.monthGrid(y,m).flat().map(d=>{
+      if(!d)return'<span></span>';
+      const off=d>today||(minDay&&d<minDay);
+      return`<button type="button" class="drp-day${d===today?' today':''}" data-day="${d}"${off?' disabled':''}>${+d.slice(8)}</button>`;
+    }).join('');
+    return`<div class="drp-month"><div class="drp-month-title">${R.MONTHS_LONG[m-1]} ${y}</div>
+      <div class="drp-grid">${R.DOW_SHORT.map(n=>`<div class="drp-dow">${n}</div>`).join('')}${cells}</div></div>`;
+  };
+  const render=()=>{
+    const ly=+st.left.slice(0,4),lm=+st.left.slice(5,7);
+    const years=[];for(let y=+minLeft.slice(0,4);y<=+maxLeft.slice(0,4);y++)years.push(y);
+    const monthOk=m=>{const c=ly+'-'+String(m).padStart(2,'0')+'-01';return c>=minLeft&&c<=maxLeft;};
+    el.innerHTML=`
+      <div class="drp-presets">${presets.map(p=>`<button type="button" class="drp-preset" data-preset="${p.key}">${esc(p.label)}${p.key==='max'?`<small>Since ${esc(R.formatRange(p.from,p.from))}<br>${R.countDays(p.from,p.to).toLocaleString()} days</small>`:''}</button>`).join('')}</div>
+      <div class="drp-main">
+        <div class="drp-nav">
+          <button type="button" data-nav="-1" aria-label="Previous month"${st.left<=minLeft?' disabled':''}>‹</button>
+          <select data-pick="month" aria-label="Month">${R.MONTHS_LONG.map((n,i)=>`<option value="${i+1}"${i+1===lm?' selected':''}${monthOk(i+1)?'':' disabled'}>${n}</option>`).join('')}</select>
+          <select data-pick="year" aria-label="Year">${years.map(y=>`<option value="${y}"${y===ly?' selected':''}>${y}</option>`).join('')}</select>
+          <button type="button" data-nav="1" aria-label="Next month"${st.left>=maxLeft?' disabled':''}>›</button>
+        </div>
+        <div class="drp-months">${monthHtml(st.left)}${two?monthHtml(R.addMonths(st.left,1)):''}</div>
+        <div class="drp-summary"></div>
+        <div class="drp-note">Dates are in ${esc(opts.tzLabel||'Australia/Melbourne')} time.</div>
+        <div class="drp-actions"><button type="button" class="drp-cancel" data-act="cancel">Cancel</button><button type="button" class="drp-apply" data-act="apply">Update</button></div>
+      </div>`;
+    paint();
+  };
+  // Re-colours what is already on screen (range, ends, lit preset, summary, Update) without rebuilding it, so
+  // moving the pointer across the days stays smooth.
+  const paint=()=>{
+    const r=shown();
+    el.querySelectorAll('.drp-day').forEach(b=>{
+      const d=b.dataset.day;
+      b.classList.toggle('cap',!!r&&(d===r.from||d===r.to));
+      b.classList.toggle('in',!!r&&d>r.from&&d<r.to);
+    });
+    el.querySelectorAll('.drp-preset').forEach(b=>b.classList.toggle('active',b.dataset.preset===st.key));
+    el.querySelector('.drp-summary').textContent=r?R.summary(r.from,r.to):'Choose a start date and an end date';
+    const same=applied&&st.sel&&(st.key?st.key===applied.key:(!applied.key&&st.sel.from===applied.from&&st.sel.to===applied.to));
+    el.querySelector('.drp-apply').disabled=!st.sel||!!same;
+  };
+  el.addEventListener('click',e=>{
+    const t=e.target.closest('button');if(!t||t.disabled)return;
+    if(t.dataset.day){
+      st.sel=R.clickDay(st.sel,t.dataset.day);st.hover=null;
+      const m=st.sel.picking?null:R.matchPreset(st.sel.from,st.sel.to,today,minDay);
+      st.key=m?m.key:null;                                   // dates that happen to be a preset are that preset
+      paint();
+    }else if(t.dataset.preset){
+      const p=presets.find(x=>x.key===t.dataset.preset);if(!p)return;
+      st.sel={from:p.from,to:p.to,picking:false};st.key=p.key;st.hover=null;
+      st.left=leftFor(p.to);
+      render();
+    }else if(t.dataset.nav){
+      st.left=clampLeft(R.addMonths(st.left,+t.dataset.nav));render();
+    }else if(t.dataset.act==='cancel'){
+      closeDateRangePicker();
+    }else if(t.dataset.act==='apply'&&st.sel){
+      const out=st.key?{key:st.key}:{from:st.sel.from,to:st.sel.to};
+      closeDateRangePicker();
+      opts.onApply(out);
+    }
+  });
+  el.addEventListener('change',e=>{
+    const s=e.target.closest('select');if(!s)return;
+    const y=s.dataset.pick==='year'?+s.value:+st.left.slice(0,4),m=s.dataset.pick==='month'?+s.value:+st.left.slice(5,7);
+    st.left=clampLeft(y+'-'+String(m).padStart(2,'0')+'-01');render();
+  });
+  el.addEventListener('mouseover',e=>{
+    if(!st.sel||!st.sel.picking)return;
+    const b=e.target.closest('.drp-day');
+    const d=b&&!b.disabled?b.dataset.day:null;
+    if(d!==st.hover){st.hover=d;paint();}
+  });
+  const onDoc=e=>{if(!el.contains(e.target)&&!opts.anchor.contains(e.target))closeDateRangePicker();};
+  const onKey=e=>{if(e.key==='Escape'){e.stopPropagation();closeDateRangePicker();opts.anchor.focus();}};
+  document.addEventListener('mousedown',onDoc,true);
+  document.addEventListener('keydown',onKey,true);
+  _drp={el,anchor:opts.anchor,onDoc,onKey};
+  render();
+  (opts.anchor.closest('.drp-wrap')||opts.anchor.parentNode).appendChild(el);
+  // Keep it on screen: slide left by however much would otherwise hang off the right-hand edge.
+  const over=el.getBoundingClientRect().right-(window.innerWidth-12);
+  if(over>0)el.style.left=-Math.min(over,Math.max(0,el.getBoundingClientRect().left-12))+'px';
+}
+
+/* ── SALES CADENCE: CUSTOM DATE RANGE ──
+   cadenceRange is null for the four rolling views, or the picker's selection: {key:'last_30'} for a preset (which
+   keeps rolling forward with the date) or {from,to} for fixed dates. It applies to Category, Product and Compare
+   alike, because all three build their columns in buildCadencePeriods(). */
+let cadenceRange=null;
+let cadenceRangeGroup='auto';   // how the range is split into columns: 'auto' | 'day' | 'week' | 'month' (kept as you move between ranges)
+// First day there is any sales data for — nothing earlier can be picked. Found once per data build.
+let _cadEarliestFor=null,_cadEarliest='';
+function cadenceEarliestDay(){
+  const src=window._salesBySkuDay;
+  if(!src)return'';
+  if(_cadEarliestFor===src)return _cadEarliest;
+  let min='';
+  for(const sku in src){const days=src[sku];for(const day in days){if((!min||day<min)&&DateRange.isDay(day))min=day;}}
+  _cadEarliestFor=src;_cadEarliest=min;
+  return min;
+}
+// The custom range in force right now ({from,to,label,key,days,group}), or null when a rolling view is showing.
+function cadenceActiveRange(){
+  if(!cadenceRange)return null;
+  const r=DateRange.resolve(cadenceRange,getBusinessToday(),cadenceEarliestDay());
+  if(!r)return null;
+  r.days=DateRange.countDays(r.from,r.to);
+  r.group=DateRange.effectiveGrouping(r.days,cadenceRangeGroup);
+  return r;
+}
+function updateCadenceRangeUI(){
+  let r=cadenceActiveRange();
+  if(cadenceRange&&!r){cadenceRange=null;r=null;}          // e.g. a preset that now falls before the data starts
+  ['12m','12w','5w','7d'].forEach(m=>document.getElementById('cad-'+m)?.classList.toggle('active',!r&&m===cadenceMode));
+  const btn=document.getElementById('cadence-range-btn'),label=document.getElementById('cadence-range-label'),toggle=document.getElementById('cadence-group-toggle');
+  if(!btn||!label||!toggle)return;
+  btn.classList.toggle('filtered',!!r);
+  label.textContent=r?r.label:'Custom range';
+  btn.title=r?DateRange.summary(r.from,r.to)+' — click to change':'Choose your own date range';
+  toggle.style.display=r?'':'none';
+  if(!r)return;
+  const allowed=DateRange.allowedGroupings(r.days);
+  for(const g of['day','week','month']){
+    const b=document.getElementById('cad-grp-'+g);
+    b.classList.toggle('active',r.group===g);
+    b.disabled=!allowed.includes(g);
+    b.title=allowed.includes(g)?'Show one column per '+g:(g==='month'?'This range is too short to split by month':'This range is too long to show one column per '+g);
+  }
+}
+function openCadenceRangePicker(){
+  const btn=document.getElementById('cadence-range-btn');
+  if(_drp&&_drp.anchor===btn){closeDateRangePicker();return;}     // second click on the button closes it
+  openDateRangePicker({
+    anchor:btn,selection:cadenceRange,today:getBusinessToday(),minDay:cadenceEarliestDay(),tzLabel:BUSINESS_TZ,
+    onApply:sel=>{cadenceRange=sel;updateCadenceRangeUI();renderCadence();},
+  });
+}
+function setCadenceGroup(g){
+  if(!cadenceRange)return;
+  cadenceRangeGroup=g;
+  updateCadenceRangeUI();
   renderCadence();
 }
 
@@ -3129,6 +3387,7 @@ function getCadenceSelectedTiers(){
 }
 
 let compareSortCol=null; // null=original order, 'product','soh','total', or period label
+const COMPARE_FIXED_SORTS=new Set(['product','soh','onorder','total','stpct']);
 let compareSortDir='desc';
 
 function setCompareSort(col){
@@ -3149,6 +3408,7 @@ function setCompareSort(col){
 let _cadenceExportSnap=null;
 let _cadenceExporting=false;
 const CADENCE_MODE_LABELS={'12m':'12 Months','12w':'12 Weeks','5w':'5 Weeks','7d':'7 Days'};
+const CADENCE_PDF_MAX_PERIODS=16;
 const CADENCE_PDF_LIBS=[
   {src:'https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js',integrity:'sha384-qovJwSBbRDPP5cEjCp8S0UP66wrvnjaa60XMOGzTNanrThcrGfXfnZkvgY8N1KT3'},
   {src:'https://cdn.jsdelivr.net/npm/jspdf-autotable@5.0.8/dist/jspdf.plugin.autotable.min.js',integrity:'sha384-5jk55M0XWoAw7LyhlXJe19ErOr3doBAPzxw9vahPFbvolqWa2yDk4fhHa2zuYeOa'},
@@ -3163,10 +3423,11 @@ function cadenceFinishSnapshot(rows,periods,extra){
   }
   totals.stPct=totals.total>0&&(totals.soh+totals.total)>0?totals.total/(totals.soh+totals.total)*100:null;
   const oldest=periods.length?periods[periods.length-1].start:null;
+  const custom=cadenceActiveRange();
   return Object.assign({
-    mode:cadenceMode,modeLabel:CADENCE_MODE_LABELS[cadenceMode]||cadenceMode,
+    mode:custom?'custom':cadenceMode,modeLabel:custom?(custom.key?custom.label:'Custom range'):(CADENCE_MODE_LABELS[cadenceMode]||cadenceMode),
     periods:periods.map(p=>({label:p.label})),rows,totals,
-    range:oldest?{from:cadenceLocalYmd(oldest),to:getBusinessToday()}:null,
+    range:custom?{from:custom.from,to:custom.to}:(oldest?{from:cadenceLocalYmd(oldest),to:getBusinessToday()}:null),
   },extra);
 }
 const CADENCE_DISC_LABELS={none:'No Discount','10':'10%','20':'20%','25':'25%','30':'30%','40':'40%','50':'50%','60':'60%','70':'70%+'};
@@ -3283,6 +3544,8 @@ async function exportCadencePdf(){
   try{
     if(!_cadenceExportSnap)throw new Error('There is no Sales Cadence data to export yet — load your data and open Sales Cadence first.');
     if(typeof window.SalesCadencePdf!=='object')throw new Error("The PDF builder didn't load — refresh the page and try again.");
+    // The A4 page fits 16 period columns before the product column is squeezed to nothing.
+    if(_cadenceExportSnap.periods.length>CADENCE_PDF_MAX_PERIODS)throw new Error('this date range has '+_cadenceExportSnap.periods.length+' columns, and an A4 page fits '+CADENCE_PDF_MAX_PERIODS+'. Switch to Weeks or Months (next to the date range), or pick a shorter range.');
     await cadenceLoadPdfLibs();
     const snap=Object.assign({},_cadenceExportSnap,{generatedAt:new Date().toISOString(),tz:BUSINESS_TZ});
     const J=window.jspdf;
@@ -3306,6 +3569,7 @@ function renderCadenceCompare(){
 
   const today=new Date();today.setHours(0,0,0,0);
   const periods=buildCadencePeriods(today).reverse();
+  if(compareSortCol&&!COMPARE_FIXED_SORTS.has(compareSortCol)&&!periods.some(p=>p.label===compareSortCol))compareSortCol=null;   // sorted by a column that is no longer shown
 
   // Build data for each selected product
   let productData=cadenceCompareProducts.map(cp=>{
@@ -3357,7 +3621,7 @@ function renderCadenceCompare(){
   // Headers
   const headers=periods.map(p=>{
     const active=compareSortCol===p.label;
-    return`<th onclick="setCompareSort('${p.label}')" style="${active?thActive:thBase}text-align:right;">${p.label}${arrow(p.label)}</th>`;
+    return`<th onclick="setCompareSort('${p.label}')"${cadencePeriodTitle(p)} style="${active?thActive:thBase}text-align:right;">${p.label}${arrow(p.label)}</th>`;
   }).join('');
 
   // Rows
@@ -3450,8 +3714,11 @@ function renderCadence(){
   }
 
   const today=new Date();today.setHours(0,0,0,0);
+  const customRange=cadenceActiveRange();          // null on the four rolling views
   // Build periods newest → oldest (reversed)
   const periods=buildCadencePeriods(today).reverse();
+  // A sort on a period column that is no longer on screen (range, grouping or view changed) would be invisible: drop it.
+  if(cadenceSortCol&&!CADENCE_FIXED_SORTS.has(cadenceSortCol)&&!periods.some(p=>p.label===cadenceSortCol))cadenceSortCol=null;
 
   const search=(document.getElementById('cadence-search')?.value||'').trim().toUpperCase();
 
@@ -3676,7 +3943,7 @@ function renderCadence(){
 
   // Table
   // LY MTD column — only shown in Category 12-month view
-  const showLyMtd=(cadenceView==='cat'||cadenceView==='prod')&&cadenceMode==='12m';
+  const showLyMtd=(cadenceView==='cat'||cadenceView==='prod')&&cadenceMode==='12m'&&!customRange;
   const todayDate=today.getDate();
   const lyMtdStart=new Date(today.getFullYear()-1,today.getMonth(),1);
   lyMtdStart.setHours(0,0,0,0);
@@ -3698,7 +3965,7 @@ function renderCadence(){
     }
   }
 
-  const headers=periods.map(p=>`<th style="${thStyle}" onclick="setCadenceSort('${p.label}')">${p.label}${sortArrow(p.label)}</th>`).join('');
+  const headers=periods.map(p=>`<th style="${thStyle}"${cadencePeriodTitle(p)} onclick="setCadenceSort('${p.label}')">${p.label}${sortArrow(p.label)}</th>`).join('');
   const totalSoh=rowKeys.reduce((s,k)=>s+(sohByKey[k]||0),0);
 
   // Total sold per row key (sum of all periods)
@@ -3824,11 +4091,14 @@ function renderCadence(){
       </table>
     </div>
     ${chartHtml?`<div class="cadence-chart-wrap">
-      <div class="cadence-chart-title">Total Units Sold — ${cadenceMode==='12m'?'Last 12 Months':cadenceMode==='12w'?'Last 12 Weeks':cadenceMode==='7d'?'Last 7 Days':'Last 5 Weeks'}</div>
+      <div class="cadence-chart-title">Total Units Sold — ${customRange?DateRange.formatRange(customRange.from,customRange.to):cadenceMode==='12m'?'Last 12 Months':cadenceMode==='12w'?'Last 12 Weeks':cadenceMode==='7d'?'Last 7 Days':'Last 5 Weeks'}</div>
       ${chartHtml}
     </div>`:''}`}`;
 }
 
+const CADENCE_FIXED_SORTS=new Set(['label','soh','__launchdate__','__disc__','__soldout__','__onorder__','__total__','__stpct__']);
+// Hover text for a custom-range column: its exact dates and length (the first week / first and last month can be part-periods).
+function cadencePeriodTitle(p){return p.fromDay?` title="${DateRange.summary(p.fromDay,p.toDay)}"`:'';}
 function setCadenceSort(col){
   if(cadenceSortCol===col){
     cadenceSortDir=cadenceSortDir==='desc'?'asc':'desc';
@@ -3840,6 +4110,18 @@ function setCadenceSort(col){
 }
 
 function buildCadencePeriods(today){
+  const custom=cadenceActiveRange();
+  if(custom){
+    // Same month wording as the 12 Months view's own headers below.
+    const monthLabel=(y,m)=>new Date(y,m-1,1).toLocaleString('en-AU',{month:'short',year:'2-digit'});
+    const cols=DateRange.buildPeriods(custom.from,custom.to,custom.group,{monthLabel});
+    const local=day=>new Date(+day.slice(0,4),+day.slice(5,7)-1,+day.slice(8,10));
+    const periods=cols.map(c=>{const end=local(c.to);end.setHours(23,59,59,999);return{label:c.label,start:local(c.from),end,fromDay:c.from,toDay:c.to,days:c.days};});
+    // Sales are keyed by business-timezone day, so each day is dropped straight into its column by that key
+    // (see getSoldInPeriodBreakdown) — exact on any device, and one lookup per day however many columns there are.
+    periods.dayMap=DateRange.dayIndex(cols);
+    return periods;
+  }
   const periods=[];
   if(cadenceMode==='12m'){
     for(let i=12;i>=0;i--){
@@ -3878,6 +4160,10 @@ function getSoldInPeriodBreakdown(sku,periods){
   for(const p of periods)result[p.label]=0;
   if(!window._salesBySkuDay)return result;
   const dayData=window._salesBySkuDay[sku]||{};
+  if(periods.dayMap){                                    // custom date range
+    for(const day in dayData){const label=periods.dayMap[day];if(label!==undefined)result[label]+=dayData[day].qty;}
+    return result;
+  }
   for(const[day,d] of Object.entries(dayData)){
     const dt=new Date(day);dt.setHours(0,0,0,0);
     for(const p of periods){
@@ -14075,6 +14361,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.7.5 — SALES CADENCE: CHOOSE YOUR OWN DATE RANGE (Brendan: a date range picker on all Sales Cadence views, like the WNDRR international dashboard's and Meta Ads'). A 'Custom range' button sits beside 12 Months / 12 Weeks / 5 Weeks / 7 Days and opens a picker: presets down the left (Today, Yesterday, This week, Last 7 / 14 / 30 / 90 days, This month, Last month, Year to date, Maximum), two months side by side, a line saying exactly which dates and how many days, and Cancel / Update. As in those pickers, 'Last N days' are the N full days before today (today is still filling up); the 'This…' and 'to date' presets include today. Days in the future, or before the first day there is sales data for, can't be picked, and dates are business (Melbourne) days. Once applied, Category, Product and Compare all show that range: Total Sold and ST% are for the range, and the columns split it automatically (up to 14 days by day, up to 14 weeks by week, longer by month) with a Days / Weeks / Months switch beside the button to change it (greyed out where the range is too long or too short). Weeks are counted back from the end of the range, so the newest column is always a full week and any leftover days form a short first column; hover a column heading for its exact dates. A preset keeps rolling forward with the date; fixed dates stay fixed. Clicking any of the four rolling views switches the custom range off. The LY MTD column stays with the rolling 12 Months view only. Export PDF carries the chosen range and its name, and says so plainly when a range has more columns (over 16) than an A4 page fits. Also: a sort on a period column that is no longer on screen is now dropped instead of lingering invisibly. Date maths in date-range.js (window.DateRange) with tests/date-range.test.js; the version now lives in five places (APP_VERSION + four script cache-busters).
 // v3.7.4 — SEND TO TUESDAY dialog felt dead: every step (loading, sending, done) re-drew the WHOLE planner behind it, which is slow with a full plan, so pressing 'Send to Tuesday' showed nothing for a long moment even though the send went through. The dialog now draws itself in its own element (instantly), shows the result first, and only then saves 'last sent' on the plan and redraws the planner.
 // v3.7.3 — LINK EACH PLAN TO A TUESDAY SALES PROMOTION (Brendan: Tuesday has several promotions). A plan now has a saved link to one Tuesday promotion (Sale details in step A: 'Tuesday promotion' with Link / Change; also offered the first time you Send). Sending always goes to the linked promotion and shows what it will replace; the link, and when/how much was last sent, are saved on the plan so they follow you to every device. A Duplicate is not linked (so copies can't overwrite each other), linking a promotion another of your plans already uses asks first, and a promotion that has been removed or archived in Tuesday asks you to relink. Replaces the v3.7.1 per-device 'remembered sale'. MarkdownPlans.setTuesdayLink / recordTuesdaySend / plansLinkedTo + tests.
 // v3.7.2 — SEND TO TUESDAY uses a Netlify function (send-to-tuesday) that holds Tuesday's key in this site's environment variables (MARKDOWNS_API_KEY), so it works on any device with no key to type (Brendan's ask). The browser only ever talks to this site; the function forwards just the two Tuesday calls (list sales, send plan), refuses other sites' origins, and says clearly if the variable isn't set yet. The per-device key step is gone.
