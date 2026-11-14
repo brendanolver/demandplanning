@@ -1566,7 +1566,8 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
               </div>
             </div>
           </div>
-          <div id="cadence-cat-wrap" style="display:none;">
+          <!-- Category picker: both views (Category view shows only the ticked categories; Product view only their products) -->
+          <div id="cadence-cat-wrap">
             <div class="ms-wrap" id="ms-cad-cat">
               <button class="ms-btn" onclick="toggleDropdown('ms-cad-cat')">
                 <span id="ms-cad-cat-label">All Categories</span><span class="ms-arrow">▾</span>
@@ -2528,12 +2529,12 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.7.9"></script>
-<script src="markdown-plans.js?v=3.7.9"></script>
-<script src="sales-cadence-pdf.js?v=3.7.9"></script>
-<script src="date-range.js?v=3.7.9"></script>
-<script src="version-check.js?v=3.7.9"></script>
-<script src="todays-margin.js?v=3.7.9"></script>
+<script src="markdown-engine.js?v=3.8.0"></script>
+<script src="markdown-plans.js?v=3.8.0"></script>
+<script src="sales-cadence-pdf.js?v=3.8.0"></script>
+<script src="date-range.js?v=3.8.0"></script>
+<script src="version-check.js?v=3.8.0"></script>
+<script src="todays-margin.js?v=3.8.0"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2567,7 +2568,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.7.9';
+const APP_VERSION='v3.8.0';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -3100,8 +3101,11 @@ function cadenceVersusCaveats(info,d){
 }
 // Units per category for the comparison period. skuCatMap is the table's own (already filtered) SKU→category map.
 // → { byCat, total, pending, error, coverage:{days,covered,from}, firstDay, unplacedUnits, unplacedSkus }
-function cadenceCompareUnits(cmp,skuCatMap,selectedLaunches){
-  const out={byCat:{},total:0,pending:false,error:'',coverage:null,firstDay:'',unplacedUnits:0,unplacedSkus:0};
+// selectedCats is the category picker's ticks ([] = all). extraCats lists every category reached for a SKU the app
+// holds no row for, before those ticks are applied — so the picker can offer the ones the table has no rows for.
+function cadenceCompareUnits(cmp,skuCatMap,selectedLaunches,selectedCats){
+  const out={byCat:{},total:0,pending:false,error:'',coverage:null,firstDay:'',unplacedUnits:0,unplacedSkus:0,extraCats:{}};
+  const catFilter=selectedCats&&selectedCats.length?new Set(selectedCats):null;
   const sales=window._salesBySkuDay||{};
   const add=(cat,qty)=>{out.byCat[cat]=(out.byCat[cat]||0)+qty;out.total+=qty;};
   // From mainStart on, the app's own sales map is the record: the Shopify feed's trailing year when it is in use,
@@ -3140,6 +3144,8 @@ function cadenceCompareUnits(cmp,skuCatMap,selectedLaunches){
       // A SKU the app holds no row for: it has no Core flag or launch date, so it counts as Non-Core with no launch date.
       if(globalCoreFilter==='core')continue;
       if(launchFilter&&!selectedLaunches.includes('__none__'))continue;
+      out.extraCats[where.cat]=true;
+      if(catFilter&&!catFilter.has(where.cat))continue;
       add(where.cat,q);
     }
   }
@@ -3393,13 +3399,13 @@ function setCadenceView(view){
     if(summaryEl)summaryEl.style.display='none';
   }
   document.getElementById('cadence-status-wrap').style.display=view==='prod'?'':'none';
-  document.getElementById('cadence-cat-wrap').style.display=view==='prod'?'':'none';
   document.getElementById('cadence-delmonth-wrap').style.display=view==='prod'?'':'none';
   document.getElementById('cadence-disc-wrap').style.display=view==='prod'?'':'none';
   document.getElementById('cadence-flag-wrap').style.display=view==='prod'?'':'none';
   document.getElementById('cadence-tier-wrap').style.display=view==='prod'?'':'none';
   if(view==='cat'){document.getElementById('cadence-search').value='';cadenceCompareProducts=[];}
-  if(view==='prod'){populateCadenceStatusFilter();populateCadenceCatFilter();populateCadenceDelMonthFilter();populateCadenceDiscFilter();populateCadenceFlagFilter();}
+  if(view==='prod'){populateCadenceStatusFilter();populateCadenceDelMonthFilter();populateCadenceDiscFilter();populateCadenceFlagFilter();}
+  populateCadenceCatFilter();   // shown in both views; the ticked categories carry across
   closeDateRangePicker();
   updateCadenceRangeUI();
   renderCadence();
@@ -3490,15 +3496,40 @@ function getCadenceSelectedLaunches(){
   return checked;
 }
 
+// ── Category filter (both cadence views) ──
+// The list is the categories the current view's table can show: Category view lists the categories its rows are
+// built from, plus any that only the period being compared with has (e.g. one that sold last year and has nothing
+// now); Product view lists the products' own categories. Ticks are kept by name when the list changes — switching
+// view, new data, a comparison turned on or off — and it is left untouched when it hasn't changed, since it may be
+// open with someone part-way through ticking. Returns true when that changed what is selected.
+let _cadCatExtra=[];   // categories only the comparison period has (Category view)
 function populateCadenceCatFilter(){
   const container=document.getElementById('ms-cad-cat-options');
-  if(!container)return;
-  const catCounts={};
-  for(const r of allVariantRows){if(r.category)catCounts[r.category]=(catCounts[r.category]||0)+1;}
-  const cats=[...new Set(allVariantRows.map(r=>r.category).filter(Boolean))].sort();
-  container.innerHTML=cats.map(v=>
-    `<label class="ms-item"><input type="checkbox" value="${v}" checked onchange="updateCadenceCatLabel();renderCadence()"> ${v} (${catCounts[v]||0})</label>`
+  if(!container||!allVariantRows||!allVariantRows.length)return false;
+  const counts={};
+  for(const r of allVariantRows){if(r.category)counts[r.category]=(counts[r.category]||0)+1;}
+  const set=new Set();
+  if(cadenceView==='cat'){
+    for(const c of Object.values(window._skuCategoryMap||{}))if(c)set.add(c);
+    for(const c of _cadCatExtra)set.add(c);
+  }else for(const c in counts)set.add(c);
+  const cats=[...set].sort();
+  const sig=cats.map(c=>c+'\u0001'+(counts[c]||0)).join('\u0002');     // the names and their counts
+  if(container._cadCatSig===sig)return false;
+  container._cadCatSig=sig;
+  const boxes=[...container.querySelectorAll('input')];
+  const before=getCadenceSelectedCats();
+  const ticked=new Set(boxes.filter(b=>b.checked).map(b=>b.value));
+  const narrowed=ticked.size>0&&ticked.size<boxes.length;            // some, not all, were ticked
+  const kept=narrowed&&cats.some(c=>ticked.has(c));                  // …and at least one of them is still on the list
+  const noneTicked=boxes.length>0&&ticked.size===0;                  // all unticked on the way to picking a few
+  const isOn=c=>kept?ticked.has(c):!noneTicked;                      // otherwise everything, including anything new
+  container.innerHTML=cats.map(c=>
+    `<label class="ms-item"><input type="checkbox" value="${mdpEsc(c)}"${isOn(c)?' checked':''} onchange="updateCadenceCatLabel();renderCadence()"> ${mdpEsc(c)}${counts[c]?` (${counts[c]})`:''}</label>`
   ).join('');
+  updateCadenceCatLabel();
+  const after=getCadenceSelectedCats();
+  return before.length!==after.length||before.some((c,i)=>c!==after[i]);
 }
 
 function toggleCadenceCatAll(allCheckbox){
@@ -3710,6 +3741,7 @@ function cadenceFilterSummary(compareCount){
   const core=globalCoreFilter==='core'?'Core only':globalCoreFilter==='noncore'?'Non-Core only':null;
   if(cadenceView==='cat'){
     f.push({label:'Core',value:core||'All'});
+    list('Categories',getCadenceSelectedCats());
     list('Launch Date',getCadenceSelectedLaunches(),v=>v==='__none__'?'No launch date':v);
     return f;
   }
@@ -3985,6 +4017,7 @@ function renderCadence(){
   }
   // Launch Date filter is visible in both views — populate on first render
   if(!document.getElementById('ms-cad-launch-options')?.children.length)populateCadenceLaunchFilter();
+  populateCadenceCatFilter();   // so is the category picker; this only rebuilds it when its list has changed
 
   // Compare mode — render dedicated compare table
   if(cadenceCompareMode&&cadenceView==='prod'){
@@ -4028,6 +4061,12 @@ function renderCadence(){
       const skuLaunch={};
       for(const r of allVariantRows){if(skuLaunch[r.sku]===undefined)skuLaunch[r.sku]=r.launchDate||'';}
       skuCatMap=Object.fromEntries(Object.entries(skuCatMap).filter(([sku])=>selectedLaunchesCat.includes(skuLaunch[sku]||'__none__')));
+    }
+    // Category picker — only the ticked categories' rows; the TOTAL row, the chart, LY MTD and any comparison follow
+    const selectedCatsCat=getCadenceSelectedCats();
+    if(selectedCatsCat.length){
+      const picked=new Set(selectedCatsCat);
+      skuCatMap=Object.fromEntries(Object.entries(skuCatMap).filter(([,cat])=>picked.has(cat)));
     }
     rowKeys=[...new Set(Object.values(skuCatMap).filter(Boolean))].sort();
     rowLabel='Category';
@@ -4115,8 +4154,14 @@ function renderCadence(){
 
   // Comparison with another period (Category view on a custom range) — see cadenceCompareUnits()
   const versus=cadenceComparison(customRange);
-  const vsData=versus?cadenceCompareUnits(versus,skuCatMap,getCadenceSelectedLaunches()):null;
+  const vsData=versus?cadenceCompareUnits(versus,skuCatMap,getCadenceSelectedLaunches(),getCadenceSelectedCats()):null;
   const vsReady=!!vsData&&!vsData.pending&&vsData.coverage&&vsData.coverage.covered>0;    // there are comparison numbers to show
+  // A category only the other period has gets a row below, so it goes on the category picker's list as well.
+  if(cadenceView==='cat'&&!(vsData&&vsData.pending)){
+    const known=new Set(Object.values(window._skuCategoryMap||{}));
+    _cadCatExtra=vsData?Object.keys(vsData.extraCats).filter(c=>!known.has(c)).sort():[];
+    if(populateCadenceCatFilter())return renderCadence();   // a ticked category left the list, so what is ticked changed: work it out again
+  }
   if(vsReady){
     let added=false;
     for(const cat in vsData.byCat)if(!data[cat]){data[cat]={};rowKeys.push(cat);added=true;}   // a category that sold then but has nothing in the table now
@@ -4373,7 +4418,9 @@ function renderCadence(){
   const lyMtdHeaderCell=cadenceView==='cat'?totalColsHeader+lyMtdHeaderOnly+vsHead:lyMtdHeaderOnly+totalColsHeader;
 
   const limitNote=cadenceView==='prod'&&!search&&!cadenceSortCol&&!getCadenceSelectedStatuses().length&&!getCadenceSelectedCats().length&&!getCadenceSelectedDelMonths().length&&!getCadenceSelectedLaunches().length&&!getCadenceSelectedDiscs().length&&!getCadenceSelectedFlags().length?`<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">Showing top 50 products — use search or filters to find specific products.</div>`:'';
-  const noResults=rowKeys.length===0?`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No products found</div><div class="insights-empty-sub">Try a different search term.</div></div>`:'';
+  const noResults=rowKeys.length===0?(cadenceView==='cat'
+    ?`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No categories to show</div><div class="insights-empty-sub">Nothing matches the categories, launch dates and Core setting chosen above.</div></div>`
+    :`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No products found</div><div class="insights-empty-sub">Try a different search term.</div></div>`):'';
 
   // Chart (category view only)
   const chartHtml=cadenceView==='cat'?buildCadenceChart(periods,rowKeys,data,totals):'';
@@ -14709,6 +14756,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.8.0 — SALES CADENCE: CATEGORY PICKER IN CATEGORY VIEW (Brendan: a dropdown category picker, like Launch Date, on the Category view as well). The 'All Categories' dropdown that Product view already had now shows in Category view too, next to Launch Date, and works the same way: tick the categories you want and the table shows only those rows. Everything on the page follows the ticks — the TOTAL row, On Order and SOH totals, the chart, LY MTD, and the comparison columns (previous period / last year / custom dates) — so the totals are for the ticked categories only. The button reads 'All Categories', the one category's name, or 'N selected', and turns teal when it is narrowing the view; Export PDF prints which categories were chosen in its header. ONE PICKER FOR BOTH VIEWS: the ticks carry across, so ticking SHORTS and SWEATS in Category view and switching to Product view shows those two categories' products (before, switching to Product view always reset the category ticks to all). Each view lists the categories its own table can show: Category view lists the ones its rows are built from; Product view the products' own (which also has a few with no sales history, e.g. BASE FIT TEES). A category that only the period being compared with has (checked on real data: MYSTERY BOXES appears in year-to-date vs last year, with VESTS and VINTAGE FIT TEES possible on other dates) is added to the list while that comparison is on, so it can be ticked like any other, and leaves the list when the comparison goes; if it was the only one ticked the picker goes back to all. The list is only rebuilt when it actually changes, so it never resets while it is open and being ticked. With nothing left to show, Category view now says 'No categories to show' instead of 'No products found'.
 // v3.7.9 — SALES CADENCE COMPARE: CUSTOM DATES (Brendan: as well as previous period and previous year, an option to compare with custom dates). 'Compare with' in the date range picker has a third choice, Custom dates — for comparing with any dates you like, e.g. this year's Black Friday weekend with last year's, which fell on different dates. They are picked on the same calendar: choosing Custom dates switches the calendar to them and draws them in blue beside your own range (dark), with a two-way switch underneath ('Calendar is choosing: Your dates / Dates to compare with') to go back and forth; the presets on the left act on whichever range is being chosen. The dates to compare with can go back to the start of the stored history (two years), further than the range itself, and they are fixed dates — they stay put when a preset range such as Last 30 days rolls forward — and are remembered if you switch to another comparison and back. The table's comparison column is headed Compared dates, the button reads e.g. 'Last 30 days vs 28 Nov – 1 Dec 2025', and the line above the table now also warns when the two periods are different lengths or share days. The previous period and same period last year are now drawn in blue on the calendar too, so you can see what will be compared before pressing Update. Export PDF carries it as before. DateRange.compareRange takes the custom dates; DateRange.overlaps added; tests extended.
 // v3.7.8 — TODAY'S MARGIN NOW USES WHAT THINGS ACTUALLY SOLD FOR (Brendan: use the actual price the product sold for in Shopify, not the sell price before any discounts). The card used to value today's units at each product's current sell price, so a bundle deal, an automatic discount, a discount code and — biggest of all — a gift with purchase were all counted at full sell price. Measured on the day this was built: 1,386 units that came to $67,695 ex GST at sell prices had actually taken $52,474 (22.5% less); 157 of those units were gifts with purchase (beach towels and cooler bags at an average of about $1 each) that the old card had counted at $79.95 and $99.95. The card read 71.4%; on the same sales it now reads 63.1%. REVENUE is now what Shopify recorded as paid for each line after every discount, ex GST. COST is unchanged (the day's recorded cost per unit, otherwise the cost implied by the product's own Margin% at its sell price), so a gift now counts at what was paid for it with its real cost — giving stock away lowers the day's margin, as it does in Shopify's own profit figures. HOW IT GETS THERE: each sales-feed sync now also writes a small 'recent' snapshot (last 5 days: units and takings per SKU, from the same run so they always agree), served by sales-price-data?span=recent in about 90 KB instead of the 2 MB price history; the page fetches it whenever the feed has a newer run. Units come from that same snapshot, so cost and revenue always describe the same sales. The card's sub-line says which basis it is on ('GP% on prices actually paid today' / 'GP% at current sell prices'), and hovering it shows the units, takings, what they would have been at sell prices, cost and the time of the snapshot. It falls back to sell prices only when today's takings can't be had (feed switched off, snapshot over 3 hours old or from before today), and says so. Only this card changes: the Margin% columns and the rest of the dashboard are as they were. Sums in todays-margin.js (window.TodaysMargin) with tests/todays-margin.test.js; feed tests extended.
 // v3.7.7 — SALES CADENCE: COMPARE A DATE RANGE WITH ANOTHER PERIOD, BY CATEGORY (Brendan: a compare option at category level via the date range picker, with a choice between same period last year and previous period). In Category view the date range picker now has 'Compare with: Don't compare / Previous period / Same period last year' under the calendar, and shows exactly which dates that means before you press Update. The table then gains three columns beside Total Sold: the other period's units (headed Last year or Previous period, with its dates), Change in units and Change %, green up / red down, all three sortable, with the same on the TOTAL row. The button reads e.g. 'Last 30 days vs last year'. Previous period = the same number of days immediately before; same period last year = the same calendar dates a year earlier (as LY MTD does). WHERE LAST YEAR COMES FROM: the app only loads the trailing year of the Shopify sales feed, but the server has kept two since v2.7.2, so the feed now hands over the older year on request (sales-data?span=older, fetched the first time a comparison needs it). Checked against real data before building: 18% of last year's year-to-date sales (and over half of the oldest quarter) were for products with no sales in the app's own history, so they had no category here. Each such SKU is now placed by the app's own map, then the Shopify inventory export's Product type, then Apparel Magic's catalogue by style; a category that sold then but has nothing now gets its own row. Honest about gaps: a line above the table says what is being compared, and warns if the history doesn't reach back far enough (it starts two years ago), if the older history couldn't be loaded, or if any units couldn't be matched to a category (they are counted and reported, not silently dropped). Days the app already holds are read from the same sales map and category map as the table itself, so both sides are counted the same way and the Core / Launch Date filters apply to both. Export PDF prints the same three columns plus a 'vs last year' figure in the summary band, and its header says what was compared; with the comparison on, an A4 page fits 13 period columns instead of 16. Category view only for now (the Product view is unchanged). Maths in date-range.js (compareRange / coverage / change) with tests; feed and PDF tests extended.
