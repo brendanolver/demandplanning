@@ -333,6 +333,10 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .drp-day.today::after{content:'';position:absolute;left:50%;bottom:4px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:currentColor;}
 .drp-summary{margin-top:12px;font-size:13px;font-weight:700;color:var(--text);}
 .drp-note{font-size:12px;color:var(--text-secondary);margin-top:4px;}
+.drp-compare{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;font-size:12.5px;color:var(--text-secondary);}
+.drp-compare label{font-weight:600;color:var(--text);}
+.drp-compare select{height:30px;border:1px solid var(--border);border-radius:var(--r);padding:0 8px;font-family:inherit;font-size:12.5px;font-weight:500;color:var(--text);background:var(--surface);outline:none;cursor:pointer;}
+.drp-compare select:focus{border-color:var(--teal);}
 .drp-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px;}
 .drp-actions button{padding:9px 18px;border-radius:var(--r);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;}
 .drp-cancel{background:var(--surface);border:1px solid var(--border);color:var(--text);}
@@ -2515,11 +2519,11 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.7.6"></script>
-<script src="markdown-plans.js?v=3.7.6"></script>
-<script src="sales-cadence-pdf.js?v=3.7.6"></script>
-<script src="date-range.js?v=3.7.6"></script>
-<script src="version-check.js?v=3.7.6"></script>
+<script src="markdown-engine.js?v=3.7.7"></script>
+<script src="markdown-plans.js?v=3.7.7"></script>
+<script src="sales-cadence-pdf.js?v=3.7.7"></script>
+<script src="date-range.js?v=3.7.7"></script>
+<script src="version-check.js?v=3.7.7"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2553,7 +2557,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.7.6';
+const APP_VERSION='v3.7.7';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -2745,7 +2749,9 @@ function setCadence(mode){
        selection  what is applied now: {key:'last_30'} | {from,to} | null
        today      'YYYY-MM-DD' in the business timezone; later days can't be picked
        minDay     first day there is data for ('' = no limit); earlier days can't be picked
-       onApply    called with the new selection: {key} for a preset (so it keeps rolling), else {from,to} */
+       onApply    called with the new selection: {key} for a preset (so it keeps rolling), else {from,to}
+       compareModes  optional {key:label} — adds a "Compare with" choice under the calendar (DateRange.COMPARE_MODES)
+       compare       which of those is applied now ('' = none); onApply gets the new one as its second argument */
 let _drp=null;
 function closeDateRangePicker(){
   if(!_drp)return;
@@ -2773,6 +2779,7 @@ function openDateRangePicker(opts){
     key:applied?applied.key:null,
     hover:null,
     left:leftFor(applied?applied.to:today),
+    compare:opts.compareModes&&opts.compareModes[opts.compare]?opts.compare:'',
   };
   const el=document.createElement('div');
   el.className='drp-pop';
@@ -2811,6 +2818,7 @@ function openDateRangePicker(opts){
         <div class="drp-months">${monthHtml(st.left)}${two?monthHtml(R.addMonths(st.left,1)):''}</div>
         <div class="drp-summary"></div>
         <div class="drp-note">Dates are in ${esc(opts.tzLabel||'Australia/Melbourne')} time.</div>
+        ${opts.compareModes?`<div class="drp-compare"><label for="drp-compare-pick">Compare with</label><select id="drp-compare-pick" data-pick="compare"><option value="">Don't compare</option>${Object.keys(opts.compareModes).map(k=>`<option value="${k}"${st.compare===k?' selected':''}>${esc(opts.compareModes[k])}</option>`).join('')}</select><span class="drp-compare-range"></span></div>`:''}
         <div class="drp-actions"><button type="button" class="drp-cancel" data-act="cancel">Cancel</button><button type="button" class="drp-apply" data-act="apply">Update</button></div>
       </div>`;
     paint();
@@ -2826,7 +2834,9 @@ function openDateRangePicker(opts){
     });
     el.querySelectorAll('.drp-preset').forEach(b=>b.classList.toggle('active',b.dataset.preset===st.key));
     el.querySelector('.drp-summary').textContent=r?R.summary(r.from,r.to):'Choose a start date and an end date';
-    const same=applied&&st.sel&&(st.key?st.key===applied.key:(!applied.key&&st.sel.from===applied.from&&st.sel.to===applied.to));
+    const cmpEl=el.querySelector('.drp-compare-range');
+    if(cmpEl){const c=r&&st.compare?R.compareRange(r.from,r.to,st.compare):null;cmpEl.textContent=c?R.summary(c.from,c.to):'';}   // spells out exactly which dates it will be compared with
+    const same=applied&&st.sel&&(st.key?st.key===applied.key:(!applied.key&&st.sel.from===applied.from&&st.sel.to===applied.to))&&st.compare===(opts.compare||'');
     el.querySelector('.drp-apply').disabled=!st.sel||!!same;
   };
   el.addEventListener('click',e=>{
@@ -2847,12 +2857,14 @@ function openDateRangePicker(opts){
       closeDateRangePicker();
     }else if(t.dataset.act==='apply'&&st.sel){
       const out=st.key?{key:st.key}:{from:st.sel.from,to:st.sel.to};
+      const compare=st.compare;
       closeDateRangePicker();
-      opts.onApply(out);
+      opts.onApply(out,compare);
     }
   });
   el.addEventListener('change',e=>{
     const s=e.target.closest('select');if(!s)return;
+    if(s.dataset.pick==='compare'){st.compare=s.value;paint();return;}
     const y=s.dataset.pick==='year'?+s.value:+st.left.slice(0,4),m=s.dataset.pick==='month'?+s.value:+st.left.slice(5,7);
     st.left=clampLeft(y+'-'+String(m).padStart(2,'0')+'-01');render();
   });
@@ -2906,9 +2918,10 @@ function updateCadenceRangeUI(){
   ['12m','12w','5w','7d'].forEach(m=>document.getElementById('cad-'+m)?.classList.toggle('active',!r&&m===cadenceMode));
   const btn=document.getElementById('cadence-range-btn'),label=document.getElementById('cadence-range-label'),toggle=document.getElementById('cadence-group-toggle');
   if(!btn||!label||!toggle)return;
+  const cmp=cadenceComparison(r);
   btn.classList.toggle('filtered',!!r);
-  label.textContent=r?r.label:'Custom range';
-  btn.title=r?DateRange.summary(r.from,r.to)+' — click to change':'Choose your own date range';
+  label.textContent=r?r.label+(cmp?' vs '+cmp.short.toLowerCase():''):'Custom range';
+  btn.title=r?DateRange.summary(r.from,r.to)+(cmp?' — compared with '+DateRange.summary(cmp.from,cmp.to):'')+' — click to change':'Choose your own date range';
   toggle.style.display=r?'':'none';
   if(!r)return;
   const allowed=DateRange.allowedGroupings(r.days);
@@ -2922,9 +2935,11 @@ function updateCadenceRangeUI(){
 function openCadenceRangePicker(){
   const btn=document.getElementById('cadence-range-btn');
   if(_drp&&_drp.anchor===btn){closeDateRangePicker();return;}     // second click on the button closes it
+  const canCompare=cadenceView==='cat';     // the comparison columns are a Category-view feature
   openDateRangePicker({
     anchor:btn,selection:cadenceRange,today:getBusinessToday(),minDay:cadenceEarliestDay(),tzLabel:BUSINESS_TZ,
-    onApply:sel=>{cadenceRange=sel;updateCadenceRangeUI();renderCadence();},
+    compareModes:canCompare?DateRange.COMPARE_MODES:null,compare:cadenceCompareWith,
+    onApply:(sel,compare)=>{cadenceRange=sel;if(canCompare)cadenceCompareWith=compare||'';updateCadenceRangeUI();renderCadence();},
   });
 }
 function setCadenceGroup(g){
@@ -2932,6 +2947,123 @@ function setCadenceGroup(g){
   cadenceRangeGroup=g;
   updateCadenceRangeUI();
   renderCadence();
+}
+
+/* ── SALES CADENCE: COMPARE A DATE RANGE WITH ANOTHER PERIOD (Category view) ──
+   Chosen in the date range picker: the same period last year, or the period just before. The table gains three
+   columns beside Total Sold — the other period's units, the change in units and the change in %.
+
+   Where the other period's units come from:
+   - Days the app already holds (the trailing year from the Shopify sales feed) are read from the same sales map and
+     the same SKU→category map the table itself uses, so both sides are counted identically.
+   - Earlier days come from the stored year BEFORE that (sales-data?span=older), fetched the first time a
+     comparison needs it. Products that sold then have often been retired since — on real data 18% of last year's
+     year-to-date sales were for SKUs with no sales in the app's own history — so each of those SKUs is placed by,
+     in order: the app's own category map, the Shopify inventory export's Product type, then Apparel Magic's
+     catalogue by style. Whatever nothing can place is counted and reported under the table, never dropped silently. */
+let cadenceCompareWith='';     // '' | 'prev' | 'ly' — remembered as you change ranges, like the Days/Weeks/Months choice
+// Lines that aren't products. A SKU the app knows is already clear of these, but one placed from the inventory export
+// or Apparel Magic can be one: on real data 2,112 of last year's "units" were entries in a giveaway (SKU
+// GASGASGIVEAWAYOS), which Apparel Magic files under INSURANCE. The app never counts such lines this year, so they
+// are left out of the other period too. (Same names the draft-product check treats as sundry.)
+const CADENCE_NON_PRODUCT_CATEGORIES=new Set(['INSURANCE','GIVEAWAY']);
+const CADENCE_OLDER_URL='/.netlify/functions/sales-data?span=older';
+const cadOlder={state:'idle',data:null,from:'',to:'',err:''};     // state: idle | loading | ready | error
+// The comparison in force ({mode,label,short,from,to}) for a custom range, or null.
+function cadenceComparison(custom){
+  if(!custom||cadenceView!=='cat'||!DateRange.COMPARE_MODES[cadenceCompareWith])return null;
+  const c=DateRange.compareRange(custom.from,custom.to,cadenceCompareWith);
+  return{mode:cadenceCompareWith,label:DateRange.COMPARE_MODES[cadenceCompareWith],short:cadenceCompareWith==='ly'?'Last year':'Previous period',from:c.from,to:c.to};
+}
+async function loadCadenceOlderSales(){
+  if(cadOlder.state==='loading'||cadOlder.state==='ready')return;
+  cadOlder.state='loading';cadOlder.err='';
+  try{
+    const p=await shopifyFeedJson(CADENCE_OLDER_URL);
+    if(!p.ready||!p.data||!p.data.days||!p.data.skus||!p.meta||!p.meta.from||!p.meta.to)throw new Error('it hasn\'t been built on the server yet');
+    cadOlder.data=p.data;cadOlder.from=p.meta.from;cadOlder.to=p.meta.to;cadOlder.state='ready';
+  }catch(e){cadOlder.state='error';cadOlder.err=(e&&e.message)||'unknown error';}
+  if(currentScreen==='cadence')renderCadence();
+}
+// Places a SKU from the older year. Returns {key} when it is a SKU the app knows (its category and the Core /
+// Launch Date filters then come from the table's own map), {cat} when only Shopify's inventory export or Apparel
+// Magic's catalogue knows it, or null when nothing does. Lookups are rebuilt only when their source data changes.
+let _cadKeysFor=null,_cadUpperKey={},_cadInvFor=null,_cadInvCat={};
+function cadenceOlderPlacer(){
+  const known=window._skuCategoryMap||{};
+  if(_cadKeysFor!==known){_cadKeysFor=known;_cadUpperKey={};for(const k in known)_cadUpperKey[k.toUpperCase()]=k;}
+  if(_cadInvFor!==shopifyInvData){
+    _cadInvFor=shopifyInvData;_cadInvCat={};
+    for(const row of shopifyInvData||[]){const sku=(row['Product variant SKU']||'').trim().toUpperCase();if(sku&&!(sku in _cadInvCat))_cadInvCat[sku]=(row['Product type']||'').trim().toUpperCase();}
+  }
+  const am=window.amStyleCat||{};
+  return sku=>{
+    const key=_cadUpperKey[sku];
+    if(key!==undefined)return{key};
+    let cat=_cadInvCat[sku];
+    if(!cat){const entry=am[styleFromSku(sku)];if(entry&&entry[1])cat=entry[1];}   // gone from Shopify (or no Product type there): Apparel Magic, by style
+    if(cat===undefined)return null;
+    return{cat:cat||'UNCATEGORISED'};
+  };
+}
+// Plain-English warnings about a comparison's figures — shown above the table and printed in the PDF's header.
+function cadenceVersusCaveats(info,d){
+  const out=[],day=x=>DateRange.formatRange(x,x);
+  if(d.coverage&&d.coverage.covered<d.coverage.days){
+    out.push(d.coverage.covered===0
+      ?'There is no sales history for those dates (it starts '+day(d.firstDay)+').'
+      :'Sales history starts '+day(d.firstDay)+', so only '+d.coverage.covered+' of those '+d.coverage.days+' days are counted and that period is understated.');
+  }
+  if(d.error)out.push('Older sales history couldn\'t be loaded ('+d.error+'), so only what this app already holds is counted.');
+  if(d.unplacedUnits>0)out.push(Math.round(d.unplacedUnits).toLocaleString()+' units sold then ('+d.unplacedSkus+' SKU'+(d.unplacedSkus===1?'':'s')+') can no longer be matched to a category and are left out.');
+  return out;
+}
+// Units per category for the comparison period. skuCatMap is the table's own (already filtered) SKU→category map.
+// → { byCat, total, pending, error, coverage:{days,covered,from}, firstDay, unplacedUnits, unplacedSkus }
+function cadenceCompareUnits(cmp,skuCatMap,selectedLaunches){
+  const out={byCat:{},total:0,pending:false,error:'',coverage:null,firstDay:'',unplacedUnits:0,unplacedSkus:0};
+  const sales=window._salesBySkuDay||{};
+  const add=(cat,qty)=>{out.byCat[cat]=(out.byCat[cat]||0)+qty;out.total+=qty;};
+  // From mainStart on, the app's own sales map is the record: the Shopify feed's trailing year when it is in use,
+  // otherwise everything the map holds.
+  const mainStart=shopifyFeedActive()&&window.shopifyFeed.meta.coverageStart?window.shopifyFeed.meta.coverageStart:cadenceEarliestDay();
+  const needOlder=!!mainStart&&cmp.from<mainStart;
+  if(needOlder&&(cadOlder.state==='idle'||cadOlder.state==='loading')){loadCadenceOlderSales();out.pending=true;return out;}
+  const olderOk=needOlder&&cadOlder.state==='ready';
+  if(needOlder&&cadOlder.state==='error')out.error=cadOlder.err;       // then only what the app's own map holds can be counted
+  // Days up to `split` come from the older year, later days from the app's map. (A tab left open across midnight
+  // can have a day or two between the two; those fall to the app's map, which still holds them from the CSV history.)
+  const dayBefore=DateRange.addDays(mainStart||cmp.from,-1);
+  const split=olderOk?(cadOlder.to<dayBefore?cadOlder.to:dayBefore):'';
+  out.firstDay=olderOk?cadOlder.from:cadenceEarliestDay();
+  out.coverage=DateRange.coverage(cmp.from,cmp.to,out.firstDay);
+  const mapFrom=split&&split>=cmp.from?DateRange.addDays(split,1):cmp.from;
+  if(mapFrom<=cmp.to){
+    for(const sku in skuCatMap){
+      const days=sales[sku];if(!days)continue;
+      let q=0;for(const day in days)if(day>=mapFrom&&day<=cmp.to)q+=days[day].qty||0;
+      if(q)add(skuCatMap[sku],q);
+    }
+  }
+  if(olderOk&&split>=cmp.from){
+    const place=cadenceOlderPlacer(),days=cadOlder.data.days,skus=cadOlder.data.skus;
+    const lo=cmp.from>cadOlder.from?cmp.from:cadOlder.from,hi=cmp.to<split?cmp.to:split;
+    const launchFilter=selectedLaunches&&selectedLaunches.length;
+    for(const sku in skus){
+      const arr=skus[sku];let q=0;
+      for(let i=0;i<arr.length;i+=2){const d=days[arr[i]];if(d>=lo&&d<=hi)q+=arr[i+1];}
+      if(!q)continue;
+      const where=place(sku);
+      if(!where){out.unplacedUnits+=q;out.unplacedSkus++;continue;}
+      if(where.key!==undefined){const cat=skuCatMap[where.key];if(cat)add(cat,q);continue;}   // not in the table's map = filtered out (Core / Launch Date), same as this period
+      if(isExcludedCategory(where.cat)||CADENCE_NON_PRODUCT_CATEGORIES.has(where.cat))continue;   // sundry lines the app leaves out everywhere
+      // A SKU the app holds no row for: it has no Core flag or launch date, so it counts as Non-Core with no launch date.
+      if(globalCoreFilter==='core')continue;
+      if(launchFilter&&!selectedLaunches.includes('__none__'))continue;
+      add(where.cat,q);
+    }
+  }
+  return out;
 }
 
 function toggleCadenceCompare(){
@@ -3188,6 +3320,8 @@ function setCadenceView(view){
   document.getElementById('cadence-tier-wrap').style.display=view==='prod'?'':'none';
   if(view==='cat'){document.getElementById('cadence-search').value='';cadenceCompareProducts=[];}
   if(view==='prod'){populateCadenceStatusFilter();populateCadenceCatFilter();populateCadenceDelMonthFilter();populateCadenceDiscFilter();populateCadenceFlagFilter();}
+  closeDateRangePicker();
+  updateCadenceRangeUI();
   renderCadence();
 }
 
@@ -3463,7 +3597,7 @@ function setCompareSort(col){
 let _cadenceExportSnap=null;
 let _cadenceExporting=false;
 const CADENCE_MODE_LABELS={'12m':'12 Months','12w':'12 Weeks','5w':'5 Weeks','7d':'7 Days'};
-const CADENCE_PDF_MAX_PERIODS=16;
+const CADENCE_PDF_MAX_PERIODS=16,CADENCE_PDF_MAX_PERIODS_VERSUS=13;
 const CADENCE_PDF_LIBS=[
   {src:'https://cdn.jsdelivr.net/npm/jspdf@4.2.1/dist/jspdf.umd.min.js',integrity:'sha384-qovJwSBbRDPP5cEjCp8S0UP66wrvnjaa60XMOGzTNanrThcrGfXfnZkvgY8N1KT3'},
   {src:'https://cdn.jsdelivr.net/npm/jspdf-autotable@5.0.8/dist/jspdf.plugin.autotable.min.js',integrity:'sha384-5jk55M0XWoAw7LyhlXJe19ErOr3doBAPzxw9vahPFbvolqWa2yDk4fhHa2zuYeOa'},
@@ -3477,6 +3611,7 @@ function cadenceFinishSnapshot(rows,periods,extra){
     r.cells.forEach((v,i)=>{totals.cells[i]+=v;});
   }
   totals.stPct=totals.total>0&&(totals.soh+totals.total)>0?totals.total/(totals.soh+totals.total)*100:null;
+  if(extra&&extra.versus)totals.vs=rows.reduce((sum,r)=>sum+(r.vs||0),0);
   const oldest=periods.length?periods[periods.length-1].start:null;
   const custom=cadenceActiveRange();
   return Object.assign({
@@ -3518,16 +3653,26 @@ function cadenceTierFor(name,colour){
   const t=window._tierMap?getTierForProduct(name,colour):null;
   return t?{emoji:t.emoji,label:getPerfLabel(t.tier)}:null;
 }
-function cadenceRecordSnapshot(keys,periods,data,sohByKey,onOrderByKey,totalByKey,vendorByKey){
+function cadenceRecordSnapshot(keys,periods,data,sohByKey,onOrderByKey,totalByKey,vendorByKey,vs){
   const isCat=cadenceView==='cat';
   const rows=keys.map(k=>{
     const parts=isCat?[k,'']:k.split('||');
     const cells=periods.map(p=>Math.round(data[k]?.[p.label]||0));
     const total=totalByKey[k]||0,soh=sohByKey[k]||0;
-    return{name:parts[0],colour:parts[1]||'',status:isCat?'':(vendorByKey[k]||''),tier:isCat?null:cadenceTierFor(parts[0],parts[1]||''),dot:null,
+    const row={name:parts[0],colour:parts[1]||'',status:isCat?'':(vendorByKey[k]||''),tier:isCat?null:cadenceTierFor(parts[0],parts[1]||''),dot:null,
       soh,onOrder:onOrderByKey[k]||0,total,stPct:total>0?total/(soh+total)*100:null,cells};
+    if(vs)row.vs=vs.units(k);
+    return row;
   });
-  _cadenceExportSnap=cadenceFinishSnapshot(rows,periods,{view:cadenceView,compare:false,filters:cadenceFilterSummary(null)});
+  const filters=cadenceFilterSummary(null);
+  const extra={view:cadenceView,compare:false,filters};
+  if(vs){
+    // The PDF prints the same comparison columns, and says in its header what was compared and any gap in the history.
+    extra.versus={label:vs.info.label,short:vs.info.short,from:vs.info.from,to:vs.info.to};
+    filters.push({label:'Compared with',value:vs.info.label+' ('+DateRange.formatRange(vs.info.from,vs.info.to,' – ')+')'});
+    cadenceVersusCaveats(vs.info,vs.data).forEach(c=>filters.push({label:'Note',value:c}));
+  }
+  _cadenceExportSnap=cadenceFinishSnapshot(rows,periods,extra);
 }
 function cadenceRecordCompareSnapshot(productData,periods){
   const rows=productData.map(cp=>{
@@ -3599,8 +3744,9 @@ async function exportCadencePdf(){
   try{
     if(!_cadenceExportSnap)throw new Error('There is no Sales Cadence data to export yet — load your data and open Sales Cadence first.');
     if(typeof window.SalesCadencePdf!=='object')throw new Error("The PDF builder didn't load — refresh the page and try again.");
-    // The A4 page fits 16 period columns before the product column is squeezed to nothing.
-    if(_cadenceExportSnap.periods.length>CADENCE_PDF_MAX_PERIODS)throw new Error('this date range has '+_cadenceExportSnap.periods.length+' columns, and an A4 page fits '+CADENCE_PDF_MAX_PERIODS+'. Switch to Weeks or Months (next to the date range), or pick a shorter range.');
+    // The A4 page fits 16 period columns before the product column is squeezed to nothing — 13 when the three comparison columns are there too.
+    const maxPeriods=_cadenceExportSnap.versus?CADENCE_PDF_MAX_PERIODS_VERSUS:CADENCE_PDF_MAX_PERIODS;
+    if(_cadenceExportSnap.periods.length>maxPeriods)throw new Error('this date range has '+_cadenceExportSnap.periods.length+' columns, and an A4 page fits '+maxPeriods+(_cadenceExportSnap.versus?' alongside the comparison':'')+'. Switch to Weeks or Months (next to the date range), or pick a shorter range.');
     await cadenceLoadPdfLibs();
     const snap=Object.assign({},_cadenceExportSnap,{generatedAt:new Date().toISOString(),tz:BUSINESS_TZ});
     const J=window.jspdf;
@@ -3887,6 +4033,18 @@ function renderCadence(){
     }
   }
 
+  // Comparison with another period (Category view on a custom range) — see cadenceCompareUnits()
+  const versus=cadenceComparison(customRange);
+  const vsData=versus?cadenceCompareUnits(versus,skuCatMap,getCadenceSelectedLaunches()):null;
+  const vsReady=!!vsData&&!vsData.pending&&vsData.coverage&&vsData.coverage.covered>0;    // there are comparison numbers to show
+  if(vsReady){
+    let added=false;
+    for(const cat in vsData.byCat)if(!data[cat]){data[cat]={};rowKeys.push(cat);added=true;}   // a category that sold then but has nothing in the table now
+    if(added)rowKeys.sort();
+  }
+  const vsUnits=k=>vsReady?Math.round(vsData.byCat[k]||0):0;
+  if(!versus&&CADENCE_VERSUS_SORTS.has(cadenceSortCol))cadenceSortCol=null;                  // sorted by a comparison column that is no longer shown
+
   // Build SOH and On Order maps per row key
   // On Order must be deduplicated by product+colour — it's stored on every variant row
   // so summing across variants would multiply it by the number of sizes
@@ -3969,6 +4127,14 @@ function renderCadence(){
       else if(cadenceSortCol==='__soldout__'){av=soldOutByKey[a]||0;bv=soldOutByKey[b]||0;}
       else if(cadenceSortCol==='__onorder__'){av=onOrderByKey[a]||0;bv=onOrderByKey[b]||0;}
       else if(cadenceSortCol==='__total__'){av=totalByKey[a]||0;bv=totalByKey[b]||0;}
+      else if(cadenceSortCol==='__vs__'){av=vsUnits(a);bv=vsUnits(b);}
+      else if(cadenceSortCol==='__vschg__'){av=(totalByKey[a]||0)-vsUnits(a);bv=(totalByKey[b]||0)-vsUnits(b);}
+      else if(cadenceSortCol==='__vspct__'){
+        // no percentage (nothing sold in the other period) always sorts to the bottom
+        const pa=DateRange.change(totalByKey[a]||0,vsUnits(a)).pct,pb=DateRange.change(totalByKey[b]||0,vsUnits(b)).pct;
+        if(pa===null||pb===null)return pa===pb?0:(pa===null?1:-1);
+        av=pa;bv=pb;
+      }
       else if(cadenceSortCol==='__stpct__'){
         const ta=totalByKey[a]||0;const tb=totalByKey[b]||0;
         av=ta>0?ta/((sohByKey[a]||0)+ta)*100:0;
@@ -3990,7 +4156,7 @@ function renderCadence(){
     const sf=getCadenceSelectedFlags();
     if(!ss.length&&!sc.length&&!sdm.length&&!sl.length&&!sd.length&&!sf.length)rowKeys=rowKeys.slice(0,50);
   }
-  cadenceRecordSnapshot(exportKeys,periods,data,sohByKey,onOrderByKey,totalByKey,vendorByKey);
+  cadenceRecordSnapshot(exportKeys,periods,data,sohByKey,onOrderByKey,totalByKey,vendorByKey,vsReady?{info:versus,units:vsUnits,data:vsData}:null);
 
   // Sortable header helper
   const sortArrow=col=>cadenceSortCol===col?(cadenceSortDir==='desc'?' ↓':' ↑'):'';
@@ -4031,6 +4197,21 @@ function renderCadence(){
   const showTotalSold=cadenceView==='cat'||cadenceView==='prod';
   const showStPct=cadenceView==='prod';
 
+  // Comparison block (Category view, custom range): the other period's units, then the change in units and in %
+  const vsBg='background:#f0fdf4;',vsFirst=vsBg+'border-left:2px solid var(--border);';
+  const vsHead=versus?`<th style="${thStyle}${vsFirst}" onclick="setCadenceSort('__vs__')" title="${versus.label}: ${DateRange.summary(versus.from,versus.to)}">${versus.short}${sortArrow('__vs__')}<div style="font-size:9px;font-weight:400;opacity:0.8;">${DateRange.formatRange(versus.from,versus.to,' – ')}</div></th>
+    <th style="${thStyle}${vsBg}" onclick="setCadenceSort('__vschg__')" title="Total Sold minus ${versus.short.toLowerCase()}">Change${sortArrow('__vschg__')}</th>
+    <th style="${thStyle}${vsBg}" onclick="setCadenceSort('__vspct__')" title="Change as a percentage of ${versus.short.toLowerCase()}">Change %${sortArrow('__vspct__')}</th>`:'';
+  const vsCells=(now,then,isTotal)=>{
+    if(!versus)return'';
+    if(!vsReady){const t=vsData.pending?'…':'—',c='color:var(--text-muted);';return`<td style="${vsFirst}${c}">${t}</td><td style="${vsBg}${c}">${t}</td><td style="${vsBg}${c}">${t}</td>`;}
+    const ch=DateRange.change(now,then);
+    const col=ch.units>0?'color:#16a34a;font-weight:700;':ch.units<0?'color:var(--red);font-weight:600;':'color:var(--text-muted);';
+    return`<td style="${vsFirst}${isTotal?'font-weight:700;':'color:var(--text-secondary);font-weight:500;'}">${then>0?then.toLocaleString():'—'}</td>
+      <td style="${vsBg}${col}">${ch.units===0?'—':(ch.units>0?'+':'')+ch.units.toLocaleString()}</td>
+      <td style="${vsBg}${col}">${ch.pct===null?'—':(ch.pct>=0?'+':'')+ch.pct.toFixed(1)+'%'}</td>`;
+  };
+
   const tableRows=rowKeys.map(k=>{
     const soh=sohByKey[k]||0;
     const onOrder=onOrderByKey[k]||0;
@@ -4061,7 +4242,7 @@ function renderCadence(){
     // Category view only: Total Sold sits before LY MTD instead of after it,
     // so LY MTD lands immediately next to the current month's own column
     // rather than the other way round. Product view is unchanged.
-    const lyTotalOrder=cadenceView==='cat'?totalCols+lyMtdCell:lyMtdCell+totalCols;
+    const lyTotalOrder=cadenceView==='cat'?totalCols+lyMtdCell+vsCells(totalSold,vsUnits(k),false):lyMtdCell+totalCols;
     const _vnd=cadenceView==='prod'?(vendorByKey[k]||''):'';
     const _vcls=_vnd==='CORE'?'rp-core':_vnd==='NEW'?'rp-new':_vnd==='CURRENT'?'rp-current':_vnd==='OLD'?'rp-old':_vnd==='REDUCED'?'rp-reduced':_vnd==='DRAFT'?'rp-draft':_vnd==='PRE-RELEASE'?'rp-prerelease':_vnd==='BUNDLE'?'rp-bundle':'rp-other';
     const statusCell=cadenceView==='prod'?`<td style="white-space:nowrap;"><span class="range-pill ${_vcls}">${_vnd||'—'}</span></td>`:'';
@@ -4104,12 +4285,12 @@ function renderCadence(){
     <div style="font-weight:700;">${lyMtdTotal>0?lyMtdTotal.toLocaleString():'—'}</div>
     ${lyMtdVsPct!==null?`<div style="font-size:10px;${lyMtdTotalVsColor}">${lyMtdVsPct>=0?'+':''}${lyMtdVsPct.toFixed(1)}%</div>`:''}
   </td>`:'';
-  const lyMtdTotalOrder=cadenceView==='cat'?totalColsTotal+lyMtdTotalCellOnly:lyMtdTotalCellOnly+totalColsTotal;
+  const lyMtdTotalOrder=cadenceView==='cat'?totalColsTotal+lyMtdTotalCellOnly+vsCells(grandTotalSold,rowKeys.reduce((sum,k)=>sum+vsUnits(k),0),true):lyMtdTotalCellOnly+totalColsTotal;
   const totalColsHeader=(showStPct?`<th style="${cadenceSortCol==='__stpct__'?thStyle+';color:var(--teal);':thStyle}" onclick="setCadenceSort('__stpct__')">ST%${sortArrow('__stpct__')}</th>`:'')
-    +(showTotalSold?`<th style="${thStyle};color:var(--teal);" onclick="setCadenceSort('__total__')">Total Sold${sortArrow('__total__')}</th>`:'');
+    +(showTotalSold?`<th style="${thStyle};color:var(--teal);" onclick="setCadenceSort('__total__')">Total Sold${sortArrow('__total__')}${versus?`<div style="font-size:9px;font-weight:400;opacity:0.8;">${DateRange.formatRange(customRange.from,customRange.to,' – ')}</div>`:''}</th>`:'');
   const lyMtdHeaderOnly=showLyMtd?`<th style="background:#f0fdf4;border-left:2px solid var(--border);min-width:80px;white-space:nowrap;">LY MTD<div style="font-size:9px;font-weight:400;opacity:0.8;">vs this MTD</div></th>`:'';
   // Category view only — see lyTotalOrder above for the matching body-row swap
-  const lyMtdHeaderCell=cadenceView==='cat'?totalColsHeader+lyMtdHeaderOnly:lyMtdHeaderOnly+totalColsHeader;
+  const lyMtdHeaderCell=cadenceView==='cat'?totalColsHeader+lyMtdHeaderOnly+vsHead:lyMtdHeaderOnly+totalColsHeader;
 
   const limitNote=cadenceView==='prod'&&!search&&!cadenceSortCol&&!getCadenceSelectedStatuses().length&&!getCadenceSelectedCats().length&&!getCadenceSelectedDelMonths().length&&!getCadenceSelectedLaunches().length&&!getCadenceSelectedDiscs().length&&!getCadenceSelectedFlags().length?`<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">Showing top 50 products — use search or filters to find specific products.</div>`:'';
   const noResults=rowKeys.length===0?`<div class="insights-empty"><div class="insights-empty-ico">🔍</div><div class="insights-empty-title">No products found</div><div class="insights-empty-sub">Try a different search term.</div></div>`:'';
@@ -4119,8 +4300,15 @@ function renderCadence(){
 
   const totalOnOrder=rowKeys.reduce((s,k)=>s+(onOrderByKey[k]||0),0);
 
+  // What is being compared, in words, with anything that makes the other period's figures incomplete
+  const vsNote=versus?`<div style="font-size:11.5px;color:var(--text-secondary);margin-bottom:10px;line-height:1.55;">
+      <strong style="color:var(--text);">Compared with the ${versus.label.toLowerCase()}:</strong> ${DateRange.summary(versus.from,versus.to)}.${vsData.pending?' <span style="color:var(--text-muted);">Loading older sales history…</span>':''}
+      ${vsData.pending?'':cadenceVersusCaveats(versus,vsData).map(c=>`<div style="color:var(--amber);font-weight:500;">⚠ ${mdpEsc(c)}</div>`).join('')}
+    </div>`:'';
+
   document.getElementById('cadence-body').innerHTML=`
     ${limitNote}
+    ${vsNote}
     ${noResults||`<div class="cadence-table-wrap">
       <table class="cadence-table">
         <thead><tr>
@@ -4151,7 +4339,8 @@ function renderCadence(){
     </div>`:''}`}`;
 }
 
-const CADENCE_FIXED_SORTS=new Set(['label','soh','__launchdate__','__disc__','__soldout__','__onorder__','__total__','__stpct__']);
+const CADENCE_VERSUS_SORTS=new Set(['__vs__','__vschg__','__vspct__']);
+const CADENCE_FIXED_SORTS=new Set(['label','soh','__launchdate__','__disc__','__soldout__','__onorder__','__total__','__stpct__',...CADENCE_VERSUS_SORTS]);
 // Hover text for a custom-range column: its exact dates and length (the first week / first and last month can be part-periods).
 function cadencePeriodTitle(p){return p.fromDay?` title="${DateRange.summary(p.fromDay,p.toDay)}"`:'';}
 function setCadenceSort(col){
@@ -14416,6 +14605,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.7.7 — SALES CADENCE: COMPARE A DATE RANGE WITH ANOTHER PERIOD, BY CATEGORY (Brendan: a compare option at category level via the date range picker, with a choice between same period last year and previous period). In Category view the date range picker now has 'Compare with: Don't compare / Previous period / Same period last year' under the calendar, and shows exactly which dates that means before you press Update. The table then gains three columns beside Total Sold: the other period's units (headed Last year or Previous period, with its dates), Change in units and Change %, green up / red down, all three sortable, with the same on the TOTAL row. The button reads e.g. 'Last 30 days vs last year'. Previous period = the same number of days immediately before; same period last year = the same calendar dates a year earlier (as LY MTD does). WHERE LAST YEAR COMES FROM: the app only loads the trailing year of the Shopify sales feed, but the server has kept two since v2.7.2, so the feed now hands over the older year on request (sales-data?span=older, fetched the first time a comparison needs it). Checked against real data before building: 18% of last year's year-to-date sales (and over half of the oldest quarter) were for products with no sales in the app's own history, so they had no category here. Each such SKU is now placed by the app's own map, then the Shopify inventory export's Product type, then Apparel Magic's catalogue by style; a category that sold then but has nothing now gets its own row. Honest about gaps: a line above the table says what is being compared, and warns if the history doesn't reach back far enough (it starts two years ago), if the older history couldn't be loaded, or if any units couldn't be matched to a category (they are counted and reported, not silently dropped). Days the app already holds are read from the same sales map and category map as the table itself, so both sides are counted the same way and the Core / Launch Date filters apply to both. Export PDF prints the same three columns plus a 'vs last year' figure in the summary band, and its header says what was compared; with the comparison on, an A4 page fits 13 period columns instead of 16. Category view only for now (the Product view is unchanged). Maths in date-range.js (compareRange / coverage / change) with tests; feed and PDF tests extended.
 // v3.7.6 — 'A NEW VERSION IS READY' BANNER (Brendan: his tab was still showing v3.7.4 after v3.7.5 went live). A tab keeps running the version it loaded, and pushes to V2 now deploy by themselves, so an open tab can sit on an old version for days. Every 10 minutes while the tab is visible, when you come back to the tab, and when the browser brings a tab back from memory, the page asks the site for version.json (a one-line file deployed with it) and shows a banner under the top bar when the site is ahead: 'A new version of this app is ready. This tab is on vX; the latest is vY.' with Refresh now and Later. It only offers: nothing reloads by itself, because a refresh resets filters and anything half-typed. Later hides it for 30 minutes. It never shows when the site is the same, older or unreadable, and if a refresh somehow comes back still behind it waits 10 minutes before asking again rather than trapping you in a loop. The first banner anyone sees will be for the update AFTER this one, since a tab has to be running this version to be able to check. version.json is one more place the version is written, so tests/version.test.js now fails if APP_VERSION, every script cache-buster, version.json and the newest changelog entry don't all agree (or if the number breaks the odometer rule). Rules in version-check.js (window.VersionCheck).
 // v3.7.5 — SALES CADENCE: CHOOSE YOUR OWN DATE RANGE (Brendan: a date range picker on all Sales Cadence views, like the WNDRR international dashboard's and Meta Ads'). A 'Custom range' button sits beside 12 Months / 12 Weeks / 5 Weeks / 7 Days and opens a picker: presets down the left (Today, Yesterday, This week, Last 7 / 14 / 30 / 90 days, This month, Last month, Year to date, Maximum), two months side by side, a line saying exactly which dates and how many days, and Cancel / Update. As in those pickers, 'Last N days' are the N full days before today (today is still filling up); the 'This…' and 'to date' presets include today. Days in the future, or before the first day there is sales data for, can't be picked, and dates are business (Melbourne) days. Once applied, Category, Product and Compare all show that range: Total Sold and ST% are for the range, and the columns split it automatically (up to 14 days by day, up to 14 weeks by week, longer by month) with a Days / Weeks / Months switch beside the button to change it (greyed out where the range is too long or too short). Weeks are counted back from the end of the range, so the newest column is always a full week and any leftover days form a short first column; hover a column heading for its exact dates. A preset keeps rolling forward with the date; fixed dates stay fixed. Clicking any of the four rolling views switches the custom range off. The LY MTD column stays with the rolling 12 Months view only. Export PDF carries the chosen range and its name, and says so plainly when a range has more columns (over 16) than an A4 page fits. Also: a sort on a period column that is no longer on screen is now dropped instead of lingering invisibly. Date maths in date-range.js (window.DateRange) with tests/date-range.test.js; the version now lives in five places (APP_VERSION + four script cache-busters).
 // v3.7.4 — SEND TO TUESDAY dialog felt dead: every step (loading, sending, done) re-drew the WHOLE planner behind it, which is slow with a full plan, so pressing 'Send to Tuesday' showed nothing for a long moment even though the send went through. The dialog now draws itself in its own element (instantly), shows the result first, and only then saves 'last sent' on the plan and redraws the planner.

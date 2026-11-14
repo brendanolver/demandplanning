@@ -81,6 +81,30 @@
   }
   function summary(from, to) { const n = countDays(from, to); return formatRange(from, to) + ' · ' + n + (n === 1 ? ' day' : ' days'); }
 
+  // ── Comparison periods ───────────────────────────────────────────────────────
+  // What a selected range is compared against:
+  //   prev — the same number of days immediately before it (30 days vs the 30 days before)
+  //   ly   — the same calendar dates one year earlier, as the 12 Months view's LY MTD column does (29 Feb → 28 Feb)
+  const COMPARE_MODES = { prev: 'Previous period', ly: 'Same period last year' };
+  const yearBack = day => { const [y, m, d] = parts(day), last = parts(endOfMonth((y - 1) + '-' + pad(m) + '-01'))[2]; return (y - 1) + '-' + pad(m) + '-' + pad(Math.min(d, last)); };
+  function compareRange(from, to, mode) {
+    if (mode === 'prev') { const n = countDays(from, to); return { from: addDays(from, -n), to: addDays(from, -1) }; }
+    if (mode === 'ly') return { from: yearBack(from), to: yearBack(to) };
+    return null;
+  }
+  // How much of [from,to] has data, given the first day there is any: { days, covered, from } — from is null when none of it does.
+  function coverage(from, to, firstDay) {
+    const days = countDays(from, to);
+    if (!firstDay || firstDay <= from) return { days, covered: days, from };
+    if (firstDay > to) return { days, covered: 0, from: null };
+    return { days, covered: countDays(firstDay, to), from: firstDay };
+  }
+  // Change from `then` to `now`: { units, pct } — pct is null when there is nothing to measure against.
+  function change(now, then) {
+    const a = Number(now) || 0, b = Number(then) || 0;
+    return { units: a - b, pct: b > 0 ? (a - b) / b * 100 : null };
+  }
+
   // ── Calendar ─────────────────────────────────────────────────────────────────
   // One month as rows of 7 (Monday first); cells outside the month are null.
   function monthGrid(year, month) {
@@ -153,6 +177,7 @@
     MONTHS_LONG, MONTHS_SHORT, DOW_SHORT, MAX_DAY_COLUMNS, MAX_WEEK_RANGE_DAYS,
     isDay, addDays, countDays, weekdayIndex, startOfWeek, startOfMonth, endOfMonth, addMonths,
     presets, matchPreset, resolve, formatRange, summary, monthGrid, clickDay,
+    COMPARE_MODES, compareRange, coverage, change,
     allowedGroupings, autoGrouping, effectiveGrouping, buildPeriods, dayIndex,
   };
 });

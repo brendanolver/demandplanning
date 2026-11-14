@@ -12,7 +12,9 @@
 //     rows:[{ name, colour, status, tier:{emoji,label}|null, dot:'#rrggbb'|null,
 //             soh, onOrder, total, stPct|null, cells:[n per period] }],
 //     totals:{ soh, onOrder, total, stPct|null, cells:[n per period] },
-//     filters:[{label, value}] }
+//     filters:[{label, value}],
+//     versus?:{ label:'Same period last year', short:'Last year', from, to }   // a comparison with another period:
+//       each row then carries vs (that period's units) and totals carries vs; three extra columns are printed }
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.SalesCadencePdf = factory();
@@ -123,6 +125,19 @@
     snap.rows.forEach((r, i) => { if (!r.cells || r.cells.length !== n) throw new Error('Row ' + (i + 1) + ' does not have a value for every period.'); });
     if (snap.totals.cells.length !== n) throw new Error('Totals do not cover every period.');
     const noun = isCat ? 'Categories' : 'Products';
+    // Comparison with another period: that period's units, then the change in units and in %.
+    const vs = snap.versus && (snap.versus.short || snap.versus.label) ? snap.versus : null;
+    const vsName = vs ? String(vs.short || vs.label) : '';
+    const vsCellsFor = (now, then, isFoot) => {
+      const b = Math.round(Number(then) || 0), d = Math.round(Number(now) || 0) - b, pct = b > 0 ? d / b * 100 : null;
+      const colour = d > 0 ? GREEN : d < 0 ? RED : FAINT;
+      const out = [
+        { text: b > 0 || isFoot ? fmtInt(b) : '—', color: b > 0 || isFoot ? INK : FAINT },
+        { text: d === 0 ? '—' : (d > 0 ? '+' : '-') + fmtInt(Math.abs(d)), color: colour, bold: d !== 0 },
+        { text: pct === null ? '—' : (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%', color: pct === null ? FAINT : colour, bold: pct !== null && d !== 0 },
+      ];
+      return out;
+    };
     const kpis = [
       { label: noun + ' Selected', value: fmtInt(snap.rows.length) },
       { label: 'Total SOH', value: fmtInt(snap.totals.soh) },
@@ -130,7 +145,8 @@
       { label: 'Sell Through', value: fmtPct(snap.totals.stPct) },
       { label: 'Total Sold (' + snap.modeLabel + ')', value: fmtInt(snap.totals.total) },
     ];
-    const head = [isCat ? 'CATEGORY' : 'PRODUCT'].concat(isCat ? [] : ['STATUS'], ['SOH', 'ON ORDER', 'ST%', 'TOTAL SOLD'], snap.periods.map(p => String(p.label).toUpperCase()));
+    if (vs) { const t = vsCellsFor(snap.totals.total, snap.totals.vs, true); kpis.push({ label: 'vs ' + vsName.toLowerCase() + ' (' + t[0].text + ')', value: t[2].text }); }
+    const head = [isCat ? 'CATEGORY' : 'PRODUCT'].concat(isCat ? [] : ['STATUS'], ['SOH', 'ON ORDER', 'ST%', 'TOTAL SOLD'], vs ? [vsName.toUpperCase(), 'CHANGE', 'CHANGE %'] : [], snap.periods.map(p => String(p.label).toUpperCase()));
     const rows = snap.rows.map(r => ({
       raw: r,
       cells: [{ text: '' }].concat(isCat ? [] : [{ text: '' }], [
@@ -138,7 +154,7 @@
         { text: r.onOrder > 0 ? fmtInt(r.onOrder) : '—', color: r.onOrder > 0 ? PURPLE : FAINT, bold: r.onOrder > 0 },
         { text: fmtPct(r.stPct), color: stColour(r.stPct), bold: r.stPct != null },
         { text: r.total > 0 ? fmtInt(r.total) : '—', color: r.total > 0 ? TEAL : FAINT, bold: r.total > 0 },
-      ], r.cells.map((v, i) => {
+      ], vs ? vsCellsFor(r.total, r.vs, false) : [], r.cells.map((v, i) => {
         const prev = i + 1 < n ? r.cells[i + 1] : null; // next-older period, as the on-screen table compares
         if (!(v > 0)) return { text: '—', color: FAINT };
         if (prev !== null && v > prev) return { text: fmtInt(v), color: GREEN, bold: true };
@@ -146,15 +162,15 @@
         return { text: fmtInt(v), color: INK };
       })),
     }));
-    const foot = ['TOTAL'].concat(isCat ? [] : [''], [fmtInt(snap.totals.soh), fmtInt(snap.totals.onOrder), fmtPct(snap.totals.stPct), fmtInt(snap.totals.total)], snap.totals.cells.map(fmtInt));
-    return { isCat, n, kpis, head, rows, foot, noun };
+    const foot = ['TOTAL'].concat(isCat ? [] : [''], [fmtInt(snap.totals.soh), fmtInt(snap.totals.onOrder), fmtPct(snap.totals.stPct), fmtInt(snap.totals.total)], vs ? vsCellsFor(snap.totals.total, snap.totals.vs, true).map(c => c.text) : [], snap.totals.cells.map(fmtInt));
+    return { isCat, n, kpis, head, rows, foot, noun, vs: !!vs };
   }
 
   // Column widths in mm. Numeric columns are fixed; the label column takes whatever the
   // period columns leave (so a 7-day report gets a roomier product column, and a 13-month
   // one a compact one) — never narrower than 50 mm so product names stay readable.
   function columnWidths(model, usable) {
-    const fixed = (model.isCat ? [] : [18]).concat([13, 15, 13, 15]);
+    const fixed = (model.isCat ? [] : [18]).concat([13, 15, 13, 15], model.vs ? [17, 13, 15] : []);
     const fixedSum = fixed.reduce((a, b) => a + b, 0);
     const periodW = Math.max(9.5, Math.min(17, (usable - fixedSum - 50) / Math.max(1, model.n)));
     const label = usable - fixedSum - periodW * model.n;

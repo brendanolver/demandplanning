@@ -83,6 +83,40 @@ assert.deepEqual(D.clickDay(s, '2026-11-02'), { from: '2026-11-02', to: '2026-11
 assert.deepEqual(D.clickDay(s, '2026-11-10'), { from: '2026-11-10', to: '2026-11-10', picking: false });               // same day twice = that one day
 assert.deepEqual(D.clickDay({ from: '2026-11-02', to: '2026-11-10', picking: false }, '2026-10-20'), { from: '2026-10-20', to: '2026-10-20', picking: true });
 
+// ── comparison periods ────────────────────────────────────────────────────────
+assert.deepEqual(Object.keys(D.COMPARE_MODES), ['prev', 'ly']);
+// previous period: the same number of days, ending the day before the range starts
+assert.deepEqual(D.compareRange('2026-10-15', '2026-11-13', 'prev'), { from: '2026-09-15', to: '2026-10-14' });
+assert.deepEqual(D.compareRange('2026-11-14', '2026-11-14', 'prev'), { from: '2026-11-13', to: '2026-11-13' });
+assert.deepEqual(D.compareRange('2026-01-01', '2026-01-31', 'prev'), { from: '2025-12-01', to: '2025-12-31' });
+assert.deepEqual(D.compareRange('2026-03-01', '2026-03-31', 'prev'), { from: '2026-01-29', to: '2026-02-28' });   // 31 days back, not "February"
+// same period last year: the same calendar dates
+assert.deepEqual(D.compareRange('2026-10-15', '2026-11-13', 'ly'), { from: '2025-10-15', to: '2025-11-13' });
+assert.deepEqual(D.compareRange('2026-11-01', '2026-11-14', 'ly'), { from: '2025-11-01', to: '2025-11-14' });     // what LY MTD compares on 14 Nov
+assert.deepEqual(D.compareRange('2026-01-01', '2026-11-14', 'ly'), { from: '2025-01-01', to: '2025-11-14' });
+assert.deepEqual(D.compareRange('2028-02-29', '2028-02-29', 'ly'), { from: '2027-02-28', to: '2027-02-28' });     // no 29 Feb last year
+assert.deepEqual(D.compareRange('2028-02-01', '2028-02-29', 'ly'), { from: '2027-02-01', to: '2027-02-28' });
+assert.deepEqual(D.compareRange('2029-02-01', '2029-02-28', 'ly'), { from: '2028-02-01', to: '2028-02-28' });     // …and a leap day last year isn't dragged in
+for (const off of [undefined, null, '', 'none', 'nope']) assert.equal(D.compareRange('2026-10-15', '2026-11-13', off), null);
+for (const from of ['2025-12-25', '2026-02-27', '2026-10-15', '2027-12-31', '2028-02-29']) for (const n of [1, 7, 30, 90, 365, 366]) {
+  const to = D.addDays(from, n - 1), pv = D.compareRange(from, to, 'prev'), ly = D.compareRange(from, to, 'ly');
+  assert.equal(D.countDays(pv.from, pv.to), n); assert.equal(D.addDays(pv.to, 1), from);                          // butts up against the range, same length
+  assert.ok(D.isDay(ly.from) && D.isDay(ly.to) && ly.from <= ly.to); assert.equal(+ly.from.slice(0, 4), +from.slice(0, 4) - 1); assert.equal(ly.from.slice(5, 7), from.slice(5, 7));
+  assert.ok(Math.abs(D.countDays(ly.from, ly.to) - n) <= 1);                                                       // a leap day can make it one day different, never more
+}
+// how much of a comparison period there is data for
+assert.deepEqual(D.coverage('2025-10-15', '2025-11-13', '2024-11-15'), { days: 30, covered: 30, from: '2025-10-15' });
+assert.deepEqual(D.coverage('2024-11-01', '2024-11-30', '2024-11-15'), { days: 30, covered: 16, from: '2024-11-15' });
+assert.deepEqual(D.coverage('2024-11-15', '2024-11-30', '2024-11-15'), { days: 16, covered: 16, from: '2024-11-15' });
+assert.deepEqual(D.coverage('2024-10-01', '2024-10-31', '2024-11-15'), { days: 31, covered: 0, from: null });
+assert.deepEqual(D.coverage('2024-11-01', '2024-11-14', '2024-11-15'), { days: 14, covered: 0, from: null });
+assert.deepEqual(D.coverage('2025-10-15', '2025-11-13', ''), { days: 30, covered: 30, from: '2025-10-15' });
+// change between the two periods
+assert.deepEqual(D.change(3663, 2910), { units: 753, pct: (753 / 2910) * 100 }); assert.equal(D.change(3663, 2910).pct.toFixed(1), '25.9');
+assert.deepEqual(D.change(788, 1104), { units: -316, pct: (-316 / 1104) * 100 }); assert.equal(D.change(788, 1104).pct.toFixed(1), '-28.6');
+assert.deepEqual(D.change(50, 0), { units: 50, pct: null });        // nothing to measure against: no percentage, never Infinity
+assert.deepEqual(D.change(0, 0), { units: 0, pct: null }); assert.deepEqual(D.change(0, 40), { units: -40, pct: -100 }); assert.deepEqual(D.change(undefined, null), { units: 0, pct: null });
+
 // ── splitting a range into columns ────────────────────────────────────────────
 assert.deepEqual(D.allowedGroupings(1), ['day']); assert.deepEqual(D.allowedGroupings(7), ['day']); assert.deepEqual(D.allowedGroupings(8), ['day', 'week']);
 assert.deepEqual(D.allowedGroupings(30), ['day', 'week', 'month']); assert.deepEqual(D.allowedGroupings(62), ['day', 'week', 'month']); assert.deepEqual(D.allowedGroupings(63), ['week', 'month']);

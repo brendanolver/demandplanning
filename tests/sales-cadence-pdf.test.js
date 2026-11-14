@@ -44,6 +44,49 @@ const gen = n => Array.from({ length: n }, (_, i) => mkRow('PRODUCT ' + (i + 1),
 const build = (snap, extra) => { const r = recorder(); const doc = P.buildPdf(Object.assign({ jsPDF: r.jsPDF, autoTable: (d, o) => autoTable(d, o), snapshot: snap, now: new Date(snap.generatedAt) }, extra)); return { doc, log: r.log }; };
 const fmt = n => n.toLocaleString('en-US');
 
+// 0. Comparison with another period (Category view, custom date range): three extra columns after TOTAL SOLD
+{
+  const WEEKS = ['W07/11', 'W31/10', 'W24/10', 'W17/10', 'W15/10'];
+  const cat = (name, soh, cells, vs) => mkRow(name, '', '', soh, 0, cells, { dot: null, vs });
+  const rows = [cat('BOX FIT TEES', 18629, [2541, 277, 290, 374, 181], 2910), cat('CLUB TEES', 1946, [284, 155, 158, 145, 46], 1104), cat('NEW THIS YEAR', 40, [5, 5, 0, 0, 0], 0), cat('GONE SINCE', 0, [0, 0, 0, 0, 0], 60), cat('FLAT', 10, [10, 10, 0, 0, 0], 20)];
+  const snap = mkSnap(rows, { periodLabels: WEEKS, snap: { view: 'cat', mode: 'custom', modeLabel: 'Last 30 days', range: { from: '2026-10-15', to: '2026-11-13' },
+    versus: { label: 'Same period last year', short: 'Last year', from: '2025-10-15', to: '2025-11-13' },
+    filters: [{ label: 'Core', value: 'All' }, { label: 'Compared with', value: 'Same period last year (15 Oct – 13 Nov 2025)' }] } });
+  snap.totals.vs = rows.reduce((s, r) => s + r.vs, 0);
+  const m = P.buildModel(snap);
+  assert.deepEqual(m.head, ['CATEGORY', 'SOH', 'ON ORDER', 'ST%', 'TOTAL SOLD', 'LAST YEAR', 'CHANGE', 'CHANGE %'].concat(WEEKS));
+  const vsOf = i => m.rows[i].cells.slice(5, 8).map(c => c.text);
+  assert.deepEqual(vsOf(0), ['2,910', '+753', '+25.9%']);          // 3,663 this period against 2,910
+  assert.deepEqual(vsOf(1), ['1,104', '-316', '-28.6%']);
+  assert.deepEqual(vsOf(2), ['—', '+10', '—']);                    // nothing sold then: a change in units, but no percentage to give
+  assert.deepEqual(vsOf(3), ['60', '-60', '-100.0%']);             // sold then, nothing now
+  assert.deepEqual(vsOf(4), ['20', '—', '+0.0%']);                 // no change
+  assert.equal(m.rows[0].cells.length, m.head.length); assert.equal(m.foot.length, m.head.length);
+  const total = 3663 + 788 + 10 + 0 + 20, then = 2910 + 1104 + 0 + 60 + 20;
+  assert.deepEqual(m.foot.slice(4, 8), [fmt(total), fmt(then), '+' + fmt(total - then), '+' + ((total - then) / then * 100).toFixed(1) + '%']);
+  assert.deepEqual(m.kpis[m.kpis.length - 1], { label: 'vs last year (' + fmt(then) + ')', value: '+' + ((total - then) / then * 100).toFixed(1) + '%' });
+  assert.equal(m.kpis.length, 6); assert.equal(m.vs, true);
+  // colours: up is green, down is red
+  const GREEN = [22, 163, 74], RED = [220, 38, 38];
+  assert.deepEqual(m.rows[0].cells[6].color, GREEN); assert.deepEqual(m.rows[0].cells[7].color, GREEN); assert.deepEqual(m.rows[1].cells[6].color, RED); assert.deepEqual(m.rows[1].cells[7].color, RED);
+  // widths still fill the page exactly, and the category column keeps its 50 mm with up to 13 period columns
+  for (const n of [1, 5, 13]) {
+    const s2 = mkSnap(rows.map(r => Object.assign({}, r, { cells: Array(n).fill(1), total: n })), { periodLabels: Array.from({ length: n }, (_, i) => 'P' + i), snap: { view: 'cat', versus: snap.versus } }); s2.totals.vs = 0;
+    const m2 = P.buildModel(s2), w = P.columnWidths(m2, 277);
+    assert.equal(w.length, m2.head.length); assert.ok(Math.abs(w.reduce((a, b) => a + b, 0) - 277) < 1e-6); assert.ok(w[0] >= 50 - 1e-6, n + ' periods leaves the category column ' + w[0].toFixed(1) + ' mm');
+  }
+  const { doc, log } = build(snap);
+  assert.equal(doc.getNumberOfPages(), 1);
+  for (const s of ['LAST YEAR', 'CHANGE', 'CHANGE %', '2,910', '+753', '+25.9%', '-28.6%', 'vs last year (' + fmt(then) + ')']) assert.ok(log.all.includes(s), 'PDF is missing "' + s + '"');
+  assert.ok(log.all.some(s => s.includes('Compared with: Same period last year')), 'the header does not say what was compared');
+  // without a comparison nothing changes
+  const plain = mkSnap(rows, { periodLabels: WEEKS, snap: { view: 'cat' } });
+  const mp = P.buildModel(plain); assert.deepEqual(mp.head, ['CATEGORY', 'SOH', 'ON ORDER', 'ST%', 'TOTAL SOLD'].concat(WEEKS)); assert.equal(mp.kpis.length, 5); assert.equal(mp.vs, false);
+  // "Previous period" names its column accordingly
+  const prev = mkSnap(rows, { periodLabels: WEEKS, snap: { view: 'cat', versus: { label: 'Previous period', short: 'Previous period', from: '2026-09-15', to: '2026-10-14' } } }); prev.totals.vs = then;
+  assert.equal(P.buildModel(prev).head[5], 'PREVIOUS PERIOD');
+}
+
 // 1. Compare mode, 4 products, 12 months — single landscape A4 page, KPI + TOTAL equal the sums of the rows
 {
   const snap = mkSnap([
