@@ -313,6 +313,7 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .drp-preset.active,.drp-preset.active:hover{background:var(--text);color:#fff;font-weight:600;}
 .drp-preset small{display:block;font-size:11px;font-weight:400;color:var(--text-muted);margin-top:2px;}
 .drp-preset.active small{color:rgba(255,255,255,0.7);}
+.drp-preset.active.cmp,.drp-preset.active.cmp:hover{background:var(--blue);}
 .drp-main{padding:14px 16px;}
 .drp-nav{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
 .drp-nav button{width:30px;height:32px;flex-shrink:0;border:1px solid var(--border);background:var(--surface);border-radius:var(--r);font-size:15px;line-height:1;color:var(--text);cursor:pointer;}
@@ -328,8 +329,10 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .drp-day{position:relative;height:34px;border:none;background:transparent;font-family:inherit;font-size:13px;color:var(--text);cursor:pointer;padding:0;}
 .drp-day:hover:not(:disabled):not(.cap){background:var(--border-light);border-radius:var(--r);}
 .drp-day:disabled{color:var(--text-muted);opacity:0.5;cursor:default;}
+.drp-day.cin,.drp-day.cin:hover:not(:disabled){background:var(--blue-light);border-radius:0;}
+.drp-day.ccap,.drp-day.ccap:hover:not(:disabled){background:var(--blue);color:#fff;font-weight:700;border-radius:var(--r);}
 .drp-day.in,.drp-day.in:hover:not(:disabled){background:#eceef2;border-radius:0;}
-.drp-day.cap{background:var(--text);color:#fff;font-weight:700;border-radius:var(--r);}
+.drp-day.cap,.drp-day.cap:hover:not(:disabled){background:var(--text);color:#fff;font-weight:700;border-radius:var(--r);}
 .drp-day.today::after{content:'';position:absolute;left:50%;bottom:4px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:currentColor;}
 .drp-summary{margin-top:12px;font-size:13px;font-weight:700;color:var(--text);}
 .drp-note{font-size:12px;color:var(--text-secondary);margin-top:4px;}
@@ -337,6 +340,12 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .drp-compare label{font-weight:600;color:var(--text);}
 .drp-compare select{height:30px;border:1px solid var(--border);border-radius:var(--r);padding:0 8px;font-family:inherit;font-size:12.5px;font-weight:500;color:var(--text);background:var(--surface);outline:none;cursor:pointer;}
 .drp-compare select:focus{border-color:var(--teal);}
+.drp-compare-range.cmp{color:var(--blue);font-weight:600;}
+.drp-target{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--text-secondary);}
+.drp-target button{padding:5px 11px;border:1px solid var(--border);background:var(--surface);border-radius:var(--r-pill);font-family:inherit;font-size:12px;font-weight:500;color:var(--text-secondary);cursor:pointer;}
+.drp-target button:hover{border-color:var(--text-muted);}
+.drp-target button.active{background:var(--text);border-color:var(--text);color:#fff;font-weight:600;}
+.drp-target button.cmp.active{background:var(--blue);border-color:var(--blue);}
 .drp-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px;}
 .drp-actions button{padding:9px 18px;border-radius:var(--r);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;}
 .drp-cancel{background:var(--surface);border:1px solid var(--border);color:var(--text);}
@@ -2519,12 +2528,12 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.7.8"></script>
-<script src="markdown-plans.js?v=3.7.8"></script>
-<script src="sales-cadence-pdf.js?v=3.7.8"></script>
-<script src="date-range.js?v=3.7.8"></script>
-<script src="version-check.js?v=3.7.8"></script>
-<script src="todays-margin.js?v=3.7.8"></script>
+<script src="markdown-engine.js?v=3.7.9"></script>
+<script src="markdown-plans.js?v=3.7.9"></script>
+<script src="sales-cadence-pdf.js?v=3.7.9"></script>
+<script src="date-range.js?v=3.7.9"></script>
+<script src="version-check.js?v=3.7.9"></script>
+<script src="todays-margin.js?v=3.7.9"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2558,7 +2567,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.7.8';
+const APP_VERSION='v3.7.9';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -2752,7 +2761,11 @@ function setCadence(mode){
        minDay     first day there is data for ('' = no limit); earlier days can't be picked
        onApply    called with the new selection: {key} for a preset (so it keeps rolling), else {from,to}
        compareModes  optional {key:label} — adds a "Compare with" choice under the calendar (DateRange.COMPARE_MODES)
-       compare       which of those is applied now ('' = none); onApply gets the new one as its second argument */
+       compare       which of those is applied now ('' = none); onApply gets the new one as its second argument
+       compareCustom the {from,to} held for the 'custom' mode, if any; onApply gets the current one as its third.
+                     Custom dates are picked on the same calendar, drawn in blue: choosing 'Custom dates' switches
+                     the calendar (and the presets) to them, and a two-way switch flips back to the range itself.
+       compareMinDay first day that can be compared with — may be earlier than minDay */
 let _drp=null;
 function closeDateRangePicker(){
   if(!_drp)return;
@@ -2765,13 +2778,18 @@ function openDateRangePicker(opts){
   closeDateRangePicker();
   const R=window.DateRange,today=opts.today,minDay=opts.minDay&&opts.minDay<=today?opts.minDay:'';
   const applied=R.resolve(opts.selection,today,minDay);
-  const presets=R.presets(today,minDay);
+  const modes=opts.compareModes||null,canCustom=!!(modes&&modes.custom);
+  // Dates to compare with can reach further back than the range itself (there is older history just for comparing).
+  const cmpMin=opts.compareMinDay&&opts.compareMinDay<=today?opts.compareMinDay:minDay;
+  const appliedCompare=modes&&modes[opts.compare]?opts.compare:'';
+  const appliedCustom=R.compareRange(today,today,'custom',opts.compareCustom);       // the custom dates held now ({from,to}) or null
   // Two months side by side, or one on a narrow screen (matches the .drp-pop breakpoint in the stylesheet).
   const two=!(window.matchMedia&&window.matchMedia('(max-width:860px)').matches);
   // The first month shown can run from the first month with data up to this month — or up to last month when a
   // second one sits to its right, since that is always the month after.
   const maxLeft=two?R.addMonths(today,-1):R.startOfMonth(today);
-  const firstMonth=minDay?R.startOfMonth(minDay):R.addMonths(today,-120);
+  const earliest=canCustom&&cmpMin&&(!minDay||cmpMin<minDay)?cmpMin:minDay;        // how far back the calendar can be turned
+  const firstMonth=earliest?R.startOfMonth(earliest):R.addMonths(today,-120);
   const minLeft=firstMonth<maxLeft?firstMonth:maxLeft;
   const clampLeft=m=>m<minLeft?minLeft:m>maxLeft?maxLeft:m;
   const leftFor=day=>clampLeft(two?R.addMonths(day,-1):R.startOfMonth(day));   // puts that day's month on screen (right-hand side when there are two)
@@ -2780,24 +2798,36 @@ function openDateRangePicker(opts){
     key:applied?applied.key:null,
     hover:null,
     left:leftFor(applied?applied.to:today),
-    compare:opts.compareModes&&opts.compareModes[opts.compare]?opts.compare:'',
+    compare:appliedCompare,
+    cmp:appliedCustom?{from:appliedCustom.from,to:appliedCustom.to,picking:false}:null,   // custom dates to compare with
+    target:'main',                         // which range the calendar and presets are choosing: 'main' | 'cmp' (custom comparison only)
   };
   const el=document.createElement('div');
   el.className='drp-pop';
   el.setAttribute('role','dialog');
   el.setAttribute('aria-label','Choose a date range');
-  // The range as it would be if you clicked now: while the second end is still being chosen it follows the pointer.
-  const shown=()=>{
-    if(!st.sel)return null;
-    if(st.sel.picking&&st.hover)return st.hover<st.sel.from?{from:st.hover,to:st.sel.from}:{from:st.sel.from,to:st.hover};
-    return{from:st.sel.from,to:st.sel.to};
+  // A range as it would be if you clicked now: while its second end is still being chosen it follows the pointer.
+  const live=(sel,isTarget)=>{
+    if(!sel)return null;
+    if(isTarget&&sel.picking&&st.hover)return st.hover<sel.from?{from:st.hover,to:sel.from}:{from:sel.from,to:st.hover};
+    return{from:sel.from,to:sel.to};
   };
+  const shown=()=>live(st.sel,st.target==='main');
+  // What it would be compared with: the picked dates for 'custom', otherwise worked out from the range itself.
+  const shownCmp=()=>{
+    if(!st.compare)return null;
+    if(st.compare==='custom')return live(st.cmp,st.target==='cmp');
+    const r=shown();
+    return r?R.compareRange(r.from,r.to,st.compare):null;
+  };
+  const floor=()=>st.target==='cmp'?cmpMin:minDay;      // earliest day that can be clicked right now
+  const presetsNow=()=>R.presets(today,floor());
   const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const monthHtml=first=>{
-    const y=+first.slice(0,4),m=+first.slice(5,7);
+    const y=+first.slice(0,4),m=+first.slice(5,7),lo=floor();
     const cells=R.monthGrid(y,m).flat().map(d=>{
       if(!d)return'<span></span>';
-      const off=d>today||(minDay&&d<minDay);
+      const off=d>today||(lo&&d<lo);
       return`<button type="button" class="drp-day${d===today?' today':''}" data-day="${d}"${off?' disabled':''}>${+d.slice(8)}</button>`;
     }).join('');
     return`<div class="drp-month"><div class="drp-month-title">${R.MONTHS_LONG[m-1]} ${y}</div>
@@ -2808,7 +2838,7 @@ function openDateRangePicker(opts){
     const years=[];for(let y=+minLeft.slice(0,4);y<=+maxLeft.slice(0,4);y++)years.push(y);
     const monthOk=m=>{const c=ly+'-'+String(m).padStart(2,'0')+'-01';return c>=minLeft&&c<=maxLeft;};
     el.innerHTML=`
-      <div class="drp-presets">${presets.map(p=>`<button type="button" class="drp-preset" data-preset="${p.key}">${esc(p.label)}${p.key==='max'?`<small>Since ${esc(R.formatRange(p.from,p.from))}<br>${R.countDays(p.from,p.to).toLocaleString()} days</small>`:''}</button>`).join('')}</div>
+      <div class="drp-presets">${presetsNow().map(p=>`<button type="button" class="drp-preset" data-preset="${p.key}">${esc(p.label)}${p.key==='max'?`<small>Since ${esc(R.formatRange(p.from,p.from))}<br>${R.countDays(p.from,p.to).toLocaleString()} days</small>`:''}</button>`).join('')}</div>
       <div class="drp-main">
         <div class="drp-nav">
           <button type="button" data-nav="-1" aria-label="Previous month"${st.left<=minLeft?' disabled':''}>‹</button>
@@ -2819,38 +2849,59 @@ function openDateRangePicker(opts){
         <div class="drp-months">${monthHtml(st.left)}${two?monthHtml(R.addMonths(st.left,1)):''}</div>
         <div class="drp-summary"></div>
         <div class="drp-note">Dates are in ${esc(opts.tzLabel||'Australia/Melbourne')} time.</div>
-        ${opts.compareModes?`<div class="drp-compare"><label for="drp-compare-pick">Compare with</label><select id="drp-compare-pick" data-pick="compare"><option value="">Don't compare</option>${Object.keys(opts.compareModes).map(k=>`<option value="${k}"${st.compare===k?' selected':''}>${esc(opts.compareModes[k])}</option>`).join('')}</select><span class="drp-compare-range"></span></div>`:''}
+        ${modes?`<div class="drp-compare"><label for="drp-compare-pick">Compare with</label><select id="drp-compare-pick" data-pick="compare"><option value="">Don't compare</option>${Object.keys(modes).map(k=>`<option value="${k}"${st.compare===k?' selected':''}>${esc(modes[k])}</option>`).join('')}</select><span class="drp-compare-range"></span></div>`:''}
+        ${st.compare==='custom'?`<div class="drp-target"><span>Calendar is choosing</span><button type="button" data-target="main" class="${st.target==='main'?'active':''}">Your dates</button><button type="button" data-target="cmp" class="cmp${st.target==='cmp'?' active':''}">Dates to compare with</button></div>`:''}
         <div class="drp-actions"><button type="button" class="drp-cancel" data-act="cancel">Cancel</button><button type="button" class="drp-apply" data-act="apply">Update</button></div>
       </div>`;
     paint();
   };
-  // Re-colours what is already on screen (range, ends, lit preset, summary, Update) without rebuilding it, so
-  // moving the pointer across the days stays smooth.
+  // Re-colours what is already on screen (both ranges, lit preset, summaries, Update) without rebuilding it, so
+  // moving the pointer across the days stays smooth. The range itself is drawn dark; what it is compared with, blue.
   const paint=()=>{
-    const r=shown();
+    const r=shown(),c=shownCmp();
     el.querySelectorAll('.drp-day').forEach(b=>{
       const d=b.dataset.day;
       b.classList.toggle('cap',!!r&&(d===r.from||d===r.to));
       b.classList.toggle('in',!!r&&d>r.from&&d<r.to);
+      b.classList.toggle('ccap',!!c&&(d===c.from||d===c.to));
+      b.classList.toggle('cin',!!c&&d>c.from&&d<c.to);
     });
-    el.querySelectorAll('.drp-preset').forEach(b=>b.classList.toggle('active',b.dataset.preset===st.key));
+    // The lit preset belongs to whichever range is being chosen.
+    const cmpPreset=st.target==='cmp'&&st.cmp&&!st.cmp.picking?R.matchPreset(st.cmp.from,st.cmp.to,today,cmpMin):null;
+    const litKey=st.target==='cmp'?(cmpPreset?cmpPreset.key:null):st.key;
+    el.querySelectorAll('.drp-preset').forEach(b=>{b.classList.toggle('active',b.dataset.preset===litKey);b.classList.toggle('cmp',st.target==='cmp');});
     el.querySelector('.drp-summary').textContent=r?R.summary(r.from,r.to):'Choose a start date and an end date';
     const cmpEl=el.querySelector('.drp-compare-range');
-    if(cmpEl){const c=r&&st.compare?R.compareRange(r.from,r.to,st.compare):null;cmpEl.textContent=c?R.summary(c.from,c.to):'';}   // spells out exactly which dates it will be compared with
-    const same=applied&&st.sel&&(st.key?st.key===applied.key:(!applied.key&&st.sel.from===applied.from&&st.sel.to===applied.to))&&st.compare===(opts.compare||'');
-    el.querySelector('.drp-apply').disabled=!st.sel||!!same;
+    if(cmpEl){   // spells out exactly which dates it will be compared with
+      cmpEl.textContent=c?R.summary(c.from,c.to):(st.compare==='custom'?'Click the first and last day on the calendar':'');
+      cmpEl.classList.toggle('cmp',!!c);
+    }
+    const sameMain=applied&&st.sel&&(st.key?st.key===applied.key:(!applied.key&&st.sel.from===applied.from&&st.sel.to===applied.to));
+    const sameCmp=st.compare===appliedCompare&&(st.compare!=='custom'||(!!appliedCustom&&!!st.cmp&&st.cmp.from===appliedCustom.from&&st.cmp.to===appliedCustom.to));
+    el.querySelector('.drp-apply').disabled=!st.sel||(st.compare==='custom'&&!st.cmp)||!!(sameMain&&sameCmp);
   };
   el.addEventListener('click',e=>{
     const t=e.target.closest('button');if(!t||t.disabled)return;
     if(t.dataset.day){
-      st.sel=R.clickDay(st.sel,t.dataset.day);st.hover=null;
-      const m=st.sel.picking?null:R.matchPreset(st.sel.from,st.sel.to,today,minDay);
-      st.key=m?m.key:null;                                   // dates that happen to be a preset are that preset
+      st.hover=null;
+      if(st.target==='cmp')st.cmp=R.clickDay(st.cmp,t.dataset.day);
+      else{
+        st.sel=R.clickDay(st.sel,t.dataset.day);
+        const m=st.sel.picking?null:R.matchPreset(st.sel.from,st.sel.to,today,minDay);
+        st.key=m?m.key:null;                                 // dates that happen to be a preset are that preset
+      }
       paint();
     }else if(t.dataset.preset){
-      const p=presets.find(x=>x.key===t.dataset.preset);if(!p)return;
-      st.sel={from:p.from,to:p.to,picking:false};st.key=p.key;st.hover=null;
+      const p=presetsNow().find(x=>x.key===t.dataset.preset);if(!p)return;
+      st.hover=null;
+      if(st.target==='cmp')st.cmp={from:p.from,to:p.to,picking:false};   // as fixed dates: what you compare with doesn't roll
+      else{st.sel={from:p.from,to:p.to,picking:false};st.key=p.key;}
       st.left=leftFor(p.to);
+      render();
+    }else if(t.dataset.target){
+      st.target=t.dataset.target==='cmp'&&st.compare==='custom'?'cmp':'main';st.hover=null;
+      const seen=st.target==='cmp'?st.cmp:st.sel;
+      if(seen)st.left=leftFor(seen.to);                      // turn the calendar to the range now being chosen
       render();
     }else if(t.dataset.nav){
       st.left=clampLeft(R.addMonths(st.left,+t.dataset.nav));render();
@@ -2858,19 +2909,29 @@ function openDateRangePicker(opts){
       closeDateRangePicker();
     }else if(t.dataset.act==='apply'&&st.sel){
       const out=st.key?{key:st.key}:{from:st.sel.from,to:st.sel.to};
-      const compare=st.compare;
+      const compare=st.compare,custom=st.cmp?{from:st.cmp.from,to:st.cmp.to}:null;
       closeDateRangePicker();
-      opts.onApply(out,compare);
+      opts.onApply(out,compare,custom);
     }
   });
   el.addEventListener('change',e=>{
     const s=e.target.closest('select');if(!s)return;
-    if(s.dataset.pick==='compare'){st.compare=s.value;paint();return;}
+    if(s.dataset.pick==='compare'){
+      st.compare=s.value;st.hover=null;
+      // Custom dates are picked on this same calendar, so it switches to choosing them (and back again otherwise).
+      const was=st.target;
+      st.target=st.compare==='custom'?'cmp':'main';
+      const seen=st.target==='cmp'?st.cmp:st.sel;
+      if(st.target!==was&&seen)st.left=leftFor(seen.to);     // …and turns to the range now being chosen, both ways
+      render();
+      return;
+    }
     const y=s.dataset.pick==='year'?+s.value:+st.left.slice(0,4),m=s.dataset.pick==='month'?+s.value:+st.left.slice(5,7);
     st.left=clampLeft(y+'-'+String(m).padStart(2,'0')+'-01');render();
   });
   el.addEventListener('mouseover',e=>{
-    if(!st.sel||!st.sel.picking)return;
+    const sel=st.target==='cmp'?st.cmp:st.sel;
+    if(!sel||!sel.picking)return;
     const b=e.target.closest('.drp-day');
     const d=b&&!b.disabled?b.dataset.day:null;
     if(d!==st.hover){st.hover=d;paint();}
@@ -2921,7 +2982,7 @@ function updateCadenceRangeUI(){
   if(!btn||!label||!toggle)return;
   const cmp=cadenceComparison(r);
   btn.classList.toggle('filtered',!!r);
-  label.textContent=r?r.label+(cmp?' vs '+cmp.short.toLowerCase():''):'Custom range';
+  label.textContent=r?r.label+(cmp?' vs '+(cmp.mode==='custom'?DateRange.formatRange(cmp.from,cmp.to,' – '):cmp.short.toLowerCase()):''):'Custom range';
   btn.title=r?DateRange.summary(r.from,r.to)+(cmp?' — compared with '+DateRange.summary(cmp.from,cmp.to):'')+' — click to change':'Choose your own date range';
   toggle.style.display=r?'':'none';
   if(!r)return;
@@ -2940,7 +3001,12 @@ function openCadenceRangePicker(){
   openDateRangePicker({
     anchor:btn,selection:cadenceRange,today:getBusinessToday(),minDay:cadenceEarliestDay(),tzLabel:BUSINESS_TZ,
     compareModes:canCompare?DateRange.COMPARE_MODES:null,compare:cadenceCompareWith,
-    onApply:(sel,compare)=>{cadenceRange=sel;if(canCompare)cadenceCompareWith=compare||'';updateCadenceRangeUI();renderCadence();},
+    compareCustom:cadenceCompareCustom,compareMinDay:cadenceCompareEarliestDay(),
+    onApply:(sel,compare,custom)=>{
+      cadenceRange=sel;
+      if(canCompare){cadenceCompareWith=compare||'';if(custom)cadenceCompareCustom=custom;}
+      updateCadenceRangeUI();renderCadence();
+    },
   });
 }
 function setCadenceGroup(g){
@@ -2962,7 +3028,8 @@ function setCadenceGroup(g){
      year-to-date sales were for SKUs with no sales in the app's own history — so each of those SKUs is placed by,
      in order: the app's own category map, the Shopify inventory export's Product type, then Apparel Magic's
      catalogue by style. Whatever nothing can place is counted and reported under the table, never dropped silently. */
-let cadenceCompareWith='';     // '' | 'prev' | 'ly' — remembered as you change ranges, like the Days/Weeks/Months choice
+let cadenceCompareWith='';     // '' | 'prev' | 'ly' | 'custom' — remembered as you change ranges, like the Days/Weeks/Months choice
+let cadenceCompareCustom=null; // {from,to} picked for 'custom' — fixed dates, kept even while another comparison is showing
 // Lines that aren't products. A SKU the app knows is already clear of these, but one placed from the inventory export
 // or Apparel Magic can be one: on real data 2,112 of last year's "units" were entries in a giveaway (SKU
 // GASGASGIVEAWAYOS), which Apparel Magic files under INSURANCE. The app never counts such lines this year, so they
@@ -2970,11 +3037,21 @@ let cadenceCompareWith='';     // '' | 'prev' | 'ly' — remembered as you chang
 const CADENCE_NON_PRODUCT_CATEGORIES=new Set(['INSURANCE','GIVEAWAY']);
 const CADENCE_OLDER_URL='/.netlify/functions/sales-data?span=older';
 const cadOlder={state:'idle',data:null,from:'',to:'',err:''};     // state: idle | loading | ready | error
-// The comparison in force ({mode,label,short,from,to}) for a custom range, or null.
+// The comparison in force for a custom range, or null: {mode, label, short (column heading), from, to, days,
+// baseDays (length of the range itself), overlap (the two share days — only possible with custom dates)}.
 function cadenceComparison(custom){
   if(!custom||cadenceView!=='cat'||!DateRange.COMPARE_MODES[cadenceCompareWith])return null;
-  const c=DateRange.compareRange(custom.from,custom.to,cadenceCompareWith);
-  return{mode:cadenceCompareWith,label:DateRange.COMPARE_MODES[cadenceCompareWith],short:cadenceCompareWith==='ly'?'Last year':'Previous period',from:c.from,to:c.to};
+  const c=DateRange.compareRange(custom.from,custom.to,cadenceCompareWith,cadenceCompareCustom);
+  if(!c)return null;                                        // 'custom' with no dates picked
+  return{mode:cadenceCompareWith,label:DateRange.COMPARE_MODES[cadenceCompareWith],
+    short:{ly:'Last year',prev:'Previous period',custom:'Compared dates'}[cadenceCompareWith],
+    from:c.from,to:c.to,days:DateRange.countDays(c.from,c.to),baseDays:DateRange.countDays(custom.from,custom.to),overlap:DateRange.overlaps(c,custom)};
+}
+// How far back dates can be compared with: the start of the older stored year when the feed is in use (two years
+// of history), otherwise whatever the app's own sales map reaches.
+function cadenceCompareEarliestDay(){
+  const own=cadenceEarliestDay(),stored=shopifyFeedActive()?window.shopifyFeed.meta.storedStart:'';
+  return stored&&(!own||stored<own)?stored:own;
 }
 async function loadCadenceOlderSales(){
   if(cadOlder.state==='loading'||cadOlder.state==='ready')return;
@@ -3010,6 +3087,8 @@ function cadenceOlderPlacer(){
 // Plain-English warnings about a comparison's figures — shown above the table and printed in the PDF's header.
 function cadenceVersusCaveats(info,d){
   const out=[],day=x=>DateRange.formatRange(x,x);
+  if(info.days!==info.baseDays)out.push('The two periods are different lengths ('+info.baseDays+' days against '+info.days+'), so Change compares unequal spans.');
+  if(info.overlap)out.push('The compared dates overlap the selected range, so some days are counted on both sides.');
   if(d.coverage&&d.coverage.covered<d.coverage.days){
     out.push(d.coverage.covered===0
       ?'There is no sales history for those dates (it starts '+day(d.firstDay)+').'
@@ -4303,7 +4382,7 @@ function renderCadence(){
 
   // What is being compared, in words, with anything that makes the other period's figures incomplete
   const vsNote=versus?`<div style="font-size:11.5px;color:var(--text-secondary);margin-bottom:10px;line-height:1.55;">
-      <strong style="color:var(--text);">Compared with the ${versus.label.toLowerCase()}:</strong> ${DateRange.summary(versus.from,versus.to)}.${vsData.pending?' <span style="color:var(--text-muted);">Loading older sales history…</span>':''}
+      <strong style="color:var(--text);">Compared with ${versus.mode==='custom'?'custom dates':'the '+versus.label.toLowerCase()}:</strong> ${DateRange.summary(versus.from,versus.to)}.${vsData.pending?' <span style="color:var(--text-muted);">Loading older sales history…</span>':''}
       ${vsData.pending?'':cadenceVersusCaveats(versus,vsData).map(c=>`<div style="color:var(--amber);font-weight:500;">⚠ ${mdpEsc(c)}</div>`).join('')}
     </div>`:'';
 
@@ -14630,6 +14709,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.7.9 — SALES CADENCE COMPARE: CUSTOM DATES (Brendan: as well as previous period and previous year, an option to compare with custom dates). 'Compare with' in the date range picker has a third choice, Custom dates — for comparing with any dates you like, e.g. this year's Black Friday weekend with last year's, which fell on different dates. They are picked on the same calendar: choosing Custom dates switches the calendar to them and draws them in blue beside your own range (dark), with a two-way switch underneath ('Calendar is choosing: Your dates / Dates to compare with') to go back and forth; the presets on the left act on whichever range is being chosen. The dates to compare with can go back to the start of the stored history (two years), further than the range itself, and they are fixed dates — they stay put when a preset range such as Last 30 days rolls forward — and are remembered if you switch to another comparison and back. The table's comparison column is headed Compared dates, the button reads e.g. 'Last 30 days vs 28 Nov – 1 Dec 2025', and the line above the table now also warns when the two periods are different lengths or share days. The previous period and same period last year are now drawn in blue on the calendar too, so you can see what will be compared before pressing Update. Export PDF carries it as before. DateRange.compareRange takes the custom dates; DateRange.overlaps added; tests extended.
 // v3.7.8 — TODAY'S MARGIN NOW USES WHAT THINGS ACTUALLY SOLD FOR (Brendan: use the actual price the product sold for in Shopify, not the sell price before any discounts). The card used to value today's units at each product's current sell price, so a bundle deal, an automatic discount, a discount code and — biggest of all — a gift with purchase were all counted at full sell price. Measured on the day this was built: 1,386 units that came to $67,695 ex GST at sell prices had actually taken $52,474 (22.5% less); 157 of those units were gifts with purchase (beach towels and cooler bags at an average of about $1 each) that the old card had counted at $79.95 and $99.95. The card read 71.4%; on the same sales it now reads 63.1%. REVENUE is now what Shopify recorded as paid for each line after every discount, ex GST. COST is unchanged (the day's recorded cost per unit, otherwise the cost implied by the product's own Margin% at its sell price), so a gift now counts at what was paid for it with its real cost — giving stock away lowers the day's margin, as it does in Shopify's own profit figures. HOW IT GETS THERE: each sales-feed sync now also writes a small 'recent' snapshot (last 5 days: units and takings per SKU, from the same run so they always agree), served by sales-price-data?span=recent in about 90 KB instead of the 2 MB price history; the page fetches it whenever the feed has a newer run. Units come from that same snapshot, so cost and revenue always describe the same sales. The card's sub-line says which basis it is on ('GP% on prices actually paid today' / 'GP% at current sell prices'), and hovering it shows the units, takings, what they would have been at sell prices, cost and the time of the snapshot. It falls back to sell prices only when today's takings can't be had (feed switched off, snapshot over 3 hours old or from before today), and says so. Only this card changes: the Margin% columns and the rest of the dashboard are as they were. Sums in todays-margin.js (window.TodaysMargin) with tests/todays-margin.test.js; feed tests extended.
 // v3.7.7 — SALES CADENCE: COMPARE A DATE RANGE WITH ANOTHER PERIOD, BY CATEGORY (Brendan: a compare option at category level via the date range picker, with a choice between same period last year and previous period). In Category view the date range picker now has 'Compare with: Don't compare / Previous period / Same period last year' under the calendar, and shows exactly which dates that means before you press Update. The table then gains three columns beside Total Sold: the other period's units (headed Last year or Previous period, with its dates), Change in units and Change %, green up / red down, all three sortable, with the same on the TOTAL row. The button reads e.g. 'Last 30 days vs last year'. Previous period = the same number of days immediately before; same period last year = the same calendar dates a year earlier (as LY MTD does). WHERE LAST YEAR COMES FROM: the app only loads the trailing year of the Shopify sales feed, but the server has kept two since v2.7.2, so the feed now hands over the older year on request (sales-data?span=older, fetched the first time a comparison needs it). Checked against real data before building: 18% of last year's year-to-date sales (and over half of the oldest quarter) were for products with no sales in the app's own history, so they had no category here. Each such SKU is now placed by the app's own map, then the Shopify inventory export's Product type, then Apparel Magic's catalogue by style; a category that sold then but has nothing now gets its own row. Honest about gaps: a line above the table says what is being compared, and warns if the history doesn't reach back far enough (it starts two years ago), if the older history couldn't be loaded, or if any units couldn't be matched to a category (they are counted and reported, not silently dropped). Days the app already holds are read from the same sales map and category map as the table itself, so both sides are counted the same way and the Core / Launch Date filters apply to both. Export PDF prints the same three columns plus a 'vs last year' figure in the summary band, and its header says what was compared; with the comparison on, an A4 page fits 13 period columns instead of 16. Category view only for now (the Product view is unchanged). Maths in date-range.js (compareRange / coverage / change) with tests; feed and PDF tests extended.
 // v3.7.6 — 'A NEW VERSION IS READY' BANNER (Brendan: his tab was still showing v3.7.4 after v3.7.5 went live). A tab keeps running the version it loaded, and pushes to V2 now deploy by themselves, so an open tab can sit on an old version for days. Every 10 minutes while the tab is visible, when you come back to the tab, and when the browser brings a tab back from memory, the page asks the site for version.json (a one-line file deployed with it) and shows a banner under the top bar when the site is ahead: 'A new version of this app is ready. This tab is on vX; the latest is vY.' with Refresh now and Later. It only offers: nothing reloads by itself, because a refresh resets filters and anything half-typed. Later hides it for 30 minutes. It never shows when the site is the same, older or unreadable, and if a refresh somehow comes back still behind it waits 10 minutes before asking again rather than trapping you in a loop. The first banner anyone sees will be for the update AFTER this one, since a tab has to be running this version to be able to check. version.json is one more place the version is written, so tests/version.test.js now fails if APP_VERSION, every script cache-buster, version.json and the newest changelog entry don't all agree (or if the number breaks the odometer rule). Rules in version-check.js (window.VersionCheck).

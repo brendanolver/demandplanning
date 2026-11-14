@@ -84,7 +84,23 @@ assert.deepEqual(D.clickDay(s, '2026-11-10'), { from: '2026-11-10', to: '2026-11
 assert.deepEqual(D.clickDay({ from: '2026-11-02', to: '2026-11-10', picking: false }, '2026-10-20'), { from: '2026-10-20', to: '2026-10-20', picking: true });
 
 // ── comparison periods ────────────────────────────────────────────────────────
-assert.deepEqual(Object.keys(D.COMPARE_MODES), ['prev', 'ly']);
+assert.deepEqual(Object.keys(D.COMPARE_MODES), ['prev', 'ly', 'custom']);
+// custom dates: exactly what was picked, whatever the selected range is (and however long)
+const BF25 = { from: '2025-11-28', to: '2025-12-01' };
+assert.deepEqual(D.compareRange('2026-11-27', '2026-11-30', 'custom', BF25), BF25);                 // this year's Black Friday weekend against last year's, a day apart on the calendar
+assert.deepEqual(D.compareRange('2026-10-15', '2026-11-13', 'custom', BF25), BF25);
+assert.notEqual(D.compareRange('2026-11-27', '2026-11-30', 'custom', BF25), BF25);                  // a copy, not the caller's own object
+assert.deepEqual(D.compareRange('2026-11-27', '2026-11-30', 'custom', { from: '2025-11-28', to: '2025-11-28' }), { from: '2025-11-28', to: '2025-11-28' });
+for (const none of [undefined, null, {}, { from: '2025-11-28' }, { from: '2025-12-01', to: '2025-11-28' }, { from: '2025-02-30', to: '2025-03-01' }, { from: 'x', to: 'y' }]) assert.equal(D.compareRange('2026-11-27', '2026-11-30', 'custom', none), null);   // nothing (valid) picked yet
+assert.deepEqual(D.compareRange('2026-10-15', '2026-11-13', 'ly', BF25), { from: '2025-10-15', to: '2025-11-13' });   // the picked dates are ignored by the other two
+assert.deepEqual(D.compareRange('2026-10-15', '2026-11-13', 'prev', BF25), { from: '2026-09-15', to: '2026-10-14' });
+// do two ranges share a day?
+const R1 = { from: '2026-11-01', to: '2026-11-14' };
+assert.equal(D.overlaps(R1, { from: '2026-11-14', to: '2026-11-20' }), true); assert.equal(D.overlaps(R1, { from: '2026-10-20', to: '2026-11-01' }), true);
+assert.equal(D.overlaps(R1, { from: '2026-11-05', to: '2026-11-06' }), true); assert.equal(D.overlaps({ from: '2026-11-05', to: '2026-11-06' }, R1), true);
+assert.equal(D.overlaps(R1, { from: '2026-11-15', to: '2026-11-20' }), false); assert.equal(D.overlaps(R1, { from: '2026-10-01', to: '2026-10-31' }), false);
+assert.equal(D.overlaps(R1, null), false); assert.equal(D.overlaps(null, R1), false);
+assert.equal(D.overlaps(R1, D.compareRange(R1.from, R1.to, 'prev')), false);                         // the previous period never overlaps
 // previous period: the same number of days, ending the day before the range starts
 assert.deepEqual(D.compareRange('2026-10-15', '2026-11-13', 'prev'), { from: '2026-09-15', to: '2026-10-14' });
 assert.deepEqual(D.compareRange('2026-11-14', '2026-11-14', 'prev'), { from: '2026-11-13', to: '2026-11-13' });

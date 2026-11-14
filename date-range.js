@@ -83,15 +83,19 @@
 
   // ── Comparison periods ───────────────────────────────────────────────────────
   // What a selected range is compared against:
-  //   prev — the same number of days immediately before it (30 days vs the 30 days before)
-  //   ly   — the same calendar dates one year earlier, as the 12 Months view's LY MTD column does (29 Feb → 28 Feb)
-  const COMPARE_MODES = { prev: 'Previous period', ly: 'Same period last year' };
+  //   prev   — the same number of days immediately before it (30 days vs the 30 days before)
+  //   ly     — the same calendar dates one year earlier, as the 12 Months view's LY MTD column does (29 Feb → 28 Feb)
+  //   custom — whatever dates were picked ({from,to}); they stay put when a preset range rolls forward
+  const COMPARE_MODES = { prev: 'Previous period', ly: 'Same period last year', custom: 'Custom dates' };
   const yearBack = day => { const [y, m, d] = parts(day), last = parts(endOfMonth((y - 1) + '-' + pad(m) + '-01'))[2]; return (y - 1) + '-' + pad(m) + '-' + pad(Math.min(d, last)); };
-  function compareRange(from, to, mode) {
+  function compareRange(from, to, mode, custom) {
     if (mode === 'prev') { const n = countDays(from, to); return { from: addDays(from, -n), to: addDays(from, -1) }; }
     if (mode === 'ly') return { from: yearBack(from), to: yearBack(to) };
+    if (mode === 'custom') return custom && isDay(custom.from) && isDay(custom.to) && custom.from <= custom.to ? { from: custom.from, to: custom.to } : null;   // not picked yet = nothing to compare with
     return null;
   }
+  // Do two ranges share any day?
+  const overlaps = (a, b) => !!a && !!b && a.from <= b.to && b.from <= a.to;
   // How much of [from,to] has data, given the first day there is any: { days, covered, from } — from is null when none of it does.
   function coverage(from, to, firstDay) {
     const days = countDays(from, to);
@@ -177,7 +181,7 @@
     MONTHS_LONG, MONTHS_SHORT, DOW_SHORT, MAX_DAY_COLUMNS, MAX_WEEK_RANGE_DAYS,
     isDay, addDays, countDays, weekdayIndex, startOfWeek, startOfMonth, endOfMonth, addMonths,
     presets, matchPreset, resolve, formatRange, summary, monthGrid, clickDay,
-    COMPARE_MODES, compareRange, coverage, change,
+    COMPARE_MODES, compareRange, overlaps, coverage, change,
     allowedGroupings, autoGrouping, effectiveGrouping, buildPeriods, dayIndex,
   };
 });
