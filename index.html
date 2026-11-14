@@ -290,6 +290,18 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .cadence-btn:disabled{opacity:0.4;cursor:not-allowed;}
 .cadence-btn:disabled:hover{color:var(--text-secondary);}
 
+/* "A new version is ready" banner (logic in version-check.js). Fixed, so showing it never shifts the layout. */
+.version-banner{position:fixed;top:68px;left:0;right:0;margin:0 auto;width:-webkit-fit-content;width:fit-content;z-index:10050;display:flex;align-items:center;gap:12px;max-width:calc(100vw - 24px);padding:10px 12px 10px 16px;background:#1a2740;color:#fff;border-radius:var(--r-lg);box-shadow:0 10px 30px rgba(17,24,39,0.28);font-family:'Inter',sans-serif;font-size:13px;line-height:1.4;}
+.version-banner strong{font-weight:600;}
+.version-banner .vb-detail{opacity:0.75;}
+.version-banner button{flex-shrink:0;border-radius:var(--r);font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer;padding:7px 14px;}
+.vb-refresh{background:var(--teal);border:1px solid var(--teal);color:#fff;}
+.vb-refresh:hover{background:var(--teal-dark);border-color:var(--teal-dark);}
+.vb-later{background:transparent;border:1px solid rgba(255,255,255,0.35);color:#fff;}
+.vb-later:hover{border-color:#fff;}
+@media(max-width:640px){.version-banner{flex-wrap:wrap;top:auto;bottom:12px;}}
+@media print{.version-banner{display:none!important;}}
+
 /* Date range picker (maths in date-range.js) — presets on the left, two months, Cancel / Update */
 .drp-wrap{position:relative;}
 .drp-trigger{min-width:0;gap:8px;font-weight:600;}
@@ -2503,10 +2515,11 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.7.5"></script>
-<script src="markdown-plans.js?v=3.7.5"></script>
-<script src="sales-cadence-pdf.js?v=3.7.5"></script>
-<script src="date-range.js?v=3.7.5"></script>
+<script src="markdown-engine.js?v=3.7.6"></script>
+<script src="markdown-plans.js?v=3.7.6"></script>
+<script src="sales-cadence-pdf.js?v=3.7.6"></script>
+<script src="date-range.js?v=3.7.6"></script>
+<script src="version-check.js?v=3.7.6"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2540,7 +2553,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.7.5';
+const APP_VERSION='v3.7.6';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -2548,6 +2561,48 @@ document.addEventListener('DOMContentLoaded',()=>{
   updateAMSyncToggleUI();
   updateShopifyFeedPill();
 });
+
+/* ── NEW VERSION BANNER ──
+   A tab keeps running whatever version it loaded, and a push to V2 now goes live by itself — so an open tab can
+   sit on an old version for days without anyone noticing. Every 10 minutes (and when you come back to the tab)
+   the page asks the site for version.json, a one-line file deployed alongside it, and shows a banner when the
+   site is ahead of this tab. It only ever offers: nothing reloads by itself, since a refresh resets filters and
+   whatever is half-typed. The when-to-show rules are in version-check.js. */
+const VERSION_RELOAD_KEY='wndrr_refreshed_for';
+let _verLive='',_verSnoozedUntil=0,_verCheckedAt=0;
+function versionReloadInfo(){try{return JSON.parse(sessionStorage.getItem(VERSION_RELOAD_KEY)||'null')||{};}catch(e){return{};}}
+async function checkForNewVersion(){
+  _verCheckedAt=Date.now();
+  try{
+    const r=await fetch('version.json',{cache:'no-store'});
+    if(!r.ok)return;
+    const j=await r.json();
+    if(j&&VersionCheck.parse(j.version))_verLive=j.version.trim();   // anything that isn't a version number is ignored
+  }catch(e){return;}                                                 // offline or mid-deploy: just try again next time
+  renderVersionBanner();
+}
+function renderVersionBanner(){
+  const info=versionReloadInfo();
+  const show=VersionCheck.shouldPrompt({mine:APP_VERSION,live:_verLive,now:Date.now(),snoozedUntil:_verSnoozedUntil,reloadedFor:info.v,reloadedAt:info.t});
+  let el=document.getElementById('version-banner');
+  if(!show){if(el)el.remove();return;}
+  if(!el){
+    el=document.createElement('div');el.id='version-banner';el.className='version-banner';el.setAttribute('role','status');
+    el.innerHTML='<span><strong>A new version of this app is ready.</strong> <span class="vb-detail"></span></span><button type="button" class="vb-refresh" onclick="versionRefreshNow()">Refresh now</button><button type="button" class="vb-later" onclick="versionSnooze()" title="Hide this for 30 minutes">Later</button>';
+    document.body.appendChild(el);
+  }
+  el.querySelector('.vb-detail').textContent='This tab is on '+APP_VERSION+'; the latest is '+_verLive+'.';
+}
+function versionRefreshNow(){
+  // Remembered across the reload (same tab only), so a refresh that somehow comes back still behind doesn't ask again straight away.
+  try{sessionStorage.setItem(VERSION_RELOAD_KEY,JSON.stringify({v:_verLive,t:Date.now()}));}catch(e){}
+  location.reload();
+}
+function versionSnooze(){_verSnoozedUntil=Date.now()+VersionCheck.SNOOZE_MS;renderVersionBanner();}
+setTimeout(checkForNewVersion,VersionCheck.FIRST_CHECK_MS);
+setInterval(()=>{if(!document.hidden)checkForNewVersion();},VersionCheck.CHECK_EVERY_MS);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&Date.now()-_verCheckedAt>60000)checkForNewVersion();});   // back on this tab after a while
+window.addEventListener('pageshow',e=>{if(e.persisted)checkForNewVersion();});                                                  // tab brought back from the browser's memory
 
 /* ── AM MIGRATION KILL SWITCH ──
    Manual override to instantly revert AM-sourced stock/sales/price back to
@@ -14361,6 +14416,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.7.6 — 'A NEW VERSION IS READY' BANNER (Brendan: his tab was still showing v3.7.4 after v3.7.5 went live). A tab keeps running the version it loaded, and pushes to V2 now deploy by themselves, so an open tab can sit on an old version for days. Every 10 minutes while the tab is visible, when you come back to the tab, and when the browser brings a tab back from memory, the page asks the site for version.json (a one-line file deployed with it) and shows a banner under the top bar when the site is ahead: 'A new version of this app is ready. This tab is on vX; the latest is vY.' with Refresh now and Later. It only offers: nothing reloads by itself, because a refresh resets filters and anything half-typed. Later hides it for 30 minutes. It never shows when the site is the same, older or unreadable, and if a refresh somehow comes back still behind it waits 10 minutes before asking again rather than trapping you in a loop. The first banner anyone sees will be for the update AFTER this one, since a tab has to be running this version to be able to check. version.json is one more place the version is written, so tests/version.test.js now fails if APP_VERSION, every script cache-buster, version.json and the newest changelog entry don't all agree (or if the number breaks the odometer rule). Rules in version-check.js (window.VersionCheck).
 // v3.7.5 — SALES CADENCE: CHOOSE YOUR OWN DATE RANGE (Brendan: a date range picker on all Sales Cadence views, like the WNDRR international dashboard's and Meta Ads'). A 'Custom range' button sits beside 12 Months / 12 Weeks / 5 Weeks / 7 Days and opens a picker: presets down the left (Today, Yesterday, This week, Last 7 / 14 / 30 / 90 days, This month, Last month, Year to date, Maximum), two months side by side, a line saying exactly which dates and how many days, and Cancel / Update. As in those pickers, 'Last N days' are the N full days before today (today is still filling up); the 'This…' and 'to date' presets include today. Days in the future, or before the first day there is sales data for, can't be picked, and dates are business (Melbourne) days. Once applied, Category, Product and Compare all show that range: Total Sold and ST% are for the range, and the columns split it automatically (up to 14 days by day, up to 14 weeks by week, longer by month) with a Days / Weeks / Months switch beside the button to change it (greyed out where the range is too long or too short). Weeks are counted back from the end of the range, so the newest column is always a full week and any leftover days form a short first column; hover a column heading for its exact dates. A preset keeps rolling forward with the date; fixed dates stay fixed. Clicking any of the four rolling views switches the custom range off. The LY MTD column stays with the rolling 12 Months view only. Export PDF carries the chosen range and its name, and says so plainly when a range has more columns (over 16) than an A4 page fits. Also: a sort on a period column that is no longer on screen is now dropped instead of lingering invisibly. Date maths in date-range.js (window.DateRange) with tests/date-range.test.js; the version now lives in five places (APP_VERSION + four script cache-busters).
 // v3.7.4 — SEND TO TUESDAY dialog felt dead: every step (loading, sending, done) re-drew the WHOLE planner behind it, which is slow with a full plan, so pressing 'Send to Tuesday' showed nothing for a long moment even though the send went through. The dialog now draws itself in its own element (instantly), shows the result first, and only then saves 'last sent' on the plan and redraws the planner.
 // v3.7.3 — LINK EACH PLAN TO A TUESDAY SALES PROMOTION (Brendan: Tuesday has several promotions). A plan now has a saved link to one Tuesday promotion (Sale details in step A: 'Tuesday promotion' with Link / Change; also offered the first time you Send). Sending always goes to the linked promotion and shows what it will replace; the link, and when/how much was last sent, are saved on the plan so they follow you to every device. A Duplicate is not linked (so copies can't overwrite each other), linking a promotion another of your plans already uses asks first, and a promotion that has been removed or archived in Tuesday asks you to relink. Replaces the v3.7.1 per-device 'remembered sale'. MarkdownPlans.setTuesdayLink / recordTuesdaySend / plansLinkedTo + tests.
