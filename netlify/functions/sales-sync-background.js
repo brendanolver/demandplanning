@@ -1,5 +1,6 @@
 const { connectLambda, getStore } = require('@netlify/blobs');
 const { makeClient, runSync } = require('../lib/sales-sync');
+const { guard } = require('../lib/app-auth');
 
 // Background function (the -background suffix is what gives it Netlify's
 // 15-minute limit instead of ~10s — a full-year Shopify bulk export takes
@@ -8,6 +9,10 @@ const { makeClient, runSync } = require('../lib/sales-sync');
 // actually due (min interval, daily full rebuild, overlap lock), so a burst of
 // calls costs nothing.
 exports.handler = async (event) => {
+  // Signed-in app sessions only (netlify/lib/app-auth.js). A background function has already answered 202 by the
+  // time this runs, so a refused caller isn't told — the sync simply doesn't start.
+  const denied = guard(event, process.env);
+  if (denied) return denied;
   connectLambda(event); // legacy exports.handler style — Blobs isn't auto-configured otherwise
   const store = getStore('sales-data');
   const token = process.env.SHOPIFY_ADMIN_TOKEN;

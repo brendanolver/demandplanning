@@ -1,4 +1,5 @@
 const { connectLambda, getStore } = require('@netlify/blobs');
+const { guard } = require('../lib/app-auth');
 
 // A single small shared settings blob — Planning's "Growth % by Month" row,
 // which used to live only in each browser's own localStorage (savePlanField/
@@ -26,6 +27,9 @@ function sanitize(payload) {
 }
 
 exports.handler = async (event) => {
+  const denied = guard(event, process.env);   // signed-in app sessions only (netlify/lib/app-auth.js)
+  if (denied) return denied;
+
   const method = event.httpMethod || 'GET';
   let store;
   try {
@@ -45,7 +49,7 @@ exports.handler = async (event) => {
       const data = await store.get(KEY, { type: 'json' });
       return {
         statusCode: 200,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data || {}),
       };
     } catch (err) {
@@ -68,7 +72,7 @@ exports.handler = async (event) => {
       await store.setJSON(KEY, clean);
       return {
         statusCode: 200,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ok: true, saved: clean }),
       };
     } catch (err) {

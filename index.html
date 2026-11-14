@@ -2445,10 +2445,62 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.7.4"></script>
-<script src="markdown-plans.js?v=3.7.4"></script>
-<script src="sales-cadence-pdf.js?v=3.7.4"></script>
+<script src="markdown-engine.js?v=3.7.5"></script>
+<script src="markdown-plans.js?v=3.7.5"></script>
+<script src="sales-cadence-pdf.js?v=3.7.5"></script>
 <script>
+/* ── APP SESSION ──
+   The password is checked by the SERVER (netlify/functions/app-login), which hands back a signed session token.
+   Every call this page makes to the site's own functions carries that token in X-App-Token, added in one place
+   below; the functions refuse anything without a valid one. Nothing secret lives in this page any more.
+   This block must stay first in the script: it has to be in place before anything else can call fetch(). */
+const APP_SESSION_KEY='wndrr_session',APP_LOGIN_URL='/.netlify/functions/app-login';
+const _nativeFetch=window.fetch.bind(window);
+let _appTokenMem='',_appSessionLostShown=false;
+function appToken(){
+  let t=_appTokenMem;
+  if(!t){try{t=sessionStorage.getItem(APP_SESSION_KEY)||localStorage.getItem(APP_SESSION_KEY)||'';}catch(e){}}
+  const m=/^v1\.(\d{13})\./.exec(t||'');
+  if(!m||Number(m[1])<=Date.now()){if(t)clearAppToken();return'';}     // missing, malformed or past its expiry
+  return t;
+}
+function clearAppToken(){
+  _appTokenMem='';
+  try{sessionStorage.removeItem(APP_SESSION_KEY);}catch(e){}
+  try{localStorage.removeItem(APP_SESSION_KEY);}catch(e){}
+}
+// "Remember me" keeps the session on this device until it expires; otherwise it ends when the tab is closed.
+function saveAppToken(token,remember){
+  clearAppToken();_appTokenMem=token;
+  try{(remember?localStorage:sessionStorage).setItem(APP_SESSION_KEY,token);}catch(e){}
+}
+function isAppEndpoint(url){return typeof url==='string'&&(url.startsWith('/.netlify/functions/')||url.startsWith('/pipeline-edge-proxy'));}
+// Only this site's own (relative) function URLs get the token — never Google Drive or any other absolute URL.
+window.fetch=function(input,init){
+  if(!isAppEndpoint(input))return _nativeFetch(input,init);
+  const headers=new Headers((init&&init.headers)||{});
+  const t=appToken();if(t)headers.set('X-App-Token',t);
+  return _nativeFetch(input,Object.assign({},init,{headers})).then(r=>{
+    // X-App-Auth marks OUR "sign in required" — an upstream 401 passed through by a proxy doesn't carry it.
+    if(r.status===401&&r.headers.get('X-App-Auth')==='required')appSessionLost();
+    return r;
+  });
+};
+function showLoginScreen(msg){
+  const ps=document.getElementById('password-screen');
+  if(ps)ps.style.cssText='display:flex;position:fixed;inset:0;z-index:10000;';   // sits over the app if a session ends mid-use
+  const ls=document.getElementById('loading-screen');if(ls)ls.style.display='none';
+  const err=document.getElementById('pw-error');
+  if(err){if(msg){err.textContent=msg;err.classList.add('show');}else err.classList.remove('show');}
+  const inp=document.getElementById('pw-input');if(inp){inp.value='';inp.focus();}
+}
+function appSessionLost(){
+  clearAppToken();
+  if(_appSessionLostShown)return;                // many calls can be refused at once: ask once
+  _appSessionLostShown=true;
+  showLoginScreen('Your sign-in has ended. Enter the password to carry on — your work on this device is kept.');
+}
+
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
   // Force hamburger mode on any touch-capable device (catches landscape iPad etc)
@@ -2481,7 +2533,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.7.4';
+const APP_VERSION='v3.7.5';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -9484,37 +9536,64 @@ function showGdriveSetup(){
 }
 
 /* ── PASSWORD ── */
-function checkPassword(){
-  const input=document.getElementById('pw-input').value.trim();
+// The server checks the password (see APP SESSION at the top of this script); nothing is compared in the page.
+let _loginBusy=false;
+async function checkPassword(){
+  if(_loginBusy)return;
+  const inp=document.getElementById('pw-input');
   const error=document.getElementById('pw-error');
+  const btn=document.querySelector('#password-screen .pw-submit');
   const remember=document.getElementById('pw-remember')?.checked;
-  if(input==='Magpies90!'){
-    if(remember){try{localStorage.setItem('wndrr_auth','1');}catch(e){}}
-    else{try{localStorage.removeItem('wndrr_auth');}catch(e){}}
-    document.getElementById('password-screen').style.display='none';
-    error.classList.remove('show');
-    startAutoSync();
-  } else {
-    error.classList.add('show');
-    document.getElementById('pw-input').value='';
-    document.getElementById('pw-input').focus();
+  const input=inp.value.trim();
+  const fail=(msg,keepTyped)=>{error.textContent=msg;error.classList.add('show');if(!keepTyped)inp.value='';inp.focus();};
+  if(!input){fail('Incorrect password. Please try again.');return;}
+  _loginBusy=true;
+  const label=btn?btn.textContent:'';
+  if(btn){btn.textContent='Checking…';btn.disabled=true;}
+  try{
+    const r=await _nativeFetch(APP_LOGIN_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:input})});
+    let j=null;try{j=await r.json();}catch(e){}
+    if(r.ok&&j&&j.token){
+      saveAppToken(j.token,remember);
+      try{localStorage.removeItem('wndrr_auth');}catch(e){}   // the pre-v3.7.5 "remembered" flag, which no longer opens anything
+      _appSessionLostShown=false;
+      error.classList.remove('show');inp.value='';
+      document.getElementById('password-screen').style.display='none';
+      // First sign-in of this page load: start loading. Signing back in after a session ended mid-use: the app is
+      // already up, so just carry on — the next refresh picks up whatever was refused in between.
+      if(getComputedStyle(document.getElementById('app')).display==='none')startAutoSync();
+    }else if(r.status===401){
+      fail('Incorrect password. Please try again.');
+    }else{
+      fail((j&&j.error)||('Sign-in isn\'t available right now (HTTP '+r.status+'). Please try again shortly.'),true);
+    }
+  }catch(e){
+    fail('Couldn\'t reach the server. Check your connection and try again.',true);
+  }finally{
+    _loginBusy=false;
+    if(btn){btn.textContent=label;btn.disabled=false;}
   }
 }
 
-// Auto-login if remembered
-(function(){
-  try{
-    if(localStorage.getItem('wndrr_auth')==='1'){
-      document.getElementById('password-screen').style.display='none';
-      // Deferred rather than called inline: this IIFE runs synchronously
-      // while the script is still being parsed, before several `let`
-      // declarations further down the file (_amStockSyncing etc.) have
-      // executed — calling startAutoSync() directly here throws a temporal-
-      // dead-zone ReferenceError for each of them. setTimeout pushes it to
-      // after the whole script has finished its first pass.
-      setTimeout(startAutoSync,0);
-    }
-  }catch(e){}
+// Already signed in on this device? Confirm the session with the server first, then load. Checking up front
+// (rather than letting the first data call be refused) matters: a refused report-pipeline call would otherwise
+// fall through to the Google Drive sign-in popup.
+(async function(){
+  try{localStorage.removeItem('wndrr_auth');}catch(e){}       // pre-v3.7.5 flag: those devices sign in once more
+  const t=appToken();
+  if(!t)return;                                               // not signed in: the password screen is already showing
+  document.getElementById('password-screen').style.display='none';
+  const ls=document.getElementById('loading-screen'),status=document.getElementById('loading-status');
+  if(ls)ls.style.display='flex';
+  if(status)status.textContent='Checking sign-in...';
+  let ended=false;
+  try{const r=await _nativeFetch(APP_LOGIN_URL,{headers:{'X-App-Token':t}});ended=r.status===401;}
+  catch(e){/* offline: carry on, and the data calls will report it the way they always have */}
+  if(ended){clearAppToken();showLoginScreen('Your sign-in has ended. Enter the password to carry on.');return;}
+  // startAutoSync() must not run during the script's first pass: several `let` declarations further down
+  // (_amStockSyncing etc.) haven't executed yet and it would throw a temporal-dead-zone ReferenceError for
+  // each. Everything after the await above already runs once that first pass has finished.
+  startAutoSync();
 })();
 
 function showUploadScreen(){
@@ -14075,6 +14154,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.7.5 — SIGN-IN IS NOW CHECKED BY THE SERVER, AND EVERY FUNCTION REQUIRES IT. Until now the password was compared in the page itself (so it was readable in the source, and in this public repo) and none of the site's functions asked who was calling: anyone with the URL could read Apparel Magic, push sales orders into it, read or overwrite the Markdown Planner's sale plans, pull the sales feed and the report pipeline, send to Tuesday, and run read queries against the Shopify admin through shopify-proxy (unused since v2.7.0 but still live). Now the sign-in screen posts the password to a new function (app-login), which checks it against the APP_PASSWORD environment variable and returns a session token signed with APP_SESSION_SECRET (30 days; 'Remember me' keeps it on the device, otherwise it ends with the tab). One wrapper at the top of this script adds the token to every call to the site's own functions, and all eight functions plus the pipeline edge function refuse a request without a valid one (netlify/lib/app-auth.js, edge twin netlify/lib/edge-token.mjs, tests/app-auth.test.js). If a session ends mid-use the sign-in screen comes back over the app and you carry on where you were; unsaved planner work stays on the device as it does when offline. The screen looks and works as before; devices that were 'remembered' sign in once more. Also: the report pipeline's token moved out of source into PIPELINE_TOKEN, and the wildcard cross-site header (Access-Control-Allow-Origin: *) is gone from every function, since nothing outside this site calls them. Missing environment variables fail closed (503), never open.
 // v3.7.4 — SEND TO TUESDAY dialog felt dead: every step (loading, sending, done) re-drew the WHOLE planner behind it, which is slow with a full plan, so pressing 'Send to Tuesday' showed nothing for a long moment even though the send went through. The dialog now draws itself in its own element (instantly), shows the result first, and only then saves 'last sent' on the plan and redraws the planner.
 // v3.7.3 — LINK EACH PLAN TO A TUESDAY SALES PROMOTION (Brendan: Tuesday has several promotions). A plan now has a saved link to one Tuesday promotion (Sale details in step A: 'Tuesday promotion' with Link / Change; also offered the first time you Send). Sending always goes to the linked promotion and shows what it will replace; the link, and when/how much was last sent, are saved on the plan so they follow you to every device. A Duplicate is not linked (so copies can't overwrite each other), linking a promotion another of your plans already uses asks first, and a promotion that has been removed or archived in Tuesday asks you to relink. Replaces the v3.7.1 per-device 'remembered sale'. MarkdownPlans.setTuesdayLink / recordTuesdaySend / plansLinkedTo + tests.
 // v3.7.2 — SEND TO TUESDAY uses a Netlify function (send-to-tuesday) that holds Tuesday's key in this site's environment variables (MARKDOWNS_API_KEY), so it works on any device with no key to type (Brendan's ask). The browser only ever talks to this site; the function forwards just the two Tuesday calls (list sales, send plan), refuses other sites' origins, and says clearly if the variable isn't set yet. The per-device key step is gone.

@@ -1,3 +1,5 @@
+const { guard } = require('../lib/app-auth');
+
 const AM_BASE = 'https://kohindustries.app.apparelmagic.com/api';
 const AM_TOKEN = process.env.AM_API_TOKEN;
 const ALLOWED = ['products', 'inventory', 'orders', 'order_items', 'warehouses', 'sku_warehouse'];
@@ -8,6 +10,10 @@ const ALLOWED = ['products', 'inventory', 'orders', 'order_items', 'warehouses',
 const WRITABLE = ['orders'];
 
 exports.handler = async (event) => {
+  // Signed-in app sessions only (netlify/lib/app-auth.js) — this function reads Apparel Magic and can write sales orders.
+  const denied = guard(event, process.env);
+  if (denied) return denied;
+
   const method = event.httpMethod || 'GET';
 
   if (!AM_TOKEN) {
@@ -31,7 +37,7 @@ exports.handler = async (event) => {
       const text = await resp.text();
       return {
         statusCode: resp.status,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        headers: { 'Content-Type': 'application/json' },
         body: text,
       };
     } catch (err) {
@@ -72,7 +78,7 @@ exports.handler = async (event) => {
       const text = await resp.text();
       return {
         statusCode: resp.status,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        headers: { 'Content-Type': 'application/json' },
         body: text,
       };
     } catch (err) {

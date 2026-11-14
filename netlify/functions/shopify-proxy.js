@@ -1,3 +1,5 @@
+const { guard } = require('../lib/app-auth');
+
 const SHOP_DOMAIN = 'thewndrr.myshopify.com';
 const API_VERSION = '2025-10'; // shopifyqlQuery/newer bulk-operation fields need 2025-10+; kept current for everything else too
 const SHOPIFY_TOKEN = process.env.SHOPIFY_ADMIN_TOKEN;
@@ -105,6 +107,11 @@ async function fetchAndAggregateBulkResult(url) {
 }
 
 exports.handler = async (event) => {
+  // Signed-in app sessions only (netlify/lib/app-auth.js) — this runs read queries against the Shopify admin, which
+  // includes order and customer details. Nothing in the app has called it since v2.7.0 (the sales feed replaced it).
+  const denied = guard(event, process.env);
+  if (denied) return denied;
+
   const method = event.httpMethod || 'GET';
 
   // GET is only used to fetch+aggregate a completed bulk operation's result
@@ -120,7 +127,7 @@ exports.handler = async (event) => {
       const { salesMap, debug } = await fetchAndAggregateBulkResult(download);
       return {
         statusCode: 200,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ salesMap, debug }),
       };
     } catch (err) {
@@ -154,7 +161,7 @@ exports.handler = async (event) => {
       const text = await resp.text();
       return {
         statusCode: resp.status,
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+        headers: { 'Content-Type': 'application/json' },
         body: text,
       };
     } catch (err) {
