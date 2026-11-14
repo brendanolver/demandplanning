@@ -38,6 +38,13 @@ assert.equal(pn.map.W26NOPRICE['2026-09-19'],1); assert.ok(!pn.price.W26NOPRICE)
 const pm={A:{'2026-01-01':[1000,800],'2026-06-01':[500,500]}};
 assert.deepEqual(L.decodeCompact(L.encodeCompact(pm,'Australia/Melbourne',null,2),2),pm);
 assert.deepEqual(L.decodeCompact(L.encodeCompact(pm,'Australia/Melbourne','2026-03-01',2),2),{A:{'2026-06-01':[500,500]}}); // fromDay trims
+{ // beforeDay trims the other end; [fromDay, beforeDay) and [beforeDay, …) split a map with nothing lost and nothing twice
+  const u={A:{'2025-01-10':3,'2025-06-30':4,'2025-07-01':5,'2026-02-02':6},B:{'2025-07-01':1},C:{'2024-12-31':9}};
+  assert.deepEqual(L.decodeCompact(L.encodeCompact(u,'Australia/Melbourne','2025-01-01',1,'2025-07-01')),{A:{'2025-01-10':3,'2025-06-30':4}}); // the boundary day itself belongs to the later half
+  assert.deepEqual(L.decodeCompact(L.encodeCompact(u,'Australia/Melbourne','2025-07-01')),{A:{'2025-07-01':5,'2026-02-02':6},B:{'2025-07-01':1}});
+  assert.deepEqual(L.decodeCompact(L.encodeCompact(u,'Australia/Melbourne',null,1,'2025-01-01')),{C:{'2024-12-31':9}});
+  assert.deepEqual(L.encodeCompact(u,'Australia/Melbourne','2025-01-01',1,'2025-01-01').skus,{}); // empty window
+}
 console.log('lib unit tests: all passed');
 })();
 (() => {
@@ -83,6 +90,18 @@ const run = (store, extra = {}) => SS.runSync({ store, gql, fetchText, sleep, ..
   assert.equal(p.body.ready, true); assert.deepEqual(S.decodeCompact(p.body.data), { W26IX002ASSM: { '2026-09-15': 68, '2026-09-19': 5 } }); // units feed: trailing year only, as before
   const pp = await SS.getPricePayload({ store, now: T0 + 1000 });
   assert.equal(pp.body.ready, true); assert.deepEqual(S.decodeCompact(pp.body.data, 2), { W26IX002ASSM: { '2025-05-01': [70000, 35000] } }); // price history: all stored days
+  // the older stored year, served separately for last-year comparisons: everything before the trailing year, and nothing from it
+  const op = await SS.getOlderPayload({ store, now: T0 + 1000 });
+  assert.equal(op.status, 200); assert.equal(op.body.ready, true);
+  assert.deepEqual(S.decodeCompact(op.body.data), { W26IX002ASSM: { '2025-05-01': 7 } });
+  assert.equal(op.body.meta.from, '2024-09-21'); assert.equal(op.body.meta.to, '2025-09-20');       // storedStart … the day before coverageStart
+  { // the two payloads together are every stored day exactly once
+    const both = {}, add = m => { for (const k in m) for (const d in m[k]) { assert.ok(!(both[k] && d in both[k]), 'day served twice: ' + d); (both[k] = both[k] || {})[d] = m[k][d]; } };
+    add(S.decodeCompact(p.body.data)); add(S.decodeCompact(op.body.data)); assert.deepEqual(both, store.m.daily);
+  }
+  assert.equal((await SS.getOlderPayload({ store: memStore() })).body.ready, false);                // nothing stored yet
+  { const old = memStore(); old.m.daily = store.m.daily; old.m.meta = { ...store.m.meta, storedStart: undefined }; assert.equal((await SS.getOlderPayload({ store: old })).body.ready, false); } // a feed built before 2 years were kept
+  { const stale = memStore(); stale.m.daily = store.m.daily; stale.m.meta = { ...store.m.meta, feedVersion: 2 }; assert.equal((await SS.getOlderPayload({ store: stale })).body.ready, false); }
   // 2. immediately again -> fresh, nothing runs
   r = await run(store, { now: T0 + 60 * 1000 }); assert.deepEqual(r, { ran: false, reason: 'fresh' });
   // 3. 10 min later -> incremental; stale partial 19th (5) must be REPLACED by 27, new 20th added, 15th (outside window? 20-4=16) untouched

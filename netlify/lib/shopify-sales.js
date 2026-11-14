@@ -199,8 +199,10 @@ function replaceDays(existing, fresh, days) {
 // fromDay (optional) drops older days — the units feed keeps 2 years server-side but
 // the app is only ever served the trailing year, exactly as before.
 // `width` is how many numbers each day carries (1 for units, 2 for price [gross,net]).
-function encodeCompact(map, tz, fromDay, width = 1) {
-  const keep = d => !fromDay || d >= fromDay;
+// beforeDay (optional) drops that day and everything after it — how the older stored year is
+// served on its own (fromDay = start of storage, beforeDay = start of the trailing year).
+function encodeCompact(map, tz, fromDay, width = 1, beforeDay) {
+  const keep = d => (!fromDay || d >= fromDay) && (!beforeDay || d < beforeDay);
   const daySet = new Set();
   for (const sku of Object.keys(map)) for (const d of Object.keys(map[sku])) if (keep(d)) daySet.add(d);
   const days = [...daySet].sort();

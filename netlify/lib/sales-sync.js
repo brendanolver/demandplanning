@@ -123,6 +123,24 @@ async function getPayload({ store, metaOnly, now = Date.now() }) {
   return { status: 200, body };
 }
 
+// The stored year BEFORE the one getPayload serves: units for storedStart <= day < coverageStart, same compact
+// format. Together the two cover every stored day exactly once. Own request so ordinary app loads never
+// download it — only a last-year / previous-period comparison (Sales Cadence) asks for it.
+async function getOlderPayload({ store, now = Date.now() }) {
+  const meta = (await store.get('meta', { type: 'json' })) || {};
+  const publicMeta = {
+    tz: meta.tz, from: meta.storedStart || null, to: meta.coverageStart ? S.addDays(meta.coverageStart, -1) : null,
+    lastSuccessTs: meta.lastSuccessTs, ageSec: meta.lastSuccessTs ? Math.round((now - meta.lastSuccessTs) / 1000) : null,
+  };
+  const daily = await store.get('daily', { type: 'json' });
+  const ready = !!daily && !!meta.lastFullTs && meta.feedVersion === FEED_VERSION && !!meta.storedStart && !!meta.coverageStart && meta.storedStart < meta.coverageStart;
+  if (!ready) return { status: 200, body: { ready: false, meta: publicMeta } };
+  const body = { ready: true, meta: publicMeta, data: S.encodeCompact(daily, meta.tz, meta.storedStart, 1, meta.coverageStart) };
+  const size = Buffer.byteLength(JSON.stringify(body));
+  if (size > MAX_RESPONSE_BYTES) return { status: 500, body: { error: `older sales payload is ${size} bytes — over the response limit, needs splitting`, meta: publicMeta } };
+  return { status: 200, body };
+}
+
 // Selling-price history ({SKU:[dayIdx,grossCents,netCents,...]}), all stored days. Own
 // endpoint so ordinary app loads never download it — only the markdown planner does.
 async function getPricePayload({ store, now = Date.now() }) {
@@ -136,4 +154,4 @@ async function getPricePayload({ store, now = Date.now() }) {
   return { status: 200, body };
 }
 
-module.exports = { makeClient, runSync, getPayload, getPricePayload, totalUnits, MIN_INTERVAL_MS, FULL_MAX_AGE_MS, FULL_FORCE_MIN_AGE_MS };
+module.exports = { makeClient, runSync, getPayload, getOlderPayload, getPricePayload, totalUnits, MIN_INTERVAL_MS, FULL_MAX_AGE_MS, FULL_FORCE_MIN_AGE_MS };
