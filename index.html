@@ -2519,11 +2519,12 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.7.7"></script>
-<script src="markdown-plans.js?v=3.7.7"></script>
-<script src="sales-cadence-pdf.js?v=3.7.7"></script>
-<script src="date-range.js?v=3.7.7"></script>
-<script src="version-check.js?v=3.7.7"></script>
+<script src="markdown-engine.js?v=3.7.8"></script>
+<script src="markdown-plans.js?v=3.7.8"></script>
+<script src="sales-cadence-pdf.js?v=3.7.8"></script>
+<script src="date-range.js?v=3.7.8"></script>
+<script src="version-check.js?v=3.7.8"></script>
+<script src="todays-margin.js?v=3.7.8"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2557,7 +2558,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.7.7';
+const APP_VERSION='v3.7.8';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -12423,6 +12424,27 @@ async function shopifyFeedJson(url){
   if(!r.ok||p.error)throw new Error(p.error||('HTTP '+r.status));
   return p;
 }
+/* ── WHAT TODAY'S SALES ACTUALLY SOLD FOR ──
+   The feed's "recent" snapshot (sales-price-data?span=recent): for each of the last few days, per SKU, the units and
+   what Shopify recorded for them — the shelf price and the amount actually paid after every discount (bundle deals,
+   automatic discounts, codes; a free gift is $0). Units and money come from the same sync run, so they always agree.
+   Today's Margin on the dashboard is worked out from it. */
+const SHOPIFY_RECENT_URL='/.netlify/functions/sales-price-data?span=recent';
+window.shopifyRecent=null; // {data:{days[],skus:{SKU:[dayIdx,units,grossCents,netCents,...]}}, meta:{lastDay,syncTs}}
+async function pullShopifyRecent(){
+  try{
+    const p=await shopifyFeedJson(SHOPIFY_RECENT_URL);
+    if(!p.ready||!p.data||!p.meta)return;                   // not built yet: the card says it is using sell prices
+    window.shopifyRecent={data:p.data,meta:p.meta};
+    if(currentScreen==='dashboard'&&allVariantRows&&allVariantRows.length)renderKPIs();
+  }catch(e){/* keep the last copy; once it is too old the card falls back and says so */}
+}
+// Today's sales out of that snapshot ({SKU:{units,gross,net}}), or null when it can't be used right now — the feed
+// is switched off, nothing has loaded, the copy is over 3 hours old, or it predates today (see todays-margin.js).
+function shopifyTodayActuals(today){
+  if(!isShopifyFeedEnabled())return null;
+  return TodaysMargin.actualsFor(window.shopifyRecent,{today,now:Date.now(),maxAgeMs:SHOPIFY_FEED_MAX_AGE_MS});
+}
 async function pullShopifyFeed(){
   const p=await shopifyFeedJson(SHOPIFY_FEED_URL);
   if(!p.ready)return false;
@@ -12444,7 +12466,7 @@ function scheduleShopifyFeedRecheck(tries=0){
     try{
       const m=await shopifyFeedJson(SHOPIFY_FEED_URL+'?meta=1');
       const have=(window.shopifyFeed&&window.shopifyFeed.meta.lastSuccessTs)||0;
-      if(m.ready&&(m.meta.lastSuccessTs||0)>have&&!m.meta.syncing){await pullShopifyFeed();updateShopifyFeedPill();return;}
+      if(m.ready&&(m.meta.lastSuccessTs||0)>have&&!m.meta.syncing){await pullShopifyFeed();await pullShopifyRecent();updateShopifyFeedPill();return;}
       if(m.meta&&m.meta.lastError&&!m.meta.syncing){_shopifyFeedLastError=m.meta.lastError;updateShopifyFeedPill();return;}
     }catch(e){}
     scheduleShopifyFeedRecheck(tries+1);
@@ -12459,6 +12481,9 @@ async function syncShopifyFeed(){
     const m=await shopifyFeedJson(SHOPIFY_FEED_URL+'?meta=1');
     const have=(window.shopifyFeed&&window.shopifyFeed.meta.lastSuccessTs)||0;
     if(m.ready&&(m.meta.lastSuccessTs||0)>have)await pullShopifyFeed();
+    // Today's takings come from the same sync: fetch them whenever the server has a newer run than the copy held
+    // (the units feed above may already be current from this browser's cache, so this is checked separately).
+    if(m.ready&&(m.meta.lastSuccessTs||0)>((window.shopifyRecent&&window.shopifyRecent.meta.syncTs)||0))await pullShopifyRecent();
     const ageMs=m.meta&&m.meta.ageSec!=null?m.meta.ageSec*1000:Infinity;
     if((!m.ready||ageMs>SHOPIFY_FEED_REFRESH_AFTER_MS)&&!(m.meta&&m.meta.syncing)){
       // The server decides whether a run is actually due, so this is cheap to
@@ -13418,30 +13443,30 @@ function renderKPIs(){
   const reorder=productRows.filter(p=>p.flag==='reorder').length;
   const reduce=productRows.filter(p=>p.flag==='reduce').length;
 
-  // Today's Margin — uses actual COGS from _salesBySkuDay (same source as Shopify)
-  let todayRevTotal=0,todayCostTotal=0;
+  // Today's Margin — gross profit as a share of what today's sales ACTUALLY sold for (after every discount; a gift
+  // with purchase counts at what was paid for it, with its real cost). The sums are in todays-margin.js; when
+  // today's takings can't be had it falls back to current sell prices, and the card says which it used.
   const _todayStr=getBusinessToday();
-  for(const r of rows){
-    if(r.amOnly)continue;
-    const dayEntry=(window._salesBySkuDay?.[r.sku]||{})[_todayStr]||null;
-    if(!dayEntry||!dayEntry.qty)continue;
-    const qty=dayEntry.qty;
-    const exGstPrice=r.price>0?r.price/1.1:0;
-    if(exGstPrice<=0)continue;
-    todayRevTotal+=exGstPrice*qty;
-    if(dayEntry.cogs>0){todayCostTotal+=dayEntry.cogs;}
-    else if(r.margin!=null){todayCostTotal+=exGstPrice*(1-r.margin/100)*qty;}
-  }
-  const todayMarginPct=todayRevTotal>0?((todayRevTotal-todayCostTotal)/todayRevTotal*100):null;
-  const todayMarginFmt=todayMarginPct!=null?todayMarginPct.toFixed(1)+'%':'—';
-  const todayMarginColor=todayMarginPct==null?'var(--text-muted)':todayMarginPct>=70?'var(--green)':todayMarginPct>=60?'var(--amber)':'var(--red)';
+  const tm=TodaysMargin.compute(rows,sku=>(window._salesBySkuDay?.[sku]||{})[_todayStr]||null,shopifyTodayActuals(_todayStr));
+  const todayMarginFmt=tm.pct!=null?tm.pct.toFixed(1)+'%':'—';
+  const todayMarginColor=tm.pct==null?'var(--text-muted)':tm.pct>=70?'var(--green)':tm.pct>=60?'var(--amber)':'var(--red)';
+  const money0=v=>'$'+Math.round(v).toLocaleString();
+  const todayMarginSub=tm.usedActual?'GP% on prices actually paid today':'GP% at current sell prices';
+  const asAt=tm.usedActual&&window.shopifyRecent?new Date(window.shopifyRecent.meta.syncTs).toLocaleTimeString('en-AU',{timeZone:BUSINESS_TZ,hour:'numeric',minute:'2-digit'}):'';
+  const todayMarginTip=(tm.usedActual
+    ?`Today as at ${asAt}: ${tm.units.toLocaleString()} units sold for ${money0(tm.revenue)} ex GST after every discount`
+      +(tm.atSellPrice>0?` (${money0(tm.atSellPrice)} at current sell prices${tm.atSellPrice>tm.revenue?' — '+((1-tm.revenue/tm.atSellPrice)*100).toFixed(1)+'% came off, counting gifts with purchase':''})`:'')
+      +`. Cost ${money0(tm.cost)}.`
+      +(tm.fallbackUnits?` ${tm.fallbackUnits.toLocaleString()} of those units have no recorded price and are valued at sell price.`:'')
+    :`Today's actual takings aren't available right now, so this values today's ${tm.units.toLocaleString()} units at each product's current sell price — it reads higher than the real margin whenever discounts or gifts with purchase are running.`)
+    +` Business date: ${_todayStr}.`;
 
   const kpis=[
     {name:'Total Products',val:totalProducts.toLocaleString(),sub:'Unique styles',ico:'📊',bg:'#eef1fe',ic:'#4f6ef7',click:null},
     {name:'SOH',val:totalSoh.toLocaleString(),sub:'Units on hand',ico:'📦',bg:'#e6f7f7',ic:'var(--teal)',click:null},
     {name:`Units Sold (${selectedPeriod}d)`,val:totalSold.toLocaleString(),sub:`Last ${selectedPeriod} days`,ico:'🛍️',bg:'#dcfce7',ic:'var(--green)',click:null},
     {name:'On Order',val:onOrder.toLocaleString(),sub:'Total units on order',ico:'🚚',bg:'#f3e8ff',ic:'#7c3aed',click:null},
-    {name:"Today's Margin",val:`<span style="color:${todayMarginColor}">${todayMarginFmt}</span>`,sub:'Revenue-weighted GP% today',ico:'💰',bg:'#dcfce7',ic:'var(--green)',click:null,title:`Business date used for "Today": ${_todayStr}`},
+    {name:"Today's Margin",val:`<span style="color:${todayMarginColor}">${todayMarginFmt}</span>`,sub:todayMarginSub,ico:'💰',bg:'#dcfce7',ic:'var(--green)',click:null,title:todayMarginTip},
     {name:'Re-Order',val:reorder.toLocaleString(),sub:'≤14 weeks cover',ico:'⚠️',bg:'#fef9c3',ic:'#854d0e',click:"kpiDrillDown('reorder')"},
     {name:'Reduce',val:reduce.toLocaleString(),sub:'26w+ cover, no order',ico:'🏷️',bg:'#fee2e2',ic:'var(--red)',click:"kpiDrillDown('reduce')"},
   ];
@@ -14605,6 +14630,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.7.8 — TODAY'S MARGIN NOW USES WHAT THINGS ACTUALLY SOLD FOR (Brendan: use the actual price the product sold for in Shopify, not the sell price before any discounts). The card used to value today's units at each product's current sell price, so a bundle deal, an automatic discount, a discount code and — biggest of all — a gift with purchase were all counted at full sell price. Measured on the day this was built: 1,386 units that came to $67,695 ex GST at sell prices had actually taken $52,474 (22.5% less); 157 of those units were gifts with purchase (beach towels and cooler bags at an average of about $1 each) that the old card had counted at $79.95 and $99.95. The card read 71.4%; on the same sales it now reads 63.1%. REVENUE is now what Shopify recorded as paid for each line after every discount, ex GST. COST is unchanged (the day's recorded cost per unit, otherwise the cost implied by the product's own Margin% at its sell price), so a gift now counts at what was paid for it with its real cost — giving stock away lowers the day's margin, as it does in Shopify's own profit figures. HOW IT GETS THERE: each sales-feed sync now also writes a small 'recent' snapshot (last 5 days: units and takings per SKU, from the same run so they always agree), served by sales-price-data?span=recent in about 90 KB instead of the 2 MB price history; the page fetches it whenever the feed has a newer run. Units come from that same snapshot, so cost and revenue always describe the same sales. The card's sub-line says which basis it is on ('GP% on prices actually paid today' / 'GP% at current sell prices'), and hovering it shows the units, takings, what they would have been at sell prices, cost and the time of the snapshot. It falls back to sell prices only when today's takings can't be had (feed switched off, snapshot over 3 hours old or from before today), and says so. Only this card changes: the Margin% columns and the rest of the dashboard are as they were. Sums in todays-margin.js (window.TodaysMargin) with tests/todays-margin.test.js; feed tests extended.
 // v3.7.7 — SALES CADENCE: COMPARE A DATE RANGE WITH ANOTHER PERIOD, BY CATEGORY (Brendan: a compare option at category level via the date range picker, with a choice between same period last year and previous period). In Category view the date range picker now has 'Compare with: Don't compare / Previous period / Same period last year' under the calendar, and shows exactly which dates that means before you press Update. The table then gains three columns beside Total Sold: the other period's units (headed Last year or Previous period, with its dates), Change in units and Change %, green up / red down, all three sortable, with the same on the TOTAL row. The button reads e.g. 'Last 30 days vs last year'. Previous period = the same number of days immediately before; same period last year = the same calendar dates a year earlier (as LY MTD does). WHERE LAST YEAR COMES FROM: the app only loads the trailing year of the Shopify sales feed, but the server has kept two since v2.7.2, so the feed now hands over the older year on request (sales-data?span=older, fetched the first time a comparison needs it). Checked against real data before building: 18% of last year's year-to-date sales (and over half of the oldest quarter) were for products with no sales in the app's own history, so they had no category here. Each such SKU is now placed by the app's own map, then the Shopify inventory export's Product type, then Apparel Magic's catalogue by style; a category that sold then but has nothing now gets its own row. Honest about gaps: a line above the table says what is being compared, and warns if the history doesn't reach back far enough (it starts two years ago), if the older history couldn't be loaded, or if any units couldn't be matched to a category (they are counted and reported, not silently dropped). Days the app already holds are read from the same sales map and category map as the table itself, so both sides are counted the same way and the Core / Launch Date filters apply to both. Export PDF prints the same three columns plus a 'vs last year' figure in the summary band, and its header says what was compared; with the comparison on, an A4 page fits 13 period columns instead of 16. Category view only for now (the Product view is unchanged). Maths in date-range.js (compareRange / coverage / change) with tests; feed and PDF tests extended.
 // v3.7.6 — 'A NEW VERSION IS READY' BANNER (Brendan: his tab was still showing v3.7.4 after v3.7.5 went live). A tab keeps running the version it loaded, and pushes to V2 now deploy by themselves, so an open tab can sit on an old version for days. Every 10 minutes while the tab is visible, when you come back to the tab, and when the browser brings a tab back from memory, the page asks the site for version.json (a one-line file deployed with it) and shows a banner under the top bar when the site is ahead: 'A new version of this app is ready. This tab is on vX; the latest is vY.' with Refresh now and Later. It only offers: nothing reloads by itself, because a refresh resets filters and anything half-typed. Later hides it for 30 minutes. It never shows when the site is the same, older or unreadable, and if a refresh somehow comes back still behind it waits 10 minutes before asking again rather than trapping you in a loop. The first banner anyone sees will be for the update AFTER this one, since a tab has to be running this version to be able to check. version.json is one more place the version is written, so tests/version.test.js now fails if APP_VERSION, every script cache-buster, version.json and the newest changelog entry don't all agree (or if the number breaks the odometer rule). Rules in version-check.js (window.VersionCheck).
 // v3.7.5 — SALES CADENCE: CHOOSE YOUR OWN DATE RANGE (Brendan: a date range picker on all Sales Cadence views, like the WNDRR international dashboard's and Meta Ads'). A 'Custom range' button sits beside 12 Months / 12 Weeks / 5 Weeks / 7 Days and opens a picker: presets down the left (Today, Yesterday, This week, Last 7 / 14 / 30 / 90 days, This month, Last month, Year to date, Maximum), two months side by side, a line saying exactly which dates and how many days, and Cancel / Update. As in those pickers, 'Last N days' are the N full days before today (today is still filling up); the 'This…' and 'to date' presets include today. Days in the future, or before the first day there is sales data for, can't be picked, and dates are business (Melbourne) days. Once applied, Category, Product and Compare all show that range: Total Sold and ST% are for the range, and the columns split it automatically (up to 14 days by day, up to 14 weeks by week, longer by month) with a Days / Weeks / Months switch beside the button to change it (greyed out where the range is too long or too short). Weeks are counted back from the end of the range, so the newest column is always a full week and any leftover days form a short first column; hover a column heading for its exact dates. A preset keeps rolling forward with the date; fixed dates stay fixed. Clicking any of the four rolling views switches the custom range off. The LY MTD column stays with the rolling 12 Months view only. Export PDF carries the chosen range and its name, and says so plainly when a range has more columns (over 16) than an A4 page fits. Also: a sort on a period column that is no longer on screen is now dropped instead of lingering invisibly. Date maths in date-range.js (window.DateRange) with tests/date-range.test.js; the version now lives in five places (APP_VERSION + four script cache-busters).

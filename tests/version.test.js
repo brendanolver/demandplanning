@@ -23,7 +23,7 @@ for (const src of localScripts) {
   assert.equal(s[2], bare, src + ' is cache-busted at ' + s[2] + ' but the app is ' + version + ' — browsers would keep the old ' + s[1]);
   assert.ok(fs.existsSync(path.join(root, s[1])), s[1] + ' is loaded by index.html but does not exist');
 }
-for (const mod of ['markdown-engine.js', 'markdown-plans.js', 'sales-cadence-pdf.js', 'date-range.js', 'version-check.js']) assert.ok(localScripts.some(s => s.startsWith(mod + '?')), mod + ' is not loaded by index.html');
+for (const mod of ['markdown-engine.js', 'markdown-plans.js', 'sales-cadence-pdf.js', 'date-range.js', 'version-check.js', 'todays-margin.js']) assert.ok(localScripts.some(s => s.startsWith(mod + '?')), mod + ' is not loaded by index.html');
 
 // version.json is what an open tab compares itself against
 const vj = JSON.parse(fs.readFileSync(path.join(root, 'version.json'), 'utf8'));
