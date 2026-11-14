@@ -139,6 +139,50 @@ const run = (store, extra = {}) => SS.runSync({ store, gql, fetchText, sleep, ..
   store.m.meta.feedVersion = 1; store.m.meta.lastSuccessTs = T0 + 27.5 * 3600 * 1000; store.m.meta.lastFullTs = T0 + 27.5 * 3600 * 1000;
   r = await run(store, { now: T0 + 27.6 * 3600 * 1000 });
   assert.equal(r.mode, 'full'); assert.ok(!r.error, r.error); assert.equal(store.m.meta.feedVersion, 3);
+  // 6c. the "recent" snapshot the dashboard's Today's Margin uses: last 5 days, units + takings from the SAME run
+  {
+    const s2 = memStore(), money = v => ({ shopMoney: { amount: v } });
+    const line = (parent, sku, qty, shelf, paid) => ({ __parentId: parent, sku, currentQuantity: qty, originalUnitPriceSet: money(shelf), discountedUnitPriceAfterAllDiscountsSet: money(paid) });
+    world.bulkPolls = 0;
+    world.bulkLines = [
+      { id: 'a', createdAt: '2026-09-20T01:00:00Z' }, line('a', 'TEE-M', 2, '59.95', '47.96'), line('a', 'GIFT-OS', 1, '25.00', '0.00'),   // today: 20% off, plus a free gift
+      { id: 'b', createdAt: '2026-09-20T03:00:00Z' }, line('b', 'TEE-M', 1, '59.95', '59.95'),                                            // today, full price
+      { id: 'c', createdAt: '2026-09-18T01:00:00Z' }, line('c', 'TEE-M', 3, '59.95', '50.00'),
+      { id: 'd', createdAt: '2026-09-16T01:00:00Z' }, { __parentId: 'd', sku: 'NOPRICE-S', currentQuantity: 4 },                          // Shopify gave no price
+      { id: 'e', createdAt: '2026-09-15T01:00:00Z' }, line('e', 'OLD-L', 9, '10.00', '10.00'),                                            // 6 days ago: outside the snapshot
+    ];
+    assert.equal((await SS.getRecentPayload({ store: s2 })).body.ready, false);                       // nothing until a sync has run
+    let rr = await SS.runSync({ store: s2, gql, fetchText, sleep, now: T0 }); assert.ok(!rr.error, rr.error);
+    let rp = await SS.getRecentPayload({ store: s2, now: T0 + 60000 });
+    assert.equal(rp.status, 200); assert.equal(rp.body.ready, true);
+    assert.deepEqual(rp.body.meta, { tz: 'Australia/Melbourne', lastDay: '2026-09-20', syncTs: T0, ageSec: 60 });
+    const rec = S.decodeCompact(rp.body.data, 3);
+    assert.deepEqual(rec, {
+      'TEE-M': { '2026-09-18': [3, 17985, 15000], '2026-09-20': [3, 17985, 15587] },   // today: 2 x 47.96 + 1 x 59.95 actually paid, against 3 x 59.95 on the shelf
+      'GIFT-OS': { '2026-09-20': [1, 2500, 0] },                                       // a free gift: real units, nothing paid
+      'NOPRICE-S': { '2026-09-16': [4, null, null] },
+    });
+    assert.deepEqual(rp.body.data.days, ['2026-09-16', '2026-09-18', '2026-09-20']);
+    for (const sku in rec) for (const d in rec[sku]) {                                // it is exactly the stored units and prices, never a different count
+      assert.equal(rec[sku][d][0], s2.m.daily[sku][d]);
+      assert.deepEqual(rec[sku][d].slice(1), (s2.m.price[sku] && s2.m.price[sku][d]) || [null, null]);
+    }
+    assert.ok(!('OLD-L' in rec)); assert.ok(s2.m.daily['OLD-L']['2026-09-15'] === 9);
+    // the next (incremental) run replaces it: a refund on today's order shows up in units and takings together
+    world.recentOrders = [
+      { createdAt: '2026-09-20T01:00:00Z', lineItems: { pageInfo: { hasNextPage: false }, edges: [{ node: { sku: 'TEE-M', currentQuantity: 1, originalUnitPriceSet: money('59.95'), discountedUnitPriceAfterAllDiscountsSet: money('47.96') } }] } },
+      { createdAt: '2026-09-18T01:00:00Z', lineItems: { pageInfo: { hasNextPage: false }, edges: [{ node: { sku: 'TEE-M', currentQuantity: 3, originalUnitPriceSet: money('59.95'), discountedUnitPriceAfterAllDiscountsSet: money('50.00') } }] } },
+    ];
+    rr = await SS.runSync({ store: s2, gql, fetchText, sleep, now: T0 + 10 * 60 * 1000 }); assert.equal(rr.mode, 'incremental'); assert.ok(!rr.error, rr.error);
+    rp = await SS.getRecentPayload({ store: s2, now: T0 + 10 * 60 * 1000 });
+    assert.deepEqual(S.decodeCompact(rp.body.data, 3), { 'TEE-M': { '2026-09-18': [3, 17985, 15000], '2026-09-20': [1, 5995, 4796] } });
+    assert.equal(rp.body.meta.syncTs, T0 + 10 * 60 * 1000);
+    // a failure writing the snapshot must not fail the sync itself
+    const s3 = memStore(), realSet = s3.setJSON; s3.setJSON = async (k, v) => { if (k === 'recent') throw new Error('blob store hiccup'); return realSet(k, v); };
+    world.bulkPolls = 0; rr = await SS.runSync({ store: s3, gql, fetchText, sleep, now: T0 }); assert.ok(!rr.error, rr.error); assert.ok(s3.m.daily['TEE-M']); assert.ok(s3.m.meta.lastSuccessTs);
+    assert.equal((await SS.getRecentPayload({ store: s3 })).body.ready, false);
+    world.recentOrders = [];
+  }
   // 7. explicit full request honoured only after 30 min since last full; meta-only + not-ready payloads
   const empty = memStore(); p = await SS.getPayload({ store: empty, metaOnly: false }); assert.equal(p.body.ready, false);
   p = await SS.getPayload({ store, metaOnly: true }); assert.equal(p.body.ready, true); assert.ok(!('data' in p.body));

@@ -50,6 +50,24 @@ function makeClient(token, fetchImpl = fetch) {
 
 const totalUnits = map => Object.values(map).reduce((s, days) => s + Object.values(days).reduce((a, b) => a + b, 0), 0);
 
+// A small snapshot of the last few days: per SKU per day, the units AND what they sold for, taken from the same
+// run so the two always agree ({SKU:[dayIdx, units, grossCents, netCents, ...]}; gross = shelf price x units,
+// net = what was actually paid after every discount; both null where Shopify recorded no price). Kilobytes rather
+// than the megabytes of the full price history, so the dashboard can afford to fetch it on every refresh —
+// "Today's Margin" is worked out from it.
+function buildRecent(map, priceMap, days, tz, today, now) {
+  const merged = {};
+  for (const sku of Object.keys(map)) {
+    for (const d of days) {
+      const units = map[sku][d];
+      if (!units) continue;
+      const p = priceMap && priceMap[sku] && priceMap[sku][d];
+      (merged[sku] = merged[sku] || {})[d] = [units, p ? p[0] : null, p ? p[1] : null];
+    }
+  }
+  return { ...S.encodeCompact(merged, tz, null, 3), lastDay: today, syncTs: now };
+}
+
 async function runSync({ store, gql, fetchText, requested, now = Date.now(), sleep, log = () => {} }) {
   let meta = (await store.get('meta', { type: 'json' })) || {};
   const save = async patch => { meta = { ...meta, ...patch }; await store.setJSON('meta', meta); };
@@ -92,6 +110,9 @@ async function runSync({ store, gql, fetchText, requested, now = Date.now(), sle
     }
     await store.setJSON('daily', map);
     await store.setJSON('price', priceMap);
+    // Convenience copy for the dashboard. It must never be able to fail the sync that feeds everything else.
+    try { await store.setJSON('recent', buildRecent(map, priceMap, S.daysBetween(S.addDays(today, -(INCREMENTAL_DAYS - 1)), today), tz, today, now)); }
+    catch (e) { log('recent snapshot not written: ' + (e && e.message || e)); }
     await save({
       ...patch, tz, lastDay: today, lastSuccessTs: now, lastMode: mode, running: null,
       lastError: null, lastErrorTs: null,
@@ -141,6 +162,15 @@ async function getOlderPayload({ store, now = Date.now() }) {
   return { status: 200, body };
 }
 
+// The last few days' units and takings (see buildRecent). ready:false until the first sync after this shipped.
+async function getRecentPayload({ store, now = Date.now() }) {
+  const recent = await store.get('recent', { type: 'json' });
+  const ok = !!recent && Array.isArray(recent.days) && !!recent.skus && !!recent.syncTs;
+  const meta = { tz: ok ? recent.tz : null, lastDay: ok ? recent.lastDay : null, syncTs: ok ? recent.syncTs : null, ageSec: ok ? Math.round((now - recent.syncTs) / 1000) : null };
+  if (!ok) return { status: 200, body: { ready: false, meta } };
+  return { status: 200, body: { ready: true, meta, data: { v: recent.v, tz: recent.tz, days: recent.days, skus: recent.skus } } };
+}
+
 // Selling-price history ({SKU:[dayIdx,grossCents,netCents,...]}), all stored days. Own
 // endpoint so ordinary app loads never download it — only the markdown planner does.
 async function getPricePayload({ store, now = Date.now() }) {
@@ -154,4 +184,4 @@ async function getPricePayload({ store, now = Date.now() }) {
   return { status: 200, body };
 }
 
-module.exports = { makeClient, runSync, getPayload, getOlderPayload, getPricePayload, totalUnits, MIN_INTERVAL_MS, FULL_MAX_AGE_MS, FULL_FORCE_MIN_AGE_MS };
+module.exports = { makeClient, runSync, getPayload, getOlderPayload, getPricePayload, getRecentPayload, buildRecent, totalUnits, MIN_INTERVAL_MS, FULL_MAX_AGE_MS, FULL_FORCE_MIN_AGE_MS };
