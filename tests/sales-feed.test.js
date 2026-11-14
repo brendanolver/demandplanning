@@ -55,7 +55,7 @@ const S = require('../netlify/lib/shopify-sales.js');
 function memStore() { const m = {}; return { m, get: async k => (m[k] === undefined ? null : JSON.parse(JSON.stringify(m[k]))), setJSON: async (k, v) => { m[k] = JSON.parse(JSON.stringify(v)); } }; }
 const T0 = Date.UTC(2026, 8, 20, 5, 0, 0); // 20 Sep 2026 15:00 Melbourne
 // fake Shopify: bulk file + paginated orders driven by test-controlled state
-const world = { bulkLines: [], recentOrders: [], bulkPolls: 0, opId: 'gid://op/1', replaceOp: false, failBulk: false };
+const world = { queries: [], bulkLines: [], recentOrders: [], bulkPolls: 0, opId: 'gid://op/1', replaceOp: false, failBulk: false };
 const gql = async (q, vars) => {
   if (q.includes('ianaTimezone')) return { shop: { ianaTimezone: 'Australia/Melbourne' } };
   if (q.includes('bulkOperationRunQuery')) return { bulkOperationRunQuery: { bulkOperation: { id: world.opId, status: 'CREATED' }, userErrors: [] } };
@@ -66,7 +66,7 @@ const gql = async (q, vars) => {
     return world.bulkPolls < 2 ? { currentBulkOperation: { id: world.opId, status: 'RUNNING' } }
       : { currentBulkOperation: { id: world.opId, status: 'COMPLETED', objectCount: '9', url: 'https://storage.googleapis.com/f' } };
   }
-  if (q.includes('orders(first:50')) return { orders: { pageInfo: { hasNextPage: false }, edges: world.recentOrders.map(o => ({ node: o })) } };
+  if (q.includes('orders(first:50')) { world.queries.push(vars.q); return { orders: { pageInfo: { hasNextPage: false }, edges: world.recentOrders.map(o => ({ node: o })) } }; }
   throw new Error('unexpected query ' + q.slice(0, 40));
 };
 const fetchText = async () => world.bulkLines.map(o => JSON.stringify(o)).join('\n');
@@ -103,7 +103,29 @@ const run = (store, extra = {}) => SS.runSync({ store, gql, fetchText, sleep, ..
   { const old = memStore(); old.m.daily = store.m.daily; old.m.meta = { ...store.m.meta, storedStart: undefined }; assert.equal((await SS.getOlderPayload({ store: old })).body.ready, false); } // a feed built before 2 years were kept
   { const stale = memStore(); stale.m.daily = store.m.daily; stale.m.meta = { ...store.m.meta, feedVersion: 2 }; assert.equal((await SS.getOlderPayload({ store: stale })).body.ready, false); }
   // 2. immediately again -> fresh, nothing runs
-  r = await run(store, { now: T0 + 60 * 1000 }); assert.deepEqual(r, { ran: false, reason: 'fresh' });
+  r = await run(store, { now: T0 + 20 * 1000 }); assert.deepEqual(r, { ran: false, reason: 'fresh' });
+  // 2b. a minute later -> a QUICK run: today only. It replaces today (the stale 5 of the 19th is outside its window and must be left alone),
+  //     reads orders from a few hours before the shop's midnight instead of days back, and leaves the trailing run's stats alone.
+  { const statsBefore = JSON.stringify(store.m.meta.stats), trailingBefore = store.m.meta.lastTrailingTs;
+    world.queries = []; world.recentOrders = [
+      { createdAt: '2026-09-19T14:00:00Z', lineItems: { pageInfo: { hasNextPage: false }, edges: [{ node: { sku: 'W26IX002ASSM', currentQuantity: 99 } }] } },   // 00:00 on the 20th in Melbourne: today's first minute
+      { createdAt: '2026-09-19T04:00:00Z', lineItems: { pageInfo: { hasNextPage: false }, edges: [{ node: { sku: 'W26IX002ASSM', currentQuantity: 44 } }] } },   // 19th, 14:00 local: before today, ignored by a quick run
+      { createdAt: '2026-09-20T01:00:00Z', lineItems: { pageInfo: { hasNextPage: false }, edges: [{ node: { sku: 'W26IX002ASSM', currentQuantity: 7 } }] } },
+    ];
+    r = await run(store, { now: T0 + 60 * 1000 });
+    assert.equal(r.mode, 'quick'); assert.ok(!r.error, r.error);
+    assert.deepEqual(world.queries, ["created_at:>='2026-09-19T09:00:00Z'"]);                                                   // from 09:00Z the day before, not 2 days back
+    assert.equal(store.m.daily.W26IX002ASSM['2026-09-19'], 5);                                                                   // yesterday untouched by a quick run
+    assert.equal(store.m.daily.W26IX002ASSM['2026-09-20'], 99 + 7);                                                              // today replaced from the orders (14:00Z on the 19th is 00:00 on the 20th in Melbourne)
+    assert.equal(JSON.stringify(store.m.meta.stats), statsBefore); assert.equal(store.m.meta.lastTrailingTs, trailingBefore);  // stats / trailing clock belong to the other runs
+    assert.equal(store.m.meta.lastMode, 'quick'); assert.equal(store.m.meta.lastSuccessTs, T0 + 60 * 1000);
+    assert.ok(store.m.recent && store.m.recent.syncTs === T0 + 60 * 1000);                                                      // the dashboard snapshot moves with it
+    // not due again within the quick interval; due after it
+    assert.deepEqual(await run(store, { now: T0 + 60 * 1000 + 30 * 1000 }), { ran: false, reason: 'fresh' });
+    world.recentOrders = [];
+    assert.equal((await run(store, { now: T0 + 60 * 1000 + SS.QUICK_INTERVAL_MS })).mode, 'quick');
+    assert.equal(store.m.daily.W26IX002ASSM['2026-09-20'], undefined);                                                           // the orders went away (cancelled): today is replaced, including by nothing
+  }
   // 3. 10 min later -> incremental; stale partial 19th (5) must be REPLACED by 27, new 20th added, 15th (outside window? 20-4=16) untouched
   world.recentOrders = [
     { createdAt: '2026-09-19T04:00:00Z', lineItems: { pageInfo: { hasNextPage: false }, edges: [{ node: { sku: 'W26IX002ASSM', currentQuantity: 27 } }] } },
@@ -113,6 +135,21 @@ const run = (store, extra = {}) => SS.runSync({ store, gql, fetchText, sleep, ..
   assert.equal(r.mode, 'incremental'); assert.ok(!r.error, r.error);
   assert.deepEqual(store.m.daily, { W26IX002ASSM: { '2025-05-01': 7, '2026-09-15': 68, '2026-09-19': 27, '2026-09-20': 16 } });
   assert.deepEqual(store.m.price, { W26IX002ASSM: { '2025-05-01': [70000, 35000] } }); // old price history survives an incremental; no price fields in these fakes
+  // 3b. the shop's day rolls over -> a trailing run straight away (so the finished day is read from all its orders), even a minute after the last run
+  { const s5 = memStore(); s5.m.daily = JSON.parse(JSON.stringify(store.m.daily)); s5.m.price = {}; s5.m.meta = { ...store.m.meta, running: null, lastSuccessTs: T0 + 9 * 3600 * 1000 - 60 * 1000, lastTrailingTs: T0 + 9 * 3600 * 1000 - 60 * 1000, lastDay: '2026-09-20', tz: 'Australia/Melbourne' };
+    world.recentOrders = [];
+    const justAfterMidnight = Date.UTC(2026, 8, 20, 14, 5, 0);                    // 00:05 on the 21st in Melbourne
+    s5.m.meta.lastSuccessTs = s5.m.meta.lastTrailingTs = justAfterMidnight - 60 * 1000;
+    assert.equal((await run(s5, { now: justAfterMidnight })).mode, 'incremental');
+    s5.m.meta.lastDay = '2026-09-21'; assert.equal((await run(s5, { now: justAfterMidnight + 60 * 1000 })).mode, 'quick');   // same day again: back to quick
+  }
+  // 3c. a failed quick run backs off 2 minutes (not the 10 a failed full rebuild needs)
+  { const s6 = memStore(); s6.m.daily = JSON.parse(JSON.stringify(store.m.daily)); s6.m.price = {}; s6.m.meta = { ...store.m.meta, running: null, lastSuccessTs: T0, lastTrailingTs: T0 };
+    const realGql = gql; let boom = true; const flaky = async (q, v) => { if (boom && q.includes('orders(first:50')) throw new Error('shopify HTTP 503'); return realGql(q, v); };
+    let rr = await SS.runSync({ store: s6, gql: flaky, fetchText, sleep, now: T0 + 60 * 1000 }); assert.match(rr.error, /503/); assert.equal(s6.m.meta.lastErrorMode, 'quick');
+    assert.deepEqual(await SS.runSync({ store: s6, gql: flaky, fetchText, sleep, now: T0 + 60 * 1000 + 90 * 1000 }), { ran: false, reason: 'recent error' });
+    boom = false; rr = await SS.runSync({ store: s6, gql: flaky, fetchText, sleep, now: T0 + 60 * 1000 + 125 * 1000 }); assert.equal(rr.mode, 'quick'); assert.ok(!rr.error, rr.error);
+  }
   // 4. lock: fresh lock blocks, stale lock (>20 min) is ignored
   store.m.meta.running = { mode: 'full', startedTs: T0 + 20 * 60 * 1000 };
   r = await run(store, { now: T0 + 25 * 60 * 1000 }); assert.deepEqual(r, { ran: false, reason: 'already running' });
@@ -189,3 +226,18 @@ const run = (store, extra = {}) => SS.runSync({ store, gql, fetchText, sleep, ..
   console.log('sales-sync integration tests: all passed');
 })().catch(e => { console.error('TEST FAILED:', e.message); process.exit(1); });
 })();
+// The scheduled trigger: pokes the background worker on the site's own URL, and reports a missing URL / unreachable worker without throwing.
+(async () => {
+  const assert = require('assert');
+  const mod = await import('../netlify/functions/sales-sync-scheduled.mjs');
+  assert.equal(typeof mod.default, 'function'); assert.match(mod.config.schedule, /^(\*|\*\/\d+) \* \* \* \*$/);       // a cron that fires every N minutes
+  const realFetch = global.fetch, calls = [], env = { URL: process.env.URL, DEPLOY_PRIME_URL: process.env.DEPLOY_PRIME_URL };
+  try {
+    process.env.URL = 'https://example.netlify.app'; global.fetch = async (u, o) => { calls.push([u, o.method]); return { status: 202 }; };
+    let res = await mod.default(); assert.equal(res.status, 200);
+    assert.deepEqual(calls, [['https://example.netlify.app/.netlify/functions/sales-sync-background', 'POST']]);
+    global.fetch = async () => { throw new Error('offline'); }; res = await mod.default(); assert.equal(res.status, 502);
+    delete process.env.URL; delete process.env.DEPLOY_PRIME_URL; res = await mod.default(); assert.equal(res.status, 500);
+  } finally { global.fetch = realFetch; for (const k in env) { if (env[k] === undefined) delete process.env[k]; else process.env[k] = env[k]; } }
+  console.log('scheduled sales sync tests: all passed');
+})().catch(e => { console.error('TEST FAILED:', e); process.exit(1); });

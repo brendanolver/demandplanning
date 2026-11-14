@@ -146,14 +146,15 @@ async function runBulkFull({ gql, fetchText, dayOf, sinceDay, sleep = ms => new 
 }
 
 // ── Incremental (trailing days) ───────────────────────────────────────────
-async function fetchRecent({ gql, dayOf, startDay, sleep = ms => new Promise(r => setTimeout(r, ms)), log = () => {} }) {
+// searchSince (optional) is the exact timestamp to fetch orders from — the quick 'today only' sync passes one so it reads a few hours of orders instead of days.
+async function fetchRecent({ gql, dayOf, startDay, searchSince, sleep = ms => new Promise(r => setTimeout(r, ms)), log = () => {} }) {
   const q = `query($cursor:String,$q:String!){
     orders(first:50, after:$cursor, query:$q){
       pageInfo{hasNextPage endCursor}
       edges{node{ createdAt lineItems(first:100){ pageInfo{hasNextPage} edges{node{ sku currentQuantity ${PRICE_FIELDS} }} } }}
     }
   }`;
-  const search = `created_at:>='${addDays(startDay, -2)}'`; // over-fetch; trimmed by store-day below
+  const search = `created_at:>='${searchSince || addDays(startDay, -2)}'`; // over-fetch; trimmed by store-day below
   const agg = newAggregate();
   let cursor = null, pages = 0, orders = 0, truncatedOrders = 0;
   do {

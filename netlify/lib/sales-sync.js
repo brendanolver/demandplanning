@@ -9,18 +9,26 @@ const S = require('./shopify-sales');
 const SHOP_DOMAIN = 'thewndrr.myshopify.com';
 const API_VERSION = '2025-10';
 
-const MIN_INTERVAL_MS = 4 * 60 * 1000;          // don't re-run incrementals more often than this
+const QUICK_INTERVAL_MS = 45 * 1000;            // a 'quick' (today only) refresh is due when the stored data is older than this
+const TRAILING_EVERY_MS = 10 * 60 * 1000;       // the 5-day trailing refresh (catches refunds / cancellations on recent days) runs this often
 const FULL_MAX_AGE_MS = 24 * 60 * 60 * 1000;    // full rebuild daily — picks up refunds on older orders
 const FULL_FORCE_MIN_AGE_MS = 30 * 60 * 1000;   // an explicit "full" request is honoured at most this often
 const RUNNING_STALE_MS = 20 * 60 * 1000;        // a lock older than this is a dead run, not a live one
 const FULL_LOOKBACK_DAYS = 730;                  // stored history — 2 years, so last year's promos stay comparable
 const SERVE_DAYS = 365;                         // the units feed the app merges is still served as the trailing year only
-const ERROR_BACKOFF_MS = 10 * 60 * 1000;        // after a failed run, don't re-attempt (a full rebuild is minutes of Shopify work) for this long
+const ERROR_BACKOFF_MS = 10 * 60 * 1000;        // after a failed FULL rebuild, don't re-attempt (it is minutes of Shopify work) for this long
+const QUICK_ERROR_BACKOFF_MS = 2 * 60 * 1000;   // a failed quick / trailing run is cheap to retry, so a Shopify blip doesn't freeze sales for 10 minutes
 // Bump whenever what gets stored changes (filters, bucketing, shape): a stored
 // feed built under older rules is rebuilt in full on the next run instead of
 // waiting up to a day for the scheduled rebuild.
 const FEED_VERSION = 3;
 const INCREMENTAL_DAYS = 5;                     // today + 4 trailing — a day is only final once it stops taking orders
+// Three kinds of run, cheapest first:
+//   quick        today only. Reads just the orders since a few hours before the shop's midnight (a handful of pages, seconds).
+//                This is what makes today's sales appear within a minute or two.
+//   incremental  the trailing 5 days (reads ~a week of orders: ~1 minute). Runs at most every 10 minutes, and at once when the
+//                shop's day has rolled over (so yesterday is finalised from the full day's orders).
+//   full         everything, daily (or when the stored rules are out of date).
 const MIN_KEEP_RATIO = 0.5;                     // a full rebuild below half the stored total is treated as broken, not adopted
 
 function makeClient(token, fetchImpl = fetch) {
@@ -73,15 +81,18 @@ async function runSync({ store, gql, fetchText, requested, now = Date.now(), sle
   const save = async patch => { meta = { ...meta, ...patch }; await store.setJSON('meta', meta); };
 
   if (meta.running && now - meta.running.startedTs < RUNNING_STALE_MS) return { ran: false, reason: 'already running' };
-  if (meta.lastErrorTs && now - meta.lastErrorTs < ERROR_BACKOFF_MS) return { ran: false, reason: 'recent error' };
+  if (meta.lastErrorTs && now - meta.lastErrorTs < (meta.lastErrorMode === 'full' ? ERROR_BACKOFF_MS : QUICK_ERROR_BACKOFF_MS)) return { ran: false, reason: 'recent error' };
 
   const fullDue = !meta.lastFullTs
     || meta.feedVersion !== FEED_VERSION
     || now - meta.lastFullTs > FULL_MAX_AGE_MS
     || (requested === 'full' && now - meta.lastFullTs > FULL_FORCE_MIN_AGE_MS);
-  const incrDue = !meta.lastSuccessTs || now - meta.lastSuccessTs > MIN_INTERVAL_MS;
-  if (!fullDue && !incrDue) return { ran: false, reason: 'fresh' };
-  const mode = fullDue ? 'full' : 'incremental';
+  const dayNow = S.makeDayOf(meta.tz || S.DEFAULT_TZ)(new Date(now));
+  const lastTrailing = meta.lastTrailingTs || meta.lastSuccessTs || 0;      // a feed written before quick runs existed: its last run was a trailing one
+  const trailingDue = !meta.lastSuccessTs || now - lastTrailing >= TRAILING_EVERY_MS || (!!meta.lastDay && meta.lastDay !== dayNow);
+  const quickDue = !meta.lastSuccessTs || now - meta.lastSuccessTs >= QUICK_INTERVAL_MS;
+  if (!fullDue && !trailingDue && !quickDue) return { ran: false, reason: 'fresh' };
+  const mode = fullDue ? 'full' : trailingDue ? 'incremental' : 'quick';
 
   await save({ running: { mode, startedTs: now } });
   try {
@@ -97,16 +108,20 @@ async function runSync({ store, gql, fetchText, requested, now = Date.now(), sle
       const oldTotal = totalUnits(oldMap), newTotal = totalUnits(map);
       if (!Object.keys(map).length) throw new Error('full rebuild returned no sales at all — keeping existing data');
       if (oldTotal > 0 && newTotal < oldTotal * MIN_KEEP_RATIO) throw new Error(`full rebuild total ${newTotal} is under ${MIN_KEEP_RATIO * 100}% of stored ${oldTotal} — keeping existing data`);
-      patch = { lastFullTs: now, coverageStart: S.addDays(today, -(SERVE_DAYS - 1)), storedStart: sinceDay, feedVersion: FEED_VERSION };
+      patch = { lastFullTs: now, lastTrailingTs: now, coverageStart: S.addDays(today, -(SERVE_DAYS - 1)), storedStart: sinceDay, feedVersion: FEED_VERSION };
     } else {
-      const startDay = S.addDays(today, -(INCREMENTAL_DAYS - 1));
-      const res = await S.fetchRecent({ gql, dayOf, startDay, sleep, log });
+      const quick = mode === 'quick';
+      // quick: today only, read from 09:00Z the day before — earlier than the shop's local midnight in any timezone; the day trim drops the overlap
+      const startDay = quick ? today : S.addDays(today, -(INCREMENTAL_DAYS - 1));
+      const res = await S.fetchRecent({ gql, dayOf, startDay, searchSince: quick ? S.addDays(today, -1) + 'T09:00:00Z' : undefined, sleep, log });
+      if (!quick) patch = { lastTrailingTs: now };
       const existing = (await store.get('daily', { type: 'json' })) || {};
       const days = S.daysBetween(startDay, today);
       map = S.replaceDays(existing, res.map, days);
       const existingPrice = (await store.get('price', { type: 'json' })) || {};
       priceMap = S.replaceDays(existingPrice, res.price, days);
       stats = res.stats; dropped = S.topDropped(res); droppedUnits = res.droppedUnits;
+      if (quick) stats = null;                                                  // a quick run only sees today, so its counts must not replace the trailing run's
     }
     await store.setJSON('daily', map);
     await store.setJSON('price', priceMap);
@@ -116,11 +131,11 @@ async function runSync({ store, gql, fetchText, requested, now = Date.now(), sle
     await save({
       ...patch, tz, lastDay: today, lastSuccessTs: now, lastMode: mode, running: null,
       lastError: null, lastErrorTs: null,
-      stats: { ...stats, skus: Object.keys(map).length, units: totalUnits(map), droppedUnits, dropped },
+      ...(stats ? { stats: { ...stats, skus: Object.keys(map).length, units: totalUnits(map), droppedUnits, dropped } } : {}),
     });
     return { ran: true, mode, skus: Object.keys(map).length, units: totalUnits(map) };
   } catch (e) {
-    await save({ running: null, lastError: String(e && e.message || e), lastErrorTs: now });
+    await save({ running: null, lastError: String(e && e.message || e), lastErrorTs: now, lastErrorMode: mode });
     return { ran: true, mode, error: String(e && e.message || e) };
   }
 }
@@ -184,4 +199,4 @@ async function getPricePayload({ store, now = Date.now() }) {
   return { status: 200, body };
 }
 
-module.exports = { makeClient, runSync, getPayload, getOlderPayload, getPricePayload, getRecentPayload, buildRecent, totalUnits, MIN_INTERVAL_MS, FULL_MAX_AGE_MS, FULL_FORCE_MIN_AGE_MS };
+module.exports = { makeClient, runSync, getPayload, getOlderPayload, getPricePayload, getRecentPayload, buildRecent, totalUnits, QUICK_INTERVAL_MS, TRAILING_EVERY_MS, FULL_MAX_AGE_MS, FULL_FORCE_MIN_AGE_MS };

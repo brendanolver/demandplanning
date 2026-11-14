@@ -2529,12 +2529,12 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.8.0"></script>
-<script src="markdown-plans.js?v=3.8.0"></script>
-<script src="sales-cadence-pdf.js?v=3.8.0"></script>
-<script src="date-range.js?v=3.8.0"></script>
-<script src="version-check.js?v=3.8.0"></script>
-<script src="todays-margin.js?v=3.8.0"></script>
+<script src="markdown-engine.js?v=3.8.1"></script>
+<script src="markdown-plans.js?v=3.8.1"></script>
+<script src="sales-cadence-pdf.js?v=3.8.1"></script>
+<script src="date-range.js?v=3.8.1"></script>
+<script src="version-check.js?v=3.8.1"></script>
+<script src="todays-margin.js?v=3.8.1"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2568,7 +2568,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.8.0';
+const APP_VERSION='v3.8.1';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -10224,6 +10224,14 @@ const BG_REFRESH_INTERVAL_MS=10*60*1000; // 10 min
 function startBackgroundAutoRefresh(){
   if(_bgRefreshIntervalSet)return; // startAutoSync() can be called again (manual Refresh) — only ever arm the interval once
   _bgRefreshIntervalSet=true;
+  // Shopify sales are checked far more often than the rest: the check is ~1KB, and the server refreshes today's sales every couple of minutes.
+  setInterval(()=>{
+    if(document.visibilityState!=='visible')return;
+    syncShopifyFeed();
+    updateShopifyFeedPill();
+  },SHOPIFY_FEED_POLL_MS);
+  // Coming back to a tab that sat in the background: catch up straight away instead of waiting for the next tick.
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){syncShopifyFeed();updateShopifyFeedPill();}});
   setInterval(()=>{
     if(document.visibilityState!=='visible')return;
     syncAMStock(true);
@@ -12473,7 +12481,8 @@ const SHOPIFY_FEED_URL='/.netlify/functions/sales-data';
 const SHOPIFY_FEED_TRIGGER_URL='/.netlify/functions/sales-sync-background';
 const SHOPIFY_FEED_CACHE_KEY='shopifySalesFeedV1';
 const SHOPIFY_FEED_MAX_AGE_MS=3*60*60*1000; // older than this is treated as unusable → fall back to CSV + AM
-const SHOPIFY_FEED_REFRESH_AFTER_MS=10*60*1000; // ask the server to refresh once its copy is this old
+const SHOPIFY_FEED_REFRESH_AFTER_MS=2*60*1000; // ask the server to refresh once its copy is this old (the server also refreshes itself on a timer; this covers the timer being late)
+const SHOPIFY_FEED_POLL_MS=60*1000; // how often a visible tab checks whether the server has newer sales
 try{localStorage.removeItem('shopifyOrderSalesV1');}catch(e){} // the retired per-browser research overlay's cache — several MB nothing reads any more
 function isShopifyFeedEnabled(){return localStorage.getItem('shopifyFeedDisabled')!=='1';}
 window.shopifyFeed=null; // {data:{v,tz,days[],skus:{SKU:[dayIdx,units,...]}}, meta}
@@ -13267,7 +13276,30 @@ let _cachedSalesMaps=null;
 let _cachedAMData=null;
 let _cachedSoldOutData=null;
 
+// The dashboard's filter dropdowns are redrawn (all ticked) every time the data is rebuilt. A rebuild now happens whenever fresh sales
+// arrive (every couple of minutes), so what you had unticked is remembered across it: anything you'd unticked stays unticked, and a value that
+// is new since the last draw starts ticked, as before.
+const DASH_FILTER_TYPES=['cat','vendor','flag','disc','soldout','delmonth','launch'];
+function captureDashboardFilters(){
+  const keep={};
+  for(const t of DASH_FILTER_TYPES){
+    const boxes=[...document.querySelectorAll('#ms-'+t+'-options input[type="checkbox"]')];
+    if(!boxes.length)continue;
+    keep[t]={known:new Set(boxes.map(b=>b.value)),off:new Set(boxes.filter(b=>!b.checked).map(b=>b.value))};
+  }
+  return keep;
+}
+function restoreDashboardFilters(keep){
+  const labels={cat:'All Categories',vendor:'All Statuses',flag:'All Stock Status',disc:'Discount %',soldout:'Sizes Sold Out',delmonth:'Month Del',launch:'Launch Date'};
+  for(const t of Object.keys(keep||{})){
+    const k=keep[t];if(!k.off.size)continue;
+    document.querySelectorAll('#ms-'+t+'-options input[type="checkbox"]').forEach(b=>{if(k.known.has(b.value)&&k.off.has(b.value))b.checked=false;});
+    updateLabel(t,labels[t]);
+  }
+}
+
 function buildVariantRows(){
+  const _dashFilters=captureDashboardFilters();
   // Only rebuild sales maps and AM data if source files changed
   if(!_cachedSalesMaps){
     _cachedSalesMaps=buildSalesMaps();
@@ -13511,6 +13543,7 @@ function buildVariantRows(){
       `<label class="ms-item"><input type="checkbox" value="__none__" checked onchange="applyFilters()"> No Launch Date (${lNone})</label>`;
   }
 
+  restoreDashboardFilters(_dashFilters);
   setView(currentView);
   // Reset markdown filters so they repopulate with new data
   ['cat','vendor','flag','disc','delmonth'].forEach(t=>{const el=document.getElementById(`ms-md-${t}-options`);if(el)el.innerHTML='';});
@@ -14756,6 +14789,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.8.1 — SHOPIFY SALES COME IN MUCH FASTER (Brendan: today's sales were slow to appear). Three causes, three fixes. (1) Nothing refreshed the feed unless a browser tab asked, and tabs only asked every 10 minutes and only once the server's copy was 10 minutes old — now a Netlify scheduled function (sales-sync-scheduled) pokes the sync every 2 minutes whether or not anyone has the app open, and an open tab checks every minute (and the moment you come back to it) instead of every 10. (2) Every refresh re-read ~a week of orders (about 5,600 orders, ~60 seconds) even though only today's can have changed — there is now a QUICK run that reads only today's orders (a few seconds) whenever the stored copy is 45 seconds old; the 5-day trailing refresh (which catches refunds and cancellations on recent days) still runs every 10 minutes, and at once when the shop's day rolls over so yesterday is finalised; the daily full rebuild is unchanged. (3) A failed quick/trailing run now retries after 2 minutes instead of 10 (a failed full rebuild still waits 10). Also: because data now refreshes every couple of minutes, the dashboard's filter dropdowns (Category, Status, Stock status, Discount, Sizes sold out, Month Del, Launch date) now keep what you had unticked across a refresh — before, each data refresh quietly re-ticked everything.
 // v3.8.0 — SALES CADENCE: CATEGORY PICKER IN CATEGORY VIEW (Brendan: a dropdown category picker, like Launch Date, on the Category view as well). The 'All Categories' dropdown that Product view already had now shows in Category view too, next to Launch Date, and works the same way: tick the categories you want and the table shows only those rows. Everything on the page follows the ticks — the TOTAL row, On Order and SOH totals, the chart, LY MTD, and the comparison columns (previous period / last year / custom dates) — so the totals are for the ticked categories only. The button reads 'All Categories', the one category's name, or 'N selected', and turns teal when it is narrowing the view; Export PDF prints which categories were chosen in its header. ONE PICKER FOR BOTH VIEWS: the ticks carry across, so ticking SHORTS and SWEATS in Category view and switching to Product view shows those two categories' products (before, switching to Product view always reset the category ticks to all). Each view lists the categories its own table can show: Category view lists the ones its rows are built from; Product view the products' own (which also has a few with no sales history, e.g. BASE FIT TEES). A category that only the period being compared with has (checked on real data: MYSTERY BOXES appears in year-to-date vs last year, with VESTS and VINTAGE FIT TEES possible on other dates) is added to the list while that comparison is on, so it can be ticked like any other, and leaves the list when the comparison goes; if it was the only one ticked the picker goes back to all. The list is only rebuilt when it actually changes, so it never resets while it is open and being ticked. With nothing left to show, Category view now says 'No categories to show' instead of 'No products found'.
 // v3.7.9 — SALES CADENCE COMPARE: CUSTOM DATES (Brendan: as well as previous period and previous year, an option to compare with custom dates). 'Compare with' in the date range picker has a third choice, Custom dates — for comparing with any dates you like, e.g. this year's Black Friday weekend with last year's, which fell on different dates. They are picked on the same calendar: choosing Custom dates switches the calendar to them and draws them in blue beside your own range (dark), with a two-way switch underneath ('Calendar is choosing: Your dates / Dates to compare with') to go back and forth; the presets on the left act on whichever range is being chosen. The dates to compare with can go back to the start of the stored history (two years), further than the range itself, and they are fixed dates — they stay put when a preset range such as Last 30 days rolls forward — and are remembered if you switch to another comparison and back. The table's comparison column is headed Compared dates, the button reads e.g. 'Last 30 days vs 28 Nov – 1 Dec 2025', and the line above the table now also warns when the two periods are different lengths or share days. The previous period and same period last year are now drawn in blue on the calendar too, so you can see what will be compared before pressing Update. Export PDF carries it as before. DateRange.compareRange takes the custom dates; DateRange.overlaps added; tests extended.
 // v3.7.8 — TODAY'S MARGIN NOW USES WHAT THINGS ACTUALLY SOLD FOR (Brendan: use the actual price the product sold for in Shopify, not the sell price before any discounts). The card used to value today's units at each product's current sell price, so a bundle deal, an automatic discount, a discount code and — biggest of all — a gift with purchase were all counted at full sell price. Measured on the day this was built: 1,386 units that came to $67,695 ex GST at sell prices had actually taken $52,474 (22.5% less); 157 of those units were gifts with purchase (beach towels and cooler bags at an average of about $1 each) that the old card had counted at $79.95 and $99.95. The card read 71.4%; on the same sales it now reads 63.1%. REVENUE is now what Shopify recorded as paid for each line after every discount, ex GST. COST is unchanged (the day's recorded cost per unit, otherwise the cost implied by the product's own Margin% at its sell price), so a gift now counts at what was paid for it with its real cost — giving stock away lowers the day's margin, as it does in Shopify's own profit figures. HOW IT GETS THERE: each sales-feed sync now also writes a small 'recent' snapshot (last 5 days: units and takings per SKU, from the same run so they always agree), served by sales-price-data?span=recent in about 90 KB instead of the 2 MB price history; the page fetches it whenever the feed has a newer run. Units come from that same snapshot, so cost and revenue always describe the same sales. The card's sub-line says which basis it is on ('GP% on prices actually paid today' / 'GP% at current sell prices'), and hovering it shows the units, takings, what they would have been at sell prices, cost and the time of the snapshot. It falls back to sell prices only when today's takings can't be had (feed switched off, snapshot over 3 hours old or from before today), and says so. Only this card changes: the Margin% columns and the rest of the dashboard are as they were. Sums in todays-margin.js (window.TodaysMargin) with tests/todays-margin.test.js; feed tests extended.
