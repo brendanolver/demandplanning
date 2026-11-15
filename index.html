@@ -2529,12 +2529,12 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.8.1"></script>
-<script src="markdown-plans.js?v=3.8.1"></script>
-<script src="sales-cadence-pdf.js?v=3.8.1"></script>
-<script src="date-range.js?v=3.8.1"></script>
-<script src="version-check.js?v=3.8.1"></script>
-<script src="todays-margin.js?v=3.8.1"></script>
+<script src="markdown-engine.js?v=3.9.0"></script>
+<script src="markdown-plans.js?v=3.9.0"></script>
+<script src="sales-cadence-pdf.js?v=3.9.0"></script>
+<script src="date-range.js?v=3.9.0"></script>
+<script src="version-check.js?v=3.9.0"></script>
+<script src="todays-margin.js?v=3.9.0"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2568,7 +2568,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.8.1';
+const APP_VERSION='v3.9.0';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -12614,6 +12614,7 @@ async function syncShopifyFeed(){
   updateShopifyFeedPill();
   try{
     const m=await shopifyFeedJson(SHOPIFY_FEED_URL+'?meta=1');
+    window._shopifyWebhookTs=(m.meta&&m.meta.lastWebhookTs)||null;
     const have=(window.shopifyFeed&&window.shopifyFeed.meta.lastSuccessTs)||0;
     if(m.ready&&(m.meta.lastSuccessTs||0)>have)await pullShopifyFeed();
     // Today's takings come from the same sync: fetch them whenever the server has a newer run than the copy held
@@ -12643,7 +12644,7 @@ function updateShopifyFeedPill(){
   else if(shopifyFeedFresh()){
     const mins=Math.max(0,Math.round((Date.now()-meta.lastSuccessTs)/60000));
     status=mins<1?'Live':`${mins}m ago`;
-    tip=`Units sold come from Shopify's own orders (${meta.stats&&meta.stats.skus?meta.stats.skus.toLocaleString()+' SKUs, ':''}${meta.coverageStart} → ${meta.lastDay}, ${meta.tz}). Click for the comparison against the old CSV method and an OFF switch.`;
+    tip=`Units sold come from Shopify's own orders (${meta.stats&&meta.stats.skus?meta.stats.skus.toLocaleString()+' SKUs, ':''}${meta.coverageStart} → ${meta.lastDay}, ${meta.tz}). Click for the comparison against the old CSV method and an OFF switch.`+(window._shopifyWebhookTs?` Shopify last pushed an order notification at ${new Date(window._shopifyWebhookTs).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}.`:' Order notifications from Shopify are not connected, so it refreshes on a 2-minute timer.');
   }else if(meta){status='Stale';warn=true;tip='The Shopify sales feed is more than 3 hours old, so the app is using the CSV + Apparel Magic bridge instead. Click for options.';}
   else if(_shopifyFeedLastError){status='Unavailable';warn=true;tip=`Couldn't load the Shopify sales feed (${_shopifyFeedLastError}) — using the CSV + Apparel Magic bridge instead.`;}
   else{status=_shopifyFeedSyncing?'Syncing…':'Waiting…';tip='Loading the Shopify sales feed — until it arrives the app uses the CSV + Apparel Magic bridge.';}
@@ -14789,6 +14790,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.9.0 — SHOPIFY TELLS THE APP THE MOMENT AN ORDER IS PLACED (Brendan: "yes I think a webhook is a great idea"). New function netlify/functions/shopify-order-webhook.js receives Shopify's orders/create and orders/updated notifications, checks the signature (HMAC with SHOPIFY_WEBHOOK_SECRET; anything unsigned or forged is refused, and nothing from the order is stored — the notification only means "something changed"), records it, and wakes the sales sync with a new 'webhook' mode: a today-only refresh that skips the 45 s wait (2 s floor) so the order is in the feed within seconds. The 2-minute timer from v3.8.1 stays as the safety net (and still runs the 10-minute trailing refresh for refunds/cancellations). If another order arrives while a sync is mid-run, the worker goes round again (up to 4 rounds) so nothing is missed. The Shopify Sales pill's tooltip now shows when the last notification arrived, or says they are not connected. Until the secret is set and the webhook is created in Shopify, nothing changes — the endpoint just answers 503 and the timer does the work.
 // v3.8.1 — SHOPIFY SALES COME IN MUCH FASTER (Brendan: today's sales were slow to appear). Three causes, three fixes. (1) Nothing refreshed the feed unless a browser tab asked, and tabs only asked every 10 minutes and only once the server's copy was 10 minutes old — now a Netlify scheduled function (sales-sync-scheduled) pokes the sync every 2 minutes whether or not anyone has the app open, and an open tab checks every minute (and the moment you come back to it) instead of every 10. (2) Every refresh re-read ~a week of orders (about 5,600 orders, ~60 seconds) even though only today's can have changed — there is now a QUICK run that reads only today's orders (a few seconds) whenever the stored copy is 45 seconds old; the 5-day trailing refresh (which catches refunds and cancellations on recent days) still runs every 10 minutes, and at once when the shop's day rolls over so yesterday is finalised; the daily full rebuild is unchanged. (3) A failed quick/trailing run now retries after 2 minutes instead of 10 (a failed full rebuild still waits 10). Also: because data now refreshes every couple of minutes, the dashboard's filter dropdowns (Category, Status, Stock status, Discount, Sizes sold out, Month Del, Launch date) now keep what you had unticked across a refresh — before, each data refresh quietly re-ticked everything.
 // v3.8.0 — SALES CADENCE: CATEGORY PICKER IN CATEGORY VIEW (Brendan: a dropdown category picker, like Launch Date, on the Category view as well). The 'All Categories' dropdown that Product view already had now shows in Category view too, next to Launch Date, and works the same way: tick the categories you want and the table shows only those rows. Everything on the page follows the ticks — the TOTAL row, On Order and SOH totals, the chart, LY MTD, and the comparison columns (previous period / last year / custom dates) — so the totals are for the ticked categories only. The button reads 'All Categories', the one category's name, or 'N selected', and turns teal when it is narrowing the view; Export PDF prints which categories were chosen in its header. ONE PICKER FOR BOTH VIEWS: the ticks carry across, so ticking SHORTS and SWEATS in Category view and switching to Product view shows those two categories' products (before, switching to Product view always reset the category ticks to all). Each view lists the categories its own table can show: Category view lists the ones its rows are built from; Product view the products' own (which also has a few with no sales history, e.g. BASE FIT TEES). A category that only the period being compared with has (checked on real data: MYSTERY BOXES appears in year-to-date vs last year, with VESTS and VINTAGE FIT TEES possible on other dates) is added to the list while that comparison is on, so it can be ticked like any other, and leaves the list when the comparison goes; if it was the only one ticked the picker goes back to all. The list is only rebuilt when it actually changes, so it never resets while it is open and being ticked. With nothing left to show, Category view now says 'No categories to show' instead of 'No products found'.
 // v3.7.9 — SALES CADENCE COMPARE: CUSTOM DATES (Brendan: as well as previous period and previous year, an option to compare with custom dates). 'Compare with' in the date range picker has a third choice, Custom dates — for comparing with any dates you like, e.g. this year's Black Friday weekend with last year's, which fell on different dates. They are picked on the same calendar: choosing Custom dates switches the calendar to them and draws them in blue beside your own range (dark), with a two-way switch underneath ('Calendar is choosing: Your dates / Dates to compare with') to go back and forth; the presets on the left act on whichever range is being chosen. The dates to compare with can go back to the start of the stored history (two years), further than the range itself, and they are fixed dates — they stay put when a preset range such as Last 30 days rolls forward — and are remembered if you switch to another comparison and back. The table's comparison column is headed Compared dates, the button reads e.g. 'Last 30 days vs 28 Nov – 1 Dec 2025', and the line above the table now also warns when the two periods are different lengths or share days. The previous period and same period last year are now drawn in blue on the calendar too, so you can see what will be compared before pressing Update. Export PDF carries it as before. DateRange.compareRange takes the custom dates; DateRange.overlaps added; tests extended.

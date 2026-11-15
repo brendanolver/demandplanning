@@ -1,5 +1,5 @@
 const { connectLambda, getStore } = require('@netlify/blobs');
-const { makeClient, runSync } = require('../lib/sales-sync');
+const { makeClient, syncWithPokes } = require('../lib/sales-sync');
 
 // Background function (the -background suffix is what gives it Netlify's
 // 15-minute limit instead of ~10s — a full-year Shopify bulk export takes
@@ -19,7 +19,7 @@ exports.handler = async (event) => {
   let requested;
   try { requested = (JSON.parse(event.body || '{}') || {}).mode; } catch (e) { /* no body is fine */ }
   const { gql, fetchText } = makeClient(token);
-  const result = await runSync({ store, gql, fetchText, requested, log: m => console.log('[sales-sync]', m) });
+  const result = await syncWithPokes({ store, gql, fetchText, requested, log: m => console.log('[sales-sync]', m) });
   console.log('[sales-sync] result', JSON.stringify(result));
   return { statusCode: 200, body: JSON.stringify(result) };
 };

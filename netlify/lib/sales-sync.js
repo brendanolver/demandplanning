@@ -17,6 +17,8 @@ const RUNNING_STALE_MS = 20 * 60 * 1000;        // a lock older than this is a d
 const FULL_LOOKBACK_DAYS = 730;                  // stored history — 2 years, so last year's promos stay comparable
 const SERVE_DAYS = 365;                         // the units feed the app merges is still served as the trailing year only
 const ERROR_BACKOFF_MS = 10 * 60 * 1000;        // after a failed FULL rebuild, don't re-attempt (it is minutes of Shopify work) for this long
+const WEBHOOK_MIN_GAP_MS = 2 * 1000;            // a Shopify order notification skips the 45 s quick interval, but not a run that finished a moment ago
+const MAX_POKE_ROUNDS = 4;                      // re-runs in one worker invocation when more order notifications land mid-sync
 const QUICK_ERROR_BACKOFF_MS = 2 * 60 * 1000;   // a failed quick / trailing run is cheap to retry, so a Shopify blip doesn't freeze sales for 10 minutes
 // Bump whenever what gets stored changes (filters, bucketing, shape): a stored
 // feed built under older rules is rebuilt in full on the next run instead of
@@ -89,8 +91,12 @@ async function runSync({ store, gql, fetchText, requested, now = Date.now(), sle
     || (requested === 'full' && now - meta.lastFullTs > FULL_FORCE_MIN_AGE_MS);
   const dayNow = S.makeDayOf(meta.tz || S.DEFAULT_TZ)(new Date(now));
   const lastTrailing = meta.lastTrailingTs || meta.lastSuccessTs || 0;      // a feed written before quick runs existed: its last run was a trailing one
-  const trailingDue = !meta.lastSuccessTs || now - lastTrailing >= TRAILING_EVERY_MS || (!!meta.lastDay && meta.lastDay !== dayNow);
-  const quickDue = !meta.lastSuccessTs || now - meta.lastSuccessTs >= QUICK_INTERVAL_MS;
+  // requested === 'webhook': Shopify just told us an order was placed / changed. Refresh today at once (the 10-minute trailing run is left
+  // to the timer, which keeps running alongside), unless the shop's day has rolled over, which still needs its trailing run first.
+  const hook = requested === 'webhook';
+  const dayRolled = !!meta.lastDay && meta.lastDay !== dayNow;
+  const trailingDue = !meta.lastSuccessTs || dayRolled || (!hook && now - lastTrailing >= TRAILING_EVERY_MS);
+  const quickDue = !meta.lastSuccessTs || now - meta.lastSuccessTs >= (hook ? WEBHOOK_MIN_GAP_MS : QUICK_INTERVAL_MS);
   if (!fullDue && !trailingDue && !quickDue) return { ran: false, reason: 'fresh' };
   const mode = fullDue ? 'full' : trailingDue ? 'incremental' : 'quick';
 
@@ -140,10 +146,30 @@ async function runSync({ store, gql, fetchText, requested, now = Date.now(), sle
   }
 }
 
+// What the background worker calls. One runSync, then: if a Shopify order notification arrived while it was working (its
+// 'poke' timestamp is later than this run's start), that run may have read the orders just before the new one existed, so
+// go round again — up to MAX_POKE_ROUNDS times. Notifications that find a run in progress or a very recent one simply
+// record their poke and rely on this check (or the 2-minute timer, whichever comes first).
+async function syncWithPokes({ store, gql, fetchText, requested, sleep, log = () => {}, clock = Date.now }) {
+  let result, rounds = 0;
+  for (;;) {
+    const startedAt = clock();
+    result = await runSync({ store, gql, fetchText, requested: rounds ? 'webhook' : requested, now: startedAt, sleep, log });
+    rounds++;
+    if (!result.ran || result.error || rounds >= MAX_POKE_ROUNDS) break;
+    const poke = await store.get('poke', { type: 'json' });
+    if (!(poke && poke.ts > startedAt)) break;
+    log('order notification arrived during the run — syncing again');
+  }
+  return { ...result, rounds };
+}
+
 const MAX_RESPONSE_BYTES = 5.5 * 1024 * 1024; // Lambda hard-caps a function's response at 6MB
 async function getPayload({ store, metaOnly, now = Date.now() }) {
   const meta = (await store.get('meta', { type: 'json' })) || {};
+  const poke = metaOnly ? await store.get('poke', { type: 'json' }).catch(() => null) : null;
   const publicMeta = {
+    lastWebhookTs: poke && poke.ts || null,
     tz: meta.tz, coverageStart: meta.coverageStart, storedStart: meta.storedStart, lastDay: meta.lastDay,
     lastSuccessTs: meta.lastSuccessTs, lastFullTs: meta.lastFullTs, lastMode: meta.lastMode,
     lastError: meta.lastError, lastErrorTs: meta.lastErrorTs, stats: meta.stats,
@@ -199,4 +225,4 @@ async function getPricePayload({ store, now = Date.now() }) {
   return { status: 200, body };
 }
 
-module.exports = { makeClient, runSync, getPayload, getOlderPayload, getPricePayload, getRecentPayload, buildRecent, totalUnits, QUICK_INTERVAL_MS, TRAILING_EVERY_MS, FULL_MAX_AGE_MS, FULL_FORCE_MIN_AGE_MS };
+module.exports = { makeClient, runSync, getPayload, getOlderPayload, getPricePayload, getRecentPayload, buildRecent, totalUnits, syncWithPokes, WEBHOOK_MIN_GAP_MS, QUICK_INTERVAL_MS, TRAILING_EVERY_MS, FULL_MAX_AGE_MS, FULL_FORCE_MIN_AGE_MS };
