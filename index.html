@@ -2563,12 +2563,12 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.9.5"></script>
-<script src="markdown-plans.js?v=3.9.5"></script>
-<script src="sales-cadence-pdf.js?v=3.9.5"></script>
-<script src="date-range.js?v=3.9.5"></script>
-<script src="version-check.js?v=3.9.5"></script>
-<script src="todays-margin.js?v=3.9.5"></script>
+<script src="markdown-engine.js?v=3.9.6"></script>
+<script src="markdown-plans.js?v=3.9.6"></script>
+<script src="sales-cadence-pdf.js?v=3.9.6"></script>
+<script src="date-range.js?v=3.9.6"></script>
+<script src="version-check.js?v=3.9.6"></script>
+<script src="todays-margin.js?v=3.9.6"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2602,7 +2602,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.9.5';
+const APP_VERSION='v3.9.6';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -14950,6 +14950,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.9.6 — HOTFIX for v3.9.5: the cloud store asked Netlify Blobs for 'strong' consistency, which Netlify's function environment doesn't support here, so every cloud read failed (HTTP 500) and sales weren't syncing. Back to the default read mode; saves are still atomic (the conditional write is checked by the Blobs API itself), and history and the delete guard are unchanged.
 // v3.9.5 — SALE SAVING, STAGE 1: SAFER AND VISIBLE (Brendan: 'sketchy and unreliable'). Cloud side (markdown-plans-store): (1) saves are now ATOMIC — the write itself is conditional on the stored copy's ETag, so two devices saving in the same instant can't both pass the revision check (the loser is told to merge); (2) a save that would DROP a sale the cloud already has is refused (sales are archived, never deleted); (3) VERSION HISTORY — a snapshot of the sales from before each burst of edits (at most one every 5 minutes, all of the last 48 hours, then one a day for 30 days), listed with how many decisions / approvals each sale had. App: (4) a 🕘 History button — pick a version, then restore a sale from it as a COPY (safe default) or replace the current one (what you replace stays in history); restoring is an ordinary save. (5) Not being saved is now LOUD: a red banner with Retry (naming the time the unsaved changes began and the reason the cloud gave) instead of a quiet pill, the pill says 'Not saved to cloud', and closing the tab with unsaved changes asks first. MarkdownPlans.restoreFromVersion + tests.
 // v3.9.4 — MARKDOWN PLANNER UX, STEP 2: CATEGORY STRATEGY IS FASTER TO WORK IN. (1) Each product's discount is now one-click: pills for every allowed level (20 / 30 / 40 / 50), the current one filled in (outlined when it's your own decision — click it again to hand it back to the planner), a small tag showing its group (A / B / C / On order / special / Not in sale), and a '⋯' menu for the rest (move to a group, take out of the sale, reset). (2) Inside an open category, 'Approve' and 'Approve & next ›' sit in its header — the second approves it and opens the next one waiting, so you can work straight down the list. (3) The bulk bar now appears at the TOP of the table, only while products are ticked, and stays in view as you scroll; it has the same one-click discount pills plus group, offer and 'More…'. Same decisions and numbers as before — only the controls changed.
 // v3.9.3 — MARKDOWN PLANNER UX, STEP 1: ONE STEP AT A TIME UNDER A STICKY HEADER (Brendan: 'a bit clunky' — I'm in your hands). The nine sections no longer stack in one very long page. The step buttons are now real tabs: pick Setup / GWP / Special Buys / Not on Sale / Category Strategy / Mid-Sale Offers / Summary / Financials / Export and only that step shows (your last step is remembered on this device; first time it opens on Category Strategy). A header that stays put while you scroll shows the tabs, each with a small status badge (✓ done / ! needs attention / counts like 7/19 categories approved), the live numbers (categories approved, products on sale, units in the sale, effective discount, forecast revenue) and the autosave status; a switch on the right returns to the old long page ('All steps', with Collapse all / Expand all). Because only the shown step is built, redraws are lighter too. No planner logic changed.
