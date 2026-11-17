@@ -997,6 +997,11 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
 .mdp-sync.ok{color:#15803d;border-color:#bbf7d0;background:#f0fdf4;}.mdp-sync.wait{color:#6b7280;}.mdp-sync.off{color:#b45309;border-color:#fde68a;background:#fffbeb;}.mdp-sync.bad{color:#b91c1c;border-color:#fecaca;background:#fff1f2;}
 /* v3.6.3: per-product mid-sale offer control beside the discount dropdown */
 .mdp-rvt td.mdp-ap{white-space:nowrap!important;}.mdp-apcell>*{flex:0 0 auto;}.mdp-apcell .mdp-dsel{flex:1 1 130px;min-width:110px;}.mdp-osel{flex:0 0 auto;width:118px;max-width:150px;font-size:11.5px;padding:3px 6px;color:#6b7280;text-overflow:ellipsis;}.mdp-osel.mdp-inoffer{color:#0a66e8;border-color:#b9d3fb;background:#eef5ff;font-weight:600;}
+/* v3.9.5: version history dialog */
+.mdp-histrow{display:flex;gap:16px;align-items:flex-start;width:100%;text-align:left;border:none;border-bottom:1px solid #eef0f5;background:#fff;padding:10px 14px;cursor:pointer;font-family:'Inter',sans-serif;font-size:12.5px;color:#111827;}
+.mdp-histrow:hover{background:#f4f8ff;}.mdp-histwhen{min-width:150px;font-weight:600;}
+.mdp-histplan{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;border:1px solid #e3e9f5;border-radius:10px;padding:10px 14px;margin-bottom:8px;font-size:12.5px;}
+.mdp-histact{display:flex;gap:8px;}
 /* v3.9.4: Category Strategy — one-click discount pills, group tag, approve & next, bulk bar on top */
 .mdp-dpills{display:inline-flex;gap:3px;flex:0 0 auto;}
 .mdp-dp{border:1px solid #d9dfec;background:#fff;color:#374151;border-radius:7px;padding:3px 8px;font-family:'Inter',sans-serif;font-size:12px;font-weight:600;cursor:pointer;line-height:1.3;}
@@ -2558,12 +2563,12 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.9.4"></script>
-<script src="markdown-plans.js?v=3.9.4"></script>
-<script src="sales-cadence-pdf.js?v=3.9.4"></script>
-<script src="date-range.js?v=3.9.4"></script>
-<script src="version-check.js?v=3.9.4"></script>
-<script src="todays-margin.js?v=3.9.4"></script>
+<script src="markdown-engine.js?v=3.9.5"></script>
+<script src="markdown-plans.js?v=3.9.5"></script>
+<script src="sales-cadence-pdf.js?v=3.9.5"></script>
+<script src="date-range.js?v=3.9.5"></script>
+<script src="version-check.js?v=3.9.5"></script>
+<script src="todays-margin.js?v=3.9.5"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2597,7 +2602,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.9.4';
+const APP_VERSION='v3.9.5';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -6718,13 +6723,14 @@ function mdpSaveBase(rev,state){try{localStorage.setItem(MDP_BASE_KEY,JSON.strin
 function mdpSaveLocalOnly(){mdpWriteLocal();}
 function mdpQueueSync(delay){
   if(!mdpSync.started||mdpSync.leader===false)return;           // only the leader tab talks to the cloud
+  if(!mdpSync.dirtySince)mdpSync.dirtySince=Date.now();         // changes that exist only on this device until a save lands
   if(mdpSync.status!=='conflict')mdpSync.status='saving';
   mdpRenderSyncPill();clearTimeout(mdpSync.timer);mdpSync.timer=setTimeout(()=>mdpSyncNow('save'),delay==null?1500:delay);
 }
 async function mdpPush(state,ifRev){
   const r=await fetch(MDP_SYNC_URL,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({state,ifRev,device:mdpDevice()})});
   if(r.status===409)return false;                       // someone saved first: merge again
-  if(!r.ok)throw new Error('HTTP '+r.status);
+  if(!r.ok){let m='';try{m=(await r.json()).error||'';}catch(e){}throw new Error(m||('HTTP '+r.status));}
   const j=await r.json();mdpSaveBase(j.rev,state);mdpSync.rev=j.rev;return true;
 }
 async function mdpSyncNow(why){
@@ -6779,6 +6785,7 @@ function mdpStartSync(){
   setInterval(()=>{if(!document.hidden)mdpSyncNow('poll');},60000);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden){mdpAdoptStored();mdpSyncNow('focus');}});
   window.addEventListener('online',()=>mdpSyncNow('online'));
+  window.addEventListener('beforeunload',e=>{if(mdpSync.leader!==false&&mdpSync.dirtySince&&mdpState){e.preventDefault();e.returnValue='';}});   // closing with changes that aren't in the cloud yet: ask first
   mdpElectLeader();
 }
 const MDP_SYNCINFO_KEY='wndrr_mdplans_syncinfo_v1';
@@ -6798,17 +6805,26 @@ function mdpSyncPill(){
     return`<button type="button" id="mdp-sync" class="mdp-sync ${bad?'bad':off?'off':'ok'}" title="${bad?'A sale was changed on another device too — settle it in your other Markdowns tab':'Saved on this device. Your other Markdowns tab is syncing to the cloud — click to sync from here'}" onclick="mdpSyncNow('manual')">${bad?'⚠ Needs attention in your other tab':off?'☁ Offline — saved on this device':'☁ Saved · synced in your other tab'}</button>`;
   }
   const s=mdpSync,t=s.at?new Date(s.at).toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit'}):'';
-  const [cls,txt,tip]=s.status==='synced'?['ok','☁ Saved'+(t?' · '+t:''),'Saved on this device and in the cloud — open it on any device']:s.status==='saving'?['wait','☁ Saving…','Saving to the cloud']:s.status==='offline'?['off','☁ Offline — saved on this device','Your work is safe on this device and will sync when the connection is back. '+s.err]:s.status==='conflict'?['bad','⚠ Needs attention','This sale was changed on another device too — see the message at the top']:['wait','☁ Connecting…','Connecting to cloud save'];
+  const [cls,txt,tip]=s.status==='synced'?['ok','☁ Saved'+(t?' · '+t:''),'Saved on this device and in the cloud — open it on any device']:s.status==='saving'?['wait','☁ Saving…','Saving to the cloud']:s.status==='offline'?['bad','⚠ Not saved to cloud','Your work is safe on this device and will sync when the connection is back. '+s.err]:s.status==='conflict'?['bad','⚠ Needs attention','This sale was changed on another device too — see the message at the top']:['wait','☁ Connecting…','Connecting to cloud save'];
   return`<button type="button" id="mdp-sync" class="mdp-sync ${cls}" title="${mdpEsc(tip)} — click to sync now" onclick="mdpSyncNow('manual')">${txt}</button>`;
 }
 function mdpRenderSyncPill(){
+  if(mdpSync.status==='synced')mdpSync.dirtySince=null;
+  const al=typeof document!=='undefined'&&document.getElementById('mdp-sync-alert');if(al)al.innerHTML=mdpSyncAlertHtml();
   if(mdpSync.leader!==false){try{localStorage.setItem(MDP_SYNCINFO_KEY,JSON.stringify({status:mdpSync.status,at:mdpSync.at}));}catch(e){}}   // so the other tabs can show the same status
   const el=typeof document!=='undefined'&&document.getElementById('mdp-sync');if(el)el.outerHTML=mdpSyncPill();
 }
 // Conflict banner: a plan was changed on another device AND here.
+// Shown while changes exist only on this device because the cloud couldn't be reached / refused the save — not a quiet pill.
+function mdpSyncAlertHtml(){
+  if(mdpSync.status!=='offline'||!mdpSync.dirtySince||mdpSync.leader===false)return'';
+  const t=new Date(mdpSync.dirtySince).toLocaleTimeString('en-AU',{hour:'numeric',minute:'2-digit'});
+  return`<div class="mdp-err" style="margin:0 0 10px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;"><span>⚠ <b>Not saved to the cloud.</b> Changes since ${mdpEsc(t)} are only on this device${mdpSync.err?' ('+mdpEsc(mdpSync.err)+')':''}. Keep this tab open until it says Saved — it keeps retrying.</span><button class="mdp-btn mdp-btn-sm" onclick="mdpSyncNow('manual')">Retry now</button></div>`;
+}
 function mdpSyncBanner(){
-  if(!mdpSync.conflicts.length||!mdpSync.remote)return'';
-  return`<div class="mdp-card" style="border-color:#fecaca;background:#fff7f7;">${mdpSync.conflicts.map(id=>{const l=mdpState.plans[id],r=mdpSync.remote.plans[id];if(!l||!r)return'';
+  const alert=`<div id="mdp-sync-alert">${mdpSyncAlertHtml()}</div>`;
+  if(!mdpSync.conflicts.length||!mdpSync.remote)return alert;
+  return alert+`<div class="mdp-card" style="border-color:#fecaca;background:#fff7f7;">${mdpSync.conflicts.map(id=>{const l=mdpState.plans[id],r=mdpSync.remote.plans[id];if(!l||!r)return'';
     const when=r.updatedTs?new Date(r.updatedTs).toLocaleString('en-AU',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'}):'';
     return`<div style="margin:4px 0;"><b>⚠ “${mdpEsc(l.name)}” was changed on another device${when?' ('+when+')':''} and on this one.</b> Nothing is overwritten until you choose:
       <div class="mdp-row" style="margin-top:8px;"><button class="mdp-btn mdp-btn-sm" onclick="mdpSyncResolve('${mdpEsc(id)}','mine')">Keep this device's version</button><button class="mdp-btn mdp-btn-sm mdp-btn-ghost" onclick="mdpSyncResolve('${mdpEsc(id)}','theirs')">Use the other device's version</button><button class="mdp-btn mdp-btn-sm mdp-btn-ghost" onclick="mdpSyncResolve('${mdpEsc(id)}','both')">Keep both (this one as a copy)</button></div></div>`;}).join('')}</div>`;
@@ -7722,6 +7738,69 @@ function mdpExportTuesdayCsv(){
   if(!r.rows.length){alert('Nothing to export yet — approve at least one category first (or tick "Include categories not yet approved").');return;}
   mdpDownload((String(pl.name||'Sale').replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim())+' - Tuesday Import.csv',r.csv);
 }
+/* ── Version history ──
+   The cloud keeps a snapshot of your sales from before each burst of edits (all of the last 2 days, then one a day for a month). Pick a version, then bring back
+   one sale from it — as a COPY (safe, the default) or by replacing the current one. Restoring is an ordinary save, so what you replace stays in history too. */
+const MDP_HIST_URL='/.netlify/functions/markdown-plans-store';
+let mdpHist=null;
+function mdpHistRender(){
+  let h=document.getElementById('mdp-hist-host');
+  if(!h){h=document.createElement('div');h.id='mdp-hist-host';document.body.appendChild(h);}
+  h.innerHTML=mdpHistModal();
+}
+async function mdpHistOpen(){
+  mdpHist={step:'loading',list:[],ver:null,msg:''};mdpHistRender();
+  try{
+    const r=await fetch(MDP_HIST_URL+'?history=1',{cache:'no-store'}),j=await r.json();
+    if(!r.ok)throw new Error(j.error||'HTTP '+r.status);
+    mdpHist.list=j.history||[];mdpHist.step='list';
+  }catch(e){mdpHist.step='error';mdpHist.msg='Couldn\'t load the history ('+(e&&e.message||e)+').';}
+  mdpHistRender();
+}
+async function mdpHistPick(id){
+  const h=mdpHist;if(!h)return;h.step='loading';mdpHistRender();
+  try{
+    const r=await fetch(MDP_HIST_URL+'?version='+encodeURIComponent(id),{cache:'no-store'}),j=await r.json();
+    if(!r.ok)throw new Error(j.error||'HTTP '+r.status);
+    h.ver={id,ts:j.ts,rev:j.rev,device:j.device,state:MarkdownPlans.migrate(j.state,null)};h.step='ver';
+  }catch(e){h.step='error';h.msg='Couldn\'t load that version ('+(e&&e.message||e)+').';}
+  mdpHistRender();
+}
+function mdpHistBack(){if(mdpHist){mdpHist.step='list';mdpHist.ver=null;mdpHistRender();}}
+function mdpHistClose(){mdpHist=null;mdpHistRender();}
+function mdpHistRestore(planId,mode){
+  const h=mdpHist,old=h&&h.ver&&h.ver.state.plans[planId];if(!old)return;
+  const cur=mdpState.plans[planId];
+  if(mode==='replace'&&!confirm('Replace “'+(cur?cur.name:old.name)+'” with this earlier version?\n\nWhat it is now stays in the history, so you can come back to it.'))return;
+  const label=new Date(h.ver.ts).toLocaleString('en-AU',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'});
+  const next=MarkdownPlans.restoreFromVersion(mdpState,old,mode,label);
+  mdpHist=null;mdpHistRender();
+  mdpNoteMsg=mode==='replace'?'Restored “'+old.name+'” from '+label+'.':'Restored “'+old.name+'” from '+label+' as a new sale (your current one is untouched).';
+  mdpCommit(next,true);
+}
+function mdpHistPlansTxt(plans){
+  return plans.filter(p=>!p.archived).slice(0,4).map(p=>`${mdpEsc(p.name)} <span class="mdp-dim">· ${p.decisions} decision${p.decisions===1?'':'s'} · ${p.approved} approved${p.offers?' · '+p.offers+' offer'+(p.offers===1?'':'s'):''}</span>`).join('<br>')||'<span class="mdp-dim">no active sales</span>';
+}
+function mdpHistModal(){
+  const d=mdpHist;if(!d)return'';
+  const E=mdpEsc,when=ts=>new Date(ts).toLocaleString('en-AU',{weekday:'short',day:'numeric',month:'short',hour:'numeric',minute:'2-digit'});
+  let body='',foot=`<button class="mdp-btn mdp-btn-ghost" onclick="mdpHistClose()">Close</button>`;
+  if(d.step==='loading')body='<div class="mdp-hint" style="padding:18px 0;text-align:center;">Loading…</div>';
+  else if(d.step==='error'){body=`<div class="mdp-err">⚠ ${E(d.msg)}</div>`;}
+  else if(d.step==='list'){
+    body=d.list.length?`<div class="mdp-hint" style="margin:0 0 8px;">Each row is how your sales looked <b>before</b> a round of changes. Pick one to see what's in it.</div><div style="max-height:56vh;overflow:auto;border:1px solid #eef0f5;border-radius:10px;">${d.list.map(e=>`<button type="button" class="mdp-histrow" onclick="mdpHistPick('${E(e.id)}')"><span class="mdp-histwhen">${E(when(e.ts))}<br><span class="mdp-dim">edit ${E(e.rev)}${e.device?' · '+E(e.device):''}</span></span><span>${mdpHistPlansTxt(e.plans)}</span></button>`).join('')}</div>`
+      :'<div class="mdp-hint">No earlier versions yet. A version is kept each time you start changing your sales after a few minutes of quiet, so this fills up as you work.</div>';
+  }else if(d.step==='ver'){
+    const v=d.ver,plans=Object.values(v.state.plans).filter(p=>!p.archived);
+    body=`<div class="mdp-hint" style="margin:0 0 8px;">Version from <b>${E(when(v.ts))}</b>. Bring back a sale from it:</div>${plans.map(p=>{
+      const ex=mdpState.plans[p.id],dec=Object.keys(p.overrides||{}).length,ap=Object.values(p.catApprovals||{}).filter(a=>a&&a.approved).length;
+      return`<div class="mdp-histplan"><div><b>${E(p.name)}</b><div class="mdp-dim">${dec} decision${dec===1?'':'s'} · ${ap} categor${ap===1?'y':'ies'} approved · ${(p.offers||[]).length} offer${(p.offers||[]).length===1?'':'s'}${ex?' · now: '+Object.keys(ex.overrides||{}).length+' decisions, '+Object.values(ex.catApprovals||{}).filter(a=>a&&a.approved).length+' approved':''}</div></div>
+        <div class="mdp-histact"><button class="mdp-btn mdp-btn-sm mdp-btn-go" onclick="mdpHistRestore('${E(p.id)}','copy')" title="Adds it as a new sale; nothing you have now is touched">Restore as a copy</button>${ex?`<button class="mdp-btn mdp-btn-sm mdp-btn-ghost" onclick="mdpHistRestore('${E(p.id)}','replace')" title="Swaps your current version of this sale for this one">Replace current</button>`:''}</div></div>`;}).join('')||'<div class="mdp-dim">No active sales in this version.</div>'}`;
+    foot=`<button class="mdp-btn mdp-btn-ghost" onclick="mdpHistBack()">‹ Back</button><button class="mdp-btn mdp-btn-ghost" onclick="mdpHistClose()">Close</button>`;
+  }
+  return`<div class="mdp-modal" onclick="if(event.target===this)mdpHistClose()"><div class="mdp-dlg"><div class="mdp-dlghead"><b>Version history</b><button class="mdp-chv2" onclick="mdpHistClose()">✕</button></div><div class="mdp-dlgbody">${body}</div><div class="mdp-dlgfoot">${foot}</div></div></div>`;
+}
+
 /* ── Send To Tuesday ──
    Tuesday has several Sales Promotions, so each plan is LINKED to one of them (saved on the plan, so it follows you to every device) and sending always goes there.
    Sending posts the plan (the same rows as the Tuesday CSV) through this site's Netlify function (send-to-tuesday, which holds Tuesday's key) and REPLACES that
@@ -8501,7 +8580,7 @@ function renderMarkdownPlanner(){
     ${live.length>1?`<button class="mdp-act" onclick="mdpArchivePlan()">Archive</button>`:''}
     ${archived.length?`<button class="mdp-act" onclick="mdpToggleArchived()">Archived (${archived.length})</button>`:''}${archList}</div>`;
 
-  const titleBar=`<div class="mdp-top"><div class="mdp-logo">🏷️</div><div style="flex:1;min-width:260px"><div class="mdp-title">Markdown Planner</div><div class="mdp-tsub">Plan and allocate markdowns by category. All eligible products are included in the sale (except GWP items).</div></div><div class="mdp-fresh">${fresh}</div><button class="mdp-btn mdp-btn-sm" title="Make this device's sale plans the current version everywhere — overwrites the other versions (asks first)" onclick="mdpForceSave()">💾 Save</button><button class="mdp-btn mdp-btn-ghost mdp-btn-sm" onclick="mdpToggleHelp()">? How this works</button></div>`;
+  const titleBar=`<div class="mdp-top"><div class="mdp-logo">🏷️</div><div style="flex:1;min-width:260px"><div class="mdp-title">Markdown Planner</div><div class="mdp-tsub">Plan and allocate markdowns by category. All eligible products are included in the sale (except GWP items).</div></div><div class="mdp-fresh">${fresh}</div><button class="mdp-btn mdp-btn-ghost mdp-btn-sm" title="Go back to an earlier version of your sales (kept in the cloud)" onclick="mdpHistOpen()">🕘 History</button><button class="mdp-btn mdp-btn-sm" title="Make this device's sale plans the current version everywhere — overwrites the other versions (asks first)" onclick="mdpForceSave()">💾 Save</button><button class="mdp-btn mdp-btn-ghost mdp-btn-sm" onclick="mdpToggleHelp()">? How this works</button></div>`;
 
   const capW=plan.categories.filter(c=>c.groupWarn).map(c=>`${c.category}: Group B (${c.groupB}%) is not deeper than Group A (${c.groupA}%) — both levels were set by you.`);
   const warnAll=val.warnings.concat(capW);
@@ -14871,6 +14950,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.9.5 — SALE SAVING, STAGE 1: SAFER AND VISIBLE (Brendan: 'sketchy and unreliable'). Cloud side (markdown-plans-store): (1) saves are now ATOMIC — the write itself is conditional on the stored copy's ETag, so two devices saving in the same instant can't both pass the revision check (the loser is told to merge); (2) a save that would DROP a sale the cloud already has is refused (sales are archived, never deleted); (3) VERSION HISTORY — a snapshot of the sales from before each burst of edits (at most one every 5 minutes, all of the last 48 hours, then one a day for 30 days), listed with how many decisions / approvals each sale had. App: (4) a 🕘 History button — pick a version, then restore a sale from it as a COPY (safe default) or replace the current one (what you replace stays in history); restoring is an ordinary save. (5) Not being saved is now LOUD: a red banner with Retry (naming the time the unsaved changes began and the reason the cloud gave) instead of a quiet pill, the pill says 'Not saved to cloud', and closing the tab with unsaved changes asks first. MarkdownPlans.restoreFromVersion + tests.
 // v3.9.4 — MARKDOWN PLANNER UX, STEP 2: CATEGORY STRATEGY IS FASTER TO WORK IN. (1) Each product's discount is now one-click: pills for every allowed level (20 / 30 / 40 / 50), the current one filled in (outlined when it's your own decision — click it again to hand it back to the planner), a small tag showing its group (A / B / C / On order / special / Not in sale), and a '⋯' menu for the rest (move to a group, take out of the sale, reset). (2) Inside an open category, 'Approve' and 'Approve & next ›' sit in its header — the second approves it and opens the next one waiting, so you can work straight down the list. (3) The bulk bar now appears at the TOP of the table, only while products are ticked, and stays in view as you scroll; it has the same one-click discount pills plus group, offer and 'More…'. Same decisions and numbers as before — only the controls changed.
 // v3.9.3 — MARKDOWN PLANNER UX, STEP 1: ONE STEP AT A TIME UNDER A STICKY HEADER (Brendan: 'a bit clunky' — I'm in your hands). The nine sections no longer stack in one very long page. The step buttons are now real tabs: pick Setup / GWP / Special Buys / Not on Sale / Category Strategy / Mid-Sale Offers / Summary / Financials / Export and only that step shows (your last step is remembered on this device; first time it opens on Category Strategy). A header that stays put while you scroll shows the tabs, each with a small status badge (✓ done / ! needs attention / counts like 7/19 categories approved), the live numbers (categories approved, products on sale, units in the sale, effective discount, forecast revenue) and the autosave status; a switch on the right returns to the old long page ('All steps', with Collapse all / Expand all). Because only the shown step is built, redraws are lighter too. No planner logic changed.
 // v3.9.2 — ORDER PRIORITIES > CATEGORY: A SHORT KEY ABOVE THE TABLE (Brendan: unsure whether the red or the black Order qty numbers are what needs ordering). One line sits above the table: 'Red = units short, order this' and 'Black = covered (no action)'. Category view only (Product view lists just the short lines, so everything there is red). No figures or colours changed.

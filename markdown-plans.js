@@ -151,6 +151,24 @@
     return Object.values(state.plans).filter(p => p.id !== exceptPlanId && !p.archived && p.tuesday && p.tuesday.saleId === saleId);
   }
 
+  // Bring a sale back from an older version. 'copy' adds it as a new sale (named "<name> (restored <label>)", not linked to Tuesday, nothing current is touched);
+  // 'replace' swaps the current sale of the same id for it (keeping its Tuesday link), stamped newer than both so every device takes it.
+  function restoreFromVersion(state, oldPlan, mode, label, now, idGen) {
+    if (!oldPlan || !oldPlan.id) return state;
+    const t = now || Date.now(), s = clone(state), p = clone(oldPlan);
+    if (mode === 'replace' && s.plans[oldPlan.id]) {
+      const cur = s.plans[oldPlan.id];
+      p.rev = Math.max(cur.rev || 0, p.rev || 0) + 1; p.updatedTs = Math.max(t, cur.updatedTs || 0, p.updatedTs || 0) + 1;
+      p.archived = false; p.tuesday = cur.tuesday || null;
+      s.plans[p.id] = p; if (!s.order.includes(p.id)) s.order.push(p.id); s.activeId = p.id;
+      return s;
+    }
+    p.id = idGen ? idGen() : defaultId(t); p.name = uniqueName(s, String(p.name || 'Sale') + ' (restored' + (label ? ' ' + label : '') + ')');
+    p.rev = 1; p.createdTs = t; p.updatedTs = t; p.archived = false; p.tuesday = null;
+    s.plans[p.id] = p; s.order.push(p.id); s.activeId = p.id;
+    return s;
+  }
+
   function uniqueName(state, name, exceptId) {
     const base = String(name || 'Sale').trim() || 'Sale';
     const taken = new Set(Object.values(state.plans).filter(p => p.id !== exceptId).map(p => p.name.toLowerCase()));
@@ -1245,6 +1263,6 @@
     parseDay, durationDays, newPlan, createState, migrate, uniqueName, addPlan, duplicatePlan,
     renamePlan, setActive, archivePlan, restorePlan, cleanLevels, updatePlan, engineSettings, validatePlan,
     EXCLUDE_REASONS, VIEWS, sanitizeOverride, setOverrides, clearOverrides, overrideStats, buildReview,
-    buildTuesdayCsv, TUESDAY_COLUMNS, setTuesdayLink, recordTuesdaySend, plansLinkedTo, sanitizeTuesday, SPECIAL_KINDS, GWP_KINDS, NOS_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setSectionException, applyExceptions, setGwpQty, setGwpThreshold, lyWindow, lyUnitsByCategory, lyRevenueByCategory, buildForecast, addDays, demandScenarios, forecastConfidence, crossCheck, scenarioLevels, commercialSummary, addSnapshot, removeSnapshot, mergeStates, forceOverwrite, resolveSyncConflict, isPristine, planInputRules, buildSummary, setReviewed, addNosStyles, addNosException, removeNosException, resolveNotOnSale, nosConflicts, categorySignature, OFFER_TYPES, BUNDLE_MODES, newOffer, sanitizeOffer, addOffer, updateOffer, duplicateOffer, deleteOffer, moveOffer, addOfferSelection, removeOfferSelection, setOfferException, resolveOfferConflict, resolveOffer, offerPricing, bundleText, offerConflicts, validateOffer, offerStatus, EXPORT_COLUMNS, toCsv, buildInitialExport, buildOfferExport, exportTitle, CHECKLIST, newExportRecord, addExportRecord, setMapping, defaultMappings, approveCategory, reopenCategory, releaseAllocation, refreshSuggestions, isApproved, frozenAllocs, categoryRows, approvalProgress, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
+    buildTuesdayCsv, TUESDAY_COLUMNS, setTuesdayLink, recordTuesdaySend, restoreFromVersion, plansLinkedTo, sanitizeTuesday, SPECIAL_KINDS, GWP_KINDS, NOS_KINDS, norm, sanitizeSelection, addSelection, removeSelection, setSpecialPct, setSectionException, applyExceptions, setGwpQty, setGwpThreshold, lyWindow, lyUnitsByCategory, lyRevenueByCategory, buildForecast, addDays, demandScenarios, forecastConfidence, crossCheck, scenarioLevels, commercialSummary, addSnapshot, removeSnapshot, mergeStates, forceOverwrite, resolveSyncConflict, isPristine, planInputRules, buildSummary, setReviewed, addNosStyles, addNosException, removeNosException, resolveNotOnSale, nosConflicts, categorySignature, OFFER_TYPES, BUNDLE_MODES, newOffer, sanitizeOffer, addOffer, updateOffer, duplicateOffer, deleteOffer, moveOffer, addOfferSelection, removeOfferSelection, setOfferException, resolveOfferConflict, resolveOffer, offerPricing, bundleText, offerConflicts, validateOffer, offerStatus, EXPORT_COLUMNS, toCsv, buildInitialExport, buildOfferExport, exportTitle, CHECKLIST, newExportRecord, addExportRecord, setMapping, defaultMappings, approveCategory, reopenCategory, releaseAllocation, refreshSuggestions, isApproved, frozenAllocs, categoryRows, approvalProgress, setGroupLevel, clearGroupLevels, resolveSelections, splitGwpOverlap, gwpConflicts, gwpEconomics,
   };
 });

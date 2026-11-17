@@ -775,5 +775,20 @@ assert.deepEqual(P.buildForecast([], {}, 90).totals.demand, 0);
   const old = JSON.parse(JSON.stringify(st)); delete old.plans[id].tuesday; assert.equal(P.migrate(old, null).plans[id].tuesday, null);   // plans saved before this existed load as not linked
   old.plans[id].tuesday = { saleId: 'x' }; assert.equal(P.migrate(old, null).plans[id].tuesday, null);              // junk is dropped
 }
+// ── Restore a sale from an older version: as a copy (safe) or replacing the current one ──
+{
+  let st = P.createState(1, idGen); const id = st.activeId;
+  st = P.renamePlan(st, id, 'Black Friday', 2); const old = JSON.parse(JSON.stringify(st.plans[id])); old.overrides = { p1: {}, p2: {} };
+  st = P.setTuesdayLink(st, id, { saleId: '8e04a392-4d0e-42ff-9f34-04212380fa35', saleName: 'BF 2026' }, 3);
+  const cp = P.restoreFromVersion(st, old, 'copy', '14 Oct, 3:41 pm', 10, idGen); const cid = cp.activeId;
+  assert.notEqual(cid, id); assert.equal(cp.plans[cid].name, 'Black Friday (restored 14 Oct, 3:41 pm)'); assert.equal(Object.keys(cp.plans[cid].overrides).length, 2); assert.equal(cp.plans[cid].tuesday, null);
+  assert.deepEqual(cp.plans[id], st.plans[id]);   // the current sale is untouched
+  assert.deepEqual(cp.order, [id, cid]); assert.equal(Object.keys(st.plans).length, 1);                           // the input state is not mutated
+  const rp = P.restoreFromVersion(st, old, 'replace', 'x', 10, idGen); assert.equal(Object.keys(rp.plans).length, 1); assert.equal(Object.keys(rp.plans[id].overrides).length, 2);
+  assert.ok(rp.plans[id].rev > st.plans[id].rev && rp.plans[id].updatedTs > st.plans[id].updatedTs);              // newer than both, so every device takes it
+  assert.equal(rp.plans[id].tuesday.saleName, 'BF 2026');                                                         // the Tuesday link stays with the current sale
+  const gone = JSON.parse(JSON.stringify(old)); gone.id = 'zzz'; const rg = P.restoreFromVersion(st, gone, 'replace', 'x', 10, idGen); assert.equal(Object.keys(rg.plans).length, 2);   // nothing to replace: it comes back as a sale of its own
+  assert.strictEqual(P.restoreFromVersion(st, null, 'copy', 'x'), st);
+}
 console.log('markdown plans tests: all passed');
 })();
