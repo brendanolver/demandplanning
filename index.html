@@ -997,6 +997,13 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
 .mdp-sync.ok{color:#15803d;border-color:#bbf7d0;background:#f0fdf4;}.mdp-sync.wait{color:#6b7280;}.mdp-sync.off{color:#b45309;border-color:#fde68a;background:#fffbeb;}.mdp-sync.bad{color:#b91c1c;border-color:#fecaca;background:#fff1f2;}
 /* v3.6.3: per-product mid-sale offer control beside the discount dropdown */
 .mdp-rvt td.mdp-ap{white-space:nowrap!important;}.mdp-apcell>*{flex:0 0 auto;}.mdp-apcell .mdp-dsel{flex:1 1 130px;min-width:110px;}.mdp-osel{flex:0 0 auto;width:118px;max-width:150px;font-size:11.5px;padding:3px 6px;color:#6b7280;text-overflow:ellipsis;}.mdp-osel.mdp-inoffer{color:#0a66e8;border-color:#b9d3fb;background:#eef5ff;font-weight:600;}
+/* v3.9.7: calmer banners, group colour bar on rows, toast */
+.mdp-warn{background:#fffdf6!important;border:1px solid #f1e4bd!important;border-left:3px solid #f59e0b!important;color:#7c5a10!important;}
+.mdp-err{background:#fffafa!important;border:1px solid #f3d3d3!important;border-left:3px solid #ef4444!important;color:#9f1d1d!important;}
+.mdp-gl{box-shadow:inset 3px 0 0 #d1d5db;}.mdp-gl-a{box-shadow:inset 3px 0 0 #3b82f6;}.mdp-gl-b{box-shadow:inset 3px 0 0 #8b5cf6;}.mdp-gl-c{box-shadow:inset 3px 0 0 #f59e0b;}.mdp-gl-x{box-shadow:inset 3px 0 0 #9ca3af;}.mdp-gl-o,.mdp-gl-s{box-shadow:inset 3px 0 0 #a78bfa;}.mdp-gl-out{box-shadow:inset 3px 0 0 #ef4444;}
+#mdp-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:1200;max-width:min(680px,92vw);}
+.mdp-toastb{display:flex;align-items:flex-start;gap:12px;background:#111827;color:#fff;border-radius:12px;padding:10px 14px;font-size:12.5px;line-height:1.45;box-shadow:0 10px 30px rgba(0,0,0,.28);}
+.mdp-toastb button{border:none;background:transparent;color:#9ca3af;cursor:pointer;font-size:13px;padding:0 0 0 6px;}.mdp-toastb button:hover{color:#fff;}
 /* v3.9.5: version history dialog */
 .mdp-histrow{display:flex;gap:16px;align-items:flex-start;width:100%;text-align:left;border:none;border-bottom:1px solid #eef0f5;background:#fff;padding:10px 14px;cursor:pointer;font-family:'Inter',sans-serif;font-size:12.5px;color:#111827;}
 .mdp-histrow:hover{background:#f4f8ff;}.mdp-histwhen{min-width:150px;font-weight:600;}
@@ -2563,12 +2570,12 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.9.6"></script>
-<script src="markdown-plans.js?v=3.9.6"></script>
-<script src="sales-cadence-pdf.js?v=3.9.6"></script>
-<script src="date-range.js?v=3.9.6"></script>
-<script src="version-check.js?v=3.9.6"></script>
-<script src="todays-margin.js?v=3.9.6"></script>
+<script src="markdown-engine.js?v=3.9.7"></script>
+<script src="markdown-plans.js?v=3.9.7"></script>
+<script src="sales-cadence-pdf.js?v=3.9.7"></script>
+<script src="date-range.js?v=3.9.7"></script>
+<script src="version-check.js?v=3.9.7"></script>
+<script src="todays-margin.js?v=3.9.7"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2602,7 +2609,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.9.6';
+const APP_VERSION='v3.9.7';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -7187,6 +7194,26 @@ function mdpOoCells(oo,cat,hasEnd){
 let mdpRev={q:'',category:'',collection:'',month:[],sugg:'',view:'all',core:'all',sort:'soh',dir:'',flat:true,compact:true};   // flat = one row per product/colour
 const mdpSel=new Set(),mdpOpenStyles=new Set();
 const MDP_VIEW_KEY='wndrr_mdp_view_v1',MDP_STEP_KEY='wndrr_mdp_step_v1';
+const MDP_PREFS_KEY='wndrr_mdp_prefs_v1';let mdpPrefsLoaded=false,mdpPrefsLast='';
+function mdpLoadPrefs(){
+  mdpPrefsLoaded=true;
+  try{
+    const o=JSON.parse(localStorage.getItem(MDP_PREFS_KEY)||'null');if(!o||typeof o!=='object')return;
+    if(typeof o.compact==='boolean')mdpRev.compact=o.compact;
+    if(typeof o.flat==='boolean')mdpRev.flat=o.flat;
+    if(typeof o.sort==='string'&&MDP_SORT_OPTS.some(x=>x[0]===o.sort||x===o.sort))mdpRev.sort=o.sort;
+    if(o.dir==='asc'||o.dir==='desc'||o.dir==='')mdpRev.dir=o.dir;
+    if(['all','core','noncore'].includes(o.core))mdpRev.core=o.core;
+    for(const k of ['sug','app']){const c=o.catSort&&o.catSort[k];if(c&&typeof c.k==='string'&&MDP_CAT_KEYS[c.k]){mdpCatSort[k].k=c.k;mdpCatSort[k].dir=c.dir==='asc'||c.dir==='desc'?c.dir:'';}}
+    if(o.panels&&typeof o.panels.sug==='boolean')mdpPanels.sug=o.panels.sug;if(o.panels&&typeof o.panels.app==='boolean')mdpPanels.app=o.panels.app;
+  }catch(e){}
+}
+function mdpSavePrefs(){
+  try{
+    const v=JSON.stringify({compact:mdpRev.compact,flat:mdpRev.flat,sort:mdpRev.sort,dir:mdpRev.dir,core:mdpRev.core,catSort:{sug:mdpCatSort.sug,app:mdpCatSort.app},panels:{sug:mdpPanels.sug,app:mdpPanels.app}});
+    if(v!==mdpPrefsLast){mdpPrefsLast=v;localStorage.setItem(MDP_PREFS_KEY,v);}
+  }catch(e){}
+}
 function mdpPref(k,d){try{const v=localStorage.getItem(k);return v==null?d:v;}catch(e){return d;}}
 function mdpSetPref(k,v){try{localStorage.setItem(k,String(v));}catch(e){}}
 let mdpView=mdpPref(MDP_VIEW_KEY,'tabs')==='all'?'all':'tabs',mdpStep=Math.min(9,Math.max(1,parseInt(mdpPref(MDP_STEP_KEY,'5'))||5));   // 'tabs' = one step at a time under a sticky header; 'all' = the long page
@@ -7239,6 +7266,16 @@ function mdpFiltersActive(){return !!(mdpRev.q||mdpRev.collection||mdpRev.month.
 function mdpResetFilters(){Object.assign(mdpRev,{q:'',category:'',collection:'',month:[],sugg:'',view:'all',core:'all'});renderMarkdownPlanner();}
 function mdpToggleStyle(key){if(mdpOpenStyles.has(key))mdpOpenStyles.delete(key);else mdpOpenStyles.add(key);mdpRenderReview(true);}
 function mdpNote(text){mdpNoteMsg=text;renderMarkdownPlanner();}
+// Show (then clear) the pending message as a toast at the bottom of the screen: it stays long enough to read (longer for longer text), and ✕ closes it.
+let _mdpToastT=null;
+function mdpToastFlush(){
+  const t=mdpNoteMsg;if(!t)return;mdpNoteMsg=null;
+  let h=document.getElementById('mdp-toast');
+  if(!h){h=document.createElement('div');h.id='mdp-toast';document.body.appendChild(h);}
+  h.innerHTML=`<div class="mdp-toastb"><span>ⓘ ${mdpEsc(t)}</span><button onclick="mdpToastClose()" title="Dismiss">✕</button></div>`;
+  clearTimeout(_mdpToastT);_mdpToastT=setTimeout(mdpToastClose,Math.min(20000,5000+String(t).length*70));
+}
+function mdpToastClose(){clearTimeout(_mdpToastT);const h=document.getElementById('mdp-toast');if(h)h.innerHTML='';}
 // Tick a row; shift-click ticks (or unticks) the whole range since the last click.
 function mdpSelClick(ev,i){
   const on=ev.target.checked;
@@ -7521,7 +7558,7 @@ function mdpProdTable(groups,o){
   const cell=(k,it,child)=>{
     const p=it.row.p,m=it.row.m,f=it.final,i=it.__i;
     switch(k){
-      case'c1':return ro?'<td class="mdp-c1"></td>':`<td class="mdp-c1"><input type="checkbox" ${mdpSel.has(p.id)?'checked':''} onclick="mdpSelClick(event,${i})"></td>`;
+      case'c1':{const gc=f.pct==null?'out':(p.blanket&&f.action==='S')?'o':f.action==='S'?'s':String(it.group||'x').toLowerCase();return ro?`<td class="mdp-c1 mdp-gl mdp-gl-${gc}"></td>`:`<td class="mdp-c1 mdp-gl mdp-gl-${gc}"><input type="checkbox" ${mdpSel.has(p.id)?'checked':''} onclick="mdpSelClick(event,${i})"></td>`;}
       case'name':return`<td class="l mdp-nm" title="${mdpEsc(p.name+(p.colour?' — '+p.colour:''))}">${child?'<span class="mdp-ind"></span>':''}${mdpEsc(p.name)}${p.colour?' — '+mdpEsc(p.colour):''}${p.isDraft?' <span class="mdp-draftp" title="Draft in Shopify — shown because it has units on order">DRAFT</span>':''}</td>`;
       case'parent':return`<td class="mdp-dim mdp-xc">${mdpEsc(p.parentStyle||p.style)}</td>`;
       case'month':return`<td class="l mdp-dim mdp-xmd">${mdpEsc(p.deliveryMonth||'—')}</td>`;
@@ -8004,7 +8041,7 @@ function mdpCategoryStrategy(plan,oo,hasEnd,pl,rows){
       <label class="mdp-chk"><input type="checkbox" ${mdpRev.flat?'':'checked'} onchange="mdpRevSet('flat',!this.checked)"> Group colours by style</label><button class="mdp-btn mdp-btn-sm mdp-btn-ghost" onclick="mdpCollapseCats()" title="Close every open category">⌃ Collapse all categories</button>
       <span class="mdp-fchips">${vchip('all','All products',nonGwp.length,'g')}${vchip('overridden','Manually changed',nonGwp.filter(i=>i.override).length,'p')}${vchip('attention','Needs attention',plan.items.filter(i=>i.exception||i.blocked||i.overCap).length,'r')}
       <button class="mdp-btn mdp-btn-sm mdp-btn-ghost" onclick="mdpResetAll()"${plan.totals.overridden?'':' disabled'} title="Remove every discount and exclusion you set on individual products">Reset all</button><button class="mdp-btn mdp-btn-sm mdp-btn-ghost" onclick="mdpResetFilters()">Reset filters</button></span></div>`;
-  const note=mdpNoteMsg?`<div class="mdp-warn" style="margin-bottom:12px;">ⓘ ${mdpEsc(mdpNoteMsg)}</div>`:'';
+  const note='';   // messages now appear as a toast (mdpToastFlush), on whichever step you're on
   return note+`<div class="mdp-pcards">${card('◷','blu','Categories remaining',prog.catsRemaining,prog.catsTotal)}${card('✓','grn','Categories approved',prog.catsApproved,prog.catsTotal)}${card('◈','blu','Products/colours remaining',prog.prodsRemaining,prog.prodsTotal)}${card('◈','grn','Products/colours approved',prog.prodsApproved,prog.prodsTotal)}</div>
     ${fbar}<div id="mdp-cat-body">${mdpCategoryBody()}</div>`;
 }
@@ -8532,6 +8569,7 @@ function renderMarkdownPlanner(){
   if(!mdpEngineOk()){root.innerHTML='<div class="mdp-card">The markdown engine failed to load (markdown-engine.js) — switch to Classic and refresh.</div>';return;}
   if(!allVariantRows||!allVariantRows.length){root.innerHTML='<div class="mdp-card"><b>No data loaded</b><div class="mdp-sub">Load your data first, then come back to this tab.</div></div>';return;}
   const scrollSnap=mdpScrollSnap();
+  if(!mdpPrefsLoaded)mdpLoadPrefs();
   mdpLoadState();
   const pl=mdpPlan();
   const S=MarkdownPlans.engineSettings(pl);
@@ -8677,6 +8715,7 @@ function renderMarkdownPlanner(){
   const shown=TABS?secs['ABCDEFGHI'[mdpStep-1]]():'ABCDEFGHI'.split('').map(k=>secs[k]()).join('');
   root.innerHTML=titleBar+mdpSyncBanner()+help+strip+sticky+shown+mdpExportModal();
   mdpScrollRestore(scrollSnap);
+  mdpSavePrefs();mdpToastFlush();
   if(mdpRenaming){const el=document.getElementById('mdp-rename');if(el){el.focus();el.select();}}
 }
 function round1(v){return Math.round(v*10)/10;}
@@ -14950,6 +14989,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.9.7 — MARKDOWN PLANNER UX, STEP 3: REMEMBERS YOUR VIEW, CLEARER GROUPS, QUIETER MESSAGES. (1) The tables remember how you like them on this device — Compact / All columns, the sort, the grouping, the core filter, the category list sort, and whether the Suggested / Approved panels are open. (2) Every product row has a thin colour bar for its group (A blue, B purple, C amber, custom grey, on-order / special violet, not in sale red), matching the group tags. (3) Messages such as 'added to offer', 'restored', 'can't be approved yet' are now a short toast at the bottom (it stays longer for longer text, ✕ closes it) and show on whatever step you're on, instead of an amber banner that sat in Category Strategy until your next change. (4) Warning and error banners are calmer: a thin colour edge on a near-white card instead of a full red or amber block. No numbers or decisions changed.
 // v3.9.6 — HOTFIX for v3.9.5: the cloud store asked Netlify Blobs for 'strong' consistency, which Netlify's function environment doesn't support here, so every cloud read failed (HTTP 500) and sales weren't syncing. Back to the default read mode; saves are still atomic (the conditional write is checked by the Blobs API itself), and history and the delete guard are unchanged.
 // v3.9.5 — SALE SAVING, STAGE 1: SAFER AND VISIBLE (Brendan: 'sketchy and unreliable'). Cloud side (markdown-plans-store): (1) saves are now ATOMIC — the write itself is conditional on the stored copy's ETag, so two devices saving in the same instant can't both pass the revision check (the loser is told to merge); (2) a save that would DROP a sale the cloud already has is refused (sales are archived, never deleted); (3) VERSION HISTORY — a snapshot of the sales from before each burst of edits (at most one every 5 minutes, all of the last 48 hours, then one a day for 30 days), listed with how many decisions / approvals each sale had. App: (4) a 🕘 History button — pick a version, then restore a sale from it as a COPY (safe default) or replace the current one (what you replace stays in history); restoring is an ordinary save. (5) Not being saved is now LOUD: a red banner with Retry (naming the time the unsaved changes began and the reason the cloud gave) instead of a quiet pill, the pill says 'Not saved to cloud', and closing the tab with unsaved changes asks first. MarkdownPlans.restoreFromVersion + tests.
 // v3.9.4 — MARKDOWN PLANNER UX, STEP 2: CATEGORY STRATEGY IS FASTER TO WORK IN. (1) Each product's discount is now one-click: pills for every allowed level (20 / 30 / 40 / 50), the current one filled in (outlined when it's your own decision — click it again to hand it back to the planner), a small tag showing its group (A / B / C / On order / special / Not in sale), and a '⋯' menu for the rest (move to a group, take out of the sale, reset). (2) Inside an open category, 'Approve' and 'Approve & next ›' sit in its header — the second approves it and opens the next one waiting, so you can work straight down the list. (3) The bulk bar now appears at the TOP of the table, only while products are ticked, and stays in view as you scroll; it has the same one-click discount pills plus group, offer and 'More…'. Same decisions and numbers as before — only the controls changed.
