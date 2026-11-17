@@ -441,6 +441,7 @@ td{padding:10px 14px;font-size:12.5px;color:var(--text);vertical-align:middle;}
 .op-table tbody tr:nth-child(even){background:#f4f5f7;}
 .op-table tr.op-total-row{background:#e8eaed!important;font-weight:700;border-top:2px solid #1a2740;}
 .op-summary-table{margin-bottom:8px;}
+.op-key{display:flex;flex-wrap:wrap;gap:6px 22px;align-items:center;font-size:12px;color:var(--text);margin:2px 0 8px;}.op-key-i{display:inline-flex;align-items:center;gap:6px;}.op-key-dot{display:inline-block;width:9px;height:9px;border-radius:50%;}
 /* Sticky ID columns — Category view sticks Category+SOH, Product view's detail
    table sticks Product+Colour+SOH, so those stay visible while scrolling
    through however many month columns the window covers. Left offsets are
@@ -2529,12 +2530,12 @@ button.mdp-fchip{border:1px solid transparent;font-family:'Inter',sans-serif;cur
     </div>
   </div>
 
-<script src="markdown-engine.js?v=3.9.1"></script>
-<script src="markdown-plans.js?v=3.9.1"></script>
-<script src="sales-cadence-pdf.js?v=3.9.1"></script>
-<script src="date-range.js?v=3.9.1"></script>
-<script src="version-check.js?v=3.9.1"></script>
-<script src="todays-margin.js?v=3.9.1"></script>
+<script src="markdown-engine.js?v=3.9.2"></script>
+<script src="markdown-plans.js?v=3.9.2"></script>
+<script src="sales-cadence-pdf.js?v=3.9.2"></script>
+<script src="date-range.js?v=3.9.2"></script>
+<script src="version-check.js?v=3.9.2"></script>
+<script src="todays-margin.js?v=3.9.2"></script>
 <script>
 /* ── TOUCH SCROLL FIX for tables on iPad/mobile ── */
 (function(){
@@ -2568,7 +2569,7 @@ document.addEventListener('click',e=>{
 });
 
 /* ── VERSION ── */
-const APP_VERSION='v3.9.1';
+const APP_VERSION='v3.9.2';
 const PIPELINE_PROXY='/pipeline-edge-proxy';
 document.addEventListener('DOMContentLoaded',()=>{
   const badge=document.getElementById('app-version-badge');
@@ -11790,7 +11791,9 @@ function opRenderReport(){
     ?`<div class="op-note"><p>Every selected category is listed above, including ones that don't need ordering — those show their surplus cover in black, while categories that do need ordering show the units short in red; only red figures require action. Figures are drawn directly from live Planning data; "Budget" reflects last year's sales plus budgeted increases, not a confirmed sales number.</p></div>`
     :`<div class="op-note"><p>Overstocked lines and colour-mix imbalances (e.g. surplus sitting in the wrong colourway of a style that's also short) aren't shown in this document — this is an ordering list only. Figures are drawn directly from the demand planning export; "Budget" reflects last year's sales plus budgeted increases, not a confirmed sales number.</p></div>`;
 
-  body.innerHTML=headerHtml+summaryHtml+catTableHtml+methodologyHtml+detailSections+closingHtml;
+  // Category view lists every category, so say what the two colours in Order qty mean right above the table (Product view only lists short lines, all red).
+  const keyHtml=isCatMode?`<div class="op-key"><span class="op-key-i"><i class="op-key-dot" style="background:var(--red);"></i><b style="color:var(--red);">Red</b> = units short, order this</span><span class="op-key-i"><i class="op-key-dot" style="background:var(--text);"></i><b>Black</b> = covered (no action)</span></div>`:'';
+  body.innerHTML=headerHtml+summaryHtml+keyHtml+catTableHtml+methodologyHtml+detailSections+closingHtml;
   if(printBtn)printBtn.style.display='flex';
   opApplyStickyOffsets();
 }
@@ -14795,6 +14798,7 @@ function exportCSV(){
 // v2.2.20 — Sales Cadence > Compare view: totals row now sums SOH, On Order and ST% instead of showing "—"
 // v2.2.19 — Fix missing Margin% in product view: accumulate marginRevSum/marginCostSum across all variants (same as category view) instead of inheriting from first variant only
 // v3.1.5 — Product review table layout fix, from Brendan's screenshot (first column blown out to ~450px, other columns pushed off to the right). The table now uses a fixed layout with an explicit width per column, so the full-width Suggested / category header rows can no longer stretch column 1; Product / colour is 262px (the earlier width tweak never took effect — a later CSS rule overrode it). Long text is cut with an ellipsis (hover for the full text).
+// v3.9.2 — ORDER PRIORITIES > CATEGORY: A SHORT KEY ABOVE THE TABLE (Brendan: unsure whether the red or the black Order qty numbers are what needs ordering). One line sits above the table: 'Red = units short, order this' and 'Black = covered (no action)'. Category view only (Product view lists just the short lines, so everything there is red). No figures or colours changed.
 // v3.9.1 — SALES CADENCE: SELL-THRU % ON THE CATEGORY VIEWS (Brendan). The ST% column the Product view already has (units sold in the period ÷ (units sold + stock now)) now also appears in the Category view on the 7 days, 5 weeks and 12 weeks views and on a custom date range — not on the 12-month view, where a year of sales against today's stock isn't a useful read. It sits beside Total Sold, sorts like the Product view's, and the TOTAL row shows the overall figure (all units sold ÷ all units sold + all stock, not an average of the rows). One related fix so the figure is honest: with a Launch Date filter ticked, a category's SOH and On Order now count only those launches, matching the units sold (before, sold was narrowed to the launch but stock was the whole category's). The PDF export already printed ST% for categories and is unchanged.
 // v3.9.0 — SHOPIFY TELLS THE APP THE MOMENT AN ORDER IS PLACED (Brendan: "yes I think a webhook is a great idea"). New function netlify/functions/shopify-order-webhook.js receives Shopify's orders/create and orders/updated notifications, checks the signature (HMAC with SHOPIFY_WEBHOOK_SECRET; anything unsigned or forged is refused, and nothing from the order is stored — the notification only means "something changed"), records it, and wakes the sales sync with a new 'webhook' mode: a today-only refresh that skips the 45 s wait (2 s floor) so the order is in the feed within seconds. The 2-minute timer from v3.8.1 stays as the safety net (and still runs the 10-minute trailing refresh for refunds/cancellations). If another order arrives while a sync is mid-run, the worker goes round again (up to 4 rounds) so nothing is missed. The Shopify Sales pill's tooltip now shows when the last notification arrived, or says they are not connected. Until the secret is set and the webhook is created in Shopify, nothing changes — the endpoint just answers 503 and the timer does the work.
 // v3.8.1 — SHOPIFY SALES COME IN MUCH FASTER (Brendan: today's sales were slow to appear). Three causes, three fixes. (1) Nothing refreshed the feed unless a browser tab asked, and tabs only asked every 10 minutes and only once the server's copy was 10 minutes old — now a Netlify scheduled function (sales-sync-scheduled) pokes the sync every 2 minutes whether or not anyone has the app open, and an open tab checks every minute (and the moment you come back to it) instead of every 10. (2) Every refresh re-read ~a week of orders (about 5,600 orders, ~60 seconds) even though only today's can have changed — there is now a QUICK run that reads only today's orders (a few seconds) whenever the stored copy is 45 seconds old; the 5-day trailing refresh (which catches refunds and cancellations on recent days) still runs every 10 minutes, and at once when the shop's day rolls over so yesterday is finalised; the daily full rebuild is unchanged. (3) A failed quick/trailing run now retries after 2 minutes instead of 10 (a failed full rebuild still waits 10). Also: because data now refreshes every couple of minutes, the dashboard's filter dropdowns (Category, Status, Stock status, Discount, Sizes sold out, Month Del, Launch date) now keep what you had unticked across a refresh — before, each data refresh quietly re-ticked everything.
